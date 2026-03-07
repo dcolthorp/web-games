@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oscar's Untitled Maze Game</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <h1>Oscar's Untitled Maze Game</h1>
+      <p class="subtitle">Level 1: The Basics</p>
+
+      <section class="hud">
+        <p id="level-name">Level 1: The Basics</p>
+        <p id="status">Use arrow keys, WASD, or tap the controls.</p>
+      </section>
+
+      <div class="canvas-wrap">
+        <canvas id="maze" aria-label="Maze game canvas" role="img"></canvas>
+        <div
+          id="completion-overlay"
+          class="completion-overlay"
+          aria-hidden="true"
+        >
+          <p class="completion-title">LEVEL COMPLETE</p>
+          <div class="completion-actions">
+            <button id="try-again-btn" class="action-btn" type="button">
+              TRY AGAIN
+            </button>
+            <button id="next-level-btn" class="action-btn" type="button">
+              NEXT LEVEL
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <section class="controls" aria-label="Touch controls">
+        <button class="control-btn" data-dir="up" aria-label="Move up">↑</button>
+        <div class="control-row">
+          <button class="control-btn" data-dir="left" aria-label="Move left">
+            ←
+          </button>
+          <button class="control-btn" data-dir="down" aria-label="Move down">
+            ↓
+          </button>
+          <button class="control-btn" data-dir="right" aria-label="Move right">
+            →
+          </button>
+        </div>
+        <button id="reset-btn" class="reset-btn" type="button">
+          Reset Level
+        </button>
+        <button
+          id="play-description-btn"
+          class="reset-btn hidden"
+          type="button"
+        >
+          play description again
+        </button>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
