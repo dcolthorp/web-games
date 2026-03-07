@@ -51,6 +51,9 @@
         <button id="reset-btn" class="reset-btn" type="button">
           Reset Level
         </button>
+        <button id="level-selector-btn" class="reset-btn" type="button">
+          Select Level
+        </button>
         <button
           id="play-description-btn"
           class="reset-btn hidden"
@@ -60,6 +63,22 @@
         </button>
       </section>
     </main>
+
+    <div
+      id="level-selector-overlay"
+      class="selector-overlay"
+      aria-hidden="true"
+    >
+      <div class="selector-card" role="dialog" aria-modal="true">
+        <div class="selector-header">
+          <p class="selector-title">Choose a level</p>
+          <button id="close-level-selector-btn" class="selector-close" type="button">
+            close
+          </button>
+        </div>
+        <div id="level-selector-list" class="selector-list"></div>
+      </div>
+    </div>
 
     <script type="module" src="./main.ts"></script>
   </body>

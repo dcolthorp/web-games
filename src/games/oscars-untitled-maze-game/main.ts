@@ -1,5 +1,6 @@
 import levelTwoAudioSrc from "./assets/level-2-illusions-description.m4a";
 import levelThreeAudioSrc from "./assets/level-3-illusions-2-description.m4a";
+import levelFourAudioSrc from "./assets/level-4-underdoos-description.m4a";
 
 const TILE_SIZE = 24;
 const WALL = "#";
@@ -9,6 +10,7 @@ const EXIT = "E";
 const SPIN = "O";
 const RESET = "R";
 const REVERSE = "V";
+const UNDERPASS = "U";
 
 type Tile =
   | typeof WALL
@@ -17,12 +19,19 @@ type Tile =
   | typeof EXIT
   | typeof SPIN
   | typeof RESET
-  | typeof REVERSE;
+  | typeof REVERSE
+  | typeof UNDERPASS;
 type Direction = "up" | "down" | "left" | "right";
+type Axis = "horizontal" | "vertical";
 
 interface Point {
   x: number;
   y: number;
+}
+
+interface Crossing {
+  point: Point;
+  underAxis: Axis;
 }
 
 interface Level {
@@ -34,6 +43,7 @@ interface Level {
   grid: string[];
   start: Point;
   exit: Point;
+  crossings?: Crossing[];
 }
 
 interface GameState {
@@ -43,6 +53,8 @@ interface GameState {
   player: Point;
   rotationQuarter: number;
   controlsReversed: boolean;
+  playerCrossingAxis: Axis | null;
+  playerHiddenUnderBridge: boolean;
   won: boolean;
   levelIntroPlayed: Partial<Record<number, boolean>>;
   levelIntroFinished: Partial<Record<number, boolean>>;
@@ -97,6 +109,30 @@ if (!(playDescriptionButton instanceof HTMLButtonElement)) {
 }
 const playDescriptionBtn: HTMLButtonElement = playDescriptionButton;
 
+const levelSelectorButton = document.getElementById("level-selector-btn");
+if (!(levelSelectorButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing level selector button");
+}
+const levelSelectorBtn: HTMLButtonElement = levelSelectorButton;
+
+const levelSelectorOverlayElement = document.getElementById("level-selector-overlay");
+if (!(levelSelectorOverlayElement instanceof HTMLDivElement)) {
+  throw new Error("Missing level selector overlay");
+}
+const levelSelectorOverlay: HTMLDivElement = levelSelectorOverlayElement;
+
+const closeLevelSelectorButton = document.getElementById("close-level-selector-btn");
+if (!(closeLevelSelectorButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing level selector close button");
+}
+const closeLevelSelectorBtn: HTMLButtonElement = closeLevelSelectorButton;
+
+const levelSelectorListElement = document.getElementById("level-selector-list");
+if (!(levelSelectorListElement instanceof HTMLDivElement)) {
+  throw new Error("Missing level selector list");
+}
+const levelSelectorList: HTMLDivElement = levelSelectorListElement;
+
 const completionOverlayElement = document.getElementById("completion-overlay");
 if (!(completionOverlayElement instanceof HTMLDivElement)) {
   throw new Error("Missing completion overlay");
@@ -130,17 +166,26 @@ const palette = {
   spin: "#684e04",
   reset: "#cf2b54",
   reverse: "#3f58d5",
+  underpass: "#d2b48b",
+  bridge: "#8b6b3f",
+  bridgeShadow: "rgba(53, 38, 17, 0.34)",
 };
 
 const levelAudioById = new Map<number, HTMLAudioElement>([
   [2, new Audio(levelTwoAudioSrc)],
   [3, new Audio(levelThreeAudioSrc)],
+  [4, new Audio(levelFourAudioSrc)],
 ]);
 for (const audio of levelAudioById.values()) {
   audio.preload = "auto";
 }
 
-const LEVELS: Level[] = [buildLevelOne(), buildLevelTwo(), buildLevelThree()];
+const LEVELS: Level[] = [
+  buildLevelOne(),
+  buildLevelTwo(),
+  buildLevelThree(),
+  buildLevelFour(),
+];
 
 const state: GameState = {
   levelIndex: 0,
@@ -149,6 +194,8 @@ const state: GameState = {
   player: { x: 0, y: 0 },
   rotationQuarter: 0,
   controlsReversed: false,
+  playerCrossingAxis: null,
+  playerHiddenUnderBridge: false,
   won: false,
   levelIntroPlayed: {},
   levelIntroFinished: {},
@@ -255,6 +302,51 @@ function setResetTiles(grid: Tile[][], coordinates: Point[]): void {
 
 function setReverseTiles(grid: Tile[][], coordinates: Point[]): void {
   setSpecialTiles(grid, coordinates, REVERSE);
+}
+
+function setUnderpassTiles(grid: Tile[][], coordinates: Point[]): void {
+  setSpecialTiles(grid, coordinates, UNDERPASS);
+}
+
+function axisFromDelta(dx: number, dy: number): Axis {
+  return dx !== 0 ? "horizontal" : "vertical";
+}
+
+function samePoint(a: Point, b: Point): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function isOpenTile(tile: Tile | undefined): boolean {
+  return tile !== undefined && tile !== WALL;
+}
+
+function validateCrossings(grid: Tile[][], crossings: Crossing[]): void {
+  for (const crossing of crossings) {
+    const { x, y } = crossing.point;
+    const left = isOpenTile(grid[y]?.[x - 1]);
+    const right = isOpenTile(grid[y]?.[x + 1]);
+    const up = isOpenTile(grid[y - 1]?.[x]);
+    const down = isOpenTile(grid[y + 1]?.[x]);
+
+    const horizontalThrough = left && right;
+    const verticalThrough = up && down;
+    const hasOverAxisNeighbor =
+      crossing.underAxis === "horizontal" ? up || down : left || right;
+
+    const validUnderAxis =
+      crossing.underAxis === "horizontal" ? horizontalThrough : verticalThrough;
+    const hasDiagonalNeighbor =
+      isOpenTile(grid[y - 1]?.[x - 1]) ||
+      isOpenTile(grid[y - 1]?.[x + 1]) ||
+      isOpenTile(grid[y + 1]?.[x - 1]) ||
+      isOpenTile(grid[y + 1]?.[x + 1]);
+
+    if (!validUnderAxis || !hasOverAxisNeighbor || hasDiagonalNeighbor) {
+      throw new Error(
+        `Invalid crossing at ${x},${y}. Bridges must sit on T or + intersections with a straight under-path and no diagonal neighbors.`
+      );
+    }
+  }
 }
 
 function setTile(grid: Tile[][], point: Point, tile: Tile): void {
@@ -589,6 +681,102 @@ function buildLevelThree(): Level {
   };
 }
 
+function buildLevelFour(): Level {
+  const cols = 67;
+  const rows = 35;
+  const grid = createGrid(cols, rows);
+
+  const outerHall = [
+    { x: 4, y: 4 },
+    { x: 4, y: 23 },
+    { x: 14, y: 23 },
+    { x: 14, y: 28 },
+    { x: 63, y: 28 },
+  ];
+
+  const upperRoom = [
+    { x: 4, y: 4 },
+    { x: 4, y: 3 },
+    { x: 18, y: 3 },
+    { x: 18, y: 11 },
+    { x: 12, y: 11 },
+    { x: 12, y: 17 },
+  ];
+
+  const topBridgeLoop = [
+    { x: 18, y: 3 },
+    { x: 34, y: 3 },
+    { x: 34, y: 10 },
+    { x: 23, y: 10 },
+  ];
+
+  const centerWinding = [
+    { x: 12, y: 17 },
+    { x: 27, y: 17 },
+    { x: 27, y: 13 },
+    { x: 31, y: 13 },
+    { x: 31, y: 18 },
+    { x: 38, y: 18 },
+    { x: 38, y: 14 },
+    { x: 44, y: 14 },
+    { x: 44, y: 18 },
+    { x: 48, y: 18 },
+  ];
+
+  const bridgeDrop = [
+    { x: 23, y: 10 },
+    { x: 23, y: 17 },
+  ];
+
+  const rightDescent = [
+    { x: 48, y: 18 },
+    { x: 50, y: 18 },
+    { x: 50, y: 28 },
+    { x: 63, y: 28 },
+  ];
+
+  const rightBranch = [
+    { x: 50, y: 21 },
+    { x: 63, y: 21 },
+  ];
+
+  carvePolyline(grid, outerHall, 0);
+  carvePolyline(grid, upperRoom, 0);
+  carvePolyline(grid, topBridgeLoop, 0);
+  carvePolyline(grid, centerWinding, 0);
+  carvePolyline(grid, bridgeDrop, 0);
+  carvePolyline(grid, rightDescent, 0);
+  carvePolyline(grid, rightBranch, 0);
+
+  const crossings: Crossing[] = [
+    { point: { x: 18, y: 3 }, underAxis: "horizontal" },
+    { point: { x: 23, y: 17 }, underAxis: "horizontal" },
+    { point: { x: 50, y: 21 }, underAxis: "vertical" },
+  ];
+  setUnderpassTiles(
+    grid,
+    crossings.map((crossing) => crossing.point)
+  );
+  validateCrossings(grid, crossings);
+
+  const start = { x: 4, y: 4 };
+  const exit = { x: 63, y: 28 };
+  setTile(grid, start, START);
+  setTile(grid, exit, EXIT);
+
+  return {
+    id: 4,
+    name: "Level 4: THE UNDER-DOOS",
+    rotationOnSpin: false,
+    cols,
+    rows,
+    grid: freezeGrid(grid),
+    start,
+    exit,
+    crossings,
+  };
+}
+
 function cloneGrid(grid: string[]): Tile[][] {
   return grid.map((row) => row.split("") as Tile[]);
 }
@@ -603,8 +791,39 @@ function currentTile(x: number, y: number): Tile {
   return tile;
 }
 
+function getCrossingAt(level: Level | null, x: number, y: number): Crossing | null {
+  if (!level?.crossings) {
+    return null;
+  }
+
+  return level.crossings.find((crossing) => samePoint(crossing.point, { x, y })) ?? null;
+}
+
 function isWalkable(x: number, y: number): boolean {
   return inBounds(state.grid, x, y) && currentTile(x, y) !== WALL;
+}
+
+function updatePlayerVisibility(): void {
+  const crossing = getCrossingAt(state.level, state.player.x, state.player.y);
+  state.playerHiddenUnderBridge =
+    crossing !== null &&
+    state.playerCrossingAxis !== null &&
+    crossing.underAxis === state.playerCrossingAxis;
+}
+
+function canMoveTo(nx: number, ny: number, dx: number, dy: number): boolean {
+  if (!isWalkable(nx, ny)) {
+    return false;
+  }
+
+  const axis = axisFromDelta(dx, dy);
+  const currentCrossing = getCrossingAt(state.level, state.player.x, state.player.y);
+
+  if (currentCrossing && state.playerCrossingAxis && axis !== state.playerCrossingAxis) {
+    return false;
+  }
+
+  return true;
 }
 
 function showDescriptionReplayButton(): void {
@@ -670,6 +889,8 @@ function loadLevel(index: number): void {
   state.won = false;
   state.rotationQuarter = 0;
   state.controlsReversed = false;
+  state.playerCrossingAxis = null;
+  state.playerHiddenUnderBridge = false;
 
   const sceneWidth = level.cols * TILE_SIZE;
   const sceneHeight = level.rows * TILE_SIZE;
@@ -683,6 +904,9 @@ function loadLevel(index: number): void {
   subtitleEl.textContent = level.name;
   statusEl.textContent = "Use arrow keys, WASD, or tap the controls.";
   hideCompletionOverlay();
+  hideLevelSelector();
+
+  updatePlayerVisibility();
 
   stopAllLevelAudio();
   handleLevelAudioOnEntry(level.id);
@@ -698,14 +922,18 @@ function tryMove(dx: number, dy: number): void {
 
   const nx = state.player.x + dx;
   const ny = state.player.y + dy;
-  if (!isWalkable(nx, ny)) {
+  if (!canMoveTo(nx, ny, dx, dy)) {
     return;
   }
 
   state.player.x = nx;
   state.player.y = ny;
 
+  const moveAxis = axisFromDelta(dx, dy);
   const tile = currentTile(nx, ny);
+  const crossing = getCrossingAt(level, nx, ny);
+  state.playerCrossingAxis = crossing ? moveAxis : null;
+
   if (tile === SPIN && level.rotationOnSpin) {
     state.rotationQuarter = (state.rotationQuarter + 1) % 4;
     statusEl.textContent = "The maze spun around you.";
@@ -718,7 +946,11 @@ function tryMove(dx: number, dy: number): void {
     state.rotationQuarter = 0;
     state.controlsReversed = false;
     statusEl.textContent = "The illusions reset.";
+  } else if (tile === UNDERPASS && crossing?.underAxis === moveAxis) {
+    statusEl.textContent = "You slipped under the bridge.";
   }
+
+  updatePlayerVisibility();
 
   if (nx === level.exit.x && ny === level.exit.y) {
     state.won = true;
@@ -840,6 +1072,66 @@ function drawReverseSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: numb
   drawCtx.fill();
 }
 
+function drawUnderpassSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+
+  drawCtx.strokeStyle = "rgba(23, 32, 61, 0.12)";
+  drawCtx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+}
+
+function drawUnderpassShadow(
+  drawCtx: CanvasRenderingContext2D,
+  crossing: Crossing,
+  direction: -1 | 1,
+  distance: number
+): void {
+  const alpha = distance === 1 ? 0.78 : 0.32;
+  if (crossing.underAxis === "horizontal") {
+    const x = crossing.point.x + direction * distance;
+    const y = crossing.point.y;
+    if (!inBounds(state.grid, x, y) || currentTile(x, y) === WALL) {
+      return;
+    }
+
+    const px = x * TILE_SIZE;
+    const py = y * TILE_SIZE;
+    const startX = direction < 0 ? px + TILE_SIZE : px;
+    const endX = direction < 0 ? px : px + TILE_SIZE;
+    const shadow = drawCtx.createLinearGradient(startX, py, endX, py);
+    shadow.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
+    shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    drawCtx.fillStyle = shadow;
+    drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    return;
+  }
+
+  const x = crossing.point.x;
+  const y = crossing.point.y + direction * distance;
+  if (!inBounds(state.grid, x, y) || currentTile(x, y) === WALL) {
+    return;
+  }
+
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+  const startY = direction < 0 ? py + TILE_SIZE : py;
+  const endY = direction < 0 ? py : py + TILE_SIZE;
+  const shadow = drawCtx.createLinearGradient(px, startY, px, endY);
+  shadow.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
+  shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  drawCtx.fillStyle = shadow;
+  drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+}
+
+function drawUnderpassShadows(drawCtx: CanvasRenderingContext2D): void {
+  for (const crossing of state.level?.crossings ?? []) {
+    drawUnderpassShadow(drawCtx, crossing, -1, 1);
+    drawUnderpassShadow(drawCtx, crossing, 1, 1);
+    drawUnderpassShadow(drawCtx, crossing, -1, 2);
+    drawUnderpassShadow(drawCtx, crossing, 1, 2);
+  }
+}
+
 function drawTile(
   drawCtx: CanvasRenderingContext2D,
   x: number,
@@ -872,10 +1164,16 @@ function drawTile(
     drawResetSymbol(drawCtx, x, y);
   } else if (tile === REVERSE) {
     drawReverseSymbol(drawCtx, x, y);
+  } else if (tile === UNDERPASS) {
+    drawUnderpassSymbol(drawCtx, x, y);
   }
 }
 
 function drawPlayer(drawCtx: CanvasRenderingContext2D): void {
+  if (state.playerHiddenUnderBridge) {
+    return;
+  }
+
   const cx = state.player.x * TILE_SIZE + TILE_SIZE / 2;
   const cy = state.player.y * TILE_SIZE + TILE_SIZE / 2;
 
@@ -908,6 +1206,7 @@ function drawScene(): void {
     }
   }
 
+  drawUnderpassShadows(sceneCtx);
   drawPlayer(sceneCtx);
 }
 
@@ -924,7 +1223,46 @@ function draw(): void {
   ctx.restore();
 }
 
+function showLevelSelector(): void {
+  levelSelectorOverlay.classList.add("is-visible");
+  levelSelectorOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hideLevelSelector(): void {
+  levelSelectorOverlay.classList.remove("is-visible");
+  levelSelectorOverlay.setAttribute("aria-hidden", "true");
+}
+
+function renderLevelSelector(): void {
+  levelSelectorList.innerHTML = LEVELS.map((level, index) => {
+    const isCurrent = index === state.levelIndex;
+    const currentClass = isCurrent ? " is-current" : "";
+    return `<button class="selector-level-btn${currentClass}" type="button" data-level-index="${index}">Level ${level.id}: ${level.name.replace(/^Level \d+:\s*/, "")}</button>`;
+  }).join("");
+
+  const levelButtons = Array.from(
+    levelSelectorList.querySelectorAll<HTMLButtonElement>(".selector-level-btn")
+  );
+
+  for (const button of levelButtons) {
+    button.addEventListener("click", () => {
+      const rawIndex = button.dataset["levelIndex"];
+      const index = rawIndex ? Number.parseInt(rawIndex, 10) : Number.NaN;
+      if (Number.isNaN(index)) {
+        return;
+      }
+
+      loadLevel(index);
+    });
+  }
+}
+
 function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === "Escape") {
+    hideLevelSelector();
+    return;
+  }
+
   const key = event.key.toLowerCase();
   const moves: Record<string, readonly [number, number]> = {
     arrowup: [0, -1],
@@ -982,6 +1320,21 @@ function hideCompletionOverlay(): void {
 
 resetBtn.addEventListener("click", () => {
   loadLevel(state.levelIndex);
+});
+
+levelSelectorBtn.addEventListener("click", () => {
+  renderLevelSelector();
+  showLevelSelector();
+});
+
+closeLevelSelectorBtn.addEventListener("click", () => {
+  hideLevelSelector();
+});
+
+levelSelectorOverlay.addEventListener("click", (event) => {
+  if (event.target === levelSelectorOverlay) {
+    hideLevelSelector();
+  }
 });
 
 playDescriptionBtn.addEventListener("click", () => {

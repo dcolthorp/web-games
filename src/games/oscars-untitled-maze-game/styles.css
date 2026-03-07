@@ -133,6 +133,74 @@ h1 {
   gap: 10px;
 }
 
+.selector-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, #17203d 42%, transparent 58%);
+}
+
+.selector-overlay.is-visible {
+  display: grid;
+}
+
+.selector-card {
+  width: min(420px, 100%);
+  background: #fff9ea;
+  border: 3px solid #00000020;
+  border-radius: 16px;
+  box-shadow: 0 16px 44px #0000002b;
+  padding: 14px;
+}
+
+.selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.selector-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.selector-close,
+.selector-level-btn {
+  font: inherit;
+  border: 2px solid #00000022;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.selector-close {
+  padding: 8px 12px;
+  text-transform: lowercase;
+}
+
+.selector-list {
+  display: grid;
+  gap: 10px;
+}
+
+.selector-level-btn {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: #fff4d3;
+  font-weight: 700;
+}
+
+.selector-level-btn.is-current {
+  background: #ffd98c;
+}
+
 .control-row {
   display: flex;
   gap: 10px;
@@ -185,5 +253,9 @@ h1 {
     min-width: 62px;
     min-height: 52px;
     font-size: 1.3rem;
+  }
+
+  .selector-card {
+    padding: 12px;
   }
 }
