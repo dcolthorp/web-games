@@ -7,6 +7,28 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div id="start-menu-overlay" class="start-menu-overlay" aria-hidden="false">
+      <div class="start-menu-card" role="dialog" aria-modal="true">
+        <p class="start-menu-kicker">Oscar's Untitled Maze Game</p>
+        <h2 class="start-menu-title">Choose how you want to start</h2>
+        <p id="start-menu-message" class="start-menu-message">
+          Play starts the local levels. Create and View are reserved for future
+          online levels.
+        </p>
+        <div class="start-menu-actions" aria-label="Main menu actions">
+          <button id="create-btn" class="start-menu-btn" type="button">
+            Create
+          </button>
+          <button id="play-btn" class="start-menu-btn start-menu-btn-primary" type="button">
+            Play
+          </button>
+          <button id="view-btn" class="start-menu-btn" type="button">
+            View
+          </button>
+        </div>
+      </div>
+    </div>
+
     <main class="game-shell">
       <h1>Oscar's Untitled Maze Game</h1>
       <p class="subtitle">Level 1: The Basics</p>

@@ -97,6 +97,36 @@ if (!(subtitleElement instanceof HTMLParagraphElement)) {
 }
 const subtitleEl: HTMLParagraphElement = subtitleElement;
 
+const startMenuOverlayElement = document.getElementById("start-menu-overlay");
+if (!(startMenuOverlayElement instanceof HTMLDivElement)) {
+  throw new Error("Missing start menu overlay");
+}
+const startMenuOverlay: HTMLDivElement = startMenuOverlayElement;
+
+const startMenuMessageElement = document.getElementById("start-menu-message");
+if (!(startMenuMessageElement instanceof HTMLParagraphElement)) {
+  throw new Error("Missing start menu message");
+}
+const startMenuMessageEl: HTMLParagraphElement = startMenuMessageElement;
+
+const playButton = document.getElementById("play-btn");
+if (!(playButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing play button");
+}
+const playBtn: HTMLButtonElement = playButton;
+
+const createButton = document.getElementById("create-btn");
+if (!(createButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing create button");
+}
+const createBtn: HTMLButtonElement = createButton;
+
+const viewButton = document.getElementById("view-btn");
+if (!(viewButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing view button");
+}
+const viewBtn: HTMLButtonElement = viewButton;
+
 const resetButton = document.getElementById("reset-btn");
 if (!(resetButton instanceof HTMLButtonElement)) {
   throw new Error("Missing reset button");
@@ -222,6 +252,16 @@ function stopAllLevelAudio(): void {
     audio.pause();
     audio.currentTime = 0;
   }
+}
+
+function showStartMenu(): void {
+  startMenuOverlay.classList.remove("is-hidden");
+  startMenuOverlay.setAttribute("aria-hidden", "false");
+}
+
+function hideStartMenu(): void {
+  startMenuOverlay.classList.add("is-hidden");
+  startMenuOverlay.setAttribute("aria-hidden", "true");
 }
 
 function createGrid(cols: number, rows: number, fill: Tile = WALL): Tile[][] {
@@ -690,8 +730,8 @@ function buildLevelFour(): Level {
     { x: 4, y: 4 },
     { x: 4, y: 23 },
     { x: 14, y: 23 },
-    { x: 14, y: 28 },
-    { x: 63, y: 28 },
+    { x: 14, y: 26 },
+    { x: 10, y: 26 },
   ];
 
   const upperRoom = [
@@ -710,22 +750,25 @@ function buildLevelFour(): Level {
     { x: 23, y: 10 },
   ];
 
-  const centerWinding = [
+  const centerBranch = [
     { x: 12, y: 17 },
     { x: 27, y: 17 },
-    { x: 27, y: 13 },
-    { x: 31, y: 13 },
+  ];
+
+  const bridgeDrop = [
+    { x: 23, y: 10 },
+    { x: 23, y: 21 },
+  ];
+
+  const lowerRun = [
+    { x: 23, y: 21 },
+    { x: 31, y: 21 },
     { x: 31, y: 18 },
     { x: 38, y: 18 },
     { x: 38, y: 14 },
     { x: 44, y: 14 },
     { x: 44, y: 18 },
     { x: 48, y: 18 },
-  ];
-
-  const bridgeDrop = [
-    { x: 23, y: 10 },
-    { x: 23, y: 17 },
   ];
 
   const rightDescent = [
@@ -743,14 +786,15 @@ function buildLevelFour(): Level {
   carvePolyline(grid, outerHall, 0);
   carvePolyline(grid, upperRoom, 0);
   carvePolyline(grid, topBridgeLoop, 0);
-  carvePolyline(grid, centerWinding, 0);
+  carvePolyline(grid, centerBranch, 0);
   carvePolyline(grid, bridgeDrop, 0);
+  carvePolyline(grid, lowerRun, 0);
   carvePolyline(grid, rightDescent, 0);
   carvePolyline(grid, rightBranch, 0);
 
   const crossings: Crossing[] = [
     { point: { x: 18, y: 3 }, underAxis: "horizontal" },
-    { point: { x: 23, y: 17 }, underAxis: "horizontal" },
+    { point: { x: 23, y: 17 }, underAxis: "vertical" },
     { point: { x: 50, y: 21 }, underAxis: "vertical" },
   ];
   setUnderpassTiles(
@@ -905,6 +949,7 @@ function loadLevel(index: number): void {
   statusEl.textContent = "Use arrow keys, WASD, or tap the controls.";
   hideCompletionOverlay();
   hideLevelSelector();
+  hideStartMenu();
 
   updatePlayerVisibility();
 
@@ -1322,6 +1367,20 @@ resetBtn.addEventListener("click", () => {
   loadLevel(state.levelIndex);
 });
 
+playBtn.addEventListener("click", () => {
+  loadLevel(0);
+});
+
+createBtn.addEventListener("click", () => {
+  startMenuMessageEl.textContent =
+    "Create will be used for building and publishing your own online levels.";
+});
+
+viewBtn.addEventListener("click", () => {
+  startMenuMessageEl.textContent =
+    "View will be used for browsing and playing levels made by other people.";
+});
+
 levelSelectorBtn.addEventListener("click", () => {
   renderLevelSelector();
   showLevelSelector();
@@ -1360,4 +1419,4 @@ nextLevelBtn.addEventListener("click", () => {
 
 window.addEventListener("keydown", handleKeydown, { passive: false });
 setupTouchControls();
-loadLevel(0);
+showStartMenu();
