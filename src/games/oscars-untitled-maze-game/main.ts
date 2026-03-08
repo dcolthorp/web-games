@@ -1,6 +1,8 @@
 import levelTwoAudioSrc from "./assets/level-2-illusions-description.m4a";
 import levelThreeAudioSrc from "./assets/level-3-illusions-2-description.m4a";
 import levelFourAudioSrc from "./assets/level-4-underdoos-description.m4a";
+import levelFiveAudioSrc from "./assets/level-5-portals-description.m4a";
+import levelSixAudioSrc from "./assets/level-6-time-buttons-description.m4a";
 
 const TILE_SIZE = 24;
 const WALL = "#";
@@ -11,6 +13,11 @@ const SPIN = "O";
 const RESET = "R";
 const REVERSE = "V";
 const UNDERPASS = "U";
+const PORTAL = "P";
+const BUTTON = "B";
+const TIMED_WALL = "G";
+const TIMED_WALL_DURATION_MS = 10_000;
+const TIMED_WALL_FADE_MS = 1_500;
 
 type Tile =
   | typeof WALL
@@ -20,7 +27,10 @@ type Tile =
   | typeof SPIN
   | typeof RESET
   | typeof REVERSE
-  | typeof UNDERPASS;
+  | typeof UNDERPASS
+  | typeof PORTAL
+  | typeof BUTTON
+  | typeof TIMED_WALL;
 type Direction = "up" | "down" | "left" | "right";
 type Axis = "horizontal" | "vertical";
 
@@ -34,6 +44,16 @@ interface Crossing {
   underAxis: Axis;
 }
 
+interface PortalLink {
+  a: Point;
+  b: Point;
+}
+
+interface TimedButton {
+  button: Point;
+  walls: Point[];
+}
+
 interface Level {
   id: number;
   name: string;
@@ -44,6 +64,8 @@ interface Level {
   start: Point;
   exit: Point;
   crossings?: Crossing[];
+  portals?: PortalLink[];
+  timedButtons?: TimedButton[];
 }
 
 interface GameState {
@@ -55,6 +77,8 @@ interface GameState {
   controlsReversed: boolean;
   playerCrossingAxis: Axis | null;
   playerHiddenUnderBridge: boolean;
+  portalLock: string | null;
+  timedWallOpenUntil: Record<string, number>;
   won: boolean;
   levelIntroPlayed: Partial<Record<number, boolean>>;
   levelIntroFinished: Partial<Record<number, boolean>>;
@@ -199,12 +223,19 @@ const palette = {
   underpass: "#d2b48b",
   bridge: "#8b6b3f",
   bridgeShadow: "rgba(53, 38, 17, 0.34)",
+  portal: "#7f39c7",
+  portalLine: "rgba(127, 57, 199, 0.58)",
+  button: "#835320",
+  buttonTop: "#f2d088",
+  timedWall: "#2c3555",
 };
 
 const levelAudioById = new Map<number, HTMLAudioElement>([
   [2, new Audio(levelTwoAudioSrc)],
   [3, new Audio(levelThreeAudioSrc)],
   [4, new Audio(levelFourAudioSrc)],
+  [5, new Audio(levelFiveAudioSrc)],
+  [6, new Audio(levelSixAudioSrc)],
 ]);
 for (const audio of levelAudioById.values()) {
   audio.preload = "auto";
@@ -215,6 +246,8 @@ const LEVELS: Level[] = [
   buildLevelTwo(),
   buildLevelThree(),
   buildLevelFour(),
+  buildLevelFive(),
+  buildLevelSix(),
 ];
 
 const state: GameState = {
@@ -226,10 +259,14 @@ const state: GameState = {
   controlsReversed: false,
   playerCrossingAxis: null,
   playerHiddenUnderBridge: false,
+  portalLock: null,
+  timedWallOpenUntil: {},
   won: false,
   levelIntroPlayed: {},
   levelIntroFinished: {},
 };
+
+let timedWallTicker: number | null = null;
 
 for (const [levelId, audio] of levelAudioById.entries()) {
   audio.addEventListener("ended", () => {
@@ -348,12 +385,47 @@ function setUnderpassTiles(grid: Tile[][], coordinates: Point[]): void {
   setSpecialTiles(grid, coordinates, UNDERPASS);
 }
 
+function setPortalTiles(grid: Tile[][], coordinates: Point[]): void {
+  setSpecialTiles(grid, coordinates, PORTAL);
+}
+
+function setButtonTiles(grid: Tile[][], coordinates: Point[]): void {
+  setSpecialTiles(grid, coordinates, BUTTON);
+}
+
+function setTimedWallTiles(grid: Tile[][], coordinates: Point[]): void {
+  setSpecialTiles(grid, coordinates, TIMED_WALL);
+}
+
 function axisFromDelta(dx: number, dy: number): Axis {
   return dx !== 0 ? "horizontal" : "vertical";
 }
 
 function samePoint(a: Point, b: Point): boolean {
   return a.x === b.x && a.y === b.y;
+}
+
+function pointKey(point: Point): string {
+  return `${point.x},${point.y}`;
+}
+
+function getTimedWallExpiry(point: Point): number {
+  return state.timedWallOpenUntil[pointKey(point)] ?? 0;
+}
+
+function isTimedWallOpen(point: Point, now = Date.now()): boolean {
+  return getTimedWallExpiry(point) > now;
+}
+
+function getTimedWallOpenAmount(point: Point, now = Date.now()): number {
+  const remaining = getTimedWallExpiry(point) - now;
+  if (remaining <= 0) {
+    return 0;
+  }
+  if (remaining >= TIMED_WALL_DURATION_MS - TIMED_WALL_FADE_MS) {
+    return 1;
+  }
+  return Math.max(0, Math.min(1, remaining / TIMED_WALL_FADE_MS));
 }
 
 function isOpenTile(tile: Tile | undefined): boolean {
@@ -821,6 +893,225 @@ function buildLevelFour(): Level {
   };
 }
 
+function buildLevelFive(): Level {
+  const cols = 67;
+  const rows = 45;
+  const grid = createGrid(cols, rows);
+
+  const upperEntry = [
+    { x: 4, y: 2 },
+    { x: 4, y: 8 },
+    { x: 10, y: 8 },
+    { x: 10, y: 14 },
+    { x: 26, y: 14 },
+  ];
+
+  const upperPortalSpur = [
+    { x: 10, y: 8 },
+    { x: 10, y: 4 },
+  ];
+
+  const upperRightRun = [
+    { x: 34, y: 14 },
+    { x: 58, y: 14 },
+    { x: 58, y: 10 },
+  ];
+
+  const lowerPortalEntry = [
+    { x: 42, y: 24 },
+    { x: 16, y: 24 },
+    { x: 16, y: 32 },
+  ];
+
+  const lowerLoop = [
+    { x: 16, y: 32 },
+    { x: 28, y: 32 },
+    { x: 28, y: 38 },
+    { x: 18, y: 38 },
+    { x: 18, y: 27 },
+  ];
+
+  const lowerLeftDeadEnd = [
+    { x: 18, y: 27 },
+    { x: 6, y: 27 },
+  ];
+
+  const lowerLeftPortalSpur = [
+    { x: 18, y: 27 },
+    { x: 18, y: 21 },
+    { x: 10, y: 21 },
+  ];
+
+  const finalExitRun = [
+    { x: 58, y: 10 },
+    { x: 62, y: 10 },
+    { x: 62, y: 42 },
+    { x: 2, y: 42 },
+  ];
+
+  carvePolyline(grid, upperEntry, 0);
+  carvePolyline(grid, upperPortalSpur, 0);
+  carvePolyline(grid, upperRightRun, 0);
+  carvePolyline(grid, lowerPortalEntry, 0);
+  carvePolyline(grid, lowerLoop, 0);
+  carvePolyline(grid, lowerLeftDeadEnd, 0);
+  carvePolyline(grid, lowerLeftPortalSpur, 0);
+  carvePolyline(grid, finalExitRun, 0);
+
+  const portals: PortalLink[] = [
+    {
+      a: { x: 10, y: 4 },
+      b: { x: 42, y: 24 },
+    },
+    {
+      a: { x: 10, y: 21 },
+      b: { x: 58, y: 10 },
+    },
+  ];
+  setPortalTiles(
+    grid,
+    portals.flatMap((portal) => [portal.a, portal.b])
+  );
+
+  const start = { x: 4, y: 2 };
+  const exit = { x: 2, y: 42 };
+  setTile(grid, start, START);
+  setTile(grid, exit, EXIT);
+
+  return {
+    id: 5,
+    name: "Level 5: PORTALS",
+    rotationOnSpin: false,
+    cols,
+    rows,
+    grid: freezeGrid(grid),
+    start,
+    exit,
+    portals,
+  };
+}
+
+function buildLevelSix(): Level {
+  const cols = 82;
+  const rows = 45;
+  const grid = createGrid(cols, rows);
+
+  const startEntry = [
+    { x: 2, y: 6 },
+    { x: 6, y: 6 },
+    { x: 11, y: 6 },
+    { x: 11, y: 10 },
+  ];
+
+  const leftMaze = [
+    { x: 11, y: 10 },
+    { x: 11, y: 22 },
+    { x: 6, y: 22 },
+    { x: 6, y: 10 },
+    { x: 16, y: 10 },
+    { x: 16, y: 18 },
+    { x: 22, y: 18 },
+    { x: 22, y: 12 },
+    { x: 11, y: 12 },
+  ];
+
+  const upperTraverse = [
+    { x: 11, y: 12 },
+    { x: 11, y: 28 },
+    { x: 48, y: 28 },
+    { x: 48, y: 18 },
+    { x: 66, y: 18 },
+    { x: 66, y: 20 },
+  ];
+
+  const rightTower = [
+    { x: 66, y: 20 },
+    { x: 72, y: 20 },
+    { x: 72, y: 4 },
+    { x: 79, y: 4 },
+    { x: 79, y: 40 },
+    { x: 70, y: 40 },
+  ];
+
+  const bottomRun = [
+    { x: 70, y: 40 },
+    { x: 2, y: 40 },
+  ];
+
+  const bottomButtonSpurs = [
+    [
+      { x: 68, y: 40 },
+      { x: 68, y: 36 },
+    ],
+    [
+      { x: 58, y: 40 },
+      { x: 58, y: 36 },
+    ],
+    [
+      { x: 48, y: 40 },
+      { x: 48, y: 36 },
+    ],
+    [
+      { x: 38, y: 40 },
+      { x: 38, y: 36 },
+    ],
+    [
+      { x: 28, y: 40 },
+      { x: 28, y: 36 },
+    ],
+    [
+      { x: 18, y: 40 },
+      { x: 18, y: 36 },
+    ],
+  ];
+
+  carvePolyline(grid, startEntry, 0);
+  carvePolyline(grid, leftMaze, 0);
+  carvePolyline(grid, upperTraverse, 0);
+  carvePolyline(grid, rightTower, 0);
+  carvePolyline(grid, bottomRun, 0);
+  for (const spur of bottomButtonSpurs) {
+    carvePolyline(grid, spur, 0);
+  }
+
+  const timedButtons: TimedButton[] = [
+    { button: { x: 6, y: 6 }, walls: [{ x: 11, y: 10 }] },
+    { button: { x: 66, y: 20 }, walls: [{ x: 72, y: 20 }] },
+    { button: { x: 68, y: 36 }, walls: [{ x: 64, y: 40 }] },
+    { button: { x: 58, y: 36 }, walls: [{ x: 54, y: 40 }] },
+    { button: { x: 48, y: 36 }, walls: [{ x: 44, y: 40 }] },
+    { button: { x: 38, y: 36 }, walls: [{ x: 34, y: 40 }] },
+    { button: { x: 28, y: 36 }, walls: [{ x: 24, y: 40 }] },
+    { button: { x: 18, y: 36 }, walls: [{ x: 14, y: 40 }] },
+  ];
+
+  setButtonTiles(
+    grid,
+    timedButtons.map((timedButton) => timedButton.button)
+  );
+  setTimedWallTiles(
+    grid,
+    timedButtons.flatMap((timedButton) => timedButton.walls)
+  );
+
+  const start = { x: 2, y: 6 };
+  const exit = { x: 2, y: 40 };
+  setTile(grid, start, START);
+  setTile(grid, exit, EXIT);
+
+  return {
+    id: 6,
+    name: "Level 6: TIMED BUTTONS",
+    rotationOnSpin: false,
+    cols,
+    rows,
+    grid: freezeGrid(grid),
+    start,
+    exit,
+    timedButtons,
+  };
+}
+
 function cloneGrid(grid: string[]): Tile[][] {
   return grid.map((row) => row.split("") as Tile[]);
 }
@@ -843,8 +1134,100 @@ function getCrossingAt(level: Level | null, x: number, y: number): Crossing | nu
   return level.crossings.find((crossing) => samePoint(crossing.point, { x, y })) ?? null;
 }
 
+function getPortalLinkAt(level: Level | null, x: number, y: number): PortalLink | null {
+  if (!level?.portals) {
+    return null;
+  }
+
+  return (
+    level.portals.find((portal) => samePoint(portal.a, { x, y }) || samePoint(portal.b, { x, y })) ??
+    null
+  );
+}
+
+function getPortalDestination(level: Level | null, x: number, y: number): Point | null {
+  const portal = getPortalLinkAt(level, x, y);
+  if (!portal) {
+    return null;
+  }
+
+  return samePoint(portal.a, { x, y }) ? portal.b : portal.a;
+}
+
+function getTimedButtonAt(level: Level | null, x: number, y: number): TimedButton | null {
+  if (!level?.timedButtons) {
+    return null;
+  }
+
+  return level.timedButtons.find((timedButton) => samePoint(timedButton.button, { x, y })) ?? null;
+}
+
+function stopTimedWallTicker(): void {
+  if (timedWallTicker !== null) {
+    window.clearInterval(timedWallTicker);
+    timedWallTicker = null;
+  }
+}
+
+function cleanupExpiredTimedWalls(now = Date.now()): void {
+  for (const [wallKey, expiresAt] of Object.entries(state.timedWallOpenUntil)) {
+    if (expiresAt <= now) {
+      delete state.timedWallOpenUntil[wallKey];
+    }
+  }
+}
+
+function ensureTimedWallTicker(): void {
+  if (timedWallTicker !== null) {
+    return;
+  }
+
+  timedWallTicker = window.setInterval(() => {
+    cleanupExpiredTimedWalls();
+
+    if (state.level && currentTile(state.player.x, state.player.y) === TIMED_WALL) {
+      const playerPoint = { ...state.player };
+      if (!isTimedWallOpen(playerPoint)) {
+        statusEl.textContent = "Too slow. Try again.";
+        loadLevel(state.levelIndex);
+        return;
+      }
+    }
+
+    if (Object.keys(state.timedWallOpenUntil).length === 0) {
+      stopTimedWallTicker();
+    }
+
+    if (state.level) {
+      draw();
+    }
+  }, 100);
+}
+
+function triggerTimedButton(level: Level, timedButton: TimedButton): void {
+  const expiresAt = Date.now() + TIMED_WALL_DURATION_MS;
+  for (const wall of timedButton.walls) {
+    state.timedWallOpenUntil[pointKey(wall)] = expiresAt;
+  }
+  ensureTimedWallTicker();
+  statusEl.textContent = "Button pressed. Door open for 10 seconds.";
+}
+
 function isWalkable(x: number, y: number): boolean {
-  return inBounds(state.grid, x, y) && currentTile(x, y) !== WALL;
+  if (!inBounds(state.grid, x, y)) {
+    return false;
+  }
+
+  const tile = currentTile(x, y);
+  if (tile === WALL) {
+    return false;
+  }
+
+  if (tile === TIMED_WALL) {
+    return isTimedWallOpen({ x, y });
+  }
+
+  return true;
 }
 
 function updatePlayerVisibility(): void {
@@ -935,6 +1318,9 @@ function loadLevel(index: number): void {
   state.controlsReversed = false;
   state.playerCrossingAxis = null;
   state.playerHiddenUnderBridge = false;
+  state.portalLock = null;
+  state.timedWallOpenUntil = {};
+  stopTimedWallTicker();
 
   const sceneWidth = level.cols * TILE_SIZE;
   const sceneHeight = level.rows * TILE_SIZE;
@@ -993,11 +1379,31 @@ function tryMove(dx: number, dy: number): void {
     statusEl.textContent = "The illusions reset.";
   } else if (tile === UNDERPASS && crossing?.underAxis === moveAxis) {
     statusEl.textContent = "You slipped under the bridge.";
+  } else if (tile === BUTTON) {
+    const timedButton = getTimedButtonAt(level, nx, ny);
+    if (timedButton) {
+      triggerTimedButton(level, timedButton);
+    }
+  }
+
+  if (tile === PORTAL) {
+    const portalKey = pointKey({ x: nx, y: ny });
+    if (state.portalLock !== portalKey) {
+      const destination = getPortalDestination(level, nx, ny);
+      if (destination) {
+        state.player = { ...destination };
+        state.playerCrossingAxis = null;
+        state.portalLock = pointKey(destination);
+        statusEl.textContent = "WHOOSH. Portal jump.";
+      }
+    }
+  } else {
+    state.portalLock = null;
   }
 
   updatePlayerVisibility();
 
-  if (nx === level.exit.x && ny === level.exit.y) {
+  if (state.player.x === level.exit.x && state.player.y === level.exit.y) {
     state.won = true;
     statusEl.textContent = "LEVEL COMPLETE";
     showCompletionOverlay();
@@ -1177,6 +1583,56 @@ function drawUnderpassShadows(drawCtx: CanvasRenderingContext2D): void {
   }
 }
 
+function drawPortalLinks(drawCtx: CanvasRenderingContext2D): void {
+  for (const portal of state.level?.portals ?? []) {
+    const startX = portal.a.x * TILE_SIZE + TILE_SIZE / 2;
+    const startY = portal.a.y * TILE_SIZE + TILE_SIZE / 2;
+    const endX = portal.b.x * TILE_SIZE + TILE_SIZE / 2;
+    const endY = portal.b.y * TILE_SIZE + TILE_SIZE / 2;
+    const controlX = (startX + endX) / 2;
+    const controlY = Math.min(startY, endY) - TILE_SIZE * 2.2;
+
+    drawCtx.strokeStyle = palette.portalLine;
+    drawCtx.lineWidth = 2;
+    drawCtx.beginPath();
+    drawCtx.moveTo(startX, startY);
+    drawCtx.quadraticCurveTo(controlX, controlY, endX, endY);
+    drawCtx.stroke();
+  }
+}
+
+function drawPortalSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+  const cx = x * TILE_SIZE + TILE_SIZE / 2;
+  const cy = y * TILE_SIZE + TILE_SIZE / 2;
+
+  drawCtx.strokeStyle = palette.portal;
+  drawCtx.lineWidth = 2.5;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy, TILE_SIZE * 0.28, 0, Math.PI * 2);
+  drawCtx.stroke();
+}
+
+function drawButtonSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+
+  drawCtx.fillStyle = palette.button;
+  drawCtx.fillRect(px + 4, py + TILE_SIZE * 0.58, TILE_SIZE - 8, TILE_SIZE * 0.16);
+
+  drawCtx.fillStyle = palette.buttonTop;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy + 2, TILE_SIZE * 0.28, Math.PI, 0);
+  drawCtx.fill();
+
+  drawCtx.strokeStyle = palette.button;
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy + 2, TILE_SIZE * 0.28, Math.PI, 0);
+  drawCtx.stroke();
+}
+
 function drawTile(
   drawCtx: CanvasRenderingContext2D,
   x: number,
@@ -1193,6 +1649,8 @@ function drawTile(
     fill = palette.start;
   } else if (tile === EXIT) {
     fill = palette.exit;
+  } else if (tile === TIMED_WALL) {
+    fill = palette.path;
   }
 
   drawCtx.fillStyle = fill;
@@ -1203,6 +1661,15 @@ function drawTile(
     drawCtx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
   }
 
+  if (tile === TIMED_WALL) {
+    const openness = getTimedWallOpenAmount({ x, y });
+    drawCtx.save();
+    drawCtx.fillStyle = palette.timedWall;
+    drawCtx.globalAlpha = 1 - openness;
+    drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    drawCtx.restore();
+  }
+
   if (tile === SPIN) {
     drawSpinSymbol(drawCtx, x, y);
   } else if (tile === RESET) {
@@ -1211,6 +1678,10 @@ function drawTile(
     drawReverseSymbol(drawCtx, x, y);
   } else if (tile === UNDERPASS) {
     drawUnderpassSymbol(drawCtx, x, y);
+  } else if (tile === PORTAL) {
+    drawPortalSymbol(drawCtx, x, y);
+  } else if (tile === BUTTON) {
+    drawButtonSymbol(drawCtx, x, y);
   }
 }
 
@@ -1251,6 +1722,7 @@ function drawScene(): void {
     }
   }
 
+  drawPortalLinks(sceneCtx);
   drawUnderpassShadows(sceneCtx);
   drawPlayer(sceneCtx);
 }
