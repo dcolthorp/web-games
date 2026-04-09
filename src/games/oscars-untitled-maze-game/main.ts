@@ -3,86 +3,49 @@ import levelThreeAudioSrc from "./assets/level-3-illusions-2-description.m4a";
 import levelFourAudioSrc from "./assets/level-4-underdoos-description.m4a";
 import levelFiveAudioSrc from "./assets/level-5-portals-description.m4a";
 import levelSixAudioSrc from "./assets/level-6-time-buttons-description.m4a";
+import { NORMALIZED_MAZE_MAPS } from "./maps";
+import {
+  TERRAIN_OPEN,
+  TERRAIN_WALL,
+  type Axis,
+  type BridgeFeature,
+  type FeatureDefinition,
+  type FeatureKind,
+  type MapFeature,
+  type NormalizedMazeMap,
+  type Point,
+  type PortalFeature,
+  type SwitchFeature,
+  type WellFeature,
+  featureAt,
+  getFeatureDefinition,
+  getFeatureDefinitions,
+  pointKey,
+  samePoint,
+  terrainTileAt,
+} from "./model";
 
 const TILE_SIZE = 24;
-const WALL = "#";
-const OPEN = ".";
-const START = "S";
-const EXIT = "E";
-const SPIN = "O";
-const RESET = "R";
-const REVERSE = "V";
-const UNDERPASS = "U";
-const PORTAL = "P";
-const BUTTON = "B";
-const TIMED_WALL = "G";
-const TIMED_WALL_DURATION_MS = 10_000;
-const TIMED_WALL_FADE_MS = 1_500;
+const WELL_FADE_MS = 1_500;
 
-type Tile =
-  | typeof WALL
-  | typeof OPEN
-  | typeof START
-  | typeof EXIT
-  | typeof SPIN
-  | typeof RESET
-  | typeof REVERSE
-  | typeof UNDERPASS
-  | typeof PORTAL
-  | typeof BUTTON
-  | typeof TIMED_WALL;
 type Direction = "up" | "down" | "left" | "right";
-type Axis = "horizontal" | "vertical";
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Crossing {
-  point: Point;
-  underAxis: Axis;
-}
-
-interface PortalLink {
-  a: Point;
-  b: Point;
-}
-
-interface TimedButton {
-  button: Point;
-  walls: Point[];
-}
-
-interface Level {
-  id: number;
-  name: string;
-  rotationOnSpin: boolean;
-  cols: number;
-  rows: number;
-  grid: string[];
-  start: Point;
-  exit: Point;
-  crossings?: Crossing[];
-  portals?: PortalLink[];
-  timedButtons?: TimedButton[];
-}
 
 interface GameState {
   levelIndex: number;
-  level: Level | null;
-  grid: Tile[][];
+  level: NormalizedMazeMap | null;
   player: Point;
   rotationQuarter: number;
   controlsReversed: boolean;
   playerCrossingAxis: Axis | null;
   playerHiddenUnderBridge: boolean;
   portalLock: string | null;
-  timedWallOpenUntil: Record<string, number>;
+  wellOpenUntil: Record<string, number>;
   won: boolean;
   levelIntroPlayed: Partial<Record<number, boolean>>;
   levelIntroFinished: Partial<Record<number, boolean>>;
 }
+
+const LEVELS = NORMALIZED_MAZE_MAPS;
 
 const canvasElement = document.getElementById("maze");
 if (!(canvasElement instanceof HTMLCanvasElement)) {
@@ -132,6 +95,36 @@ if (!(startMenuMessageElement instanceof HTMLParagraphElement)) {
   throw new Error("Missing start menu message");
 }
 const startMenuMessageEl: HTMLParagraphElement = startMenuMessageElement;
+
+const createPanelElement = document.getElementById("create-panel");
+if (!(createPanelElement instanceof HTMLElement)) {
+  throw new Error("Missing create panel");
+}
+const createPanel: HTMLElement = createPanelElement;
+
+const createPanelTitleElement = document.getElementById("create-panel-title");
+if (!(createPanelTitleElement instanceof HTMLHeadingElement)) {
+  throw new Error("Missing create panel title");
+}
+const createPanelTitleEl: HTMLHeadingElement = createPanelTitleElement;
+
+const createPanelDescriptionElement = document.getElementById("create-panel-description");
+if (!(createPanelDescriptionElement instanceof HTMLParagraphElement)) {
+  throw new Error("Missing create panel description");
+}
+const createPanelDescriptionEl: HTMLParagraphElement = createPanelDescriptionElement;
+
+const createPanelHintElement = document.getElementById("create-panel-hint");
+if (!(createPanelHintElement instanceof HTMLParagraphElement)) {
+  throw new Error("Missing create panel hint");
+}
+const createPanelHintEl: HTMLParagraphElement = createPanelHintElement;
+
+const createFeatureListElement = document.getElementById("create-feature-list");
+if (!(createFeatureListElement instanceof HTMLDivElement)) {
+  throw new Error("Missing create feature list");
+}
+const createFeatureList: HTMLDivElement = createFeatureListElement;
 
 const playButton = document.getElementById("play-btn");
 if (!(playButton instanceof HTMLButtonElement)) {
@@ -225,9 +218,9 @@ const palette = {
   bridgeShadow: "rgba(53, 38, 17, 0.34)",
   portal: "#7f39c7",
   portalLine: "rgba(127, 57, 199, 0.58)",
-  button: "#835320",
-  buttonTop: "#f2d088",
-  timedWall: "#2c3555",
+  switch: "#835320",
+  switchTop: "#f2d088",
+  well: "#2c3555",
 };
 
 const levelAudioById = new Map<number, HTMLAudioElement>([
@@ -241,43 +234,33 @@ for (const audio of levelAudioById.values()) {
   audio.preload = "auto";
 }
 
-const LEVELS: Level[] = [
-  buildLevelOne(),
-  buildLevelTwo(),
-  buildLevelThree(),
-  buildLevelFour(),
-  buildLevelFive(),
-  buildLevelSix(),
-];
-
 const state: GameState = {
   levelIndex: 0,
   level: null,
-  grid: [],
   player: { x: 0, y: 0 },
   rotationQuarter: 0,
   controlsReversed: false,
   playerCrossingAxis: null,
   playerHiddenUnderBridge: false,
   portalLock: null,
-  timedWallOpenUntil: {},
+  wellOpenUntil: {},
   won: false,
   levelIntroPlayed: {},
   levelIntroFinished: {},
 };
 
-let timedWallTicker: number | null = null;
+let wellTicker: number | null = null;
 
 for (const [levelId, audio] of levelAudioById.entries()) {
   audio.addEventListener("ended", () => {
     state.levelIntroFinished[levelId] = true;
-    if (state.level?.id === levelId) {
+    if (state.level?.map.id === levelId) {
       showDescriptionReplayButton();
     }
   });
 
   audio.addEventListener("error", () => {
-    if (state.level?.id === levelId) {
+    if (state.level?.map.id === levelId) {
       statusEl.textContent = "Audio could not load. Use play description again.";
       showDescriptionReplayButton();
     }
@@ -301,901 +284,107 @@ function hideStartMenu(): void {
   startMenuOverlay.setAttribute("aria-hidden", "true");
 }
 
-function createGrid(cols: number, rows: number, fill: Tile = WALL): Tile[][] {
-  return Array.from({ length: rows }, () => Array<Tile>(cols).fill(fill));
+function showCreatePanel(): void {
+  createPanel.classList.remove("hidden");
 }
 
-function inBounds(grid: Tile[][], x: number, y: number): boolean {
-  return y >= 0 && y < grid.length && x >= 0 && x < grid[0]!.length;
-}
-
-function carveBrush(grid: Tile[][], x: number, y: number, radius = 1): void {
-  for (let dy = -radius; dy <= radius; dy += 1) {
-    for (let dx = -radius; dx <= radius; dx += 1) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if (inBounds(grid, nx, ny)) {
-        const row = grid[ny];
-        if (row) {
-          row[nx] = OPEN;
-        }
-      }
-    }
-  }
-}
-
-function carveSegment(
-  grid: Tile[][],
-  from: Point,
-  to: Point,
-  radius = 1
-): void {
-  let x = from.x;
-  let y = from.y;
-  carveBrush(grid, x, y, radius);
-
-  while (x !== to.x || y !== to.y) {
-    if (x !== to.x) {
-      x += Math.sign(to.x - x);
-    } else if (y !== to.y) {
-      y += Math.sign(to.y - y);
-    }
-    carveBrush(grid, x, y, radius);
-  }
-}
-
-function carvePolyline(grid: Tile[][], points: Point[], radius = 1): void {
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const from = points[i];
-    const to = points[i + 1];
-    if (from && to) {
-      carveSegment(grid, from, to, radius);
-    }
-  }
-}
-
-function freezeGrid(grid: Tile[][]): string[] {
-  return grid.map((row) => row.join(""));
-}
-
-function setSpecialTiles(grid: Tile[][], coordinates: Point[], tile: Tile): void {
-  for (const { x, y } of coordinates) {
-    if (inBounds(grid, x, y)) {
-      const row = grid[y];
-      if (row && row[x] !== WALL) {
-        row[x] = tile;
-      }
-    }
-  }
-}
-
-function setSpinTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, SPIN);
-}
-
-function setResetTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, RESET);
-}
-
-function setReverseTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, REVERSE);
-}
-
-function setUnderpassTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, UNDERPASS);
-}
-
-function setPortalTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, PORTAL);
-}
-
-function setButtonTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, BUTTON);
-}
-
-function setTimedWallTiles(grid: Tile[][], coordinates: Point[]): void {
-  setSpecialTiles(grid, coordinates, TIMED_WALL);
+function hideCreatePanel(): void {
+  createPanel.classList.add("hidden");
 }
 
 function axisFromDelta(dx: number, dy: number): Axis {
   return dx !== 0 ? "horizontal" : "vertical";
 }
 
-function samePoint(a: Point, b: Point): boolean {
-  return a.x === b.x && a.y === b.y;
-}
-
-function pointKey(point: Point): string {
-  return `${point.x},${point.y}`;
-}
-
-function getTimedWallExpiry(point: Point): number {
-  return state.timedWallOpenUntil[pointKey(point)] ?? 0;
-}
-
-function isTimedWallOpen(point: Point, now = Date.now()): boolean {
-  return getTimedWallExpiry(point) > now;
-}
-
-function getTimedWallOpenAmount(point: Point, now = Date.now()): number {
-  const remaining = getTimedWallExpiry(point) - now;
-  if (remaining <= 0) {
-    return 0;
-  }
-  if (remaining >= TIMED_WALL_DURATION_MS - TIMED_WALL_FADE_MS) {
-    return 1;
-  }
-  return Math.max(0, Math.min(1, remaining / TIMED_WALL_FADE_MS));
-}
-
-function isOpenTile(tile: Tile | undefined): boolean {
-  return tile !== undefined && tile !== WALL;
-}
-
-function validateCrossings(grid: Tile[][], crossings: Crossing[]): void {
-  for (const crossing of crossings) {
-    const { x, y } = crossing.point;
-    const left = isOpenTile(grid[y]?.[x - 1]);
-    const right = isOpenTile(grid[y]?.[x + 1]);
-    const up = isOpenTile(grid[y - 1]?.[x]);
-    const down = isOpenTile(grid[y + 1]?.[x]);
-
-    const horizontalThrough = left && right;
-    const verticalThrough = up && down;
-    const hasOverAxisNeighbor =
-      crossing.underAxis === "horizontal" ? up || down : left || right;
-
-    const validUnderAxis =
-      crossing.underAxis === "horizontal" ? horizontalThrough : verticalThrough;
-    const hasDiagonalNeighbor =
-      isOpenTile(grid[y - 1]?.[x - 1]) ||
-      isOpenTile(grid[y - 1]?.[x + 1]) ||
-      isOpenTile(grid[y + 1]?.[x - 1]) ||
-      isOpenTile(grid[y + 1]?.[x + 1]);
-
-    if (!validUnderAxis || !hasOverAxisNeighbor || hasDiagonalNeighbor) {
-      throw new Error(
-        `Invalid crossing at ${x},${y}. Bridges must sit on T or + intersections with a straight under-path and no diagonal neighbors.`
-      );
-    }
-  }
-}
-
-function setTile(grid: Tile[][], point: Point, tile: Tile): void {
-  const row = grid[point.y];
-  if (!row) {
-    throw new Error("Tile row out of bounds");
+function currentTerrain(x: number, y: number): "#" | "." {
+  if (!state.level) {
+    throw new Error("No level loaded");
   }
 
-  row[point.x] = tile;
-}
-
-function buildLevelOne(): Level {
-  const cols = 39;
-  const rows = 27;
-  const grid = createGrid(cols, rows);
-
-  const mainPath = [
-    { x: 2, y: 3 },
-    { x: 7, y: 3 },
-    { x: 7, y: 6 },
-    { x: 3, y: 6 },
-    { x: 3, y: 2 },
-    { x: 10, y: 2 },
-    { x: 10, y: 7 },
-    { x: 14, y: 7 },
-    { x: 14, y: 4 },
-    { x: 22, y: 4 },
-    { x: 22, y: 6 },
-    { x: 26, y: 6 },
-    { x: 26, y: 4 },
-    { x: 31, y: 4 },
-    { x: 31, y: 10 },
-    { x: 27, y: 11 },
-    { x: 27, y: 13 },
-    { x: 32, y: 14 },
-    { x: 31, y: 18 },
-    { x: 31, y: 22 },
-    { x: 36, y: 24 },
-  ];
-
-  const centerLoops = [
-    { x: 14, y: 7 },
-    { x: 14, y: 10 },
-    { x: 21, y: 10 },
-    { x: 21, y: 7 },
-    { x: 17, y: 7 },
-    { x: 17, y: 9 },
-    { x: 20, y: 9 },
-  ];
-
-  const rightBump = [
-    { x: 21, y: 10 },
-    { x: 25, y: 10 },
-    { x: 25, y: 7 },
-    { x: 29, y: 7 },
-    { x: 29, y: 11 },
-    { x: 26, y: 11 },
-  ];
-
-  const lowerLoop = [
-    { x: 27, y: 13 },
-    { x: 11, y: 14 },
-    { x: 11, y: 21 },
-    { x: 18, y: 21 },
-    { x: 18, y: 23 },
-    { x: 13, y: 23 },
-  ];
-
-  const deadEnds = [
-    [
-      { x: 7, y: 3 },
-      { x: 9, y: 3 },
-      { x: 9, y: 1 },
-    ],
-    [
-      { x: 16, y: 4 },
-      { x: 16, y: 2 },
-    ],
-    [
-      { x: 22, y: 6 },
-      { x: 24, y: 6 },
-      { x: 24, y: 4 },
-    ],
-    [
-      { x: 31, y: 18 },
-      { x: 34, y: 18 },
-      { x: 34, y: 20 },
-    ],
-    [
-      { x: 15, y: 14 },
-      { x: 15, y: 18 },
-    ],
-    [
-      { x: 11, y: 18 },
-      { x: 8, y: 18 },
-    ],
-  ];
-
-  carvePolyline(grid, mainPath, 0);
-  carvePolyline(grid, centerLoops, 0);
-  carvePolyline(grid, rightBump, 0);
-  carvePolyline(grid, lowerLoop, 0);
-  for (const deadEnd of deadEnds) {
-    carvePolyline(grid, deadEnd, 0);
-  }
-
-  const start = { x: 2, y: 3 };
-  const exit = { x: 36, y: 24 };
-  setTile(grid, start, START);
-  setTile(grid, exit, EXIT);
-
-  return {
-    id: 1,
-    name: "Level 1: The Basics",
-    rotationOnSpin: false,
-    cols,
-    rows,
-    grid: freezeGrid(grid),
-    start,
-    exit,
-  };
-}
-
-function buildLevelTwo(): Level {
-  const cols = 49;
-  const rows = 35;
-  const grid = createGrid(cols, rows);
-
-  const mainPath = [
-    { x: 2, y: 13 },
-    { x: 8, y: 13 },
-    { x: 10, y: 9 },
-    { x: 17, y: 10 },
-    { x: 20, y: 8 },
-    { x: 24, y: 12 },
-    { x: 30, y: 6 },
-    { x: 35, y: 8 },
-    { x: 36, y: 6 },
-    { x: 40, y: 6 },
-    { x: 38, y: 14 },
-    { x: 37, y: 14 },
-    { x: 36, y: 21 },
-    { x: 33, y: 21 },
-    { x: 33, y: 29 },
-    { x: 40, y: 29 },
-    { x: 40, y: 31 },
-    { x: 46, y: 31 },
-  ];
-
-  const topLeftBranch = [
-    { x: 2, y: 13 },
-    { x: 2, y: 6 },
-    { x: 12, y: 6 },
-    { x: 12, y: 3 },
-  ];
-
-  const leftLoop = [
-    { x: 8, y: 13 },
-    { x: 9, y: 10 },
-    { x: 14, y: 11 },
-    { x: 13, y: 17 },
-    { x: 9, y: 16 },
-    { x: 8, y: 13 },
-  ];
-
-  const middleBranch = [
-    { x: 17, y: 10 },
-    { x: 15, y: 15 },
-    { x: 20, y: 18 },
-    { x: 22, y: 16 },
-    { x: 18, y: 13 },
-  ];
-
-  const lockShape = [
-    { x: 38, y: 14 },
-    { x: 41, y: 15 },
-    { x: 40, y: 18 },
-    { x: 37, y: 17 },
-    { x: 38, y: 14 },
-  ];
-
-  const lockInner = [
-    { x: 39, y: 15 },
-    { x: 39, y: 17 },
-  ];
-
-  const lowerRoom = [
-    { x: 36, y: 21 },
-    { x: 29, y: 21 },
-    { x: 29, y: 30 },
-    { x: 37, y: 30 },
-    { x: 37, y: 24 },
-    { x: 35, y: 24 },
-  ];
-
-  const lowerSpur = [
-    { x: 33, y: 29 },
-    { x: 33, y: 31 },
-    { x: 36, y: 31 },
-  ];
-
-  const finalRun = [
-    { x: 40, y: 31 },
-    { x: 45, y: 31 },
-    { x: 46, y: 31 },
-  ];
-
-  carvePolyline(grid, mainPath, 0);
-  carvePolyline(grid, topLeftBranch, 0);
-  carvePolyline(grid, leftLoop, 0);
-  carvePolyline(grid, middleBranch, 0);
-  carvePolyline(grid, lockShape, 0);
-  carvePolyline(grid, lockInner, 0);
-  carvePolyline(grid, lowerRoom, 0);
-  carvePolyline(grid, lowerSpur, 0);
-  carvePolyline(grid, finalRun, 0);
-
-  setSpinTiles(grid, [
-    { x: 12, y: 3 },
-    { x: 17, y: 10 },
-    { x: 24, y: 12 },
-    { x: 36, y: 31 },
-    { x: 45, y: 31 },
-  ]);
-
-  const start = { x: 2, y: 13 };
-  const exit = { x: 46, y: 31 };
-  setTile(grid, start, START);
-  setTile(grid, exit, EXIT);
-
-  return {
-    id: 2,
-    name: "Level 2: ILLUSIONS",
-    rotationOnSpin: true,
-    cols,
-    rows,
-    grid: freezeGrid(grid),
-    start,
-    exit,
-  };
-}
-
-function buildLevelThree(): Level {
-  const cols = 63;
-  const rows = 35;
-  const grid = createGrid(cols, rows);
-
-  const topEntry = [
-    { x: 2, y: 4 },
-    { x: 16, y: 4 },
-  ];
-
-  const leftWing = [
-    { x: 16, y: 4 },
-    { x: 16, y: 10 },
-    { x: 6, y: 10 },
-    { x: 6, y: 18 },
-    { x: 15, y: 18 },
-    { x: 19, y: 16 },
-  ];
-
-  const centerLoop = [
-    { x: 19, y: 16 },
-    { x: 19, y: 10 },
-    { x: 34, y: 10 },
-    { x: 34, y: 18 },
-    { x: 19, y: 18 },
-    { x: 19, y: 16 },
-  ];
-
-  const rightConnector = [
-    { x: 34, y: 18 },
-    { x: 38, y: 18 },
-    { x: 38, y: 12 },
-    { x: 49, y: 12 },
-    { x: 49, y: 18 },
-  ];
-
-  const outerRoom = [
-    { x: 49, y: 12 },
-    { x: 49, y: 4 },
-    { x: 58, y: 4 },
-    { x: 58, y: 31 },
-    { x: 51, y: 31 },
-    { x: 51, y: 18 },
-  ];
-
-  const finalRun = [
-    { x: 49, y: 18 },
-    { x: 51, y: 18 },
-    { x: 51, y: 30 },
-    { x: 60, y: 30 },
-  ];
-
-  carvePolyline(grid, topEntry, 0);
-  carvePolyline(grid, leftWing, 0);
-  carvePolyline(grid, centerLoop, 0);
-  carvePolyline(grid, rightConnector, 0);
-  carvePolyline(grid, outerRoom, 0);
-  carvePolyline(grid, finalRun, 0);
-
-  setResetTiles(grid, [
-    { x: 16, y: 4 },
-    { x: 6, y: 18 },
-    { x: 51, y: 18 },
-  ]);
-
-  setReverseTiles(grid, [
-    { x: 6, y: 14 },
-    { x: 26, y: 10 },
-  ]);
-
-  setSpinTiles(grid, [
-    { x: 26, y: 18 },
-    { x: 43, y: 12 },
-  ]);
-
-  const start = { x: 2, y: 4 };
-  const exit = { x: 60, y: 30 };
-  setTile(grid, start, START);
-  setTile(grid, exit, EXIT);
-
-  return {
-    id: 3,
-    name: "Level 3: ILLUSIONS 2",
-    rotationOnSpin: true,
-    cols,
-    rows,
-    grid: freezeGrid(grid),
-    start,
-    exit,
-  };
-}
-
-function buildLevelFour(): Level {
-  const cols = 67;
-  const rows = 35;
-  const grid = createGrid(cols, rows);
-
-  const outerHall = [
-    { x: 4, y: 4 },
-    { x: 4, y: 23 },
-    { x: 14, y: 23 },
-    { x: 14, y: 26 },
-    { x: 10, y: 26 },
-  ];
-
-  const upperRoom = [
-    { x: 4, y: 4 },
-    { x: 4, y: 3 },
-    { x: 18, y: 3 },
-    { x: 18, y: 11 },
-    { x: 12, y: 11 },
-    { x: 12, y: 17 },
-  ];
-
-  const topBridgeLoop = [
-    { x: 18, y: 3 },
-    { x: 34, y: 3 },
-    { x: 34, y: 10 },
-    { x: 23, y: 10 },
-  ];
-
-  const centerBranch = [
-    { x: 12, y: 17 },
-    { x: 27, y: 17 },
-  ];
-
-  const bridgeDrop = [
-    { x: 23, y: 10 },
-    { x: 23, y: 21 },
-  ];
-
-  const lowerRun = [
-    { x: 23, y: 21 },
-    { x: 31, y: 21 },
-    { x: 31, y: 18 },
-    { x: 38, y: 18 },
-    { x: 38, y: 14 },
-    { x: 44, y: 14 },
-    { x: 44, y: 18 },
-    { x: 48, y: 18 },
-  ];
-
-  const rightDescent = [
-    { x: 48, y: 18 },
-    { x: 50, y: 18 },
-    { x: 50, y: 28 },
-    { x: 63, y: 28 },
-  ];
-
-  const rightBranch = [
-    { x: 50, y: 21 },
-    { x: 63, y: 21 },
-  ];
-
-  carvePolyline(grid, outerHall, 0);
-  carvePolyline(grid, upperRoom, 0);
-  carvePolyline(grid, topBridgeLoop, 0);
-  carvePolyline(grid, centerBranch, 0);
-  carvePolyline(grid, bridgeDrop, 0);
-  carvePolyline(grid, lowerRun, 0);
-  carvePolyline(grid, rightDescent, 0);
-  carvePolyline(grid, rightBranch, 0);
-
-  const crossings: Crossing[] = [
-    { point: { x: 18, y: 3 }, underAxis: "horizontal" },
-    { point: { x: 23, y: 17 }, underAxis: "vertical" },
-    { point: { x: 50, y: 21 }, underAxis: "vertical" },
-  ];
-  setUnderpassTiles(
-    grid,
-    crossings.map((crossing) => crossing.point)
-  );
-  validateCrossings(grid, crossings);
-
-  const start = { x: 4, y: 4 };
-  const exit = { x: 63, y: 28 };
-  setTile(grid, start, START);
-  setTile(grid, exit, EXIT);
-
-  return {
-    id: 4,
-    name: "Level 4: THE UNDER-DOOS",
-    rotationOnSpin: false,
-    cols,
-    rows,
-    grid: freezeGrid(grid),
-    start,
-    exit,
-    crossings,
-  };
-}
-
-function buildLevelFive(): Level {
-  const cols = 67;
-  const rows = 45;
-  const grid = createGrid(cols, rows);
-
-  const upperEntry = [
-    { x: 4, y: 2 },
-    { x: 4, y: 8 },
-    { x: 10, y: 8 },
-    { x: 10, y: 14 },
-    { x: 26, y: 14 },
-  ];
-
-  const upperPortalSpur = [
-    { x: 10, y: 8 },
-    { x: 10, y: 4 },
-  ];
-
-  const upperRightRun = [
-    { x: 34, y: 14 },
-    { x: 58, y: 14 },
-    { x: 58, y: 10 },
-  ];
-
-  const lowerPortalEntry = [
-    { x: 42, y: 24 },
-    { x: 16, y: 24 },
-    { x: 16, y: 32 },
-  ];
-
-  const lowerLoop = [
-    { x: 16, y: 32 },
-    { x: 28, y: 32 },
-    { x: 28, y: 38 },
-    { x: 18, y: 38 },
-    { x: 18, y: 27 },
-  ];
-
-  const lowerLeftDeadEnd = [
-    { x: 18, y: 27 },
-    { x: 6, y: 27 },
-  ];
-
-  const lowerLeftPortalSpur = [
-    { x: 18, y: 27 },
-    { x: 18, y: 21 },
-    { x: 10, y: 21 },
-  ];
-
-  const finalExitRun = [
-    { x: 58, y: 10 },
-    { x: 62, y: 10 },
-    { x: 62, y: 42 },
-    { x: 2, y: 42 },
-  ];
-
-  carvePolyline(grid, upperEntry, 0);
-  carvePolyline(grid, upperPortalSpur, 0);
-  carvePolyline(grid, upperRightRun, 0);
-  carvePolyline(grid, lowerPortalEntry, 0);
-  carvePolyline(grid, lowerLoop, 0);
-  carvePolyline(grid, lowerLeftDeadEnd, 0);
-  carvePolyline(grid, lowerLeftPortalSpur, 0);
-  carvePolyline(grid, finalExitRun, 0);
-
-  const portals: PortalLink[] = [
-    {
-      a: { x: 10, y: 4 },
-      b: { x: 42, y: 24 },
-    },
-    {
-      a: { x: 10, y: 21 },
-      b: { x: 58, y: 10 },
-    },
-  ];
-  setPortalTiles(
-    grid,
-    portals.flatMap((portal) => [portal.a, portal.b])
-  );
-
-  const start = { x: 4, y: 2 };
-  const exit = { x: 2, y: 42 };
-  setTile(grid, start, START);
-  setTile(grid, exit, EXIT);
-
-  return {
-    id: 5,
-    name: "Level 5: PORTALS",
-    rotationOnSpin: false,
-    cols,
-    rows,
-    grid: freezeGrid(grid),
-    start,
-    exit,
-    portals,
-  };
-}
-
-function buildLevelSix(): Level {
-  const cols = 82;
-  const rows = 45;
-  const grid = createGrid(cols, rows);
-
-  const startEntry = [
-    { x: 2, y: 6 },
-    { x: 6, y: 6 },
-    { x: 11, y: 6 },
-    { x: 11, y: 10 },
-  ];
-
-  const leftMaze = [
-    { x: 11, y: 10 },
-    { x: 11, y: 22 },
-    { x: 6, y: 22 },
-    { x: 6, y: 10 },
-    { x: 16, y: 10 },
-    { x: 16, y: 18 },
-    { x: 22, y: 18 },
-    { x: 22, y: 12 },
-    { x: 11, y: 12 },
-  ];
-
-  const upperTraverse = [
-    { x: 11, y: 12 },
-    { x: 11, y: 28 },
-    { x: 48, y: 28 },
-    { x: 48, y: 18 },
-    { x: 66, y: 18 },
-    { x: 66, y: 20 },
-  ];
-
-  const rightTower = [
-    { x: 66, y: 20 },
-    { x: 72, y: 20 },
-    { x: 72, y: 4 },
-    { x: 79, y: 4 },
-    { x: 79, y: 40 },
-    { x: 70, y: 40 },
-  ];
-
-  const bottomRun = [
-    { x: 70, y: 40 },
-    { x: 2, y: 40 },
-  ];
-
-  const bottomButtonSpurs = [
-    [
-      { x: 68, y: 40 },
-      { x: 68, y: 36 },
-    ],
-    [
-      { x: 58, y: 40 },
-      { x: 58, y: 36 },
-    ],
-    [
-      { x: 48, y: 40 },
-      { x: 48, y: 36 },
-    ],
-    [
-      { x: 38, y: 40 },
-      { x: 38, y: 36 },
-    ],
-    [
-      { x: 28, y: 40 },
-      { x: 28, y: 36 },
-    ],
-    [
-      { x: 18, y: 40 },
-      { x: 18, y: 36 },
-    ],
-  ];
-
-  carvePolyline(grid, startEntry, 0);
-  carvePolyline(grid, leftMaze, 0);
-  carvePolyline(grid, upperTraverse, 0);
-  carvePolyline(grid, rightTower, 0);
-  carvePolyline(grid, bottomRun, 0);
-  for (const spur of bottomButtonSpurs) {
-    carvePolyline(grid, spur, 0);
-  }
-
-  const timedButtons: TimedButton[] = [
-    { button: { x: 6, y: 6 }, walls: [{ x: 11, y: 10 }] },
-    { button: { x: 66, y: 20 }, walls: [{ x: 72, y: 20 }] },
-    { button: { x: 68, y: 36 }, walls: [{ x: 64, y: 40 }] },
-    { button: { x: 58, y: 36 }, walls: [{ x: 54, y: 40 }] },
-    { button: { x: 48, y: 36 }, walls: [{ x: 44, y: 40 }] },
-    { button: { x: 38, y: 36 }, walls: [{ x: 34, y: 40 }] },
-    { button: { x: 28, y: 36 }, walls: [{ x: 24, y: 40 }] },
-    { button: { x: 18, y: 36 }, walls: [{ x: 14, y: 40 }] },
-  ];
-
-  setButtonTiles(
-    grid,
-    timedButtons.map((timedButton) => timedButton.button)
-  );
-  setTimedWallTiles(
-    grid,
-    timedButtons.flatMap((timedButton) => timedButton.walls)
-  );
-
-  const start = { x: 2, y: 6 };
-  const exit = { x: 2, y: 40 };
-  setTile(grid, start, START);
-  setTile(grid, exit, EXIT);
-
-  return {
-    id: 6,
-    name: "Level 6: TIMED BUTTONS",
-    rotationOnSpin: false,
-    cols,
-    rows,
-    grid: freezeGrid(grid),
-    start,
-    exit,
-    timedButtons,
-  };
-}
-
-function cloneGrid(grid: string[]): Tile[][] {
-  return grid.map((row) => row.split("") as Tile[]);
-}
-
-function currentTile(x: number, y: number): Tile {
-  const row = state.grid[y];
-  const tile = row?.[x];
+  const tile = terrainTileAt(state.level.terrain, { x, y });
   if (!tile) {
-    throw new Error(`Tile out of bounds at ${x},${y}`);
+    throw new Error(`Terrain out of bounds at ${x},${y}`);
   }
 
   return tile;
 }
 
-function getCrossingAt(level: Level | null, x: number, y: number): Crossing | null {
-  if (!level?.crossings) {
-    return null;
-  }
-
-  return level.crossings.find((crossing) => samePoint(crossing.point, { x, y })) ?? null;
+function getBridgeAt(level: NormalizedMazeMap | null, x: number, y: number): BridgeFeature | null {
+  return level?.bridgesByCell.get(pointKey({ x, y })) ?? null;
 }
 
-function getPortalLinkAt(level: Level | null, x: number, y: number): PortalLink | null {
-  if (!level?.portals) {
-    return null;
-  }
-
-  return (
-    level.portals.find((portal) => samePoint(portal.a, { x, y }) || samePoint(portal.b, { x, y })) ??
-    null
-  );
+function getPortalAt(level: NormalizedMazeMap | null, x: number, y: number): PortalFeature | null {
+  return level?.portalsByCell.get(pointKey({ x, y })) ?? null;
 }
 
-function getPortalDestination(level: Level | null, x: number, y: number): Point | null {
-  const portal = getPortalLinkAt(level, x, y);
-  if (!portal) {
-    return null;
-  }
-
-  return samePoint(portal.a, { x, y }) ? portal.b : portal.a;
+function getPortalDestination(
+  level: NormalizedMazeMap | null,
+  portal: PortalFeature
+): PortalFeature | null {
+  return level?.portalsById.get(portal.props.targetPortalId) ?? null;
 }
 
-function getTimedButtonAt(level: Level | null, x: number, y: number): TimedButton | null {
-  if (!level?.timedButtons) {
-    return null;
-  }
-
-  return level.timedButtons.find((timedButton) => samePoint(timedButton.button, { x, y })) ?? null;
+function getSwitchAt(level: NormalizedMazeMap | null, x: number, y: number): SwitchFeature | null {
+  return level?.switchesByCell.get(pointKey({ x, y })) ?? null;
 }
 
-function stopTimedWallTicker(): void {
-  if (timedWallTicker !== null) {
-    window.clearInterval(timedWallTicker);
-    timedWallTicker = null;
+function getWellAt(level: NormalizedMazeMap | null, x: number, y: number): WellFeature | null {
+  return level?.wellsByCell.get(pointKey({ x, y })) ?? null;
+}
+
+function getWellExpiry(wellId: string): number {
+  return state.wellOpenUntil[wellId] ?? 0;
+}
+
+function isWellOpen(wellId: string, now = Date.now()): boolean {
+  return getWellExpiry(wellId) > now;
+}
+
+function getWellOpenAmount(wellId: string, now = Date.now()): number {
+  const remaining = getWellExpiry(wellId) - now;
+  if (remaining <= 0) {
+    return 0;
+  }
+
+  const fadeWindow = Math.min(getWellExpiry(wellId) - (now - WELL_FADE_MS), WELL_FADE_MS);
+  const maxVisible = Math.max(WELL_FADE_MS, fadeWindow);
+  return remaining >= maxVisible ? 1 : Math.max(0, Math.min(1, remaining / WELL_FADE_MS));
+}
+
+function stopWellTicker(): void {
+  if (wellTicker !== null) {
+    window.clearInterval(wellTicker);
+    wellTicker = null;
   }
 }
 
-function cleanupExpiredTimedWalls(now = Date.now()): void {
-  for (const [wallKey, expiresAt] of Object.entries(state.timedWallOpenUntil)) {
+function cleanupExpiredWells(now = Date.now()): void {
+  for (const [wellId, expiresAt] of Object.entries(state.wellOpenUntil)) {
     if (expiresAt <= now) {
-      delete state.timedWallOpenUntil[wallKey];
+      delete state.wellOpenUntil[wellId];
     }
   }
 }
 
-function ensureTimedWallTicker(): void {
-  if (timedWallTicker !== null) {
+function ensureWellTicker(): void {
+  if (wellTicker !== null) {
     return;
   }
 
-  timedWallTicker = window.setInterval(() => {
-    cleanupExpiredTimedWalls();
+  wellTicker = window.setInterval(() => {
+    cleanupExpiredWells();
 
-    if (state.level && currentTile(state.player.x, state.player.y) === TIMED_WALL) {
-      const playerPoint = { ...state.player };
-      if (!isTimedWallOpen(playerPoint)) {
+    if (state.level) {
+      const currentWell = getWellAt(state.level, state.player.x, state.player.y);
+      if (currentWell && !isWellOpen(currentWell.id)) {
         statusEl.textContent = "Too slow. Try again.";
         loadLevel(state.levelIndex);
         return;
       }
     }
 
-    if (Object.keys(state.timedWallOpenUntil).length === 0) {
-      stopTimedWallTicker();
+    if (Object.keys(state.wellOpenUntil).length === 0) {
+      stopWellTicker();
     }
 
     if (state.level) {
@@ -1204,38 +393,43 @@ function ensureTimedWallTicker(): void {
   }, 100);
 }
 
-function triggerTimedButton(level: Level, timedButton: TimedButton): void {
-  const expiresAt = Date.now() + TIMED_WALL_DURATION_MS;
-  for (const wall of timedButton.walls) {
-    state.timedWallOpenUntil[pointKey(wall)] = expiresAt;
+function triggerSwitch(mazeSwitch: SwitchFeature): void {
+  const expiresAt = Date.now() + mazeSwitch.props.timeoutMs;
+  for (const targetWellId of mazeSwitch.props.targetWellIds) {
+    state.wellOpenUntil[targetWellId] = expiresAt;
   }
-  ensureTimedWallTicker();
-  statusEl.textContent = "Button pressed. Door open for 10 seconds.";
+  ensureWellTicker();
+  const seconds = mazeSwitch.props.timeoutMs / 1000;
+  statusEl.textContent = `Switch pressed. Well open for ${seconds} seconds.`;
 }
 
 function isWalkable(x: number, y: number): boolean {
-  if (!inBounds(state.grid, x, y)) {
+  if (!state.level) {
     return false;
   }
 
-  const tile = currentTile(x, y);
-  if (tile === WALL) {
+  if (x < 0 || y < 0 || x >= state.level.cols || y >= state.level.rows) {
     return false;
   }
 
-  if (tile === TIMED_WALL) {
-    return isTimedWallOpen({ x, y });
+  if (currentTerrain(x, y) === TERRAIN_WALL) {
+    return false;
+  }
+
+  const well = getWellAt(state.level, x, y);
+  if (well) {
+    return isWellOpen(well.id);
   }
 
   return true;
 }
 
 function updatePlayerVisibility(): void {
-  const crossing = getCrossingAt(state.level, state.player.x, state.player.y);
+  const bridge = getBridgeAt(state.level, state.player.x, state.player.y);
   state.playerHiddenUnderBridge =
-    crossing !== null &&
+    bridge !== null &&
     state.playerCrossingAxis !== null &&
-    crossing.underAxis === state.playerCrossingAxis;
+    bridge.props.underAxis === state.playerCrossingAxis;
 }
 
 function canMoveTo(nx: number, ny: number, dx: number, dy: number): boolean {
@@ -1244,9 +438,8 @@ function canMoveTo(nx: number, ny: number, dx: number, dy: number): boolean {
   }
 
   const axis = axisFromDelta(dx, dy);
-  const currentCrossing = getCrossingAt(state.level, state.player.x, state.player.y);
-
-  if (currentCrossing && state.playerCrossingAxis && axis !== state.playerCrossingAxis) {
+  const currentBridge = getBridgeAt(state.level, state.player.x, state.player.y);
+  if (currentBridge && state.playerCrossingAxis && axis !== state.playerCrossingAxis) {
     return false;
   }
 
@@ -1271,13 +464,12 @@ function playLevelDescription(levelId: number): void {
   hideDescriptionReplayButton();
   audio.currentTime = 0;
   const playAttempt = audio.play();
-
   if (!playAttempt || typeof playAttempt.catch !== "function") {
     return;
   }
 
   playAttempt.catch(() => {
-    if (state.level?.id === levelId) {
+    if (state.level?.map.id === levelId) {
       statusEl.textContent = "Tap play description again to hear the level intro.";
       showDescriptionReplayButton();
     }
@@ -1311,16 +503,15 @@ function loadLevel(index: number): void {
 
   state.level = level;
   state.levelIndex = index;
-  state.grid = cloneGrid(level.grid);
-  state.player = { ...level.start };
+  state.player = { ...level.map.markers.start };
   state.won = false;
   state.rotationQuarter = 0;
   state.controlsReversed = false;
   state.playerCrossingAxis = null;
   state.playerHiddenUnderBridge = false;
   state.portalLock = null;
-  state.timedWallOpenUntil = {};
-  stopTimedWallTicker();
+  state.wellOpenUntil = {};
+  stopWellTicker();
 
   const sceneWidth = level.cols * TILE_SIZE;
   const sceneHeight = level.rows * TILE_SIZE;
@@ -1330,8 +521,8 @@ function loadLevel(index: number): void {
   canvas.width = stageSize;
   canvas.height = stageSize;
 
-  levelNameEl.textContent = level.name;
-  subtitleEl.textContent = level.name;
+  levelNameEl.textContent = level.map.name;
+  subtitleEl.textContent = level.map.name;
   statusEl.textContent = "Use arrow keys, WASD, or tap the controls.";
   hideCompletionOverlay();
   hideLevelSelector();
@@ -1340,9 +531,14 @@ function loadLevel(index: number): void {
   updatePlayerVisibility();
 
   stopAllLevelAudio();
-  handleLevelAudioOnEntry(level.id);
+  handleLevelAudioOnEntry(level.map.id);
 
   draw();
+}
+
+function applySpin(rotationQuarterDelta: number): void {
+  const delta = ((rotationQuarterDelta % 4) + 4) % 4;
+  state.rotationQuarter = (state.rotationQuarter + delta) % 4;
 }
 
 function tryMove(dx: number, dy: number): void {
@@ -1361,39 +557,35 @@ function tryMove(dx: number, dy: number): void {
   state.player.y = ny;
 
   const moveAxis = axisFromDelta(dx, dy);
-  const tile = currentTile(nx, ny);
-  const crossing = getCrossingAt(level, nx, ny);
-  state.playerCrossingAxis = crossing ? moveAxis : null;
+  const feature = featureAt(level, { x: nx, y: ny });
+  const bridge = feature?.kind === "bridge" ? feature : null;
+  state.playerCrossingAxis = bridge ? moveAxis : null;
 
-  if (tile === SPIN && level.rotationOnSpin) {
-    state.rotationQuarter = (state.rotationQuarter + 1) % 4;
+  if (feature?.kind === "spin") {
+    applySpin(feature.props.rotationQuarterDelta);
     statusEl.textContent = "The maze spun around you.";
-  } else if (tile === REVERSE) {
+  } else if (feature?.kind === "reverse") {
     state.controlsReversed = !state.controlsReversed;
     statusEl.textContent = state.controlsReversed
       ? "Your controls are reversed."
       : "Your controls are normal again.";
-  } else if (tile === RESET) {
+  } else if (feature?.kind === "reset") {
     state.rotationQuarter = 0;
     state.controlsReversed = false;
     statusEl.textContent = "The illusions reset.";
-  } else if (tile === UNDERPASS && crossing?.underAxis === moveAxis) {
+  } else if (feature?.kind === "bridge" && feature.props.underAxis === moveAxis) {
     statusEl.textContent = "You slipped under the bridge.";
-  } else if (tile === BUTTON) {
-    const timedButton = getTimedButtonAt(level, nx, ny);
-    if (timedButton) {
-      triggerTimedButton(level, timedButton);
-    }
+  } else if (feature?.kind === "switch") {
+    triggerSwitch(feature);
   }
 
-  if (tile === PORTAL) {
-    const portalKey = pointKey({ x: nx, y: ny });
-    if (state.portalLock !== portalKey) {
-      const destination = getPortalDestination(level, nx, ny);
+  if (feature?.kind === "portal") {
+    if (state.portalLock !== feature.id) {
+      const destination = getPortalDestination(level, feature);
       if (destination) {
-        state.player = { ...destination };
+        state.player = { ...destination.position };
         state.playerCrossingAxis = null;
-        state.portalLock = pointKey(destination);
+        state.portalLock = destination.id;
         statusEl.textContent = "WHOOSH. Portal jump.";
       }
     }
@@ -1403,7 +595,7 @@ function tryMove(dx: number, dy: number): void {
 
   updatePlayerVisibility();
 
-  if (state.player.x === level.exit.x && state.player.y === level.exit.y) {
+  if (samePoint(state.player, level.map.markers.exit)) {
     state.won = true;
     statusEl.textContent = "LEVEL COMPLETE";
     showCompletionOverlay();
@@ -1523,7 +715,7 @@ function drawReverseSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: numb
   drawCtx.fill();
 }
 
-function drawUnderpassSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+function drawBridgeSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
   const px = x * TILE_SIZE;
   const py = y * TILE_SIZE;
 
@@ -1531,17 +723,113 @@ function drawUnderpassSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: nu
   drawCtx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
 }
 
-function drawUnderpassShadow(
+function drawPortalSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+  const cx = x * TILE_SIZE + TILE_SIZE / 2;
+  const cy = y * TILE_SIZE + TILE_SIZE / 2;
+
+  drawCtx.strokeStyle = palette.portal;
+  drawCtx.lineWidth = 2.5;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy, TILE_SIZE * 0.28, 0, Math.PI * 2);
+  drawCtx.stroke();
+}
+
+function drawSwitchSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+
+  drawCtx.fillStyle = palette.switch;
+  drawCtx.fillRect(px + 4, py + TILE_SIZE * 0.58, TILE_SIZE - 8, TILE_SIZE * 0.16);
+
+  drawCtx.fillStyle = palette.switchTop;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy + 2, TILE_SIZE * 0.28, Math.PI, 0);
+  drawCtx.fill();
+
+  drawCtx.strokeStyle = palette.switch;
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy + 2, TILE_SIZE * 0.28, Math.PI, 0);
+  drawCtx.stroke();
+}
+
+function drawWellOverlay(drawCtx: CanvasRenderingContext2D, well: WellFeature): void {
+  const px = well.position.x * TILE_SIZE;
+  const py = well.position.y * TILE_SIZE;
+  const openness = getWellOpenAmount(well.id);
+
+  drawCtx.save();
+  drawCtx.fillStyle = palette.well;
+  drawCtx.globalAlpha = 1 - openness;
+  drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+  drawCtx.restore();
+}
+
+function drawTerrainCell(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
+  if (!state.level) {
+    return;
+  }
+
+  let fill = palette.path;
+  const point = { x, y };
+  if (terrainTileAt(state.level.terrain, point) === TERRAIN_WALL) {
+    fill = palette.wall;
+  } else if (samePoint(point, state.level.map.markers.start)) {
+    fill = palette.start;
+  } else if (samePoint(point, state.level.map.markers.exit)) {
+    fill = palette.exit;
+  }
+
+  const px = x * TILE_SIZE;
+  const py = y * TILE_SIZE;
+  drawCtx.fillStyle = fill;
+  drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+  if (fill !== palette.wall) {
+    drawCtx.strokeStyle = "rgba(23, 32, 61, 0.08)";
+    drawCtx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+  }
+}
+
+function drawFeature(drawCtx: CanvasRenderingContext2D, feature: MapFeature): void {
+  const graphics = getFeatureDefinition(feature.kind).graphics;
+  if (graphics.icon === "well" && feature.kind === "well") {
+    drawWellOverlay(drawCtx, feature);
+    return;
+  }
+
+  if (graphics.icon === "spin") {
+    drawSpinSymbol(drawCtx, feature.position.x, feature.position.y);
+  } else if (graphics.icon === "reset") {
+    drawResetSymbol(drawCtx, feature.position.x, feature.position.y);
+  } else if (graphics.icon === "reverse") {
+    drawReverseSymbol(drawCtx, feature.position.x, feature.position.y);
+  } else if (graphics.icon === "bridge") {
+    drawBridgeSymbol(drawCtx, feature.position.x, feature.position.y);
+  } else if (graphics.icon === "portal") {
+    drawPortalSymbol(drawCtx, feature.position.x, feature.position.y);
+  } else if (graphics.icon === "switch") {
+    drawSwitchSymbol(drawCtx, feature.position.x, feature.position.y);
+  }
+}
+
+function drawBridgeShadow(
   drawCtx: CanvasRenderingContext2D,
-  crossing: Crossing,
+  bridge: BridgeFeature,
   direction: -1 | 1,
   distance: number
 ): void {
+  if (!state.level) {
+    return;
+  }
+
   const alpha = distance === 1 ? 0.78 : 0.32;
-  if (crossing.underAxis === "horizontal") {
-    const x = crossing.point.x + direction * distance;
-    const y = crossing.point.y;
-    if (!inBounds(state.grid, x, y) || currentTile(x, y) === WALL) {
+  if (bridge.props.underAxis === "horizontal") {
+    const x = bridge.position.x + direction * distance;
+    const y = bridge.position.y;
+    if (terrainTileAt(state.level.terrain, { x, y }) !== TERRAIN_OPEN) {
       return;
     }
 
@@ -1557,9 +845,9 @@ function drawUnderpassShadow(
     return;
   }
 
-  const x = crossing.point.x;
-  const y = crossing.point.y + direction * distance;
-  if (!inBounds(state.grid, x, y) || currentTile(x, y) === WALL) {
+  const x = bridge.position.x;
+  const y = bridge.position.y + direction * distance;
+  if (terrainTileAt(state.level.terrain, { x, y }) !== TERRAIN_OPEN) {
     return;
   }
 
@@ -1574,21 +862,46 @@ function drawUnderpassShadow(
   drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 }
 
-function drawUnderpassShadows(drawCtx: CanvasRenderingContext2D): void {
-  for (const crossing of state.level?.crossings ?? []) {
-    drawUnderpassShadow(drawCtx, crossing, -1, 1);
-    drawUnderpassShadow(drawCtx, crossing, 1, 1);
-    drawUnderpassShadow(drawCtx, crossing, -1, 2);
-    drawUnderpassShadow(drawCtx, crossing, 1, 2);
+function drawBridgeShadows(drawCtx: CanvasRenderingContext2D): void {
+  if (!state.level) {
+    return;
+  }
+
+  for (const feature of state.level.map.features) {
+    if (feature.kind !== "bridge") {
+      continue;
+    }
+
+    drawBridgeShadow(drawCtx, feature, -1, 1);
+    drawBridgeShadow(drawCtx, feature, 1, 1);
+    drawBridgeShadow(drawCtx, feature, -1, 2);
+    drawBridgeShadow(drawCtx, feature, 1, 2);
   }
 }
 
 function drawPortalLinks(drawCtx: CanvasRenderingContext2D): void {
-  for (const portal of state.level?.portals ?? []) {
-    const startX = portal.a.x * TILE_SIZE + TILE_SIZE / 2;
-    const startY = portal.a.y * TILE_SIZE + TILE_SIZE / 2;
-    const endX = portal.b.x * TILE_SIZE + TILE_SIZE / 2;
-    const endY = portal.b.y * TILE_SIZE + TILE_SIZE / 2;
+  if (!state.level) {
+    return;
+  }
+
+  const visited = new Set<string>();
+  for (const portal of state.level.portalsById.values()) {
+    if (visited.has(portal.id)) {
+      continue;
+    }
+
+    const destination = getPortalDestination(state.level, portal);
+    if (!destination) {
+      continue;
+    }
+
+    visited.add(portal.id);
+    visited.add(destination.id);
+
+    const startX = portal.position.x * TILE_SIZE + TILE_SIZE / 2;
+    const startY = portal.position.y * TILE_SIZE + TILE_SIZE / 2;
+    const endX = destination.position.x * TILE_SIZE + TILE_SIZE / 2;
+    const endY = destination.position.y * TILE_SIZE + TILE_SIZE / 2;
     const controlX = (startX + endX) / 2;
     const controlY = Math.min(startY, endY) - TILE_SIZE * 2.2;
 
@@ -1598,90 +911,6 @@ function drawPortalLinks(drawCtx: CanvasRenderingContext2D): void {
     drawCtx.moveTo(startX, startY);
     drawCtx.quadraticCurveTo(controlX, controlY, endX, endY);
     drawCtx.stroke();
-  }
-}
-
-function drawPortalSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
-  const cx = x * TILE_SIZE + TILE_SIZE / 2;
-  const cy = y * TILE_SIZE + TILE_SIZE / 2;
-
-  drawCtx.strokeStyle = palette.portal;
-  drawCtx.lineWidth = 2.5;
-  drawCtx.beginPath();
-  drawCtx.arc(cx, cy, TILE_SIZE * 0.28, 0, Math.PI * 2);
-  drawCtx.stroke();
-}
-
-function drawButtonSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
-  const px = x * TILE_SIZE;
-  const py = y * TILE_SIZE;
-  const cx = px + TILE_SIZE / 2;
-  const cy = py + TILE_SIZE / 2;
-
-  drawCtx.fillStyle = palette.button;
-  drawCtx.fillRect(px + 4, py + TILE_SIZE * 0.58, TILE_SIZE - 8, TILE_SIZE * 0.16);
-
-  drawCtx.fillStyle = palette.buttonTop;
-  drawCtx.beginPath();
-  drawCtx.arc(cx, cy + 2, TILE_SIZE * 0.28, Math.PI, 0);
-  drawCtx.fill();
-
-  drawCtx.strokeStyle = palette.button;
-  drawCtx.lineWidth = 2;
-  drawCtx.beginPath();
-  drawCtx.arc(cx, cy + 2, TILE_SIZE * 0.28, Math.PI, 0);
-  drawCtx.stroke();
-}
-
-function drawTile(
-  drawCtx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  tile: Tile
-): void {
-  const px = x * TILE_SIZE;
-  const py = y * TILE_SIZE;
-
-  let fill = palette.path;
-  if (tile === WALL) {
-    fill = palette.wall;
-  } else if (tile === START) {
-    fill = palette.start;
-  } else if (tile === EXIT) {
-    fill = palette.exit;
-  } else if (tile === TIMED_WALL) {
-    fill = palette.path;
-  }
-
-  drawCtx.fillStyle = fill;
-  drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-
-  if (tile !== WALL) {
-    drawCtx.strokeStyle = "rgba(23, 32, 61, 0.08)";
-    drawCtx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-  }
-
-  if (tile === TIMED_WALL) {
-    const openness = getTimedWallOpenAmount({ x, y });
-    drawCtx.save();
-    drawCtx.fillStyle = palette.timedWall;
-    drawCtx.globalAlpha = 1 - openness;
-    drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-    drawCtx.restore();
-  }
-
-  if (tile === SPIN) {
-    drawSpinSymbol(drawCtx, x, y);
-  } else if (tile === RESET) {
-    drawResetSymbol(drawCtx, x, y);
-  } else if (tile === REVERSE) {
-    drawReverseSymbol(drawCtx, x, y);
-  } else if (tile === UNDERPASS) {
-    drawUnderpassSymbol(drawCtx, x, y);
-  } else if (tile === PORTAL) {
-    drawPortalSymbol(drawCtx, x, y);
-  } else if (tile === BUTTON) {
-    drawButtonSymbol(drawCtx, x, y);
   }
 }
 
@@ -1705,25 +934,25 @@ function drawPlayer(drawCtx: CanvasRenderingContext2D): void {
 }
 
 function drawScene(): void {
+  if (!state.level) {
+    return;
+  }
+
   sceneCtx.fillStyle = palette.sceneBg;
   sceneCtx.fillRect(0, 0, sceneCanvas.width, sceneCanvas.height);
 
-  for (let y = 0; y < state.grid.length; y += 1) {
-    const row = state.grid[y];
-    if (!row) {
-      continue;
-    }
-
-    for (let x = 0; x < row.length; x += 1) {
-      const tile = row[x];
-      if (tile) {
-        drawTile(sceneCtx, x, y, tile);
-      }
+  for (let y = 0; y < state.level.rows; y += 1) {
+    for (let x = 0; x < state.level.cols; x += 1) {
+      drawTerrainCell(sceneCtx, x, y);
     }
   }
 
+  for (const feature of state.level.map.features) {
+    drawFeature(sceneCtx, feature);
+  }
+
   drawPortalLinks(sceneCtx);
-  drawUnderpassShadows(sceneCtx);
+  drawBridgeShadows(sceneCtx);
   drawPlayer(sceneCtx);
 }
 
@@ -1754,7 +983,7 @@ function renderLevelSelector(): void {
   levelSelectorList.innerHTML = LEVELS.map((level, index) => {
     const isCurrent = index === state.levelIndex;
     const currentClass = isCurrent ? " is-current" : "";
-    return `<button class="selector-level-btn${currentClass}" type="button" data-level-index="${index}">Level ${level.id}: ${level.name.replace(/^Level \d+:\s*/, "")}</button>`;
+    return `<button class="selector-level-btn${currentClass}" type="button" data-level-index="${index}">Level ${level.map.id}: ${level.map.name.replace(/^Level \d+:\s*/, "")}</button>`;
   }).join("");
 
   const levelButtons = Array.from(
@@ -1771,6 +1000,59 @@ function renderLevelSelector(): void {
 
       loadLevel(index);
     });
+  }
+}
+
+function summarizeFeatureProperties(definition: FeatureDefinition): string {
+  if (definition.properties.length === 0) {
+    return "No extra properties";
+  }
+
+  return definition.properties.map((property) => property.label).join(" • ");
+}
+
+function renderCreateFeatureDetail(kind: FeatureKind): void {
+  const definition = getFeatureDefinition(kind);
+  createPanelTitleEl.textContent = definition.label;
+  createPanelDescriptionEl.textContent = definition.description;
+  createPanelHintEl.textContent =
+    definition.graphics.annotationHint ??
+    `Placement: ${definition.placement.notes.join(" ")}`;
+
+  const featureButtons = Array.from(
+    createFeatureList.querySelectorAll<HTMLButtonElement>(".create-feature-btn")
+  );
+  for (const button of featureButtons) {
+    button.classList.toggle("is-selected", button.dataset["featureKind"] === kind);
+  }
+}
+
+function renderCreatePanel(): void {
+  const definitions = getFeatureDefinitions();
+  createFeatureList.innerHTML = definitions
+    .map((definition) => {
+      const summary = summarizeFeatureProperties(definition);
+      return `<button class="create-feature-btn" type="button" data-feature-kind="${definition.kind}" role="listitem"><span class="create-feature-label">${definition.label}</span><span class="create-feature-meta">${summary}</span></button>`;
+    })
+    .join("");
+
+  const featureButtons = Array.from(
+    createFeatureList.querySelectorAll<HTMLButtonElement>(".create-feature-btn")
+  );
+  for (const button of featureButtons) {
+    button.addEventListener("click", () => {
+      const featureKind = button.dataset["featureKind"];
+      if (!featureKind || !isFeatureKind(featureKind)) {
+        return;
+      }
+
+      renderCreateFeatureDetail(featureKind);
+    });
+  }
+
+  const firstDefinition = definitions[0];
+  if (firstDefinition) {
+    renderCreateFeatureDetail(firstDefinition.kind);
   }
 }
 
@@ -1802,6 +1084,18 @@ function handleKeydown(event: KeyboardEvent): void {
 
 function isDirection(value: string): value is Direction {
   return value === "up" || value === "down" || value === "left" || value === "right";
+}
+
+function isFeatureKind(value: string): value is FeatureKind {
+  return (
+    value === "switch" ||
+    value === "well" ||
+    value === "bridge" ||
+    value === "portal" ||
+    value === "spin" ||
+    value === "reverse" ||
+    value === "reset"
+  );
 }
 
 function setupTouchControls(): void {
@@ -1840,17 +1134,21 @@ resetBtn.addEventListener("click", () => {
 });
 
 playBtn.addEventListener("click", () => {
+  hideCreatePanel();
   loadLevel(0);
 });
 
 createBtn.addEventListener("click", () => {
+  renderCreatePanel();
+  showCreatePanel();
   startMenuMessageEl.textContent =
-    "Create will be used for building and publishing your own online levels.";
+    "Create now previews the feature system that powers the maze maps. Pick a feature card to inspect it.";
 });
 
 viewBtn.addEventListener("click", () => {
+  hideCreatePanel();
   startMenuMessageEl.textContent =
-    "View will be used for browsing and playing levels made by other people.";
+    "View will browse levels created from declarative terrain and feature data.";
 });
 
 levelSelectorBtn.addEventListener("click", () => {
@@ -1870,7 +1168,7 @@ levelSelectorOverlay.addEventListener("click", (event) => {
 
 playDescriptionBtn.addEventListener("click", () => {
   if (state.level) {
-    playLevelDescription(state.level.id);
+    playLevelDescription(state.level.map.id);
   }
 });
 
@@ -1892,3 +1190,16 @@ nextLevelBtn.addEventListener("click", () => {
 window.addEventListener("keydown", handleKeydown, { passive: false });
 setupTouchControls();
 showStartMenu();
+
+function getFeatureDefinitionNames(): Iterable<string> {
+  const byKind: FeatureKind[] = [
+    "switch",
+    "well",
+    "bridge",
+    "portal",
+    "spin",
+    "reverse",
+    "reset",
+  ];
+  return byKind.map((kind) => getFeatureDefinition(kind).label.toLowerCase());
+}
