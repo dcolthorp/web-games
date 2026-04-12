@@ -1,3 +1,16 @@
+:root {
+  --bg: #0d0d12;
+  --bg-accent: #1c1322;
+  --panel: #17171f;
+  --panel-2: #1f2028;
+  --ink: #f7f1d0;
+  --muted: #b4af98;
+  --danger: #f24d3d;
+  --danger-dark: #791f18;
+  --warn: #f2c230;
+  --card-shadow: rgba(0, 0, 0, 0.36);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,61 +18,344 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    sans-serif;
-  background: #1a1a2e;
-  color: #eee;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(242, 194, 48, 0.14), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(242, 77, 61, 0.12), transparent 22%),
+    linear-gradient(180deg, var(--bg-accent), var(--bg));
+  color: var(--ink);
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.menu-container {
-  text-align: center;
-  padding: 2rem;
+.menu-shell {
+  position: relative;
+  width: min(1080px, calc(100vw - 28px));
+  margin: 0 auto;
+  padding: 28px 0 40px;
+}
+
+.hero-panel {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 22px;
+  padding: 28px 24px 64px;
+  border: 4px solid #0f0f14;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+    linear-gradient(135deg, #2a202a, #12131a 60%);
+  box-shadow: 0 20px 50px var(--card-shadow);
+}
+
+.eyebrow {
+  margin-bottom: 10px;
+  color: var(--warn);
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 h1 {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: clamp(3.8rem, 10vw, 7rem);
+  line-height: 0.9;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow:
+    0 4px 0 #000,
+    0 8px 0 var(--danger-dark),
+    0 14px 24px rgba(0, 0, 0, 0.42);
 }
 
 .subtitle {
-  color: #888;
-  margin-bottom: 2rem;
+  max-width: 32rem;
+  margin-top: 14px;
+  color: var(--muted);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+.hero-stripes {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  bottom: 0;
+  height: 30px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      var(--warn) 0 22px,
+      #141414 22px 44px
+    );
+  border-top: 4px solid #000;
+}
+
+.menu-container {
+  padding: 24px;
+  border: 4px solid #0f0f14;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 30%),
+    linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow: 0 20px 50px var(--card-shadow);
+}
+
+.section-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.section-header h2 {
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.section-copy {
+  color: var(--muted);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 0.98rem;
 }
 
 .game-list {
   list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.game-card {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-width: 300px;
-}
-
-.game-list a {
-  display: block;
-  padding: 1rem 2rem;
-  background: #16213e;
-  border: 1px solid #0f3460;
-  border-radius: 8px;
-  color: #eee;
+  gap: 14px;
+  min-height: 220px;
+  padding: 18px;
+  border: 3px solid #0f0f14;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
+    linear-gradient(180deg, #2a2a34, #1a1b22);
+  color: var(--ink);
   text-decoration: none;
-  transition: all 0.2s ease;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.game-list a:hover {
-  background: #0f3460;
-  border-color: #667eea;
-  transform: translateY(-2px);
+.game-card:hover {
+  transform: translate(-3px, -5px) rotate(-0.6deg);
+  border-color: var(--danger);
+  box-shadow: 10px 16px 0 #000;
 }
 
+.game-card-cursed {
+  animation: menu-curse-spin 1.2s linear infinite, menu-curse-flash 0.28s steps(2) infinite;
+  transform-origin: center;
+  border-color: #ff5f5f;
+}
+
+.game-card-cursed .game-title,
+.game-card-cursed .game-blurb,
+.game-card-cursed .game-tag {
+  color: #fff4e8;
+}
+
+@keyframes menu-curse-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes menu-curse-flash {
+  0%,
+  100% {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 40%),
+      linear-gradient(180deg, #2a2a34, #1a1b22);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+  }
+  50% {
+    background:
+      linear-gradient(180deg, rgba(255, 150, 150, 0.16), transparent 40%),
+      linear-gradient(180deg, #5a161c, #27090d);
+    box-shadow: 0 0 28px rgba(255, 82, 82, 0.42);
+  }
+}
+
+.game-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.game-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  background: var(--danger);
+  color: #fff6da;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-arrow {
+  color: var(--warn);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.game-title {
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  line-height: 0.94;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.game-blurb {
+  margin-top: auto;
+  color: var(--muted);
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+<<<<<<< Updated upstream
+=======
+.crossed-out-word {
+  position: relative;
+  display: inline-block;
+  color: inherit;
+  padding: 0 0.05em;
+}
+
+.crossed-out-word::before,
+.crossed-out-word::after {
+  content: "";
+  position: absolute;
+  left: -0.08em;
+  right: -0.08em;
+  pointer-events: none;
+}
+
+.crossed-out-word::before {
+  top: 0.52em;
+  height: 0.16em;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6f63, #ff8b78 42%, #ff5a52);
+  transform: rotate(-8deg);
+  box-shadow:
+    0 0 0 1px rgba(255, 109, 99, 0.08),
+    0 2px 6px rgba(255, 91, 82, 0.22);
+}
+
+.crossed-out-word::after {
+  top: 0.42em;
+  width: 0.15em;
+  height: 0.4em;
+  left: auto;
+  right: 0.16em;
+  border-radius: 999px;
+  background: rgba(255, 111, 99, 0.78);
+  transform: rotate(-5deg);
+  filter: blur(1px);
+}
+
+>>>>>>> Stashed changes
 .empty-state {
-  color: #666;
+  color: var(--muted);
   font-style: italic;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+.trap-floor {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  border: 4px solid #000;
+  padding: 18px 20px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      var(--warn) 0 22px,
+      #191919 22px 44px
+    );
+  color: #1e1200;
+  font: inherit;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 rgba(255, 244, 201, 0.5);
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+}
+
+.trap-floor:hover {
+  transform: translateY(2px);
+  filter: saturate(1.1);
+}
+
+.hub-trophy {
+  position: absolute;
+  width: 52px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 4;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.34));
+}
+
+.hub-trophy::before,
+.hub-trophy::after {
+  content: "";
+  position: absolute;
+}
+
+.hub-trophy::before {
+  left: 10px;
+  top: 8px;
+  width: 32px;
+  height: 22px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffe794, #f1ba37);
+  box-shadow:
+    0 16px 0 -2px #d59f28,
+    0 28px 0 -8px #f4c85f,
+    inset 0 -4px 0 rgba(123, 78, 0, 0.2);
+}
+
+.hub-trophy::after {
+  left: 6px;
+  top: 14px;
+  width: 40px;
+  height: 18px;
+  border-left: 4px solid #b17d00;
+  border-right: 4px solid #b17d00;
+  border-radius: 12px;
+}
+
+@media (max-width: 720px) {
+  .menu-shell {
+    width: min(100vw - 16px, 1080px);
+    padding-top: 14px;
+  }
+
+  .hero-panel,
+  .menu-container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .hero-panel {
+    padding-bottom: 52px;
+  }
+
+  .game-card {
+    min-height: 188px;
+  }
 }

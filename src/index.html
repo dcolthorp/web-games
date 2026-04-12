@@ -7,13 +7,30 @@
     <link rel="stylesheet" href="./styles/main.css" />
   </head>
   <body>
-    <div class="menu-container">
-      <h1>Games</h1>
-      <p class="subtitle">Select a game to play</p>
-      <ul class="game-list" id="game-list">
-        <!-- Games will be added here -->
-      </ul>
-    </div>
+    <main class="menu-shell">
+      <section class="hero-panel">
+        <p class="eyebrow hub-asset" data-asset-id="hero-eyebrow">Totally fair-ish browser games</p>
+        <h1 class="hub-asset" data-asset-id="hero-title">Games</h1>
+        <p class="subtitle hub-asset" data-asset-id="hero-subtitle">
+          Pick a door. Try not to trust the floor.
+        </p>
+        <div class="hero-stripes hub-asset" data-asset-id="hero-stripes" aria-hidden="true"></div>
+      </section>
+
+      <section class="menu-container" aria-labelledby="game-list-heading">
+        <div class="section-header">
+          <h2 id="game-list-heading" class="hub-asset" data-asset-id="section-title">Choose Your Disaster</h2>
+          <p class="section-copy hub-asset" data-asset-id="section-copy">Arcade energy, suspicious level design, zero paperwork.</p>
+        </div>
+        <ul class="game-list" id="game-list">
+          <!-- Games will be added here -->
+        </ul>
+      </section>
+
+      <button class="trap-floor hub-asset" data-asset-id="trap-floor" id="trap-floor" type="button" aria-label="Trust me floor">
+        TRUST ME!
+      </button>
+    </main>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

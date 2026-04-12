@@ -7,4 +7,3 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 
 const app = new GameApp(canvas);
 app.start();
-

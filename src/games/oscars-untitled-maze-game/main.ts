@@ -26,7 +26,25 @@ import {
 } from "./model";
 
 const TILE_SIZE = 24;
+<<<<<<< Updated upstream
 const WELL_FADE_MS = 1_500;
+=======
+const WALL = "#";
+const OPEN = ".";
+const START = "S";
+const EXIT = "E";
+const SPIN = "O";
+const RESET = "R";
+const REVERSE = "V";
+const UNDERPASS = "U";
+const PORTAL = "P";
+const BUTTON = "B";
+const TIMED_WALL = "G";
+const TIMED_WALL_DURATION_MS = 10_000;
+const TIMED_WALL_FADE_MS = 1_500;
+const LINKED_REVERSE_CONTROLS_KEY = "linked-reverse-controls-curse";
+const LINKED_ROTATION_CURSE_KEY = "linked-rotation-curse";
+>>>>>>> Stashed changes
 
 type Direction = "up" | "down" | "left" | "right";
 
@@ -266,6 +284,8 @@ for (const [levelId, audio] of levelAudioById.entries()) {
     }
   });
 }
+
+window.addEventListener("pagehide", persistLinkedCrossGameState);
 
 function stopAllLevelAudio(): void {
   for (const audio of levelAudioById.values()) {
@@ -536,9 +556,24 @@ function loadLevel(index: number): void {
   draw();
 }
 
+<<<<<<< Updated upstream
 function applySpin(rotationQuarterDelta: number): void {
   const delta = ((rotationQuarterDelta % 4) + 4) % 4;
   state.rotationQuarter = (state.rotationQuarter + delta) % 4;
+=======
+function persistLinkedCrossGameState(): void {
+  if (state.controlsReversed) {
+    localStorage.setItem(LINKED_REVERSE_CONTROLS_KEY, "reversed");
+  } else {
+    localStorage.removeItem(LINKED_REVERSE_CONTROLS_KEY);
+  }
+
+  if (((state.rotationQuarter % 4) + 4) % 4 !== 0) {
+    localStorage.setItem(LINKED_ROTATION_CURSE_KEY, "rotated");
+  } else {
+    localStorage.removeItem(LINKED_ROTATION_CURSE_KEY);
+  }
+>>>>>>> Stashed changes
 }
 
 function tryMove(dx: number, dy: number): void {
