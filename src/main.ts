@@ -37,6 +37,13 @@ const games: Game[] = [
     genre: "Pet Chaos",
     blurb: "Raise a weird little creature and keep its glitchy little life on track.",
   },
+  {
+    id: "a-kids-life",
+    name: "A Kid's Life",
+    path: "./games/a-kids-life/",
+    genre: "Life Sim",
+    blurb: "Raise a sweet kid, grow a whole family tree, and keep each home cozy.",
+  },
 ];
 
 function renderGameList(): void {

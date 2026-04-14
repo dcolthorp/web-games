@@ -14,6 +14,7 @@ export default defineConfig({
           __dirname,
           "src/games/oscars-untitled-maze-game/index.html"
         ),
+        aKidsLife: resolve(__dirname, "src/games/a-kids-life/index.html"),
         tamagotchiMonster: resolve(__dirname, "src/games/tamagotchi-monster/index.html"),
       },
     },
