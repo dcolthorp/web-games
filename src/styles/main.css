@@ -226,8 +226,6 @@ h1 {
   line-height: 1.45;
 }
 
-<<<<<<< Updated upstream
-=======
 .crossed-out-word {
   position: relative;
   display: inline-block;
@@ -266,8 +264,6 @@ h1 {
   transform: rotate(-5deg);
   filter: blur(1px);
 }
-
->>>>>>> Stashed changes
 .empty-state {
   color: var(--muted);
   font-style: italic;

@@ -4,12 +4,9 @@ interface Game {
   id: string;
   name: string;
   path: string;
-<<<<<<< Updated upstream
-=======
   menuLabel?: string;
   genre: string;
   blurb: string;
->>>>>>> Stashed changes
 }
 
 const LINKED_ROTATION_CURSE_KEY = "linked-rotation-curse";
@@ -19,8 +16,6 @@ const games: Game[] = [
   // Add games here as you create them
   // { id: "snake", name: "Snake", path: "./games/snake/" },
   {
-<<<<<<< Updated upstream
-=======
     id: "a-hard-easy-game",
     name: "A Hard Easy Game",
     menuLabel: 'A <span class="crossed-out-word">Hard</span> Easy Game',
@@ -29,7 +24,6 @@ const games: Game[] = [
     blurb: "A dramatic obstacle run where most of the danger is just showing off.",
   },
   {
->>>>>>> Stashed changes
     id: "oscars-untitled-maze-game",
     name: "Oscar's Untitled Maze Game",
     path: "./games/oscars-untitled-maze-game/",
@@ -58,9 +52,6 @@ function renderGameList(): void {
     .map(
       (game) => `
       <li>
-<<<<<<< Updated upstream
-        <a href="${game.path}">${game.name}</a>
-=======
         <a class="game-card hub-asset" data-asset-id="card-${game.id}" href="${game.path}" aria-label="${game.name}">
           <span class="game-card-top hub-asset" data-asset-id="card-top-${game.id}">
             <span class="game-tag hub-asset" data-asset-id="card-tag-${game.id}">${game.genre}</span>
@@ -69,7 +60,6 @@ function renderGameList(): void {
           <span class="game-title hub-asset" data-asset-id="card-title-${game.id}">${game.menuLabel ?? game.name}</span>
           <span class="game-blurb hub-asset" data-asset-id="card-blurb-${game.id}">${game.blurb}</span>
         </a>
->>>>>>> Stashed changes
       </li>
     `
     )
