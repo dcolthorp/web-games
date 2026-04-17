@@ -49,36 +49,13 @@ body.teleport-assets-active .board-wrap {
   height: 60px;
   pointer-events: none;
   z-index: 1000;
-  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.45));
+  filter:
+    drop-shadow(0 18px 18px rgba(0, 0, 0, 0.36))
+    drop-shadow(0 4px 8px rgba(255, 216, 111, 0.18));
 }
 
-.trophy-drag-ghost::before,
-.trophy-drag-ghost::after {
-  content: "";
-  position: absolute;
-}
-
-.trophy-drag-ghost::before {
-  left: 10px;
-  top: 6px;
-  width: 32px;
-  height: 24px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffe794, #f1ba37);
-  box-shadow:
-    0 16px 0 -2px #d59f28,
-    0 28px 0 -8px #f4c85f,
-    inset 0 -4px 0 rgba(123, 78, 0, 0.2);
-}
-
-.trophy-drag-ghost::after {
-  left: 6px;
-  top: 14px;
-  width: 40px;
-  height: 18px;
-  border-left: 4px solid #b17d00;
-  border-right: 4px solid #b17d00;
-  border-radius: 12px;
+.trophy-drag-ghost canvas {
+  display: block;
 }
 
 .page {
@@ -337,6 +314,66 @@ canvas {
   background:
     radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.06), transparent 20%),
     linear-gradient(180deg, #1f233d, #111420);
+}
+
+#aheg-finale-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  pointer-events: none;
+  overflow: hidden;
+  background: transparent;
+}
+
+#aheg-finale-overlay.is-fully-black {
+  background: #000;
+  transition: background 180ms linear;
+}
+
+.aheg-black-slash {
+  position: absolute;
+  left: -18vw;
+  top: var(--slash-top);
+  width: 136vw;
+  height: 18vh;
+  background: #000;
+  transform: translateX(-120%) rotate(var(--slash-rotate));
+  animation: aheg-slash-cover 620ms cubic-bezier(0.72, 0, 0.2, 1) forwards;
+  animation-delay: var(--slash-delay);
+  box-shadow: 0 0 28px rgba(0, 0, 0, 0.8);
+}
+
+.aheg-finale-active .page {
+  animation: aheg-finale-shudder 0.15s linear infinite;
+}
+
+.aheg-finale-fade-out #aheg-finale-overlay {
+  animation: aheg-finale-fade 820ms ease forwards;
+}
+
+@keyframes aheg-slash-cover {
+  to {
+    transform: translateX(0) rotate(var(--slash-rotate));
+  }
+}
+
+@keyframes aheg-finale-shudder {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-3px, 2px);
+  }
+}
+
+@keyframes aheg-finale-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes page-mad-spin {

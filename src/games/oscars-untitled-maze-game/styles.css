@@ -416,6 +416,43 @@ h1 {
   display: none;
 }
 
+.trophy-doom-active {
+  overflow: hidden;
+  animation: trophy-doom-shudder 0.16s linear infinite;
+}
+
+.oumg-falling-asset {
+  animation: oumg-asset-fall 1.4s cubic-bezier(0.58, 0.02, 0.92, 0.42) forwards;
+  animation-delay: var(--oumg-fall-delay, 0ms);
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+@keyframes oumg-asset-fall {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  22% {
+    transform: translate(calc(var(--oumg-fall-x, 0px) * 0.22), -10px) rotate(calc(var(--oumg-fall-rotate, 8deg) * -0.2));
+  }
+  100% {
+    transform: translate(var(--oumg-fall-x, 0px), 118vh) rotate(var(--oumg-fall-rotate, 8deg));
+    opacity: 0.08;
+  }
+}
+
+@keyframes trophy-doom-shudder {
+  0%,
+  100% {
+    filter: none;
+  }
+  50% {
+    filter: saturate(1.3) contrast(1.08);
+  }
+}
+
 @keyframes bob {
   0%,
   100% {

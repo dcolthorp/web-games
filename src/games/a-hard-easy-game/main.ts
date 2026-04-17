@@ -1,4 +1,17 @@
-export {};
+import fullyDestroyedAudioSrc from "./fully-destroyed.m4a";
+import { restoreAllMissingPeopleInAllSaves } from "../a-kids-life/model/storage";
+import {
+  activateEscapedAhegPlayer,
+  clearEscapedAhegPlayer,
+  initEscapedAhegPlayer,
+  isEscapedAhegPlayerActive,
+} from "../../shared/escapedAhegPlayer";
+import {
+  AHEG_TROPHY_LOCATION_KEY,
+  AKL_DELETED_FROM_HUB_KEY,
+  OUMG_DELETED_FROM_HUB_KEY,
+  TM_DELETED_FROM_HUB_KEY,
+} from "../../shared/ahegTrophy";
 
 interface Vector2 {
   x: number;
@@ -14,10 +27,21 @@ interface Rect {
 
 interface Hazard extends Rect {
   real: boolean;
+  previousX?: number;
+  previousY?: number;
+  movement?: {
+    axis: "x" | "y";
+    range: number;
+    speed: number;
+    phase: number;
+    origin: number;
+  };
 }
 
+type CourseLevel = 1 | 2 | 3;
+
 interface Course {
-  id: 1 | 2;
+  id: CourseLevel;
   name: string;
   start: Vector2;
   goal: Rect;
@@ -27,6 +51,7 @@ interface Course {
 interface Trophy extends Rect {
   homeX: number;
   homeY: number;
+  targetLevel: 2 | 3;
 }
 
 const LINKED_REVERSE_CONTROLS_KEY = "linked-reverse-controls-curse";
@@ -35,7 +60,14 @@ const TAMAGOTCHI_PROFILES_INDEX_KEY = "tamagotchiMonster.profiles";
 const TAMAGOTCHI_PROFILE_KEY_PREFIX = "tamagotchiMonster.profile.";
 const SHADOW_CLEAR_KEY = "a-hard-easy-game-shadow-cleared";
 const LEVEL_TWO_UNLOCKED_KEY = "a-hard-easy-game-level-two-unlocked";
+const LEVEL_THREE_UNLOCKED_KEY = "a-hard-easy-game-level-three-unlocked";
+const LEVEL_THREE_TROPHY_READY_KEY = "a-hard-easy-game-level-three-trophy-ready";
 const HUB_TROPHY_KEY = "a-hard-easy-game-hub-trophy";
+const HUB_TROPHY_POSITION_KEY = "a-hard-easy-game-hub-trophy-position";
+const OUMG_TROPHY_DROP_COUNT_KEY = "oscars-untitled-maze-game-trophy-drop-count";
+const OUMG_TROPHY_DOOM_STARTED_KEY = "oscars-untitled-maze-game-trophy-doom-started";
+const AKL_TROPHY_DOOM_STARTED_KEY = "a-kids-life-trophy-doom-started";
+const TM_TROPHY_DOOM_STARTED_KEY = "tamagotchi-monster-trophy-doom-started";
 
 type GameMode = "normal" | "glitching" | "secret";
 
@@ -95,6 +127,12 @@ if (!(levelTwoButton instanceof HTMLButtonElement)) {
 }
 const level2Btn: HTMLButtonElement = levelTwoButton;
 
+const levelThreeButton = document.getElementById("level-3-btn");
+if (!(levelThreeButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing level 3 button");
+}
+const level3Btn: HTMLButtonElement = levelThreeButton;
+
 const levelSelectorElement = document.querySelector(".level-selector");
 if (!(levelSelectorElement instanceof HTMLDivElement)) {
   throw new Error("Missing level selector");
@@ -142,7 +180,7 @@ const WORLD = {
   height: canvas.height,
 };
 
-const COURSES: Record<1 | 2, Course> = {
+const COURSES: Record<CourseLevel, Course> = {
   1: {
     id: 1,
     name: "Level 1",
@@ -178,9 +216,46 @@ const COURSES: Record<1 | 2, Course> = {
       { x: 610, y: 54, width: 34, height: 466, real: true },
     ],
   },
+  3: {
+    id: 3,
+    name: "Level 3",
+    start: { x: 76, y: 74 },
+    goal: { x: WORLD.width - 126, y: WORLD.height - 170, width: 76, height: 132 },
+    hazards: [
+      { x: 152, y: 96, width: 30, height: 350, real: true },
+      { x: 245, y: 0, width: 28, height: 205, real: false },
+      { x: 245, y: 292, width: 28, height: 228, real: true },
+      {
+        x: 340,
+        y: 82,
+        width: 34,
+        height: 150,
+        real: true,
+        movement: { axis: "y", range: 124, speed: 2.6, phase: 0, origin: 82 },
+      },
+      {
+        x: 430,
+        y: 310,
+        width: 120,
+        height: 30,
+        real: true,
+        movement: { axis: "x", range: 86, speed: 2.2, phase: Math.PI * 0.7, origin: 430 },
+      },
+      { x: 606, y: 0, width: 30, height: 250, real: true },
+      { x: 606, y: 330, width: 30, height: 190, real: false },
+      {
+        x: 690,
+        y: 178,
+        width: 30,
+        height: 160,
+        real: true,
+        movement: { axis: "y", range: 100, speed: 3.1, phase: Math.PI * 1.15, origin: 178 },
+      },
+    ],
+  },
 };
 
-let currentLevel: 1 | 2 = readLevelTwoUnlocked() ? 2 : 1;
+let currentLevel: CourseLevel = readLevelThreeUnlocked() ? 3 : readLevelTwoUnlocked() ? 2 : 1;
 let course: Course = COURSES[currentLevel];
 
 const keys = new Set<string>();
@@ -206,6 +281,9 @@ let draggingTrophy = false;
 let trophyDragOffset: Vector2 = { x: 0, y: 0 };
 let trophyPointerId: number | null = null;
 let trophyDragGhost: HTMLDivElement | null = null;
+let trophyFalling = false;
+let trophyVelocityY = 0;
+let trophyFinaleTriggered = false;
 let rotationCursed = hasRotationCurse();
 
 let startTime = performance.now();
@@ -213,6 +291,7 @@ let finished = false;
 let lastFrame = performance.now();
 let bestTimeMs = readBestTime();
 
+clearEscapedAhegPlayer();
 syncHudVisibility();
 updateHud();
 updateLevelButtons();
@@ -255,6 +334,14 @@ level2Btn.addEventListener("click", () => {
   loadCourse(2);
 });
 
+level3Btn.addEventListener("click", () => {
+  if (!readLevelThreeUnlocked()) {
+    updateHud("Level 3 is locked. Find the Level 3 trophy.");
+    return;
+  }
+  loadCourse(3);
+});
+
 canvas.addEventListener("pointerdown", (event) => {
   if (mode !== "normal" || !trophy) {
     return;
@@ -266,6 +353,8 @@ canvas.addEventListener("pointerdown", (event) => {
   }
 
   draggingTrophy = true;
+  trophyFalling = false;
+  trophyVelocityY = 0;
   trophyPointerId = event.pointerId;
   trophyDragOffset = { x: point.x - trophy.x, y: point.y - trophy.y };
   canvas.setPointerCapture(event.pointerId);
@@ -301,20 +390,28 @@ window.addEventListener("pointerup", (event) => {
   hideTrophyDragGhost();
   if (droppedOutsideBoard || isTrophyOutOfBounds(trophy)) {
     localStorage.setItem(HUB_TROPHY_KEY, "true");
+    localStorage.removeItem(HUB_TROPHY_POSITION_KEY);
+    localStorage.removeItem(AHEG_TROPHY_LOCATION_KEY);
     updateHud("The trophy slipped out to the hub.");
     window.location.href = new URL("../../", window.location.href).toString();
     return;
   }
 
   if (rectsOverlap(trophy, course.goal)) {
+    if (trophy.targetLevel === 3) {
+      unlockLevelThree();
+      trophy = createTrophyIfNeeded();
+      loadCourse(3, "Level 3 trophy delivered. Moving parts are awake.");
+      return;
+    }
+
     unlockLevelTwo();
     trophy = createTrophyIfNeeded();
     loadCourse(2, "Trophy delivered. Teleporting to Level 2.");
     return;
   }
 
-  trophy.x = trophy.homeX;
-  trophy.y = trophy.homeY;
+  startTrophyFall();
 });
 
 window.addEventListener("pointercancel", () => {
@@ -324,6 +421,7 @@ window.addEventListener("pointercancel", () => {
   draggingTrophy = false;
   trophyPointerId = null;
   hideTrophyDragGhost();
+  startTrophyFall();
 });
 
 canvas.addEventListener("click", (event) => {
@@ -406,6 +504,13 @@ function update(deltaSeconds: number): void {
     return;
   }
 
+  if (isEscapedAhegPlayerActive()) {
+    return;
+  }
+
+  updateMovingHazards();
+  updateTrophyFall(deltaSeconds);
+
   if (finished) {
     return;
   }
@@ -437,29 +542,7 @@ function update(deltaSeconds: number): void {
 function movePlayer(dx: number, dy: number): void {
   const nextX = clamp(player.position.x + dx, player.radius, WORLD.width - player.radius);
   const nextY = clamp(player.position.y + dy, player.radius, WORLD.height - player.radius);
-  const nextBounds = {
-    left: nextX - player.radius,
-    right: nextX + player.radius,
-    top: nextY - player.radius,
-    bottom: nextY + player.radius,
-  };
-
-  const hitsRealHazard = course.hazards.some((hazard) => {
-    if (!hazard.real) {
-      return false;
-    }
-    return rectsOverlap(
-      {
-        x: nextBounds.left,
-        y: nextBounds.top,
-        width: nextBounds.right - nextBounds.left,
-        height: nextBounds.bottom - nextBounds.top,
-      },
-      hazard
-    );
-  });
-
-  if (hitsRealHazard) {
+  if (isPlayerBlockedAt(nextX, nextY)) {
     setStatus("That one was real. Rude, but still avoidable.");
     return;
   }
@@ -549,6 +632,87 @@ function drawHazards(): void {
   }
 }
 
+function updateMovingHazards(): void {
+  const nowSeconds = performance.now() / 1000;
+  for (const hazard of course.hazards) {
+    if (!hazard.movement) {
+      continue;
+    }
+
+    hazard.previousX = hazard.x;
+    hazard.previousY = hazard.y;
+    const offset = Math.sin(nowSeconds * hazard.movement.speed + hazard.movement.phase) * hazard.movement.range;
+    if (hazard.movement.axis === "x") {
+      hazard.x = hazard.movement.origin + offset;
+    } else {
+      hazard.y = hazard.movement.origin + offset;
+    }
+    shovePlayerWithMovingHazard(hazard);
+  }
+}
+
+function shovePlayerWithMovingHazard(hazard: Hazard): void {
+  if (isEscapedAhegPlayerActive()) {
+    return;
+  }
+
+  if (
+    finished ||
+    !rectsOverlap(
+      {
+        x: player.position.x - player.radius,
+        y: player.position.y - player.radius,
+        width: player.radius * 2,
+        height: player.radius * 2,
+      },
+      hazard
+    )
+  ) {
+    return;
+  }
+
+  const deltaX = hazard.x - (hazard.previousX ?? hazard.x);
+  const deltaY = hazard.y - (hazard.previousY ?? hazard.y);
+  const rawNextX = player.position.x + deltaX;
+  const rawNextY = player.position.y + deltaY;
+  if (wouldPlayerEscapePlayfield(rawNextX, rawNextY)) {
+    startEscapedPlayerMode(rawNextX, rawNextY);
+    return;
+  }
+
+  const nextX = clamp(player.position.x + deltaX, player.radius, WORLD.width - player.radius);
+  const nextY = clamp(player.position.y + deltaY, player.radius, WORLD.height - player.radius);
+
+  if (!isPlayerBlockedAt(nextX, nextY, hazard)) {
+    player.position.x = nextX;
+    player.position.y = nextY;
+  }
+
+  if (!resolvePlayerAfterHazardPush(hazard)) {
+    startEscapedPlayerMode(rawNextX, rawNextY);
+  }
+}
+
+function wouldPlayerEscapePlayfield(x: number, y: number): boolean {
+  return (
+    !Number.isFinite(x) ||
+    !Number.isFinite(y) ||
+    x < player.radius ||
+    x > WORLD.width - player.radius ||
+    y < player.radius ||
+    y > WORLD.height - player.radius
+  );
+}
+
+function startEscapedPlayerMode(worldX: number, worldY: number): void {
+  const rect = canvas.getBoundingClientRect();
+  activateEscapedAhegPlayer(
+    rect.left + (worldX / WORLD.width) * rect.width,
+    rect.top + (worldY / WORLD.height) * rect.height
+  );
+  updateHud("You got pushed out of the level. Walk over to Menu to escape.");
+}
+
 function drawGoal(timestamp: number): void {
   const pulse = 0.65 + Math.sin(timestamp * 0.006) * 0.2;
 
@@ -581,6 +745,10 @@ function drawStart(): void {
 }
 
 function drawPlayer(): void {
+  if (isEscapedAhegPlayerActive()) {
+    return;
+  }
+
   ctx.save();
   ctx.shadowColor = "rgba(109, 211, 255, 0.5)";
   ctx.shadowBlur = 14;
@@ -615,7 +783,12 @@ function resetGame(): void {
   player.position = { ...course.start };
   finished = false;
   startTime = performance.now();
+  localStorage.removeItem(HUB_TROPHY_KEY);
+  localStorage.removeItem(HUB_TROPHY_POSITION_KEY);
+  localStorage.removeItem(AHEG_TROPHY_LOCATION_KEY);
   trophy = createTrophyIfNeeded();
+  trophyFalling = false;
+  trophyVelocityY = 0;
   updateHud(
     controlsReversed
       ? "Back to the terrifying beginning. Still reversed."
@@ -632,9 +805,14 @@ function updateBestTimeLabel(): void {
     bestTimeMs === null ? "Best time: not set" : `Best time: ${formatTime(bestTimeMs)}`;
 }
 
-function loadCourse(nextLevel: 1 | 2, statusMessage?: string): void {
+function loadCourse(nextLevel: CourseLevel, statusMessage?: string): void {
   if (nextLevel === 2 && !readLevelTwoUnlocked()) {
     updateHud("Level 2 is locked. Drag the trophy to the finish first.");
+    return;
+  }
+
+  if (nextLevel === 3 && !readLevelThreeUnlocked()) {
+    updateHud("Level 3 is locked. Find the Level 3 trophy.");
     return;
   }
 
@@ -647,6 +825,8 @@ function loadCourse(nextLevel: 1 | 2, statusMessage?: string): void {
   finished = false;
   startTime = performance.now();
   trophy = createTrophyIfNeeded();
+  trophyFalling = false;
+  trophyVelocityY = 0;
   updateLevelButtons();
   updateHud(statusMessage ?? `${course.name}. Reach the exit.`);
 }
@@ -654,10 +834,14 @@ function loadCourse(nextLevel: 1 | 2, statusMessage?: string): void {
 function updateLevelButtons(): void {
   level1Btn.classList.toggle("is-active", currentLevel === 1);
   level2Btn.classList.toggle("is-active", currentLevel === 2);
+  level3Btn.classList.toggle("is-active", currentLevel === 3);
 
-  const unlocked = readLevelTwoUnlocked();
-  level2Btn.classList.toggle("is-locked", !unlocked);
+  const levelTwoUnlocked = readLevelTwoUnlocked();
+  const levelThreeUnlocked = readLevelThreeUnlocked();
+  level2Btn.classList.toggle("is-locked", !levelTwoUnlocked);
+  level3Btn.classList.toggle("is-locked", !levelThreeUnlocked);
   level2Btn.disabled = false;
+  level3Btn.disabled = false;
 }
 
 function readBestTime(): number | null {
@@ -682,6 +866,54 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function getPlayerRectAt(x: number, y: number): Rect {
+  return {
+    x: x - player.radius,
+    y: y - player.radius,
+    width: player.radius * 2,
+    height: player.radius * 2,
+  };
+}
+
+function isPlayerBlockedAt(x: number, y: number, ignoredHazard?: Hazard): boolean {
+  const playerRect = getPlayerRectAt(x, y);
+  return course.hazards.some((hazard) => {
+    if (!hazard.real || hazard === ignoredHazard) {
+      return false;
+    }
+
+    return rectsOverlap(playerRect, hazard);
+  });
+}
+
+function resolvePlayerAfterHazardPush(sourceHazard: Hazard): boolean {
+  if (!rectsOverlap(getPlayerRectAt(player.position.x, player.position.y), sourceHazard)) {
+    return true;
+  }
+
+  const moveX = sourceHazard.x - (sourceHazard.previousX ?? sourceHazard.x);
+  const moveY = sourceHazard.y - (sourceHazard.previousY ?? sourceHazard.y);
+  const pushX = moveX === 0 ? 0 : Math.sign(moveX);
+  const pushY = moveY === 0 ? 0 : Math.sign(moveY);
+
+  for (let step = 0; step < 64; step += 1) {
+    if (!rectsOverlap(getPlayerRectAt(player.position.x, player.position.y), sourceHazard)) {
+      return !isPlayerBlockedAt(player.position.x, player.position.y);
+    }
+
+    if (Math.abs(moveX) >= Math.abs(moveY) && pushX !== 0) {
+      player.position.x = clamp(player.position.x + pushX, player.radius, WORLD.width - player.radius);
+    } else if (pushY !== 0) {
+      player.position.y = clamp(player.position.y + pushY, player.radius, WORLD.height - player.radius);
+    } else {
+      break;
+    }
+  }
+
+  return !rectsOverlap(getPlayerRectAt(player.position.x, player.position.y), sourceHazard) &&
+    !isPlayerBlockedAt(player.position.x, player.position.y);
+}
+
 function consumeLinkedReverseControls(): boolean {
   const shouldReverse = localStorage.getItem(LINKED_REVERSE_CONTROLS_KEY) === "reversed";
   if (shouldReverse) {
@@ -695,7 +927,12 @@ function resetAhegState(): void {
     "a-hard-easy-game-best-time",
     SHADOW_CLEAR_KEY,
     LEVEL_TWO_UNLOCKED_KEY,
+    LEVEL_THREE_UNLOCKED_KEY,
+    LEVEL_THREE_TROPHY_READY_KEY,
     HUB_TROPHY_KEY,
+    HUB_TROPHY_POSITION_KEY,
+    AHEG_TROPHY_LOCATION_KEY,
+    "a-hard-easy-game-escaped-player",
     LINKED_REVERSE_CONTROLS_KEY,
     LINKED_ROTATION_CURSE_KEY,
   ];
@@ -738,6 +975,8 @@ function updateHud(statusMessage?: string): void {
     statusMessage ??
       (rotationCursed
         ? "AHHH WHATS HAPENING"
+        : isEscapedAhegPlayerActive()
+        ? "You got pushed out of the level. Walk over to Menu to escape."
         : controlsReversed
         ? "The maze cursed you. Your controls are reversed."
         : "Use arrow keys or WASD to move.")
@@ -759,18 +998,35 @@ function syncHudVisibility(): void {
 }
 
 function createTrophyIfNeeded(): Trophy | null {
-  if (!readShadowClear() || currentLevel !== 1 || localStorage.getItem(HUB_TROPHY_KEY) === "true") {
+  if (localStorage.getItem(HUB_TROPHY_KEY) === "true") {
     return null;
   }
 
-  return {
-    x: 96,
-    y: 70,
-    width: 52,
-    height: 60,
-    homeX: 96,
-    homeY: 70,
-  };
+  if (readShadowClear() && currentLevel === 1) {
+    return {
+      x: 96,
+      y: 70,
+      width: 52,
+      height: 60,
+      homeX: 96,
+      homeY: 70,
+      targetLevel: 2,
+    };
+  }
+
+  if (readLevelThreeTrophyReady() && readLevelTwoUnlocked() && !readLevelThreeUnlocked() && currentLevel === 2) {
+    return {
+      x: WORLD.width / 2 - 26,
+      y: WORLD.height / 2 - 30,
+      width: 52,
+      height: 60,
+      homeX: WORLD.width / 2 - 26,
+      homeY: WORLD.height / 2 - 30,
+      targetLevel: 3,
+    };
+  }
+
+  return null;
 }
 
 function drawTrophy(): void {
@@ -778,26 +1034,7 @@ function drawTrophy(): void {
     return;
   }
 
-  ctx.save();
-  ctx.fillStyle = "#ffd86f";
-  ctx.fillRect(trophy.x + 10, trophy.y + 44, 32, 10);
-  ctx.fillRect(trophy.x + 20, trophy.y + 22, 12, 28);
-  ctx.beginPath();
-  ctx.roundRect(trophy.x + 8, trophy.y + 6, 36, 24, 10);
-  ctx.fill();
-
-  ctx.strokeStyle = "#8b6400";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(trophy.x + 8, trophy.y + 18, 8, Math.PI * 0.5, Math.PI * 1.5, true);
-  ctx.arc(trophy.x + 44, trophy.y + 18, 8, Math.PI * 1.5, Math.PI * 0.5, true);
-  ctx.stroke();
-
-  ctx.fillStyle = "#fff0ae";
-  ctx.font = "700 12px Trebuchet MS";
-  ctx.textAlign = "center";
-  ctx.fillText("LVL 2", trophy.x + trophy.width / 2, trophy.y + 22);
-  ctx.restore();
+  drawTrophyGraphic(ctx, trophy.x, trophy.y, trophy.targetLevel);
 }
 
 function isTrophyOutOfBounds(target: Trophy): boolean {
@@ -819,7 +1056,21 @@ function showTrophyDragGhost(left: number, top: number): void {
     trophyDragGhost = document.createElement("div");
     trophyDragGhost.className = "trophy-drag-ghost";
     trophyDragGhost.setAttribute("aria-hidden", "true");
+    const ghostCanvas = document.createElement("canvas");
+    ghostCanvas.width = 52;
+    ghostCanvas.height = 60;
+    const ghostContext = ghostCanvas.getContext("2d");
+    if (ghostContext instanceof CanvasRenderingContext2D) {
+      drawTrophyGraphic(ghostContext, 0, 0, trophy?.targetLevel ?? 2);
+    }
+    trophyDragGhost.appendChild(ghostCanvas);
     document.body.appendChild(trophyDragGhost);
+  }
+  const ghostCanvas = trophyDragGhost.querySelector("canvas");
+  const ghostContext = ghostCanvas?.getContext("2d");
+  if (ghostCanvas && ghostContext instanceof CanvasRenderingContext2D) {
+    ghostContext.clearRect(0, 0, ghostCanvas.width, ghostCanvas.height);
+    drawTrophyGraphic(ghostContext, 0, 0, trophy?.targetLevel ?? 2);
   }
   updateTrophyDragGhost(left, top);
   trophyDragGhost.hidden = false;
@@ -838,6 +1089,160 @@ function hideTrophyDragGhost(): void {
     return;
   }
   trophyDragGhost.hidden = true;
+}
+
+function startTrophyFall(): void {
+  if (!trophy) {
+    return;
+  }
+
+  trophyFalling = true;
+  trophyVelocityY = Math.max(trophyVelocityY, 80);
+}
+
+function updateTrophyFall(deltaSeconds: number): void {
+  if (!trophy || !trophyFalling || draggingTrophy) {
+    return;
+  }
+
+  const groundY = WORLD.height - trophy.height;
+  if (!trophyFinaleTriggered && areAllOtherGamesGone() && groundY - trophy.y <= 100) {
+    startAllGamesRestoreFinale();
+    return;
+  }
+
+  trophyVelocityY += 1400 * deltaSeconds;
+  trophy.y += trophyVelocityY * deltaSeconds;
+
+  if (trophy.y >= groundY) {
+    trophy.y = groundY;
+    trophyVelocityY = 0;
+    trophyFalling = false;
+  }
+}
+
+function areAllOtherGamesGone(): boolean {
+  return (
+    localStorage.getItem(OUMG_DELETED_FROM_HUB_KEY) === "true" &&
+    localStorage.getItem(AKL_DELETED_FROM_HUB_KEY) === "true" &&
+    localStorage.getItem(TM_DELETED_FROM_HUB_KEY) === "true"
+  );
+}
+
+function startAllGamesRestoreFinale(): void {
+  if (!trophy || trophyFinaleTriggered) {
+    return;
+  }
+
+  trophyFinaleTriggered = true;
+  trophyFalling = false;
+  trophyVelocityY = 0;
+  trophy.x = trophy.homeX;
+  trophy.y = trophy.homeY;
+  updateHud("Everything is gone. The trophy snaps back.");
+  playBlackSlashFinale();
+}
+
+function playBlackSlashFinale(): void {
+  const existingOverlay = document.getElementById("aheg-finale-overlay");
+  existingOverlay?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.id = "aheg-finale-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+
+  for (let index = 0; index < 12; index += 1) {
+    const slash = document.createElement("div");
+    slash.className = "aheg-black-slash";
+    slash.style.setProperty("--slash-delay", `${index * 120}ms`);
+    slash.style.setProperty("--slash-top", `${-16 + index * 11}%`);
+    slash.style.setProperty("--slash-rotate", `${index % 2 === 0 ? -12 : 10}deg`);
+    overlay.appendChild(slash);
+  }
+
+  document.body.appendChild(overlay);
+  document.body.classList.add("aheg-finale-active");
+
+  window.setTimeout(() => {
+    overlay.classList.add("is-fully-black");
+    playFullyDestroyedAudio();
+  }, 1500);
+}
+
+function playFullyDestroyedAudio(): void {
+  const recording = new Audio(fullyDestroyedAudioSrc);
+  let finished = false;
+  const finish = () => {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    restoreAllDeletedGames();
+    document.body.classList.add("aheg-finale-fade-out");
+    window.setTimeout(() => {
+      window.location.href = new URL("../../", window.location.href).toString();
+    }, 850);
+  };
+
+  recording.addEventListener("ended", finish, { once: true });
+  const playPromise = recording.play();
+  if (playPromise) {
+    playPromise.catch(() => {
+      window.setTimeout(finish, 2400);
+    });
+  }
+}
+
+function restoreAllDeletedGames(): void {
+  const keysToClear = [
+    OUMG_DELETED_FROM_HUB_KEY,
+    AKL_DELETED_FROM_HUB_KEY,
+    TM_DELETED_FROM_HUB_KEY,
+    OUMG_TROPHY_DROP_COUNT_KEY,
+    OUMG_TROPHY_DOOM_STARTED_KEY,
+    AKL_TROPHY_DOOM_STARTED_KEY,
+    TM_TROPHY_DOOM_STARTED_KEY,
+    AHEG_TROPHY_LOCATION_KEY,
+  ];
+
+  for (const key of keysToClear) {
+    localStorage.removeItem(key);
+  }
+
+  markShadowClear();
+  unlockLevelTwo();
+  markLevelThreeTrophyReady();
+  restoreAllMissingPeopleInAllSaves();
+  localStorage.removeItem(LEVEL_THREE_UNLOCKED_KEY);
+}
+
+function drawTrophyGraphic(
+  renderCtx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  targetLevel: 2 | 3
+): void {
+  renderCtx.save();
+  renderCtx.fillStyle = "#ffd86f";
+  renderCtx.fillRect(x + 10, y + 44, 32, 10);
+  renderCtx.fillRect(x + 20, y + 22, 12, 28);
+  renderCtx.beginPath();
+  renderCtx.roundRect(x + 8, y + 6, 36, 24, 10);
+  renderCtx.fill();
+
+  renderCtx.strokeStyle = "#8b6400";
+  renderCtx.lineWidth = 4;
+  renderCtx.beginPath();
+  renderCtx.arc(x + 8, y + 18, 8, Math.PI * 0.5, Math.PI * 1.5, true);
+  renderCtx.arc(x + 44, y + 18, 8, Math.PI * 1.5, Math.PI * 0.5, true);
+  renderCtx.stroke();
+
+  renderCtx.fillStyle = "#fff0ae";
+  renderCtx.font = "700 12px Trebuchet MS";
+  renderCtx.textAlign = "center";
+  renderCtx.fillText(`LVL ${targetLevel}`, x + 26, y + 22);
+  renderCtx.restore();
 }
 
 function drawHazard(hazard: Hazard): void {
@@ -880,6 +1285,23 @@ function readLevelTwoUnlocked(): boolean {
 
 function unlockLevelTwo(): void {
   localStorage.setItem(LEVEL_TWO_UNLOCKED_KEY, "true");
+}
+
+function readLevelThreeUnlocked(): boolean {
+  return localStorage.getItem(LEVEL_THREE_UNLOCKED_KEY) === "true";
+}
+
+function unlockLevelThree(): void {
+  localStorage.setItem(LEVEL_THREE_UNLOCKED_KEY, "true");
+  localStorage.removeItem(LEVEL_THREE_TROPHY_READY_KEY);
+}
+
+function readLevelThreeTrophyReady(): boolean {
+  return localStorage.getItem(LEVEL_THREE_TROPHY_READY_KEY) === "true";
+}
+
+function markLevelThreeTrophyReady(): void {
+  localStorage.setItem(LEVEL_THREE_TROPHY_READY_KEY, "true");
 }
 
 function clearShadowTamagotchiProfiles(): void {

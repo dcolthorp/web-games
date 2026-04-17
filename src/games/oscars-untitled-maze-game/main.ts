@@ -3,7 +3,14 @@ import levelThreeAudioSrc from "./assets/level-3-illusions-2-description.m4a";
 import levelFourAudioSrc from "./assets/level-4-underdoos-description.m4a";
 import levelFiveAudioSrc from "./assets/level-5-portals-description.m4a";
 import levelSixAudioSrc from "./assets/level-6-time-buttons-description.m4a";
+import droppingTheTrophyAudioSrc from "./assets/dropping-the-trophy.m4a";
 import { NORMALIZED_MAZE_MAPS } from "./maps";
+import {
+  AHEG_TROPHY_LOCATION_KEY,
+  OUMG_DELETED_FROM_HUB_KEY,
+  renderImportedAhegTrophy,
+} from "../../shared/ahegTrophy";
+import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import {
   TERRAIN_OPEN,
   TERRAIN_WALL,
@@ -72,7 +79,85 @@ const ctxValue = canvas.getContext("2d");
 if (!(ctxValue instanceof CanvasRenderingContext2D)) {
   throw new Error("Could not create maze drawing context");
 }
+initEscapedAhegPlayer({ interactionCanvas: canvas });
 const ctx: CanvasRenderingContext2D = ctxValue;
+
+const TROPHY_DROP_COUNT_KEY = "oscars-untitled-maze-game-trophy-drop-count";
+const TROPHY_DOOM_STARTED_KEY = "oscars-untitled-maze-game-trophy-doom-started";
+renderImportedAhegTrophy("oscars-untitled-maze-game", {
+  onDrop: handleImportedTrophyDrop,
+});
+
+function handleImportedTrophyDrop(): void {
+  if (
+    localStorage.getItem(OUMG_DELETED_FROM_HUB_KEY) === "true" ||
+    localStorage.getItem(TROPHY_DOOM_STARTED_KEY) === "true"
+  ) {
+    return;
+  }
+
+  const nextDropCount = readTrophyDropCount() + 1;
+  localStorage.setItem(TROPHY_DROP_COUNT_KEY, String(nextDropCount));
+
+  if (nextDropCount >= 3) {
+    startTrophyDoomSequence();
+  }
+}
+
+function readTrophyDropCount(): number {
+  return Number(localStorage.getItem(TROPHY_DROP_COUNT_KEY) ?? "0") || 0;
+}
+
+function startTrophyDoomSequence(): void {
+  localStorage.setItem(TROPHY_DOOM_STARTED_KEY, "true");
+  document.body.classList.add("trophy-doom-active");
+  dropOumgAssetsOneByOne();
+
+  const recording = new Audio(droppingTheTrophyAudioSrc);
+  let finished = false;
+  const finishDeletingOumg = () => {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    localStorage.setItem(OUMG_DELETED_FROM_HUB_KEY, "true");
+    localStorage.removeItem(AHEG_TROPHY_LOCATION_KEY);
+    window.location.href = new URL("../../", window.location.href).toString();
+  };
+
+  recording.addEventListener("ended", finishDeletingOumg, { once: true });
+  const playPromise = recording.play();
+  if (playPromise) {
+    playPromise.catch(() => {
+      window.setTimeout(finishDeletingOumg, 2500);
+    });
+  }
+}
+
+function dropOumgAssetsOneByOne(): void {
+  const fallingAssets = [
+    ...document.querySelectorAll<HTMLElement>(
+      [
+        ".start-menu-overlay:not(.is-hidden) .start-menu-card",
+        ".game-shell > h1",
+        ".game-shell > .subtitle",
+        ".game-shell > .hud",
+        ".game-shell > .canvas-wrap",
+        ".game-shell > .controls",
+        "#level-selector-overlay[aria-hidden='false'] .selector-card",
+        "#imported-aheg-trophy",
+      ].join(", ")
+    ),
+  ];
+
+  fallingAssets.forEach((asset, index) => {
+    asset.classList.add("oumg-falling-asset");
+    asset.style.setProperty("--oumg-fall-delay", `${index * 140}ms`);
+    asset.style.setProperty("--oumg-fall-x", `${index % 2 === 0 ? -34 : 28}px`);
+    asset.style.setProperty("--oumg-fall-rotate", `${index % 2 === 0 ? -10 : 12}deg`);
+  });
+}
 
 const sceneCanvas = document.createElement("canvas");
 const sceneCtxValue = sceneCanvas.getContext("2d");

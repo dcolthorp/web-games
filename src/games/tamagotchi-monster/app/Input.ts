@@ -54,7 +54,11 @@ export class Input {
 
   private handlePointerDown = (e: PointerEvent): void => {
     if (!this.onDown) return;
-    this.target.setPointerCapture(e.pointerId);
+    try {
+      this.target.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic presses from the escaped AHEG player do not create a capturable pointer.
+    }
     const p = this.renderer.screenToLogical(e.clientX, e.clientY);
     if (!p) return;
     this.onDown(p.x, p.y);
@@ -71,4 +75,3 @@ export class Input {
     this.onKeyDown?.(e);
   };
 }
-

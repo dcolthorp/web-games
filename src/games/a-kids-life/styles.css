@@ -69,6 +69,43 @@ body {
   touch-action: none;
 }
 
+.akl-doom-active {
+  overflow: hidden;
+  animation: akl-doom-pulse 0.18s linear infinite;
+}
+
+.akl-falling-asset {
+  animation: akl-asset-fall 1.5s cubic-bezier(0.58, 0.02, 0.92, 0.42) forwards;
+  animation-delay: var(--akl-fall-delay, 0ms);
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+@keyframes akl-asset-fall {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  24% {
+    transform: translate(calc(var(--akl-fall-x, 0px) * 0.18), -12px) rotate(calc(var(--akl-fall-rotate, 8deg) * -0.25));
+  }
+  100% {
+    transform: translate(var(--akl-fall-x, 0px), 120vh) rotate(var(--akl-fall-rotate, 8deg));
+    opacity: 0.06;
+  }
+}
+
+@keyframes akl-doom-pulse {
+  0%,
+  100% {
+    filter: none;
+  }
+  50% {
+    filter: saturate(0.7) contrast(1.18);
+  }
+}
+
 @media (max-width: 720px) {
   .game-shell {
     padding: 10px;

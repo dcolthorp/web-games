@@ -191,3 +191,29 @@ export class SaveStore {
     };
   }
 }
+
+export function restoreAllMissingPeopleInAllSaves(): void {
+  const store = new SaveStore();
+  const summaries = store.listSummaries();
+
+  for (const summary of summaries) {
+    const save = store.loadSave(summary.id);
+    if (!save) {
+      continue;
+    }
+
+    let changed = false;
+    for (const person of Object.values(save.people)) {
+      if (!person.isMissing) {
+        continue;
+      }
+
+      delete person.isMissing;
+      changed = true;
+    }
+
+    if (changed) {
+      store.save(save);
+    }
+  }
+}

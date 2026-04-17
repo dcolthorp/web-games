@@ -25,7 +25,11 @@ export class Input {
       if (!point) {
         return;
       }
-      this.canvas.setPointerCapture(event.pointerId);
+      try {
+        this.canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // Synthetic presses from the escaped AHEG player do not create a capturable pointer.
+      }
       opts.onDown?.(point.x, point.y);
     });
 

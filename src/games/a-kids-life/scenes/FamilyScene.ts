@@ -70,21 +70,25 @@ export class FamilyScene implements Scene {
     }
 
     const boxWidth = 170;
-    const boxHeight = 74;
-    ctx.fillStyle = person.id === this.opts.save.activePersonId ? "#fff0f5" : "#fff";
-    ctx.strokeStyle = person.id === this.opts.save.activePersonId ? "#f29ab4" : "#c9b1ba";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.roundRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 20);
-    ctx.fill();
-    ctx.stroke();
+    const boxHeight = person.isMissing ? 104 : 74;
+    if (person.isMissing) {
+      this.drawMissingPoster(ctx, person.name, x, y, boxWidth, boxHeight);
+    } else {
+      ctx.fillStyle = person.id === this.opts.save.activePersonId ? "#fff0f5" : "#fff";
+      ctx.strokeStyle = person.id === this.opts.save.activePersonId ? "#f29ab4" : "#c9b1ba";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.roundRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight, 20);
+      ctx.fill();
+      ctx.stroke();
 
-    ctx.fillStyle = "#6a5163";
-    ctx.textAlign = "center";
-    ctx.font = `800 24px ${SIMPLE_FONT}`;
-    ctx.fillText(person.name, x, y - 4);
-    ctx.font = `700 16px ${SIMPLE_FONT}`;
-    ctx.fillText(person.lifeStage.toUpperCase(), x, y + 22);
+      ctx.fillStyle = "#6a5163";
+      ctx.textAlign = "center";
+      ctx.font = `800 24px ${SIMPLE_FONT}`;
+      ctx.fillText(person.name, x, y - 4);
+      ctx.font = `700 16px ${SIMPLE_FONT}`;
+      ctx.fillText(person.lifeStage.toUpperCase(), x, y + 22);
+    }
 
     const childIds = person.childIds;
     if (childIds.length === 0 || depth > 3) {
@@ -107,6 +111,47 @@ export class FamilyScene implements Scene {
       ctx.stroke();
       this.drawTree(ctx, childId, childX, childY, depth + 1);
     }
+  }
+
+  private drawMissingPoster(
+    ctx: CanvasRenderingContext2D,
+    name: string,
+    x: number,
+    y: number,
+    boxWidth: number,
+    boxHeight: number
+  ): void {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.045);
+
+    ctx.fillStyle = "#fff2bd";
+    ctx.strokeStyle = "#5f3924";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#b3322c";
+    ctx.textAlign = "center";
+    ctx.font = `900 24px ${SIMPLE_FONT}`;
+    ctx.fillText("MISSING", 0, -24);
+
+    ctx.strokeStyle = "#6a4530";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-22, -10, 44, 34);
+    ctx.beginPath();
+    ctx.arc(0, 2, 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 34, 24, Math.PI, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#5b3a2d";
+    ctx.font = `800 18px ${SIMPLE_FONT}`;
+    ctx.fillText(name, 0, 44);
+    ctx.restore();
   }
 
   onPointerMove(x: number, y: number): void {

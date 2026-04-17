@@ -68,6 +68,7 @@ export interface PersonState {
   childIds: string[];
   partnerName: string | null;
   lastUpdatedAtMs: number;
+  isMissing?: boolean;
 }
 
 export interface FamilySave {

@@ -34,6 +34,10 @@ body {
   padding: 28px 0 40px;
 }
 
+.menu-shell.hub-impact-shake {
+  animation: hub-impact-shake 0.34s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
 .hero-panel {
   position: relative;
   overflow: hidden;
@@ -141,6 +145,49 @@ h1 {
   text-decoration: none;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.game-hole {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  border: 3px dashed rgba(242, 77, 61, 0.42);
+  background:
+    radial-gradient(circle at 50% 46%, rgba(0, 0, 0, 0.95) 0 28%, rgba(20, 13, 18, 0.88) 29% 44%, transparent 45%),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(242, 77, 61, 0.14) 0 10px,
+      rgba(242, 194, 48, 0.08) 10px 20px
+    ),
+    linear-gradient(180deg, #15161d, #0b0b10);
+  box-shadow:
+    inset 0 0 42px rgba(0, 0, 0, 0.82),
+    0 10px 20px rgba(0, 0, 0, 0.28);
+}
+
+.restore-oumg-btn {
+  width: min(180px, calc(100% - 28px));
+  min-height: 54px;
+  border: 2px solid rgba(242, 194, 48, 0.78);
+  background:
+    linear-gradient(180deg, rgba(242, 194, 48, 0.94), rgba(242, 77, 61, 0.78)),
+    #f2c230;
+  color: #1b0b08;
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 0 28px rgba(242, 194, 48, 0.22),
+    0 10px 18px rgba(0, 0, 0, 0.36);
+}
+
+.restore-oumg-btn:hover {
+  transform: translateY(-2px) rotate(-1deg);
+  box-shadow:
+    0 0 34px rgba(242, 194, 48, 0.32),
+    8px 12px 0 #000;
 }
 
 .game-card:hover {
@@ -301,38 +348,44 @@ h1 {
   position: absolute;
   width: 52px;
   height: 60px;
-  pointer-events: none;
+  touch-action: none;
+  cursor: grab;
   z-index: 4;
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.34));
 }
 
-.hub-trophy::before,
-.hub-trophy::after {
-  content: "";
-  position: absolute;
+.hub-trophy.is-dragging {
+  cursor: grabbing;
+  z-index: 20;
+  filter:
+    drop-shadow(0 18px 18px rgba(0, 0, 0, 0.36))
+    drop-shadow(0 4px 8px rgba(255, 216, 111, 0.18));
 }
 
-.hub-trophy::before {
-  left: 10px;
-  top: 8px;
-  width: 32px;
-  height: 22px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ffe794, #f1ba37);
-  box-shadow:
-    0 16px 0 -2px #d59f28,
-    0 28px 0 -8px #f4c85f,
-    inset 0 -4px 0 rgba(123, 78, 0, 0.2);
+.hub-trophy canvas {
+  display: block;
+  pointer-events: none;
 }
 
-.hub-trophy::after {
-  left: 6px;
-  top: 14px;
-  width: 40px;
-  height: 18px;
-  border-left: 4px solid #b17d00;
-  border-right: 4px solid #b17d00;
-  border-radius: 12px;
+@keyframes hub-impact-shake {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  18% {
+    transform: translate(-7px, 3px) rotate(-0.45deg);
+  }
+  34% {
+    transform: translate(6px, -2px) rotate(0.35deg);
+  }
+  52% {
+    transform: translate(-4px, 2px) rotate(-0.22deg);
+  }
+  70% {
+    transform: translate(3px, 0) rotate(0.16deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
 }
 
 @media (max-width: 720px) {

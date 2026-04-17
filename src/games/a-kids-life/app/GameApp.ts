@@ -45,6 +45,41 @@ export class GameApp {
     requestAnimationFrame(this.tick);
   }
 
+  markRandomPersonMissingFromRandomFamily(): boolean {
+    const saves = this.store
+      .listSummaries()
+      .map((summary) => this.store.loadSave(summary.id))
+      .filter((save): save is FamilySave => Boolean(save));
+
+    if (saves.length === 0) {
+      return false;
+    }
+
+    const savesWithMissingCandidates = saves.filter((save) =>
+      Object.values(save.people).some((person) => !person.isMissing)
+    );
+
+    if (savesWithMissingCandidates.length === 0) {
+      return true;
+    }
+
+    const pickedSave = savesWithMissingCandidates[Math.floor(Math.random() * savesWithMissingCandidates.length)];
+    if (!pickedSave) {
+      return false;
+    }
+
+    const saveToUpdate = this.currentSave?.id === pickedSave.id ? this.currentSave : pickedSave;
+    const candidates = Object.values(saveToUpdate.people).filter((person) => !person.isMissing);
+    const pickedPerson = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!pickedPerson) {
+      return false;
+    }
+
+    pickedPerson.isMissing = true;
+    this.store.save(saveToUpdate);
+    return saves.every((save) => Object.values(save.people).every((person) => person.isMissing));
+  }
+
   private tick = (ts: number): void => {
     const dtSeconds = Math.min(1 / 15, (ts - this.lastTs) / 1000);
     this.lastTs = ts;
