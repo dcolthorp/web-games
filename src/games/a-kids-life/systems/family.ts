@@ -65,7 +65,7 @@ export function getFamilyMembers(save: FamilySave): PersonState[] {
 
 export function birthNextBaby(save: FamilySave, parentId: string): Milestone | null {
   const parent = save.people[parentId];
-  if (!parent) {
+  if (!parent || !parent.partnerName || parent.childIds.length > 0 || parent.lifeStage !== "grownup") {
     return null;
   }
 
@@ -109,6 +109,38 @@ export function ensurePartner(person: PersonState): string {
   const options = ["Ari", "Sam", "Kit", "Jules", "Pip", "Sky"];
   person.partnerName = options[Math.floor(Math.random() * options.length)] ?? "Sam";
   return person.partnerName;
+}
+
+export function canRollForLoveLife(person: PersonState): boolean {
+  return person.lifeStage === "grownup" && !person.partnerName;
+}
+
+export function canHaveBaby(person: PersonState): boolean {
+  return person.lifeStage === "grownup" && Boolean(person.partnerName) && person.childIds.length === 0;
+}
+
+export function rollForLoveLife(save: FamilySave, personId: string): Milestone | null {
+  const person = save.people[personId];
+  if (!person || !canRollForLoveLife(person)) {
+    return null;
+  }
+
+  if (Math.random() < 0.25) {
+    ensurePartner(person);
+    return {
+      type: "partner",
+      personId: person.id,
+      title: "Love Life",
+      note: `${person.name} rolled lucky and got a love life!`,
+    };
+  }
+
+  return {
+    type: "luck-fail",
+    personId: person.id,
+    title: "No Love Life",
+    note: `${person.name} rolled the dice and it flopped.`,
+  };
 }
 
 export function getRoleTag(person: PersonState): CurrentRole {

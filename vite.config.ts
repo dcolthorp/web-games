@@ -10,6 +10,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         menu: resolve(__dirname, "src/index.html"),
+        games2: resolve(__dirname, "src/games2/index.html"),
+        drawingBossMania: resolve(__dirname, "src/games2/drawing-boss-mania/index.html"),
         aHardEasyGame: resolve(__dirname, "src/games/a-hard-easy-game/index.html"),
         oscarsUntitledMazeGame: resolve(
           __dirname,

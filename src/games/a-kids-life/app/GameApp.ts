@@ -2,6 +2,7 @@ import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from "../constants";
 import { SaveStore } from "../model/storage";
 import type { ActivityId, FamilySave, Milestone } from "../model/types";
 import { applyOfflineCatchup, applyNeedDecay } from "../systems/needs";
+import { birthNextBaby, canHaveBaby, canRollForLoveLife, rollForLoveLife } from "../systems/family";
 import { ActivityScene } from "../scenes/ActivityScene";
 import { FamilyScene } from "../scenes/FamilyScene";
 import { HomeScene } from "../scenes/HomeScene";
@@ -172,6 +173,8 @@ export class GameApp {
           this.store.save(this.currentSave);
         }
       },
+      onRollLuck: () => this.rollLuckForLoveLife(),
+      onHaveBaby: () => this.haveBaby(),
     });
   }
 
@@ -243,5 +246,47 @@ export class GameApp {
       },
     });
     this.currentScene = this.milestoneScene;
+  }
+
+  private rollLuckForLoveLife(): void {
+    if (!this.currentSave) {
+      return;
+    }
+
+    const person = this.currentSave.people[this.currentSave.activePersonId];
+    if (!person || !canRollForLoveLife(person)) {
+      this.openHome();
+      return;
+    }
+
+    const milestone = rollForLoveLife(this.currentSave, person.id);
+    this.store.save(this.currentSave);
+    if (milestone) {
+      this.openMilestone(milestone);
+      return;
+    }
+
+    this.openHome();
+  }
+
+  private haveBaby(): void {
+    if (!this.currentSave) {
+      return;
+    }
+
+    const person = this.currentSave.people[this.currentSave.activePersonId];
+    if (!person || !canHaveBaby(person)) {
+      this.openHome();
+      return;
+    }
+
+    const milestone = birthNextBaby(this.currentSave, person.id);
+    this.store.save(this.currentSave);
+    if (milestone) {
+      this.openMilestone(milestone);
+      return;
+    }
+
+    this.openHome();
   }
 }

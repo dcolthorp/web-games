@@ -6,6 +6,7 @@ import {
   drawAhegTrophyGraphic,
 } from "./shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "./shared/escapedAhegPlayer";
+import { installForceRefreshHotkey } from "./shared/forceRefreshHotkey";
 
 interface Game {
   id: string;
@@ -103,7 +104,29 @@ function renderGameList(): void {
 renderGameList();
 renderHubTrophy();
 attachOumgRestoreButton();
+attachHubDropdownToggle();
 initEscapedAhegPlayer();
+installForceRefreshHotkey();
+
+function attachHubDropdownToggle(): void {
+  const toggle = document.getElementById("hub-toggle");
+  const dropdown = document.getElementById("hub-dropdown");
+  if (!(toggle instanceof HTMLButtonElement) || !dropdown) return;
+
+  toggle.addEventListener("click", () => {
+    const open = toggle.getAttribute("aria-expanded") === "true";
+    const next = !open;
+    toggle.setAttribute("aria-expanded", String(next));
+    toggle.classList.toggle("is-open", next);
+    if (next) {
+      dropdown.hidden = false;
+      requestAnimationFrame(() => dropdown.classList.add("is-open"));
+    } else {
+      dropdown.classList.remove("is-open");
+      dropdown.hidden = true;
+    }
+  });
+}
 
 const trapFloorElement = document.getElementById("trap-floor");
 if (trapFloorElement instanceof HTMLButtonElement) {

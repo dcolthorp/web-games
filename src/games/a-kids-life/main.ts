@@ -5,6 +5,7 @@ import {
   renderImportedAhegTrophy,
 } from "../../shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
+import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 
 const AKL_TROPHY_DOOM_STARTED_KEY = "a-kids-life-trophy-doom-started";
 
@@ -17,6 +18,7 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 const app = new GameApp(canvas);
 app.start();
 initEscapedAhegPlayer({ interactionCanvas: canvas });
+installForceRefreshHotkey();
 renderImportedAhegTrophy("a-kids-life", {
   onDrop: () => {
     const everyoneIsMissing = app.markRandomPersonMissingFromRandomFamily();

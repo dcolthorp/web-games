@@ -12,6 +12,7 @@ import {
   OUMG_DELETED_FROM_HUB_KEY,
   TM_DELETED_FROM_HUB_KEY,
 } from "../../shared/ahegTrophy";
+import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 
 interface Vector2 {
   x: number;
@@ -38,7 +39,7 @@ interface Hazard extends Rect {
   };
 }
 
-type CourseLevel = 1 | 2 | 3;
+type CourseLevel = 1 | 2 | 3 | 4;
 
 interface Course {
   id: CourseLevel;
@@ -51,7 +52,7 @@ interface Course {
 interface Trophy extends Rect {
   homeX: number;
   homeY: number;
-  targetLevel: 2 | 3;
+  targetLevel: 2 | 3 | 4 | 5;
 }
 
 const LINKED_REVERSE_CONTROLS_KEY = "linked-reverse-controls-curse";
@@ -61,7 +62,12 @@ const TAMAGOTCHI_PROFILE_KEY_PREFIX = "tamagotchiMonster.profile.";
 const SHADOW_CLEAR_KEY = "a-hard-easy-game-shadow-cleared";
 const LEVEL_TWO_UNLOCKED_KEY = "a-hard-easy-game-level-two-unlocked";
 const LEVEL_THREE_UNLOCKED_KEY = "a-hard-easy-game-level-three-unlocked";
+const LEVEL_FOUR_UNLOCKED_KEY = "a-hard-easy-game-level-four-unlocked";
+const LEVEL_FIVE_TROPHY_READY_KEY = "a-hard-easy-game-level-five-trophy-ready";
 const LEVEL_THREE_TROPHY_READY_KEY = "a-hard-easy-game-level-three-trophy-ready";
+const LOCALHOST_CRASH_ACTIVE_KEY = "a-hard-easy-game-localhost-crash-active";
+const LOCALHOST_CRASH_DEADLINE_KEY = "a-hard-easy-game-localhost-crash-deadline";
+const LOCALHOST_CRASH_DELAY_MS = 10000;
 const HUB_TROPHY_KEY = "a-hard-easy-game-hub-trophy";
 const HUB_TROPHY_POSITION_KEY = "a-hard-easy-game-hub-trophy-position";
 const OUMG_TROPHY_DROP_COUNT_KEY = "oscars-untitled-maze-game-trophy-drop-count";
@@ -69,7 +75,7 @@ const OUMG_TROPHY_DOOM_STARTED_KEY = "oscars-untitled-maze-game-trophy-doom-star
 const AKL_TROPHY_DOOM_STARTED_KEY = "a-kids-life-trophy-doom-started";
 const TM_TROPHY_DOOM_STARTED_KEY = "tamagotchi-monster-trophy-doom-started";
 
-type GameMode = "normal" | "glitching" | "secret";
+type GameMode = "normal" | "glitching" | "secret" | "crashed";
 
 interface Skull {
   x: number;
@@ -132,6 +138,12 @@ if (!(levelThreeButton instanceof HTMLButtonElement)) {
   throw new Error("Missing level 3 button");
 }
 const level3Btn: HTMLButtonElement = levelThreeButton;
+
+const levelFourButton = document.getElementById("level-4-btn");
+if (!(levelFourButton instanceof HTMLButtonElement)) {
+  throw new Error("Missing level 4 button");
+}
+const level4Btn: HTMLButtonElement = levelFourButton;
 
 const levelSelectorElement = document.querySelector(".level-selector");
 if (!(levelSelectorElement instanceof HTMLDivElement)) {
@@ -253,10 +265,28 @@ const COURSES: Record<CourseLevel, Course> = {
       },
     ],
   },
+  4: {
+    id: 4,
+    name: "Level 4",
+    start: { x: 84, y: WORLD.height - 86 },
+    goal: { x: WORLD.width - 154, y: 56, width: 88, height: 144 },
+    hazards: [
+      { x: 150, y: 0, width: 34, height: 208, real: true },
+      { x: 150, y: 292, width: 34, height: 228, real: true },
+      { x: 248, y: 96, width: 30, height: 424, real: true },
+      { x: 330, y: 0, width: 26, height: 180, real: true },
+      { x: 330, y: 244, width: 26, height: 276, real: true },
+      { x: 426, y: 80, width: 34, height: 440, real: true },
+      { x: 516, y: 0, width: 28, height: 238, real: true },
+      { x: 516, y: 312, width: 28, height: 208, real: true },
+      { x: 610, y: 54, width: 34, height: 466, real: true },
+    ],
+  },
 };
 
-let currentLevel: CourseLevel = readLevelThreeUnlocked() ? 3 : readLevelTwoUnlocked() ? 2 : 1;
+let currentLevel: CourseLevel = readLevelFourUnlocked() ? 4 : readLevelThreeUnlocked() ? 3 : readLevelTwoUnlocked() ? 2 : 1;
 let course: Course = COURSES[currentLevel];
+let carriedTrophyTargetLevel: 2 | 4 | 5 | null = null;
 
 const keys = new Set<string>();
 const player = {
@@ -285,6 +315,10 @@ let trophyFalling = false;
 let trophyVelocityY = 0;
 let trophyFinaleTriggered = false;
 let rotationCursed = hasRotationCurse();
+let localhostCrashBlackoutAt = 0;
+let localhostCrashRedirectAt = 0;
+let localhostCrashBlackoutStarted = false;
+let localhostCrashIntervalId: number | null = null;
 
 let startTime = performance.now();
 let finished = false;
@@ -295,6 +329,17 @@ clearEscapedAhegPlayer();
 syncHudVisibility();
 updateHud();
 updateLevelButtons();
+installForceRefreshHotkey({
+  beforeReload: () => {
+    if (mode !== "crashed") {
+      return;
+    }
+
+    removeLocalhostCrashOverlay();
+    mode = "normal";
+  },
+});
+resumeLocalhostCrashIfNeeded();
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
@@ -340,6 +385,14 @@ level3Btn.addEventListener("click", () => {
     return;
   }
   loadCourse(3);
+});
+
+level4Btn.addEventListener("click", () => {
+  if (!readLevelFourUnlocked()) {
+    updateHud("Level 4 is locked. Find the Level 4 trophy.");
+    return;
+  }
+  loadCourse(4);
 });
 
 canvas.addEventListener("pointerdown", (event) => {
@@ -394,6 +447,11 @@ window.addEventListener("pointerup", (event) => {
     localStorage.removeItem(AHEG_TROPHY_LOCATION_KEY);
     updateHud("The trophy slipped out to the hub.");
     window.location.href = new URL("../../", window.location.href).toString();
+    return;
+  }
+
+  const levelButtonDropTarget = findLevelButtonDropTarget(event.clientX, event.clientY);
+  if (levelButtonDropTarget !== null && handleTrophyLevelButtonDrop(levelButtonDropTarget)) {
     return;
   }
 
@@ -504,6 +562,11 @@ function update(deltaSeconds: number): void {
     return;
   }
 
+  if (mode === "crashed") {
+    progressLocalhostCrash();
+    return;
+  }
+
   if (isEscapedAhegPlayerActive()) {
     return;
   }
@@ -543,6 +606,10 @@ function movePlayer(dx: number, dy: number): void {
   const nextX = clamp(player.position.x + dx, player.radius, WORLD.width - player.radius);
   const nextY = clamp(player.position.y + dy, player.radius, WORLD.height - player.radius);
   if (isPlayerBlockedAt(nextX, nextY)) {
+    if (currentLevel === 4) {
+      triggerLocalhostCrash();
+      return;
+    }
     setStatus("That one was real. Rude, but still avoidable.");
     return;
   }
@@ -789,6 +856,9 @@ function resetGame(): void {
   trophy = createTrophyIfNeeded();
   trophyFalling = false;
   trophyVelocityY = 0;
+  localhostCrashBlackoutAt = 0;
+  localhostCrashRedirectAt = 0;
+  localhostCrashBlackoutStarted = false;
   updateHud(
     controlsReversed
       ? "Back to the terrifying beginning. Still reversed."
@@ -816,6 +886,11 @@ function loadCourse(nextLevel: CourseLevel, statusMessage?: string): void {
     return;
   }
 
+  if (nextLevel === 4 && !readLevelFourUnlocked()) {
+    updateHud("Level 4 is locked. Find the Level 4 trophy.");
+    return;
+  }
+
   currentLevel = nextLevel;
   course = COURSES[nextLevel];
   mode = "normal";
@@ -827,6 +902,10 @@ function loadCourse(nextLevel: CourseLevel, statusMessage?: string): void {
   trophy = createTrophyIfNeeded();
   trophyFalling = false;
   trophyVelocityY = 0;
+  localhostCrashBlackoutAt = 0;
+  localhostCrashRedirectAt = 0;
+  localhostCrashBlackoutStarted = false;
+  removeLocalhostCrashOverlay();
   updateLevelButtons();
   updateHud(statusMessage ?? `${course.name}. Reach the exit.`);
 }
@@ -835,13 +914,17 @@ function updateLevelButtons(): void {
   level1Btn.classList.toggle("is-active", currentLevel === 1);
   level2Btn.classList.toggle("is-active", currentLevel === 2);
   level3Btn.classList.toggle("is-active", currentLevel === 3);
+  level4Btn.classList.toggle("is-active", currentLevel === 4);
 
   const levelTwoUnlocked = readLevelTwoUnlocked();
   const levelThreeUnlocked = readLevelThreeUnlocked();
+  const levelFourUnlocked = readLevelFourUnlocked();
   level2Btn.classList.toggle("is-locked", !levelTwoUnlocked);
   level3Btn.classList.toggle("is-locked", !levelThreeUnlocked);
+  level4Btn.classList.toggle("is-locked", !levelFourUnlocked);
   level2Btn.disabled = false;
   level3Btn.disabled = false;
+  level4Btn.disabled = false;
 }
 
 function readBestTime(): number | null {
@@ -928,6 +1011,8 @@ function resetAhegState(): void {
     SHADOW_CLEAR_KEY,
     LEVEL_TWO_UNLOCKED_KEY,
     LEVEL_THREE_UNLOCKED_KEY,
+    LEVEL_FOUR_UNLOCKED_KEY,
+    LEVEL_FIVE_TROPHY_READY_KEY,
     LEVEL_THREE_TROPHY_READY_KEY,
     HUB_TROPHY_KEY,
     HUB_TROPHY_POSITION_KEY,
@@ -998,8 +1083,34 @@ function syncHudVisibility(): void {
 }
 
 function createTrophyIfNeeded(): Trophy | null {
+  if (carriedTrophyTargetLevel !== null) {
+    const targetLevel = carriedTrophyTargetLevel;
+    carriedTrophyTargetLevel = null;
+    return {
+      x: 96,
+      y: 70,
+      width: 52,
+      height: 60,
+      homeX: 96,
+      homeY: 70,
+      targetLevel,
+    };
+  }
+
   if (localStorage.getItem(HUB_TROPHY_KEY) === "true") {
     return null;
+  }
+
+  if (readLevelFiveTrophyReady() && currentLevel === 4) {
+    return {
+      x: 96,
+      y: 70,
+      width: 52,
+      height: 60,
+      homeX: 96,
+      homeY: 70,
+      targetLevel: 5,
+    };
   }
 
   if (readShadowClear() && currentLevel === 1) {
@@ -1023,6 +1134,18 @@ function createTrophyIfNeeded(): Trophy | null {
       homeX: WORLD.width / 2 - 26,
       homeY: WORLD.height / 2 - 30,
       targetLevel: 3,
+    };
+  }
+
+  if (readLevelThreeUnlocked() && !readLevelFourUnlocked() && currentLevel === 3) {
+    return {
+      x: WORLD.width / 2 - 26,
+      y: WORLD.height / 2 - 30,
+      width: 52,
+      height: 60,
+      homeX: WORLD.width / 2 - 26,
+      homeY: WORLD.height / 2 - 30,
+      targetLevel: 4,
     };
   }
 
@@ -1215,13 +1338,14 @@ function restoreAllDeletedGames(): void {
   markLevelThreeTrophyReady();
   restoreAllMissingPeopleInAllSaves();
   localStorage.removeItem(LEVEL_THREE_UNLOCKED_KEY);
+  localStorage.removeItem(LEVEL_FOUR_UNLOCKED_KEY);
 }
 
 function drawTrophyGraphic(
   renderCtx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  targetLevel: 2 | 3
+  targetLevel: 2 | 3 | 4 | 5
 ): void {
   renderCtx.save();
   renderCtx.fillStyle = "#ffd86f";
@@ -1296,12 +1420,184 @@ function unlockLevelThree(): void {
   localStorage.removeItem(LEVEL_THREE_TROPHY_READY_KEY);
 }
 
+function readLevelFourUnlocked(): boolean {
+  return localStorage.getItem(LEVEL_FOUR_UNLOCKED_KEY) === "true";
+}
+
+function unlockLevelFour(): void {
+  localStorage.setItem(LEVEL_FOUR_UNLOCKED_KEY, "true");
+}
+
+function readLevelFiveTrophyReady(): boolean {
+  return localStorage.getItem(LEVEL_FIVE_TROPHY_READY_KEY) === "true";
+}
+
 function readLevelThreeTrophyReady(): boolean {
   return localStorage.getItem(LEVEL_THREE_TROPHY_READY_KEY) === "true";
 }
 
 function markLevelThreeTrophyReady(): void {
   localStorage.setItem(LEVEL_THREE_TROPHY_READY_KEY, "true");
+}
+
+function findLevelButtonDropTarget(clientX: number, clientY: number): 2 | 3 | 4 | null {
+  const targets: Array<{ level: 2 | 3 | 4; button: HTMLButtonElement }> = [
+    { level: 2, button: level2Btn },
+    { level: 3, button: level3Btn },
+    { level: 4, button: level4Btn },
+  ];
+
+  for (const target of targets) {
+    const rect = target.button.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+      return target.level;
+    }
+  }
+
+  return null;
+}
+
+function handleTrophyLevelButtonDrop(levelTarget: 2 | 3 | 4): boolean {
+  if (!trophy) {
+    return false;
+  }
+
+  if (trophy.targetLevel === 2 && levelTarget === 2) {
+    unlockLevelTwo();
+    carriedTrophyTargetLevel = 2;
+    loadCourse(2, "The Level 2 trophy came with you.");
+    return true;
+  }
+
+  if (trophy.targetLevel === 2 && levelTarget === 3) {
+    unlockLevelThree();
+    loadCourse(3, "The Level 2 trophy got eaten by Level 3. A Level 4 trophy appeared.");
+    return true;
+  }
+
+  if (trophy.targetLevel === 4 && levelTarget === 4) {
+    unlockLevelFour();
+    trophy = null;
+    loadCourse(4, "Level 4 loaded. Everything here is real.");
+    return true;
+  }
+
+  return false;
+}
+
+function triggerLocalhostCrash(): void {
+  if (mode === "crashed") {
+    return;
+  }
+
+  mode = "crashed";
+  updateHud("Level 4 actually crashed. The whole thing is hanging.");
+  ensureLocalhostCrashOverlay();
+  const deadline = Date.now() + LOCALHOST_CRASH_DELAY_MS;
+  localStorage.setItem(LOCALHOST_CRASH_ACTIVE_KEY, "true");
+  localStorage.setItem(LOCALHOST_CRASH_DEADLINE_KEY, String(deadline));
+  localhostCrashBlackoutAt = deadline;
+  localhostCrashRedirectAt = deadline + 1200;
+  localhostCrashBlackoutStarted = false;
+  ensureLocalhostCrashWatcher();
+}
+
+function removeLocalhostCrashOverlay(): void {
+  document.getElementById("localhost-crash-overlay")?.remove();
+  localhostCrashBlackoutAt = 0;
+  localhostCrashRedirectAt = 0;
+  localhostCrashBlackoutStarted = false;
+  if (localhostCrashIntervalId !== null) {
+    window.clearInterval(localhostCrashIntervalId);
+    localhostCrashIntervalId = null;
+  }
+  localStorage.removeItem(LOCALHOST_CRASH_ACTIVE_KEY);
+  localStorage.removeItem(LOCALHOST_CRASH_DEADLINE_KEY);
+}
+
+function ensureLocalhostCrashOverlay(): void {
+  const existing = document.getElementById("localhost-crash-overlay");
+  if (existing instanceof HTMLDivElement) {
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.id = "localhost-crash-overlay";
+  overlay.innerHTML = `
+    <div class="localhost-crash-window" aria-hidden="true">
+      <div class="localhost-crash-titlebar">
+        <span class="localhost-crash-dot localhost-crash-dot-close"></span>
+        <span class="localhost-crash-dot localhost-crash-dot-min"></span>
+        <span class="localhost-crash-dot localhost-crash-dot-max"></span>
+        <span class="localhost-crash-tab">A Hard Easy Game</span>
+      </div>
+      <div class="localhost-crash-dialog">
+        <div class="localhost-crash-sad-face">:(</div>
+        <h2>This page has stopped responding.</h2>
+        <p>A Hard Easy Game hit something real on Level 4 and locked up for real. Leave it alone long enough and it gives up completely.</p>
+        <p class="localhost-crash-subtext">The screen will black out and kick you back to localhost in about ten seconds.</p>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function ensureLocalhostCrashWatcher(): void {
+  if (localhostCrashIntervalId !== null) {
+    return;
+  }
+
+  localhostCrashIntervalId = window.setInterval(() => {
+    progressLocalhostCrash();
+  }, 1000);
+}
+
+function progressLocalhostCrash(): void {
+  if (mode !== "crashed") {
+    return;
+  }
+
+  const now = Date.now();
+  if (!localhostCrashBlackoutStarted && localhostCrashBlackoutAt !== 0 && now >= localhostCrashBlackoutAt) {
+    const liveOverlay = document.getElementById("localhost-crash-overlay");
+    if (liveOverlay instanceof HTMLDivElement) {
+      liveOverlay.classList.add("is-blackout");
+    }
+    localhostCrashBlackoutStarted = true;
+    localStorage.setItem(LEVEL_FIVE_TROPHY_READY_KEY, "true");
+  }
+
+  if (localhostCrashRedirectAt !== 0 && now >= localhostCrashRedirectAt) {
+    localStorage.removeItem(LOCALHOST_CRASH_ACTIVE_KEY);
+    localStorage.removeItem(LOCALHOST_CRASH_DEADLINE_KEY);
+    window.location.assign("/");
+  }
+}
+
+function resumeLocalhostCrashIfNeeded(): void {
+  if (localStorage.getItem(LOCALHOST_CRASH_ACTIVE_KEY) !== "true") {
+    return;
+  }
+
+  const rawDeadline = Number(localStorage.getItem(LOCALHOST_CRASH_DEADLINE_KEY) ?? "0");
+  if (!Number.isFinite(rawDeadline) || rawDeadline <= 0) {
+    localStorage.removeItem(LOCALHOST_CRASH_ACTIVE_KEY);
+    localStorage.removeItem(LOCALHOST_CRASH_DEADLINE_KEY);
+    return;
+  }
+
+  mode = "crashed";
+  updateHud("Level 4 actually crashed. The whole thing is hanging.");
+  ensureLocalhostCrashOverlay();
+  localhostCrashBlackoutAt = rawDeadline;
+  localhostCrashRedirectAt = rawDeadline + 1200;
+  localhostCrashBlackoutStarted = Date.now() >= localhostCrashBlackoutAt;
+  if (localhostCrashBlackoutStarted) {
+    document.getElementById("localhost-crash-overlay")?.classList.add("is-blackout");
+    localStorage.setItem(LEVEL_FIVE_TROPHY_READY_KEY, "true");
+  }
+  ensureLocalhostCrashWatcher();
+  progressLocalhostCrash();
 }
 
 function clearShadowTamagotchiProfiles(): void {

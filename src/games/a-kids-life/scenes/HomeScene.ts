@@ -1,6 +1,7 @@
 import { STAGE_THRESHOLDS } from "../constants";
 import { drawBackground, drawCharacter, drawNeedBar, drawTopHud, drawPortraitChip } from "../graphics/draw";
 import type { ActivityId, FamilySave } from "../model/types";
+import { canHaveBaby, canRollForLoveLife } from "../systems/family";
 import { getRecommendedActivities, getMoodBubble } from "../systems/visualHints";
 import { getVisibleNeeds } from "../systems/needs";
 import { Button } from "../ui/Button";
@@ -11,6 +12,7 @@ export class HomeScene implements Scene {
   private readonly familyButton: Button;
   private readonly roomButton: Button;
   private readonly homeButton: Button;
+  private readonly specialButton: Button | null;
   private time = 0;
 
   constructor(
@@ -20,6 +22,8 @@ export class HomeScene implements Scene {
       onOpenFamily: () => void;
       onOpenSaveSelect: () => void;
       onOpenRoom: () => void;
+      onRollLuck: () => void;
+      onHaveBaby: () => void;
     }
   ) {
     const person = opts.save.people[opts.save.activePersonId];
@@ -32,6 +36,13 @@ export class HomeScene implements Scene {
     this.familyButton = new Button(40, 620, 182, 96, "Family", "plum", () => this.opts.onOpenFamily());
     this.roomButton = new Button(978, 620, 182, 96, "Room", "gold", () => this.opts.onOpenRoom());
     this.homeButton = new Button(978, 124, 160, 58, "Saves", "cream", () => this.opts.onOpenSaveSelect());
+    this.specialButton = person
+      ? canRollForLoveLife(person)
+        ? new Button(788, 404, 306, 88, "Roll Luck", "plum", () => this.opts.onRollLuck())
+        : canHaveBaby(person)
+          ? new Button(788, 404, 306, 88, "Have Baby", "pink", () => this.opts.onHaveBaby())
+          : null
+      : null;
   }
 
   update(dtSeconds: number): void {
@@ -93,6 +104,12 @@ export class HomeScene implements Scene {
     ctx.fillText(`Then ${second}`, 818, 308);
     ctx.fillText(`Or ${third}`, 818, 342);
 
+    if (this.specialButton && canRollForLoveLife(person)) {
+      this.specialButton.draw(ctx, { icon: "🎲", sublabel: "75% fail / 25% love life" });
+    } else if (this.specialButton && canHaveBaby(person)) {
+      this.specialButton.draw(ctx, { icon: "👶", sublabel: `With ${person.partnerName ?? "love life"}` });
+    }
+
     this.homeButton.draw(ctx);
     this.familyButton.draw(ctx, { icon: "🌳" });
     this.roomButton.draw(ctx, { icon: "🧸" });
@@ -103,19 +120,28 @@ export class HomeScene implements Scene {
   }
 
   onPointerMove(x: number, y: number): void {
-    for (const button of [this.homeButton, this.familyButton, this.roomButton, ...this.activityButtons]) {
+    for (const button of [this.homeButton, this.familyButton, this.roomButton, this.specialButton, ...this.activityButtons]) {
+      if (!button) {
+        continue;
+      }
       button.handlePointerMove(x, y);
     }
   }
 
   onPointerDown(x: number, y: number): void {
-    for (const button of [this.homeButton, this.familyButton, this.roomButton, ...this.activityButtons]) {
+    for (const button of [this.homeButton, this.familyButton, this.roomButton, this.specialButton, ...this.activityButtons]) {
+      if (!button) {
+        continue;
+      }
       button.handlePointerDown(x, y);
     }
   }
 
   onPointerUp(x: number, y: number): void {
-    for (const button of [this.homeButton, this.familyButton, this.roomButton, ...this.activityButtons]) {
+    for (const button of [this.homeButton, this.familyButton, this.roomButton, this.specialButton, ...this.activityButtons]) {
+      if (!button) {
+        continue;
+      }
       button.handlePointerUp(x, y);
     }
   }

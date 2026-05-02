@@ -5,6 +5,7 @@ import {
   renderImportedAhegTrophy,
 } from "../../shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
+import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 
 const TM_TROPHY_DOOM_STARTED_KEY = "tamagotchi-monster-trophy-doom-started";
 
@@ -16,6 +17,7 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 const app = new GameApp(canvas);
 app.start();
 initEscapedAhegPlayer({ interactionCanvas: canvas });
+installForceRefreshHotkey();
 renderImportedAhegTrophy("tamagotchi-monster", {
   onBeforeImpact: startTrophySlowMotion,
   onDrop: startTrophyCrackSequence,

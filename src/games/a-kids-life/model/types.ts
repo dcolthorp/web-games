@@ -109,7 +109,7 @@ export interface ActivityConfig {
 }
 
 export interface Milestone {
-  type: "stage-up" | "partner" | "new-baby";
+  type: "stage-up" | "partner" | "new-baby" | "luck-fail";
   personId: string;
   title: string;
   note: string;

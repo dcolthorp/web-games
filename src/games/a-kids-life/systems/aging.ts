@@ -1,6 +1,6 @@
 import { STAGE_THRESHOLDS } from "../constants";
 import type { FamilySave, LifeStage, Milestone, PersonState } from "../model/types";
-import { birthNextBaby, ensurePartner, getRoleTag } from "./family";
+import { getRoleTag } from "./family";
 
 function nextStage(stage: LifeStage): LifeStage | null {
   switch (stage) {
@@ -58,20 +58,9 @@ export function addCareStars(save: FamilySave, person: PersonState, amount: numb
   }
 
   if (person.lifeStage === "grownup") {
-    if (!person.partnerName && person.ageProgress >= STAGE_THRESHOLDS.grownup) {
-      ensurePartner(person);
+    if (person.ageProgress >= STAGE_THRESHOLDS.grownup) {
       person.ageProgress = 0;
-      return {
-        type: "partner",
-        personId: person.id,
-        title: "Love",
-        note: `${person.name} found love!`,
-      };
-    }
-
-    if (person.partnerName && person.childIds.length === 0 && person.ageProgress >= STAGE_THRESHOLDS.grownup) {
-      person.ageProgress = 0;
-      return birthNextBaby(save, person.id);
+      save.hearts += 10;
     }
   }
 

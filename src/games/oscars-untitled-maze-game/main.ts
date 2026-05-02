@@ -11,6 +11,7 @@ import {
   renderImportedAhegTrophy,
 } from "../../shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
+import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import {
   TERRAIN_OPEN,
   TERRAIN_WALL,
@@ -80,6 +81,7 @@ if (!(ctxValue instanceof CanvasRenderingContext2D)) {
   throw new Error("Could not create maze drawing context");
 }
 initEscapedAhegPlayer({ interactionCanvas: canvas });
+installForceRefreshHotkey();
 const ctx: CanvasRenderingContext2D = ctxValue;
 
 const TROPHY_DROP_COUNT_KEY = "oscars-untitled-maze-game-trophy-drop-count";

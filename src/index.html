@@ -10,7 +10,24 @@
     <main class="menu-shell">
       <section class="hero-panel">
         <p class="eyebrow hub-asset" data-asset-id="hero-eyebrow">Totally fair-ish browser games</p>
-        <h1 class="hub-asset" data-asset-id="hero-title">Games</h1>
+        <div class="title-row">
+          <h1 class="hub-asset" data-asset-id="hero-title">Games</h1>
+          <button
+            class="hub-toggle"
+            id="hub-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="hub-dropdown"
+            aria-label="Show more hubs"
+          >
+            <svg viewBox="0 0 32 24" aria-hidden="true" focusable="false">
+              <path d="M3 19 L16 6 L29 19" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </div>
+        <div class="hub-dropdown" id="hub-dropdown" hidden>
+          <a class="hub-dropdown-link" href="./games2/">Games 2</a>
+        </div>
         <p class="subtitle hub-asset" data-asset-id="hero-subtitle">
           Pick a door. Try not to trust the floor.
         </p>
