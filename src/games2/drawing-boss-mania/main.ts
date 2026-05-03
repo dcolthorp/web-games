@@ -71,7 +71,10 @@ interface Attack {
     | "earthrock"
     | "flood"
     | "firepatch"
-    | "redslime";
+    | "redslime"
+    | "redlaser"
+    | "tornado"
+    | "fireball";
   rectX: number;
   rectY: number;
   rectW: number;
@@ -97,6 +100,9 @@ interface Attack {
     | "active";
   id: number;
   hasHit: boolean;
+  lavaMode?: boolean;
+  customThickness?: number;
+  damageCooldown?: number;
 }
 const attacks: Attack[] = [];
 let attackSpawnTimer = 2.2;
@@ -244,19 +250,45 @@ interface BossInfo {
   name: string;
   blurb: string;
 }
-const BOSS_ROSTER: BossInfo[] = [
+const BOSS_ROSTER_BASE: BossInfo[] = [
   { id: "pacman", name: "PAC-MAN", blurb: "Chomps with style. Erases himself. Phase 2 ghost form." },
   { id: "mrpencil", name: "MR. PENCIL", blurb: "Sword. Hammer that quakes the floor. Shield. No platforms." },
   { id: "elemental", name: "THE ELEMENTAL", blurb: "Air → Earth → Fire → Water → Master. Each phase needs its own element bits." },
   { id: "beatrix", name: "BEATRIX LEBEAU", blurb: "Slime rancher with a vacpack. You're a carrot. Red slimes one-shot you. Grab tarrs." },
 ];
 
-const NEXT_BOSS: Record<string, string | null> = {
-  pacman: "mrpencil",
-  mrpencil: "elemental",
-  elemental: "beatrix",
-  beatrix: null,
-};
+let BOSS_ROSTER: BossInfo[] = [...BOSS_ROSTER_BASE];
+
+function rebuildBossRoster(): void {
+  BOSS_ROSTER = [...BOSS_ROSTER_BASE];
+  if (customBossExists()) {
+    const name = customBoss.name.trim() || "MY BOSS";
+    BOSS_ROSTER.push({
+      id: "custom",
+      name: name.toUpperCase(),
+      blurb: customBoss.attackDesc.trim().slice(0, 80) || "Your handcrafted boss.",
+    });
+  }
+}
+// Initial rebuild deferred: customBoss is declared later in the file. We call
+// rebuildBossRoster() manually after customBoss is initialized.
+
+function getNextBoss(id: string): string | null {
+  const map: Record<string, string | null> = {
+    pacman: "mrpencil",
+    mrpencil: "elemental",
+    elemental: "beatrix",
+    beatrix: customBossExists() ? "custom" : null,
+    custom: null,
+  };
+  return map[id] ?? null;
+}
+
+const NEXT_BOSS = new Proxy({} as Record<string, string | null>, {
+  get(_t, prop: string) {
+    return getNextBoss(prop);
+  },
+}) as Record<string, string | null>;
 
 const ELEMENTS = ["air", "earth", "fire", "water"] as const;
 type Element = typeof ELEMENTS[number];
@@ -285,6 +317,201 @@ function saveBeatenBosses(): void {
 
 let bossMode = false;
 let bossModeBossId = "pacman";
+
+// Custom boss: drawing-pad images + name + freeform attack description.
+const CUSTOM_BOSS_PAD = 220;
+const customBossPad1 = document.createElement("canvas");
+customBossPad1.width = CUSTOM_BOSS_PAD;
+customBossPad1.height = CUSTOM_BOSS_PAD;
+const customBossPad1Ctx = customBossPad1.getContext("2d")!;
+const customBossPad2 = document.createElement("canvas");
+customBossPad2.width = CUSTOM_BOSS_PAD;
+customBossPad2.height = CUSTOM_BOSS_PAD;
+const customBossPad2Ctx = customBossPad2.getContext("2d")!;
+const customBoss = {
+  name: localStorage.getItem("dbm-cb-name") ?? "",
+  attackDesc: localStorage.getItem("dbm-cb-attack") ?? "",
+  hasPhase1: false,
+  hasPhase2: false,
+};
+const cb1 = localStorage.getItem("dbm-cb-phase1");
+if (cb1) {
+  customBoss.hasPhase1 = true;
+  const img = new Image();
+  img.onload = () => {
+    customBossPad1Ctx.clearRect(0, 0, CUSTOM_BOSS_PAD, CUSTOM_BOSS_PAD);
+    customBossPad1Ctx.drawImage(img, 0, 0);
+  };
+  img.src = cb1;
+}
+const cb2 = localStorage.getItem("dbm-cb-phase2");
+if (cb2) {
+  customBoss.hasPhase2 = true;
+  const img = new Image();
+  img.onload = () => {
+    customBossPad2Ctx.clearRect(0, 0, CUSTOM_BOSS_PAD, CUSTOM_BOSS_PAD);
+    customBossPad2Ctx.drawImage(img, 0, 0);
+  };
+  img.src = cb2;
+}
+
+function customBossExists(): boolean {
+  return customBoss.name.trim() !== "" || customBoss.hasPhase1 || customBoss.hasPhase2;
+}
+
+// Now that customBoss is initialized we can populate the roster correctly.
+rebuildBossRoster();
+
+function saveCustomBoss(): void {
+  localStorage.setItem("dbm-cb-name", customBoss.name);
+  localStorage.setItem("dbm-cb-attack", customBoss.attackDesc);
+  localStorage.setItem("dbm-cb-phase1", customBossPad1.toDataURL("image/png"));
+  localStorage.setItem("dbm-cb-phase2", customBossPad2.toDataURL("image/png"));
+  customBoss.hasPhase1 = true;
+  customBoss.hasPhase2 = true;
+  customBossConfig = parseCustomBossConfig();
+  rebuildBossRoster();
+}
+
+function deleteCustomBoss(): void {
+  customBoss.name = "";
+  customBoss.attackDesc = "";
+  customBoss.hasPhase1 = false;
+  customBoss.hasPhase2 = false;
+  customBossPad1Ctx.clearRect(0, 0, CUSTOM_BOSS_PAD, CUSTOM_BOSS_PAD);
+  customBossPad2Ctx.clearRect(0, 0, CUSTOM_BOSS_PAD, CUSTOM_BOSS_PAD);
+  for (const k of ["dbm-cb-name", "dbm-cb-attack", "dbm-cb-phase1", "dbm-cb-phase2"]) {
+    localStorage.removeItem(k);
+  }
+  beatenBosses.delete("custom");
+  saveBeatenBosses();
+  rebuildBossRoster();
+}
+
+interface CustomBossConfig {
+  lavaFlood: boolean;
+  platforms: boolean;
+  laserLength: number;
+  emojis: string[]; // any emojis the user dropped in — used as visual theme
+  fireTornado: boolean;
+  lavaTornado: boolean;
+  fistFlood: boolean;
+}
+
+function extractEmojis(s: string): string[] {
+  // Common emoji ranges. Not exhaustive but covers most.
+  const re = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}]/gu;
+  return Array.from(new Set(s.match(re) ?? []));
+}
+
+function parseCustomBossConfig(): CustomBossConfig {
+  const desc = customBoss.attackDesc.toLowerCase();
+  let laserLength = 100;
+  const m = desc.match(/(\d{2,4})\s*(px|pixel|pixels)/);
+  if (m) {
+    const n = parseInt(m[1]!, 10);
+    if (!isNaN(n)) laserLength = Math.max(30, Math.min(400, n));
+  }
+  return {
+    lavaFlood: /lava\s*(flood|water|wave|tornado)?/.test(desc) && /(flood|water|wave|tornado)/.test(desc),
+    platforms: /platform/.test(desc) && !/no\s*platform/.test(desc),
+    laserLength,
+    emojis: extractEmojis(customBoss.attackDesc),
+    fireTornado: /(fire|flame).*(tornado|cyclone|vortex)|(tornado|cyclone|vortex).*(fire|flame)/.test(desc),
+    lavaTornado: /lava.*(tornado|cyclone|vortex)|(tornado|cyclone|vortex).*lava/.test(desc),
+    fistFlood: /(flood|wave).*(of\s*fists|of\s*hands|of\s*punches)/.test(desc),
+  };
+}
+
+let customBossConfig: CustomBossConfig = parseCustomBossConfig();
+
+// Heuristic attack parser — converts free text to a list of attack spawn fns.
+function getCustomBossAttackPool(): (() => void)[] {
+  const desc = customBoss.attackDesc.toLowerCase();
+  const pool: (() => void)[] = [];
+  const add = (fn: () => void) => pool.push(fn);
+  if (/(fire|flame|burn)/.test(desc)) add(() => spawnFirePatchAt(player.x));
+  if (/(laser|beam|ray|red\s*line)/.test(desc)) add(() => spawnRedLaser(customBossConfig.laserLength));
+  if (/(rock|earth|boulder|stone)/.test(desc)) add(() => spawnEarthRockAt(player.x, player.y - 30));
+  if (/(water|flood|drown|wave|lava)/.test(desc)) add(() => {
+    spawnFlood();
+    const a = attacks[attacks.length - 1];
+    if (a && customBossConfig.lavaFlood) a.lavaMode = true;
+  });
+  if (/(wind|air|lift|fly|gust)/.test(desc)) add(() => spawnAirLiftAt(player.x));
+  if (/(sword|slash|blade|cut)/.test(desc)) add(() => spawnPencilSword());
+  if (/(hammer|smash|mallet|pound)/.test(desc)) add(() => spawnPencilHammerAt(player.x));
+  if (/(shield|block|defend|guard)/.test(desc)) add(() => spawnPencilShield());
+  if (/(slime|blob|ooze|goo)/.test(desc)) add(() => spawnRedSlime());
+  if (/(\bfist\b|\bpunch\b|pointing[\s-]?hand)/.test(desc)) add(() => spawnFistProjectile());
+  if (/(tornado|cyclone|vortex)/.test(desc)) add(() => spawnTornado());
+  if (/(fireball|fire\s*ball|flame\s*ball)/.test(desc)) add(() => spawnFireball());
+  if (customBossConfig.fistFlood) add(() => {
+    // Disguise: a "flood of fists" — spawn a barrage of fists across the screen.
+    for (let i = 0; i < 8; i++) setTimeout(() => spawnFistProjectile(), i * 80);
+  });
+  // Don't fall back to fists — if nothing matched, the boss just doesn't attack.
+  return pool;
+}
+
+// Boss-creator drawing state.
+let cbDrawingPhase: 1 | 2 | null = null;
+let cbDrawLastX = 0;
+let cbDrawLastY = 0;
+let cbHelpOpen = false;
+let cbHelpScroll = 0;
+
+const cbNameInput = document.createElement("input");
+cbNameInput.type = "text";
+cbNameInput.placeholder = "Boss name";
+cbNameInput.maxLength = 24;
+cbNameInput.value = customBoss.name;
+cbNameInput.style.position = "absolute";
+cbNameInput.style.display = "none";
+cbNameInput.style.boxSizing = "border-box";
+cbNameInput.style.font = "16px system-ui, sans-serif";
+cbNameInput.style.padding = "6px 10px";
+cbNameInput.addEventListener("input", () => {
+  customBoss.name = cbNameInput.value;
+});
+
+const cbAttackInput = document.createElement("textarea");
+cbAttackInput.placeholder =
+  "Describe the attacks (e.g., \"shoots 100 pixel red lasers, lava flood with platforms, fire tornado\")";
+cbAttackInput.maxLength = 240;
+cbAttackInput.value = customBoss.attackDesc;
+cbAttackInput.style.position = "absolute";
+cbAttackInput.style.display = "none";
+cbAttackInput.style.boxSizing = "border-box";
+cbAttackInput.style.font = "14px system-ui, sans-serif";
+cbAttackInput.style.padding = "6px 10px";
+cbAttackInput.style.resize = "none";
+cbAttackInput.addEventListener("input", () => {
+  customBoss.attackDesc = cbAttackInput.value;
+});
+document.body.appendChild(cbNameInput);
+document.body.appendChild(cbAttackInput);
+
+function positionBossCreatorInputs(visible: boolean): void {
+  if (!visible) {
+    cbNameInput.style.display = "none";
+    cbAttackInput.style.display = "none";
+    return;
+  }
+  const cv = canvas as HTMLCanvasElement;
+  const rect = cv.getBoundingClientRect();
+  const sx = rect.width / cv.width;
+  const sy = rect.height / cv.height;
+  const place = (el: HTMLElement, x: number, y: number, w: number, h: number) => {
+    el.style.left = `${rect.left + window.scrollX + x * sx}px`;
+    el.style.top = `${rect.top + window.scrollY + y * sy}px`;
+    el.style.width = `${w * sx}px`;
+    el.style.height = `${h * sy}px`;
+    el.style.display = "block";
+  };
+  place(cbNameInput, 60, 360, WIDTH - 120, 44);
+  place(cbAttackInput, 60, 426, WIDTH - 120, 100);
+}
 
 // Asset images for Mr. Pencil's phase 2 — the literal pencil photo + angry face.
 const pencilImg = new Image();
@@ -356,7 +583,16 @@ let chordToggleArmed = true;
 
 let playerLifted = false;
 let playerSubmergedTime = 0;
-type Scene = "intro" | "fight" | "results" | "hub" | "shop" | "bossmode" | "warmup" | "levelselect";
+type Scene =
+  | "intro"
+  | "fight"
+  | "results"
+  | "hub"
+  | "shop"
+  | "bossmode"
+  | "warmup"
+  | "levelselect"
+  | "bosscreator";
 let scene: Scene = "intro";
 let sceneTime = 0;
 
@@ -371,6 +607,8 @@ interface UiButton {
 }
 let uiButtons: UiButton[] = [];
 let pauseUiButtons: UiButton[] = [];
+let levelSelectScrollX = 0;
+let bossModeScrollX = 0;
 let paused = false;
 const PAUSE_BTN_W = 44;
 const PAUSE_BTN_H = 44;
@@ -381,6 +619,7 @@ const PAUSE_BTN_HIDDEN_SCENES: ReadonlySet<Scene> = new Set<Scene>([
   "shop",
   "bossmode",
   "levelselect",
+  "bosscreator",
 ]);
 
 function pauseButtonVisible(): boolean {
@@ -436,6 +675,14 @@ function setScene(next: Scene): void {
   scene = next;
   sceneTime = 0;
   uiButtons = [];
+  if (next === "levelselect") levelSelectScrollX = 0;
+  if (next === "bossmode") bossModeScrollX = 0;
+  if (next === "bosscreator") {
+    cbNameInput.value = customBoss.name;
+    cbAttackInput.value = customBoss.attackDesc;
+  } else {
+    positionBossCreatorInputs(false);
+  }
 }
 
 function recordBossBeaten(id: string): void {
@@ -474,6 +721,11 @@ function resetBossFight(): void {
     boss.homeY = 220;
     boss.radius = 60;
     boss.hpMax = 120;
+  } else if (currentBossId === "custom") {
+    boss.homeX = WIDTH / 2;
+    boss.homeY = 220;
+    boss.radius = 70;
+    boss.hpMax = 100;
   } else {
     boss.homeX = WIDTH - 110;
     boss.homeY = 200;
@@ -503,11 +755,12 @@ function resetBossFight(): void {
 
   platforms.length = 0;
   nextPlatformId = 1;
-  if (
-    currentBossId !== "mrpencil" &&
-    currentBossId !== "elemental" &&
-    currentBossId !== "beatrix"
-  ) {
+  const skipPlatforms =
+    currentBossId === "mrpencil" ||
+    currentBossId === "elemental" ||
+    currentBossId === "beatrix" ||
+    (currentBossId === "custom" && !customBossConfig.platforms);
+  if (!skipPlatforms) {
     buildPlatformLayout();
   }
 }
@@ -530,6 +783,11 @@ function resetFight(): void {
     boss.hpMax = ELEMENTAL_PHASE_HP[0]!;
   } else if (currentBossId === "beatrix") {
     boss.homeX = WIDTH - 160;
+    boss.homeY = 220;
+    boss.radius = 70;
+    boss.hpMax = 100;
+  } else if (currentBossId === "custom") {
+    boss.homeX = WIDTH / 2;
     boss.homeY = 220;
     boss.radius = 70;
     boss.hpMax = 100;
@@ -573,11 +831,12 @@ function resetFight(): void {
 
   platforms.length = 0;
   nextPlatformId = 1;
-  if (
-    currentBossId !== "mrpencil" &&
-    currentBossId !== "elemental" &&
-    currentBossId !== "beatrix"
-  ) {
+  const skipPlatforms =
+    currentBossId === "mrpencil" ||
+    currentBossId === "elemental" ||
+    currentBossId === "beatrix" ||
+    (currentBossId === "custom" && !customBossConfig.platforms);
+  if (!skipPlatforms) {
     buildPlatformLayout();
   }
 }
@@ -717,13 +976,90 @@ canvas.addEventListener("click", (event) => {
   handleClickAt(mx, my);
 });
 
+canvas.addEventListener(
+  "wheel",
+  (event) => {
+    if (paused) return;
+    if (scene === "bosscreator" && cbHelpOpen) {
+      cbHelpScroll += event.deltaY;
+      event.preventDefault();
+      return;
+    }
+    if (scene !== "levelselect" && scene !== "bossmode") return;
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (scene === "levelselect") levelSelectScrollX += delta;
+    else bossModeScrollX += delta;
+    event.preventDefault();
+  },
+  { passive: false },
+);
+
 canvas.addEventListener("mousemove", (event) => {
   const rect = canvas.getBoundingClientRect();
   const sx = canvas.width / rect.width;
   const sy = canvas.height / rect.height;
   mouseArenaX = (event.clientX - rect.left) * sx;
   mouseArenaY = (event.clientY - rect.top) * sy;
+  if (cbDrawingPhase) {
+    const r = bossCreatorPadRect(cbDrawingPhase);
+    const lx = ((mouseArenaX - r.x) / r.w) * CUSTOM_BOSS_PAD;
+    const ly = ((mouseArenaY - r.y) / r.h) * CUSTOM_BOSS_PAD;
+    if (lx < 0 || ly < 0 || lx > CUSTOM_BOSS_PAD || ly > CUSTOM_BOSS_PAD) return;
+    const pctx = cbDrawingPhase === 1 ? customBossPad1Ctx : customBossPad2Ctx;
+    pctx.strokeStyle = "#0a0a0a";
+    pctx.lineWidth = 5;
+    pctx.lineCap = "round";
+    pctx.lineJoin = "round";
+    pctx.beginPath();
+    pctx.moveTo(cbDrawLastX, cbDrawLastY);
+    pctx.lineTo(lx, ly);
+    pctx.stroke();
+    cbDrawLastX = lx;
+    cbDrawLastY = ly;
+  }
 });
+
+function bossCreatorPadRect(phase: 1 | 2): { x: number; y: number; w: number; h: number } {
+  const w = 220;
+  const h = 220;
+  const y = 110;
+  const gap = 60;
+  const totalW = w * 2 + gap;
+  const startX = (WIDTH - totalW) / 2;
+  return { x: startX + (phase === 1 ? 0 : w + gap), y, w, h };
+}
+
+canvas.addEventListener("mousedown", (event) => {
+  if (scene !== "bosscreator") return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  const mx = (event.clientX - rect.left) * sx;
+  const my = (event.clientY - rect.top) * sy;
+  cbNameInput.blur();
+  cbAttackInput.blur();
+  for (const phase of [1, 2] as const) {
+    const r = bossCreatorPadRect(phase);
+    if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+      cbDrawingPhase = phase;
+      const lx = ((mx - r.x) / r.w) * CUSTOM_BOSS_PAD;
+      const ly = ((my - r.y) / r.h) * CUSTOM_BOSS_PAD;
+      cbDrawLastX = lx;
+      cbDrawLastY = ly;
+      const pctx = phase === 1 ? customBossPad1Ctx : customBossPad2Ctx;
+      pctx.fillStyle = "#0a0a0a";
+      pctx.beginPath();
+      pctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+      pctx.fill();
+      return;
+    }
+  }
+});
+
+window.addEventListener("mouseup", () => {
+  cbDrawingPhase = null;
+});
+
 
 function setupPencilBossPhase2Buttons(): void {
   const w = 280;
@@ -1179,6 +1515,12 @@ function spawnAttack(): void {
     spawnRedSlime();
     return;
   }
+  if (currentBossId === "custom") {
+    const pool = getCustomBossAttackPool();
+    if (pool.length === 0) return;
+    pool[Math.floor(Math.random() * pool.length)]!();
+    return;
+  }
   const horizontal = Math.random() < 0.55;
   if (horizontal) {
     const h = boss.radius * 2 + 16;
@@ -1269,14 +1611,12 @@ function laserHitsPlayer(a: Attack): boolean {
   const ddx = closestX - px;
   const ddy = closestY - py;
   const distSq = ddx * ddx + ddy * ddy;
-  const reach = LASER_BEAM_THICKNESS / 2 + Math.max(aabb.w, aabb.h) * 0.35;
+  const reach = (a.customThickness ?? LASER_BEAM_THICKNESS) / 2 + Math.max(aabb.w, aabb.h) * 0.35;
   return distSq < reach * reach;
 }
 
-function spawnLaserAttack(): void {
-  // For lasers, rectX/rectY hold the BEAM END (the target point that tracks
-  // the player). The beam origin is always the boss's current position.
-  attacks.push({
+function spawnLaserAttack(): Attack {
+  const a: Attack = {
     kind: "laser",
     rectX: player.x,
     rectY: player.y - 30,
@@ -1293,7 +1633,9 @@ function spawnLaserAttack(): void {
     phase: "track",
     id: nextAttackId++,
     hasHit: false,
-  });
+  };
+  attacks.push(a);
+  return a;
 }
 
 function spawnPencilAttack(): void {
@@ -1850,16 +2192,27 @@ function tickFlood(a: Attack, dt: number, idx: number): void {
     else if (t < 0.7) target = peak;
     else target = (1 - (t - 0.7) / 0.3) * peak;
     a.rectH = Math.max(0, target);
-    const headY = player.y - (player.ducking ? DUCK_HEIGHT : STAND_HEIGHT);
+    const aabb = getPlayerAabb();
     const surfaceY = GROUND_Y - a.rectH;
-    if (headY > surfaceY) {
-      playerSubmergedTime += dt;
-      if (playerSubmergedTime >= 5) {
+    if (a.lavaMode) {
+      // Lava: any contact deals damage on a short cooldown — no air timer.
+      a.damageCooldown = (a.damageCooldown ?? 0) - dt;
+      const touching = aabb.y + aabb.h > surfaceY;
+      if (touching && (a.damageCooldown ?? 0) <= 0) {
         damagePlayer();
-        playerSubmergedTime = 0;
+        a.damageCooldown = 0.6;
       }
     } else {
-      playerSubmergedTime = Math.max(0, playerSubmergedTime - dt * 1.4);
+      const headY = player.y - (player.ducking ? DUCK_HEIGHT : STAND_HEIGHT);
+      if (headY > surfaceY) {
+        playerSubmergedTime += dt;
+        if (playerSubmergedTime >= 5) {
+          damagePlayer();
+          playerSubmergedTime = 0;
+        }
+      } else {
+        playerSubmergedTime = Math.max(0, playerSubmergedTime - dt * 1.4);
+      }
     }
     if (a.traverseTime >= a.traverseDuration) {
       a.phase = "done";
@@ -1867,6 +2220,242 @@ function tickFlood(a: Attack, dt: number, idx: number): void {
       attacks.splice(idx, 1);
     }
   }
+}
+
+function spawnRedLaser(length: number): void {
+  // Short red line projectile fired from the boss toward the player.
+  const dx = player.x - boss.x;
+  const dy = (player.y - 30) - boss.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = 580;
+  attacks.push({
+    kind: "redlaser",
+    rectX: boss.x,
+    rectY: boss.y,
+    rectW: (dx / len) * speed, // velocity x
+    rectH: (dy / len) * speed, // velocity y
+    horizontal: true,
+    travelDir: 1,
+    warnTime: 0,
+    traverseTime: 0,
+    traverseDuration: 0,
+    trackTime: 0,
+    lockTime: 0,
+    fireTime: 0,
+    phase: "active",
+    id: nextAttackId++,
+    hasHit: false,
+    customThickness: Math.max(20, Math.min(400, length)),
+  });
+}
+
+function tickRedLaser(a: Attack, dt: number, idx: number): void {
+  a.rectX += a.rectW * dt;
+  a.rectY += a.rectH * dt;
+  a.traverseTime += dt;
+  // Hit check: distance from player AABB to the laser segment (head trails along
+  // velocity direction back by `length` pixels).
+  const length = a.customThickness ?? 100;
+  const speed = Math.hypot(a.rectW, a.rectH) || 1;
+  const dirX = a.rectW / speed;
+  const dirY = a.rectH / speed;
+  const tailX = a.rectX - dirX * length;
+  const tailY = a.rectY - dirY * length;
+  const aabb = getPlayerAabb();
+  const px = aabb.x + aabb.w / 2;
+  const py = aabb.y + aabb.h / 2;
+  const sx = a.rectX - tailX;
+  const sy = a.rectY - tailY;
+  const segLen2 = sx * sx + sy * sy || 1;
+  let t = ((px - tailX) * sx + (py - tailY) * sy) / segLen2;
+  t = Math.max(0, Math.min(1, t));
+  const closeX = tailX + sx * t;
+  const closeY = tailY + sy * t;
+  const ddx = closeX - px;
+  const ddy = closeY - py;
+  if (!a.hasHit && ddx * ddx + ddy * ddy < 16 * 16) {
+    damagePlayer();
+    a.hasHit = true;
+    attacks.splice(idx, 1);
+    return;
+  }
+  if (a.rectX < -100 || a.rectX > WIDTH + 100 || a.rectY < -100 || a.rectY > HEIGHT + 100 || a.traverseTime > 4) {
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawRedLaserAttack(a: Attack): void {
+  const length = a.customThickness ?? 100;
+  const speed = Math.hypot(a.rectW, a.rectH) || 1;
+  const dirX = a.rectW / speed;
+  const dirY = a.rectH / speed;
+  const tailX = a.rectX - dirX * length;
+  const tailY = a.rectY - dirY * length;
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 60, 60, 0.55)";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(tailX, tailY);
+  ctx.lineTo(a.rectX, a.rectY);
+  ctx.stroke();
+  ctx.strokeStyle = "#e23a3a";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(tailX, tailY);
+  ctx.lineTo(a.rectX, a.rectY);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function spawnTornado(): void {
+  const themed = customBossConfig.fireTornado
+    ? "fire"
+    : customBossConfig.lavaTornado
+      ? "lava"
+      : "wind";
+  const startSide: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+  attacks.push({
+    kind: "tornado",
+    rectX: startSide === 1 ? -60 : WIDTH + 60,
+    rectY: GROUND_Y - 100,
+    rectW: 220 * startSide, // velocity x sign-encoded; speed varies per phase
+    rectH: 80, // tornado width radius marker
+    horizontal: true,
+    travelDir: startSide,
+    warnTime: 0,
+    traverseTime: 0,
+    traverseDuration: 0,
+    trackTime: 0,
+    lockTime: 0,
+    fireTime: 0,
+    phase: "active",
+    id: nextAttackId++,
+    hasHit: false,
+    customThickness: themed === "fire" ? 1 : themed === "lava" ? 2 : 0,
+    damageCooldown: 0,
+  });
+}
+
+function tickTornado(a: Attack, dt: number, idx: number): void {
+  a.rectX += Math.sign(a.rectW) * 220 * dt;
+  a.traverseTime += dt;
+  a.damageCooldown = (a.damageCooldown ?? 0) - dt;
+  const r = a.rectH;
+  const aabb = getPlayerAabb();
+  const px = aabb.x + aabb.w / 2;
+  const py = aabb.y + aabb.h / 2;
+  const dx = px - a.rectX;
+  const dy = py - (GROUND_Y - 100);
+  if (dx * dx + dy * dy < r * r && (a.damageCooldown ?? 0) <= 0) {
+    damagePlayer();
+    a.damageCooldown = 0.55;
+  }
+  if ((a.travelDir > 0 && a.rectX > WIDTH + 100) || (a.travelDir < 0 && a.rectX < -100) || a.traverseTime > 12) {
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawTornadoAttack(a: Attack): void {
+  const cx = a.rectX;
+  const cyTop = GROUND_Y - 200;
+  const cyBot = GROUND_Y;
+  const themed = a.customThickness ?? 0;
+  const themeColor = themed === 1 ? "#ff8a2b" : themed === 2 ? "#ff5030" : "rgba(180, 200, 230, 0.85)";
+  ctx.save();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = themeColor;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    for (let t = 0; t <= 1; t += 0.05) {
+      const yy = cyTop + (cyBot - cyTop) * t;
+      const radius = 20 + t * 60;
+      const angle = elapsed * 8 + t * 6 + i * 1.2;
+      const x = cx + Math.cos(angle) * radius;
+      const y = yy;
+      if (t === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // Sparks/embers when themed.
+  if (themed > 0) {
+    ctx.fillStyle = themed === 1 ? "rgba(255, 220, 100, 0.85)" : "rgba(255, 180, 60, 0.85)";
+    for (let i = 0; i < 6; i++) {
+      const yy = cyTop + ((elapsed * 80 + i * 30) % 200);
+      const angle = elapsed * 12 + i;
+      const radius = 30 + Math.sin(angle) * 30;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(angle) * radius, yy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function spawnFireball(): void {
+  const dx = player.x - boss.x;
+  const dy = (player.y - 30) - boss.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = 360;
+  attacks.push({
+    kind: "fireball",
+    rectX: boss.x,
+    rectY: boss.y,
+    rectW: (dx / len) * speed,
+    rectH: (dy / len) * speed - 80,
+    horizontal: true,
+    travelDir: 1,
+    warnTime: 0,
+    traverseTime: 0,
+    traverseDuration: 0,
+    trackTime: 0,
+    lockTime: 0,
+    fireTime: 0,
+    phase: "active",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickFireball(a: Attack, dt: number, idx: number): void {
+  a.rectX += a.rectW * dt;
+  a.rectY += a.rectH * dt;
+  a.rectH += 360 * dt; // gravity
+  a.traverseTime += dt;
+  const aabb = getPlayerAabb();
+  const cx = Math.max(aabb.x, Math.min(a.rectX, aabb.x + aabb.w));
+  const cy = Math.max(aabb.y, Math.min(a.rectY, aabb.y + aabb.h));
+  const ddx = a.rectX - cx;
+  const ddy = a.rectY - cy;
+  if (!a.hasHit && ddx * ddx + ddy * ddy < 18 * 18) {
+    damagePlayer();
+    a.hasHit = true;
+    attacks.splice(idx, 1);
+    return;
+  }
+  if (a.rectY > GROUND_Y + 30 || a.rectX < -60 || a.rectX > WIDTH + 60 || a.traverseTime > 6) {
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawFireballAttack(a: Attack): void {
+  ctx.save();
+  // outer glow
+  const g = ctx.createRadialGradient(a.rectX, a.rectY, 4, a.rectX, a.rectY, 22);
+  g.addColorStop(0, "rgba(255, 240, 120, 0.95)");
+  g.addColorStop(0.4, "rgba(255, 130, 40, 0.85)");
+  g.addColorStop(1, "rgba(255, 60, 20, 0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(a.rectX, a.rectY, 22, 0, Math.PI * 2);
+  ctx.fill();
+  // core
+  ctx.fillStyle = "#ffe14a";
+  ctx.beginPath();
+  ctx.arc(a.rectX, a.rectY, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function spawnRedSlime(): void {
@@ -2182,6 +2771,18 @@ function updateAttacks(dt: number): void {
     }
     if (a.kind === "redslime") {
       tickRedSlime(a, dt, i);
+      continue;
+    }
+    if (a.kind === "redlaser") {
+      tickRedLaser(a, dt, i);
+      continue;
+    }
+    if (a.kind === "tornado") {
+      tickTornado(a, dt, i);
+      continue;
+    }
+    if (a.kind === "fireball") {
+      tickFireball(a, dt, i);
       continue;
     }
     if (a.phase === "warn") {
@@ -2603,11 +3204,12 @@ function drawLaserAttack(a: Attack): void {
   const ay = boss.y;
   const bx = a.rectX;
   const by = a.rectY;
+  const thick = a.customThickness ?? LASER_BEAM_THICKNESS;
   if (a.phase === "track") {
     const flicker = 0.4 + 0.3 * Math.sin(elapsed * 12);
     drawBeam(
       ax, ay, bx, by,
-      LASER_BEAM_THICKNESS * 0.55,
+      thick * 0.55,
       `rgba(255, 255, 255, 0.4)`,
       `rgba(60, 60, 80, ${0.45 + 0.2 * Math.sin(elapsed * 9)})`,
       `rgba(40, 40, 60, ${flicker})`,
@@ -2618,7 +3220,7 @@ function drawLaserAttack(a: Attack): void {
     const wobble = Math.sin(elapsed * 30) * 0.5 + 0.5;
     drawBeam(
       ax, ay, bx, by,
-      LASER_BEAM_THICKNESS * 0.7,
+      thick * 0.7,
       `rgba(255, 255, 255, 0.7)`,
       `rgba(40, 40, 55, 0.85)`,
       "#222",
@@ -2647,14 +3249,10 @@ function drawLaserAttack(a: Attack): void {
     }
     ctx.restore();
   } else if (a.phase === "fire") {
-    // Outer halo (white fill, no outline yet — outline drawn last on top).
-    drawBeam(ax, ay, bx, by, LASER_BEAM_THICKNESS * 1.1, "#ffffff", null, "transparent", 0);
-    // Inner purple core, tapered like the outer lens.
-    drawBeam(ax, ay, bx, by, LASER_BEAM_THICKNESS * 0.55, "rgba(160, 60, 220, 0.9)", null, "transparent", 0);
-    // Hot white core.
-    drawBeam(ax, ay, bx, by, LASER_BEAM_THICKNESS * 0.22, "rgba(255, 255, 255, 0.98)", null, "transparent", 0);
-    // Outline on top so the lens edge is crisp.
-    drawBeam(ax, ay, bx, by, LASER_BEAM_THICKNESS * 1.1, null, null, "#222", 4);
+    drawBeam(ax, ay, bx, by, thick * 1.1, "#ffffff", null, "transparent", 0);
+    drawBeam(ax, ay, bx, by, thick * 0.55, "rgba(160, 60, 220, 0.9)", null, "transparent", 0);
+    drawBeam(ax, ay, bx, by, thick * 0.22, "rgba(255, 255, 255, 0.98)", null, "transparent", 0);
+    drawBeam(ax, ay, bx, by, thick * 1.1, null, null, "#222", 4);
   }
 }
 
@@ -2907,18 +3505,24 @@ function drawRedSlimeAttack(a: Attack): void {
 }
 
 function drawFloodAttack(a: Attack): void {
+  const lava = a.lavaMode === true;
+  const surfaceFill = lava ? "rgba(255, 80, 30, 0.7)" : "rgba(58, 160, 240, 0.55)";
+  const surfaceStroke = lava ? "rgba(160, 30, 0, 0.9)" : "rgba(20, 60, 130, 0.8)";
+  const warnLabel = lava ? "LAVA INCOMING" : "FLOOD INCOMING";
+  const warnFill = lava ? "rgba(255, 80, 30, 0.45)" : "rgba(58, 160, 240, 0.3)";
+  const labelColor = lava ? "#7a1a05" : "#1f4ea8";
   if (a.phase === "warn") {
-    ctx.fillStyle = "rgba(58, 160, 240, 0.3)";
+    ctx.fillStyle = warnFill;
     ctx.fillRect(0, GROUND_Y - 4, WIDTH, 4);
-    ctx.fillStyle = "#1f4ea8";
+    ctx.fillStyle = labelColor;
     ctx.font = "italic bold 22px 'Comic Sans MS', cursive";
     ctx.textAlign = "center";
-    ctx.fillText("FLOOD INCOMING", WIDTH / 2, GROUND_Y - 30);
+    ctx.fillText(warnLabel, WIDTH / 2, GROUND_Y - 30);
   } else if (a.phase === "active") {
     const surface = GROUND_Y - a.rectH;
-    ctx.fillStyle = "rgba(58, 160, 240, 0.55)";
+    ctx.fillStyle = surfaceFill;
     ctx.fillRect(0, surface, WIDTH, a.rectH);
-    ctx.strokeStyle = "rgba(20, 60, 130, 0.8)";
+    ctx.strokeStyle = surfaceStroke;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, surface);
@@ -2927,7 +3531,30 @@ function drawFloodAttack(a: Attack): void {
       ctx.lineTo(x, wy);
     }
     ctx.stroke();
-    if (playerSubmergedTime > 0) {
+    if (lava) {
+      // Bubbling embers floating up.
+      ctx.fillStyle = "rgba(255, 200, 60, 0.85)";
+      for (let i = 0; i < 8; i++) {
+        const bx = (i * 137 + elapsed * 60) % WIDTH;
+        const by = surface + 6 + Math.sin(elapsed * 3 + i) * 6;
+        ctx.beginPath();
+        ctx.arc(bx, by, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Custom-boss emoji decorations on the flood surface.
+    if (currentBossId === "custom" && customBossConfig.emojis.length > 0) {
+      ctx.font = "20px 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
+      ctx.textAlign = "center";
+      const emojis = customBossConfig.emojis;
+      for (let i = 0; i < 14; i++) {
+        const e = emojis[i % emojis.length]!;
+        const bx = (i * 73 + elapsed * 40) % WIDTH;
+        const by = surface + 12 + Math.sin(elapsed * 2 + i) * 6;
+        ctx.fillText(e, bx, by);
+      }
+    }
+    if (!lava && playerSubmergedTime > 0) {
       ctx.fillStyle = "#fff";
       ctx.font = "italic bold 16px 'Comic Sans MS', cursive";
       ctx.textAlign = "center";
@@ -3192,6 +3819,18 @@ function drawAttacks(): void {
       drawRedSlimeAttack(a);
       continue;
     }
+    if (a.kind === "redlaser") {
+      drawRedLaserAttack(a);
+      continue;
+    }
+    if (a.kind === "tornado") {
+      drawTornadoAttack(a);
+      continue;
+    }
+    if (a.kind === "fireball") {
+      drawFireballAttack(a);
+      continue;
+    }
     if (a.phase === "warn") {
       const intensity = 1 - a.warnTime / 1.1;
       const pulse = 0.18 + 0.22 * Math.sin(elapsed * 14) + intensity * 0.2;
@@ -3237,8 +3876,32 @@ function drawActiveBoss(): void {
     drawElemental();
   } else if (currentBossId === "beatrix") {
     drawBeatrix();
+  } else if (currentBossId === "custom") {
+    drawCustomBoss();
   } else {
     drawPacman();
+  }
+}
+
+function drawCustomBoss(): void {
+  const cx = boss.x;
+  const cy = boss.y;
+  const isPhase2 = boss.phase === "ghost";
+  const pad = isPhase2 && customBoss.hasPhase2 ? customBossPad2 : customBossPad1;
+  const size = boss.radius * 2.4;
+  ctx.drawImage(pad, cx - size / 2, cy - size / 2, size, size);
+  if (boss.vulnerableTime > 0) {
+    ctx.fillStyle = "rgba(58, 109, 240, 0.18)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2 + 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  if (boss.shieldTime > 0) {
+    ctx.strokeStyle = "rgba(60,130,220,0.65)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2 + 14, 0, Math.PI * 2);
+    ctx.stroke();
   }
 }
 
@@ -3389,6 +4052,62 @@ function drawCarrotPlayer(): void {
     ctx.arc(cx, cy - 36, 12, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+function drawBossCardPortrait(id: string, cx: number, cy: number, scale = 1): void {
+  if (id === "mrpencil") {
+    if (pencilImgReady) {
+      const targetH = 130 * scale;
+      const aspect = pencilImg.naturalWidth / pencilImg.naturalHeight || 0.66;
+      const w = targetH * aspect;
+      ctx.drawImage(pencilImg, cx - w / 2, cy - targetH / 2, w, targetH);
+    } else {
+      drawMrPencilForm(cx, cy, false);
+    }
+    return;
+  }
+  if (id === "elemental") {
+    drawBlackStickmanPortrait(cx, cy);
+    return;
+  }
+  if (id === "beatrix") {
+    if (beatrixImgReady) {
+      const targetH = 140 * scale;
+      const aspect = beatrixImg.naturalWidth / beatrixImg.naturalHeight || 1.6;
+      const w = targetH * aspect;
+      ctx.drawImage(beatrixImg, cx - w / 2, cy - targetH / 2, w, targetH);
+    } else {
+      ctx.fillStyle = "#ff7aa6";
+      ctx.fillRect(cx - 40 * scale, cy - 60 * scale, 80 * scale, 120 * scale);
+    }
+    return;
+  }
+  if (id === "custom") {
+    const size = 120 * scale;
+    ctx.drawImage(customBossPad1, cx - size / 2, cy - size / 2, size, size);
+    return;
+  }
+  // Default: Pac-Man portrait.
+  ctx.fillStyle = "#ffd23a";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 50 * scale, 0.5, Math.PI * 2 - 0.5);
+  ctx.lineTo(cx, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(cx + 4 * scale, cy - 22 * scale, 8 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(cx + 6 * scale, cy - 22 * scale, 3.5 * scale, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawBlackStickmanPortrait(cx: number, cy: number): void {
@@ -5267,120 +5986,103 @@ function drawBossModeSelectScene(): void {
   ctx.fillText("Play as a boss you've beaten. The kid is the AI now.", 0, 30);
   ctx.restore();
 
-  const cardW = 260;
-  const cardH = 280;
-  const totalW = cardW * BOSS_ROSTER.length + 30 * (BOSS_ROSTER.length - 1);
-  const startX = (WIDTH - totalW) / 2;
-  const cardY = 150;
+  const cardW = 240;
+  const cardH = 270;
+  const gap = 24;
+  const cardY = 130;
+  const padding = 40;
+  const totalContentW = cardW * BOSS_ROSTER.length + gap * (BOSS_ROSTER.length - 1);
+  const visibleW = WIDTH - padding * 2;
+  const scrollMax = Math.max(0, totalContentW - visibleW);
+  bossModeScrollX = clampN(bossModeScrollX, 0, scrollMax);
 
-  if (uiButtons.length === 0) {
-    BOSS_ROSTER.forEach((b, i) => {
-      const cardX = startX + i * (cardW + 30);
-      const unlocked = beatenBosses.has(b.id);
-      uiButtons.push({
-        x: cardX + 20,
-        y: cardY + cardH - 70,
-        w: cardW - 40,
-        h: 56,
-        label: unlocked ? "PLAY AS BOSS" : "LOCKED",
-        sub: unlocked ? undefined : "Beat in story mode",
-        onClick: () => {
-          if (!unlocked) return;
-          bossModeBossId = b.id;
-          currentBossId = b.id;
-          resetBossFight();
-          setScene("fight");
-        },
-      });
-    });
-    // Difficulty picker — 1 (easy) to 10 (hard).
-    const cellW = 50;
-    const cellH = 46;
-    const totalDiffW = cellW * 10;
-    const startDiffX = (WIDTH - totalDiffW) / 2;
-    const diffY = HEIGHT - 168;
-    for (let i = 1; i <= 10; i++) {
-      const cx = startDiffX + (i - 1) * cellW;
-      uiButtons.push({
-        x: cx + 3,
-        y: diffY,
-        w: cellW - 6,
-        h: cellH,
-        label: String(i),
-        onClick: () => {
-          bossModeDifficulty = i;
-          saveDifficulty();
-          uiButtons = [];
-        },
-      });
-    }
+  // Rebuild buttons each frame so positions track scroll.
+  uiButtons = [];
+  BOSS_ROSTER.forEach((b, i) => {
+    const cardX = padding + i * (cardW + gap) - bossModeScrollX;
+    const unlocked = beatenBosses.has(b.id);
     uiButtons.push({
-      x: 40, y: HEIGHT - 80, w: 200, h: 56,
-      label: "← BACK",
-      onClick: () => setScene("hub"),
+      x: cardX + 16,
+      y: cardY + cardH - 60,
+      w: cardW - 32,
+      h: 48,
+      label: unlocked ? "PLAY AS BOSS" : "LOCKED",
+      sub: unlocked ? undefined : "Beat in story",
+      onClick: () => {
+        if (!unlocked) return;
+        bossModeBossId = b.id;
+        currentBossId = b.id;
+        resetBossFight();
+        setScene("fight");
+      },
+    });
+  });
+  if (scrollMax > 0) {
+    uiButtons.push({
+      x: 12, y: cardY + cardH / 2 - 28, w: 36, h: 56,
+      label: "◀",
+      onClick: () => { bossModeScrollX = Math.max(0, bossModeScrollX - (cardW + gap)); },
+    });
+    uiButtons.push({
+      x: WIDTH - 48, y: cardY + cardH / 2 - 28, w: 36, h: 56,
+      label: "▶",
+      onClick: () => { bossModeScrollX = Math.min(scrollMax, bossModeScrollX + (cardW + gap)); },
     });
   }
+  // Difficulty picker — 1 (easy) to 10 (hard).
+  const cellW = 50;
+  const cellH = 46;
+  const totalDiffW = cellW * 10;
+  const startDiffX = (WIDTH - totalDiffW) / 2;
+  const diffY = HEIGHT - 168;
+  for (let i = 1; i <= 10; i++) {
+    const cx = startDiffX + (i - 1) * cellW;
+    uiButtons.push({
+      x: cx + 3,
+      y: diffY,
+      w: cellW - 6,
+      h: cellH,
+      label: String(i),
+      onClick: () => {
+        bossModeDifficulty = i;
+        saveDifficulty();
+      },
+    });
+  }
+  uiButtons.push({
+    x: 40, y: HEIGHT - 80, w: 200, h: 56,
+    label: "← BACK",
+    onClick: () => setScene("hub"),
+  });
+  uiButtons.push({
+    x: WIDTH - 240, y: HEIGHT - 80, w: 200, h: 56,
+    label: "BOSS CREATOR",
+    sub: "draw your own",
+    onClick: () => setScene("bosscreator"),
+  });
 
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padding - 12, cardY - 12, visibleW + 24, cardH + 24);
+  ctx.clip();
   BOSS_ROSTER.forEach((b, i) => {
-    const cardX = startX + i * (cardW + 30);
-    const unlocked = beatenBosses.has(b.id);
+    const cardX = padding + i * (cardW + gap) - bossModeScrollX;
+    if (cardX + cardW < padding - 20 || cardX > WIDTH - padding + 20) return;
+    const unlocked = beatenBosses.has(b.id) || b.id === "custom";
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#222";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.fillRect(cardX, cardY, cardW, cardH);
     ctx.strokeRect(cardX, cardY, cardW, cardH);
 
     const portraitCx = cardX + cardW / 2;
-    const portraitCy = cardY + 100;
+    const portraitCy = cardY + 90;
     ctx.save();
     if (!unlocked) ctx.globalAlpha = 0.25;
-    if (b.id === "mrpencil") {
-      if (pencilImgReady) {
-        const targetH = 130;
-        const aspect = pencilImg.naturalWidth / pencilImg.naturalHeight || 0.66;
-        const w = targetH * aspect;
-        ctx.drawImage(pencilImg, portraitCx - w / 2, portraitCy - targetH / 2, w, targetH);
-      } else {
-        drawMrPencilForm(portraitCx, portraitCy, false);
-      }
-    } else if (b.id === "elemental") {
-      drawBlackStickmanPortrait(portraitCx, portraitCy);
-    } else if (b.id === "beatrix") {
-      if (beatrixImgReady) {
-        const targetH = 140;
-        const aspect = beatrixImg.naturalWidth / beatrixImg.naturalHeight || 1.6;
-        const w = targetH * aspect;
-        ctx.drawImage(beatrixImg, portraitCx - w / 2, portraitCy - targetH / 2, w, targetH);
-      } else {
-        ctx.fillStyle = "#ff7aa6";
-        ctx.fillRect(portraitCx - 40, portraitCy - 60, 80, 120);
-      }
-    } else {
-      ctx.fillStyle = "#ffd23a";
-      ctx.beginPath();
-      ctx.arc(portraitCx, portraitCy, 50, 0.5, Math.PI * 2 - 0.5);
-      ctx.lineTo(portraitCx, portraitCy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#222";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(portraitCx + 4, portraitCy - 22, 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#222";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#222";
-      ctx.beginPath();
-      ctx.arc(portraitCx + 6, portraitCy - 22, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawBossCardPortrait(b.id, portraitCx, portraitCy, 0.95);
     ctx.restore();
 
     if (!unlocked) {
-      // Big lock overlay
       ctx.save();
       ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.fillRect(cardX, cardY, cardW, cardH);
@@ -5393,15 +6095,28 @@ function drawBossModeSelectScene(): void {
     }
 
     ctx.fillStyle = "#1f4ea8";
-    ctx.font = "italic bold 22px 'Comic Sans MS', cursive";
+    ctx.font = "italic bold 20px 'Comic Sans MS', cursive";
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(b.name, portraitCx, cardY + 180);
+    ctx.fillText(b.name, portraitCx, cardY + 175);
 
     ctx.fillStyle = "rgba(34,34,34,0.75)";
-    ctx.font = "italic 14px 'Comic Sans MS', cursive";
-    wrapText(b.blurb, cardX + 18, cardY + 204, cardW - 36, 18);
+    ctx.font = "italic 13px 'Comic Sans MS', cursive";
+    wrapText(b.blurb, cardX + 14, cardY + 198, cardW - 28, 16);
   });
+  ctx.restore();
+
+  if (scrollMax > 0) {
+    const trackY = cardY + cardH + 6;
+    const trackX = padding;
+    const trackW = visibleW;
+    ctx.fillStyle = "rgba(34,34,34,0.18)";
+    ctx.fillRect(trackX, trackY, trackW, 6);
+    const handleW = Math.max(40, trackW * (visibleW / totalContentW));
+    const handleX = trackX + (trackW - handleW) * (bossModeScrollX / scrollMax);
+    ctx.fillStyle = "#1f4ea8";
+    ctx.fillRect(handleX, trackY, handleW, 6);
+  }
 
   // Difficulty label.
   ctx.fillStyle = "#1f4ea8";
@@ -5421,6 +6136,196 @@ function drawBossModeSelectScene(): void {
     drawCrayonButton(btn, btn.label === "PLAY AS BOSS" || selected);
   }
 }
+
+
+function drawBossCreatorScene(): void {
+  ctx.fillStyle = "#fdf6d8";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.strokeStyle = "rgba(120, 160, 210, 0.35)";
+  ctx.lineWidth = 1;
+  for (let y = 40; y < HEIGHT; y += 32) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(WIDTH, y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#1f4ea8";
+  ctx.font = "italic bold 36px 'Comic Sans MS', cursive";
+  ctx.textAlign = "center";
+  ctx.fillText("BOSS CREATOR", WIDTH / 2, 50);
+  ctx.font = "italic 14px 'Comic Sans MS', cursive";
+  ctx.fillText("Draw both phases. Type a name and an attack description — the AI maps it to abilities.", WIDTH / 2, 76);
+
+  // Draw pads.
+  for (const phase of [1, 2] as const) {
+    const r = bossCreatorPadRect(phase);
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 3;
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.drawImage(phase === 1 ? customBossPad1 : customBossPad2, r.x, r.y, r.w, r.h);
+    ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = "#1f4ea8";
+    ctx.font = "italic bold 18px 'Comic Sans MS', cursive";
+    ctx.textAlign = "center";
+    ctx.fillText(`PHASE ${phase}`, r.x + r.w / 2, r.y - 8);
+  }
+
+  // Field labels — the actual inputs are real DOM elements positioned over canvas.
+  const nameY = 360;
+  ctx.fillStyle = "#1f4ea8";
+  ctx.font = "italic bold 14px 'Comic Sans MS', cursive";
+  ctx.textAlign = "left";
+  ctx.fillText("NAME", 64, nameY - 6);
+
+  const attackY = 426;
+  ctx.fillStyle = "#1f4ea8";
+  ctx.fillText("ATTACK DESCRIPTION  (parser keys off words like fire, laser, rock, water, sword, hammer, shield, slime, fist…)", 64, attackY - 6);
+
+  // Show the real inputs when the help overlay isn't open.
+  positionBossCreatorInputs(!cbHelpOpen);
+
+  // Buttons.
+  uiButtons = [];
+  uiButtons.push({
+    x: 60, y: HEIGHT - 60, w: 60, h: 36,
+    label: "CLR1",
+    onClick: () => { customBossPad1Ctx.clearRect(0, 0, CUSTOM_BOSS_PAD, CUSTOM_BOSS_PAD); customBoss.hasPhase1 = false; },
+  });
+  uiButtons.push({
+    x: 130, y: HEIGHT - 60, w: 60, h: 36,
+    label: "CLR2",
+    onClick: () => { customBossPad2Ctx.clearRect(0, 0, CUSTOM_BOSS_PAD, CUSTOM_BOSS_PAD); customBoss.hasPhase2 = false; },
+  });
+  uiButtons.push({
+    x: WIDTH / 2 - 220, y: HEIGHT - 60, w: 200, h: 44,
+    label: "SAVE BOSS",
+    onClick: () => saveCustomBoss(),
+  });
+  uiButtons.push({
+    x: WIDTH / 2 + 20, y: HEIGHT - 60, w: 200, h: 44,
+    label: "DELETE",
+    onClick: () => deleteCustomBoss(),
+  });
+  uiButtons.push({
+    x: WIDTH - 200, y: HEIGHT - 60, w: 160, h: 44,
+    label: "← BACK",
+    onClick: () => setScene("bossmode"),
+  });
+  // Help button at top-right.
+  uiButtons.push({
+    x: WIDTH - 70, y: 14, w: 50, h: 50,
+    label: "?",
+    onClick: () => { cbHelpOpen = !cbHelpOpen; cbHelpScroll = 0; },
+  });
+
+  for (const b of uiButtons) {
+    if (b.label.startsWith("__field_")) continue;
+    drawCrayonButton(b, b.label === "SAVE BOSS" || (b.label === "?" && cbHelpOpen));
+  }
+
+  if (cbHelpOpen) drawBossCreatorHelp();
+}
+
+function drawBossCreatorHelp(): void {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  const panelX = 60;
+  const panelY = 50;
+  const panelW = WIDTH - 120;
+  const panelH = HEIGHT - 100;
+  ctx.fillStyle = "#fdf6d8";
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 4;
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.strokeRect(panelX, panelY, panelW, panelH);
+  ctx.fillStyle = "#1f4ea8";
+  ctx.font = "italic bold 28px 'Comic Sans MS', cursive";
+  ctx.textAlign = "center";
+  ctx.fillText("BOSS DESCRIPTION HELP", WIDTH / 2, panelY + 38);
+
+  const lines: string[] = [
+    "ATTACKS:",
+    "  fire / flame / burn  →  fire patches that burn the ground",
+    "  laser / beam / ray   →  short straight red lines (\"100 pixel\" sets length)",
+    "  rock / earth / boulder  →  arcing rock projectiles",
+    "  water / flood / wave  →  rising arena-wide flood (drown timer)",
+    "  wind / air / lift / gust  →  air patch that flings the kid into the sky",
+    "  sword / slash         →  sweeping blade",
+    "  hammer / smash        →  hammer slam with shockwaves",
+    "  shield / block        →  bubble that absorbs hits",
+    "  slime / blob / ooze   →  one-shot eating slime",
+    "  fist / punch          →  flying pointing-hand projectiles",
+    "  tornado / cyclone / vortex  →  swirling vortex that sweeps the arena",
+    "  fireball              →  arcing homing-ish fireball",
+    "",
+    "MODIFIERS:",
+    "  lava                  →  flood / tornado deal contact damage instead of drown",
+    "  platform / platforms  →  add the platform layout to your arena",
+    "  (number) px / pixel   →  sets laser length, e.g., \"100 pixel red laser\"",
+    "  no platforms          →  force no platforms",
+    "",
+    "DISGUISES (combine words):",
+    "  \"flood of fists\"      →  fist barrage in waves",
+    "  \"fire tornado\"        →  themed flame tornado",
+    "  \"lava tornado\"        →  themed lava tornado",
+    "",
+    "EMOJIS:",
+    "  Drop emojis in your description (❤️ 🔒 🔥 etc.) and they'll appear",
+    "  as visual decorations on the floods.",
+    "",
+    "Tip: combine multiple keywords for variety. Save and the boss rotates",
+    "between everything that matched.",
+    "",
+    "Scroll the wheel to see more — close with the ? button.",
+  ];
+
+  // Scrollable text area inside the panel (below title, above footer).
+  const textTop = panelY + 60;
+  const textBottom = panelY + panelH - 30;
+  const textHeight = textBottom - textTop;
+  const lineH = 18;
+  const contentH = lines.length * lineH;
+  const maxScroll = Math.max(0, contentH - textHeight);
+  cbHelpScroll = Math.max(0, Math.min(maxScroll, cbHelpScroll));
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(panelX + 4, textTop, panelW - 8, textHeight);
+  ctx.clip();
+  ctx.font = "italic 14px 'Comic Sans MS', cursive";
+  ctx.fillStyle = "#222";
+  ctx.textAlign = "left";
+  for (let i = 0; i < lines.length; i++) {
+    const y = textTop + i * lineH + 14 - cbHelpScroll;
+    if (y < textTop - lineH || y > textBottom + lineH) continue;
+    ctx.fillText(lines[i]!, panelX + 24, y);
+  }
+  ctx.restore();
+
+  // Scroll indicator on the right edge of the panel.
+  if (maxScroll > 0) {
+    const trackX = panelX + panelW - 14;
+    const trackY = textTop;
+    const trackW = 6;
+    const trackH = textHeight;
+    ctx.fillStyle = "rgba(34,34,34,0.18)";
+    ctx.fillRect(trackX, trackY, trackW, trackH);
+    const handleH = Math.max(30, trackH * (textHeight / contentH));
+    const handleY = trackY + (trackH - handleH) * (cbHelpScroll / maxScroll);
+    ctx.fillStyle = "#1f4ea8";
+    ctx.fillRect(trackX, handleY, trackW, handleH);
+  }
+
+  ctx.fillStyle = "rgba(34,34,34,0.6)";
+  ctx.font = "italic 13px 'Comic Sans MS', cursive";
+  ctx.textAlign = "center";
+  ctx.fillText("Click ? again to close · scroll to read more", WIDTH / 2, panelY + panelH - 12);
+  ctx.restore();
+}
+
 
 function drawComingSoonScene(title: string, blurb: string): void {
   ctx.fillStyle = "#fdf6d8";
@@ -5569,37 +6474,58 @@ function drawLevelSelectScene(): void {
 
   const cardW = 260;
   const cardH = 280;
-  const totalW = cardW * BOSS_ROSTER.length + 30 * (BOSS_ROSTER.length - 1);
-  const startX = (WIDTH - totalW) / 2;
+  const gap = 30;
   const cardY = 160;
+  const padding = 40;
+  const totalContentW = cardW * BOSS_ROSTER.length + gap * (BOSS_ROSTER.length - 1);
+  const visibleW = WIDTH - padding * 2;
+  const scrollMax = Math.max(0, totalContentW - visibleW);
+  levelSelectScrollX = clampN(levelSelectScrollX, 0, scrollMax);
 
-  if (uiButtons.length === 0) {
-    BOSS_ROSTER.forEach((b, i) => {
-      const cardX = startX + i * (cardW + 30);
-      uiButtons.push({
-        x: cardX + 20,
-        y: cardY + cardH - 70,
-        w: cardW - 40,
-        h: 56,
-        label: `LEVEL ${i + 1}`,
-        sub: b.name,
-        onClick: () => {
-          currentBossId = b.id;
-          bossMode = false;
-          resetFight();
-          setScene("warmup");
-        },
-      });
+  // Rebuild buttons each frame so their hitboxes track the scroll offset.
+  uiButtons = [];
+  BOSS_ROSTER.forEach((b, i) => {
+    const cardX = padding + i * (cardW + gap) - levelSelectScrollX;
+    uiButtons.push({
+      x: cardX + 20,
+      y: cardY + cardH - 64,
+      w: cardW - 40,
+      h: 52,
+      label: `LEVEL ${i + 1}`,
+      sub: b.name,
+      onClick: () => {
+        currentBossId = b.id;
+        bossMode = false;
+        resetFight();
+        setScene("warmup");
+      },
+    });
+  });
+  uiButtons.push({
+    x: 40, y: HEIGHT - 80, w: 200, h: 56,
+    label: "← BACK",
+    onClick: () => setScene("hub"),
+  });
+  if (scrollMax > 0) {
+    uiButtons.push({
+      x: 12, y: cardY + cardH / 2 - 28, w: 36, h: 56,
+      label: "◀",
+      onClick: () => { levelSelectScrollX = Math.max(0, levelSelectScrollX - (cardW + gap)); },
     });
     uiButtons.push({
-      x: 40, y: HEIGHT - 80, w: 200, h: 56,
-      label: "← BACK",
-      onClick: () => setScene("hub"),
+      x: WIDTH - 48, y: cardY + cardH / 2 - 28, w: 36, h: 56,
+      label: "▶",
+      onClick: () => { levelSelectScrollX = Math.min(scrollMax, levelSelectScrollX + (cardW + gap)); },
     });
   }
 
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(padding - 12, cardY - 12, visibleW + 24, cardH + 24);
+  ctx.clip();
   BOSS_ROSTER.forEach((b, i) => {
-    const cardX = startX + i * (cardW + 30);
+    const cardX = padding + i * (cardW + gap) - levelSelectScrollX;
+    if (cardX + cardW < padding - 20 || cardX > WIDTH - padding + 20) return;
     const beaten = beatenBosses.has(b.id);
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#222";
@@ -5610,37 +6536,7 @@ function drawLevelSelectScene(): void {
     const portraitCx = cardX + cardW / 2;
     const portraitCy = cardY + 100;
     ctx.save();
-    if (b.id === "mrpencil") {
-      if (pencilImgReady) {
-        const targetH = 130;
-        const aspect = pencilImg.naturalWidth / pencilImg.naturalHeight || 0.66;
-        const w = targetH * aspect;
-        ctx.drawImage(pencilImg, portraitCx - w / 2, portraitCy - targetH / 2, w, targetH);
-      } else {
-        drawMrPencilForm(portraitCx, portraitCy, false);
-      }
-    } else {
-      ctx.fillStyle = "#ffd23a";
-      ctx.beginPath();
-      ctx.arc(portraitCx, portraitCy, 50, 0.5, Math.PI * 2 - 0.5);
-      ctx.lineTo(portraitCx, portraitCy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#222";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(portraitCx + 4, portraitCy - 22, 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#222";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#222";
-      ctx.beginPath();
-      ctx.arc(portraitCx + 6, portraitCy - 22, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawBossCardPortrait(b.id, portraitCx, portraitCy, 1);
     ctx.restore();
 
     ctx.fillStyle = "#1f4ea8";
@@ -5663,8 +6559,24 @@ function drawLevelSelectScene(): void {
       ctx.restore();
     }
   });
+  ctx.restore();
 
-  for (const b of uiButtons) drawCrayonButton(b, b.label.startsWith("LEVEL"));
+  // Scrollbar at bottom of card area.
+  if (scrollMax > 0) {
+    const trackY = cardY + cardH + 8;
+    const trackX = padding;
+    const trackW = visibleW;
+    ctx.fillStyle = "rgba(34,34,34,0.18)";
+    ctx.fillRect(trackX, trackY, trackW, 6);
+    const handleW = Math.max(40, trackW * (visibleW / totalContentW));
+    const handleX = trackX + (trackW - handleW) * (levelSelectScrollX / scrollMax);
+    ctx.fillStyle = "#1f4ea8";
+    ctx.fillRect(handleX, trackY, handleW, 6);
+  }
+
+  for (const b of uiButtons) {
+    drawCrayonButton(b, b.label.startsWith("LEVEL"));
+  }
 }
 
 function frame(timestamp: number): void {
@@ -5704,6 +6616,8 @@ function frame(timestamp: number): void {
     drawBossModeSelectScene();
   } else if (scene === "levelselect") {
     drawLevelSelectScene();
+  } else if (scene === "bosscreator") {
+    drawBossCreatorScene();
   }
 
   if (!paused) tickAutoClicker(dtRaw);
