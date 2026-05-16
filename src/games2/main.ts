@@ -1,3 +1,7 @@
+import { installOofShortcut } from "../shared/oofShortcut";
+
+installOofShortcut();
+
 interface Game {
   id: string;
   name: string;

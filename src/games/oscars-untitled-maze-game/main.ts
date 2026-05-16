@@ -4,6 +4,25 @@ import levelFourAudioSrc from "./assets/level-4-underdoos-description.m4a";
 import levelFiveAudioSrc from "./assets/level-5-portals-description.m4a";
 import levelSixAudioSrc from "./assets/level-6-time-buttons-description.m4a";
 import droppingTheTrophyAudioSrc from "./assets/dropping-the-trophy.m4a";
+import mazeXAudioSrc from "../../shared/audio/maze-x.m4a";
+import mazeXRotationAudioSrc from "../../shared/audio/maze-x-rotation.m4a";
+import mazeXElsaAudioSrc from "../../shared/audio/maze-x-elsa.m4a";
+import mazeXHookshotAudioSrc from "../../shared/audio/maze-x-hookshot.m4a";
+import mazeXEndingAudioSrc from "../../shared/audio/maze-x-ending.m4a";
+import {
+  MAZE_X_SECRET_MAP,
+  MAZE_X_SECRET_MAPS,
+  MAZE_X_ROTORS,
+  MAZE_X_WALKIES,
+  MAZE_X_BREAKABLES,
+  MAZE_X_FINAL_MAP_ID,
+} from "./maps";
+import {
+  OUMG_GAME_ID,
+  OUMG_MAZE_X_DLC_ID,
+  awardBeatCredit,
+  isDlcUnlocked,
+} from "../../shared/dlc";
 import { NORMALIZED_MAZE_MAPS } from "./maps";
 import {
   AHEG_TROPHY_LOCATION_KEY,
@@ -12,6 +31,9 @@ import {
 } from "../../shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
+import { installOofShortcut } from "../../shared/oofShortcut";
+
+installOofShortcut();
 import {
   TERRAIN_OPEN,
   TERRAIN_WALL,
@@ -517,12 +539,20 @@ function isWalkable(x: number, y: number): boolean {
   }
 
   if (currentTerrain(x, y) === TERRAIN_WALL) {
-    return false;
+    const breakable = breakableAt(x, y);
+    if (!breakable || !isBreakableBroken(breakable.id)) {
+      return false;
+    }
   }
 
   const well = getWellAt(state.level, x, y);
   if (well) {
     return isWellOpen(well.id);
+  }
+
+  const rotor = rotorAt(x, y);
+  if (rotor && !isRotorOpen(rotor.id)) {
+    return false;
   }
 
   return true;
@@ -605,6 +635,7 @@ function loadLevel(index: number): void {
     throw new Error(`Unknown level index: ${index}`);
   }
 
+  stopMazeXTransmission();
   state.level = level;
   state.levelIndex = index;
   state.player = { ...level.map.markers.start };
@@ -713,10 +744,27 @@ function tryMove(dx: number, dy: number): void {
 
   updatePlayerVisibility();
 
+  const walkie = walkieAt(state.player.x, state.player.y);
+  if (walkie && !hasTransmissionPlayed(walkie.transmissionId)) {
+    const play = TRANSMISSION_PLAYERS[walkie.transmissionId];
+    if (play) play();
+  }
+
   if (samePoint(state.player, level.map.markers.exit)) {
     state.won = true;
-    statusEl.textContent = "LEVEL COMPLETE";
-    showCompletionOverlay();
+    if (isMazeXLevel()) {
+      statusEl.textContent = "INCOMING TRANSMISSION...";
+      playMazeXTransmission();
+    } else if (isMazeXAcquisitionLevel()) {
+      acquireWallPhaser();
+    } else if (isMazeXFinalLevel()) {
+      // Final maze handles its own ending via the walkie transmission.
+    } else if (isMazeXSecretLevel()) {
+      onMazeXSecretBeaten();
+    } else {
+      statusEl.textContent = "LEVEL COMPLETE";
+      showCompletionOverlay();
+    }
   }
 
   draw();
@@ -743,8 +791,11 @@ function moveByScreenInput(dx: number, dy: number): void {
   const effectiveDx = state.controlsReversed ? -dx : dx;
   const effectiveDy = state.controlsReversed ? -dy : dy;
   const [worldDx, worldDy] = screenDeltaToWorldDelta(effectiveDx, effectiveDy);
+  lastMoveDelta = [worldDx, worldDy];
   tryMove(worldDx, worldDy);
 }
+
+let lastMoveDelta: [number, number] = [0, -1];
 
 function drawSpinSymbol(drawCtx: CanvasRenderingContext2D, x: number, y: number): void {
   const cx = x * TILE_SIZE + TILE_SIZE / 2;
@@ -892,12 +943,15 @@ function drawTerrainCell(drawCtx: CanvasRenderingContext2D, x: number, y: number
 
   let fill = palette.path;
   const point = { x, y };
+  const isExitTile = samePoint(point, state.level.map.markers.exit);
+  const mazeXExit = isExitTile && isMazeXLevel();
+  const phaserPickup = isExitTile && isMazeXAcquisitionLevel();
   if (terrainTileAt(state.level.terrain, point) === TERRAIN_WALL) {
     fill = palette.wall;
   } else if (samePoint(point, state.level.map.markers.start)) {
     fill = palette.start;
-  } else if (samePoint(point, state.level.map.markers.exit)) {
-    fill = palette.exit;
+  } else if (isExitTile) {
+    fill = mazeXExit || phaserPickup ? palette.path : palette.exit;
   }
 
   const px = x * TILE_SIZE;
@@ -909,6 +963,153 @@ function drawTerrainCell(drawCtx: CanvasRenderingContext2D, x: number, y: number
     drawCtx.strokeStyle = "rgba(23, 32, 61, 0.08)";
     drawCtx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
   }
+
+  if (mazeXExit) {
+    drawWalkieTalkie(drawCtx, px, py);
+  }
+  if (phaserPickup) {
+    drawPhaserGadget(drawCtx, px, py);
+  }
+
+  if (state.level) {
+    const rotor = rotorAt(x, y);
+    if (rotor) {
+      drawRotorTile(drawCtx, px, py, isRotorOpen(rotor.id));
+    }
+    const walkie = walkieAt(x, y);
+    if (walkie) {
+      drawWalkieTalkie(drawCtx, px, py);
+    }
+    const breakable = breakableAt(x, y);
+    if (breakable && !isBreakableBroken(breakable.id)) {
+      drawBreakableWall(drawCtx, px, py);
+    }
+  }
+}
+
+function drawBreakableWall(drawCtx: CanvasRenderingContext2D, px: number, py: number): void {
+  drawCtx.save();
+  drawCtx.strokeStyle = "rgba(255, 180, 90, 0.8)";
+  drawCtx.lineWidth = 1.5;
+  drawCtx.beginPath();
+  drawCtx.moveTo(px + 3, py + 6);
+  drawCtx.lineTo(px + 9, py + 11);
+  drawCtx.lineTo(px + 5, py + 18);
+  drawCtx.lineTo(px + 14, py + 22);
+  drawCtx.moveTo(px + 12, py + 4);
+  drawCtx.lineTo(px + 18, py + 10);
+  drawCtx.lineTo(px + 22, py + 16);
+  drawCtx.moveTo(px + 16, py + 18);
+  drawCtx.lineTo(px + 20, py + 22);
+  drawCtx.stroke();
+  drawCtx.fillStyle = "rgba(120, 60, 20, 0.45)";
+  drawCtx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+  drawCtx.restore();
+}
+
+function drawRotorTile(drawCtx: CanvasRenderingContext2D, px: number, py: number, open: boolean): void {
+  const inset = 3;
+  drawCtx.save();
+  if (!open) {
+    drawCtx.fillStyle = "#0d1a10";
+    drawCtx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+  }
+  drawCtx.lineWidth = 2.5;
+  drawCtx.strokeStyle = open ? "#3afa7a" : "#0fff4f";
+  drawCtx.shadowColor = "#0fff4f";
+  drawCtx.shadowBlur = 6;
+  drawCtx.strokeRect(px + inset, py + inset, TILE_SIZE - inset * 2, TILE_SIZE - inset * 2);
+  drawCtx.shadowBlur = 0;
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+  const r = TILE_SIZE * 0.18;
+  const angle = (performance.now() / 600) * (open ? 1 : 0.3);
+  drawCtx.strokeStyle = "#3afa7a";
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+  drawCtx.lineTo(cx + Math.cos(angle + Math.PI) * r, cy + Math.sin(angle + Math.PI) * r);
+  drawCtx.stroke();
+  drawCtx.beginPath();
+  drawCtx.moveTo(cx + Math.cos(angle + Math.PI / 2) * r, cy + Math.sin(angle + Math.PI / 2) * r);
+  drawCtx.lineTo(cx + Math.cos(angle - Math.PI / 2) * r, cy + Math.sin(angle - Math.PI / 2) * r);
+  drawCtx.stroke();
+  drawCtx.restore();
+}
+
+function drawPhaserGadget(drawCtx: CanvasRenderingContext2D, px: number, py: number): void {
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+  const baseW = TILE_SIZE * 0.78;
+  const baseH = TILE_SIZE * 0.34;
+  drawCtx.save();
+  drawCtx.fillStyle = "#1a2030";
+  drawCtx.strokeStyle = "#050a14";
+  drawCtx.lineWidth = 1.5;
+  drawCtx.fillRect(cx - baseW / 2, cy + 2, baseW, baseH);
+  drawCtx.strokeRect(cx - baseW / 2, cy + 2, baseW, baseH);
+  const buttonR = TILE_SIZE * 0.32;
+  const grd = drawCtx.createRadialGradient(cx - 3, cy - 4, 1, cx, cy - 1, buttonR);
+  grd.addColorStop(0, "#9ad8ff");
+  grd.addColorStop(0.6, "#3a8fcc");
+  grd.addColorStop(1, "#0f3a66");
+  drawCtx.fillStyle = grd;
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy - 1, buttonR, 0, Math.PI * 2);
+  drawCtx.fill();
+  drawCtx.strokeStyle = "#0a1828";
+  drawCtx.stroke();
+  const pulse = (Math.sin(performance.now() / 220) + 1) / 2;
+  drawCtx.fillStyle = `rgba(180, 230, 255, ${0.25 + pulse * 0.35})`;
+  drawCtx.beginPath();
+  drawCtx.arc(cx - buttonR * 0.3, cy - buttonR * 0.3, buttonR * 0.35, 0, Math.PI * 2);
+  drawCtx.fill();
+  drawCtx.restore();
+}
+
+function drawWalkieTalkie(drawCtx: CanvasRenderingContext2D, px: number, py: number): void {
+  const cx = px + TILE_SIZE / 2;
+  const cy = py + TILE_SIZE / 2;
+  const w = TILE_SIZE * 0.5;
+  const h = TILE_SIZE * 0.78;
+  drawCtx.save();
+  drawCtx.fillStyle = "#1a1a1f";
+  drawCtx.strokeStyle = "#0a0a0f";
+  drawCtx.lineWidth = 1.5;
+  drawCtx.beginPath();
+  drawCtx.rect(cx - w / 2, cy - h / 2 + h * 0.18, w, h * 0.82);
+  drawCtx.fill();
+  drawCtx.stroke();
+  const antH = h * 0.32;
+  drawCtx.fillStyle = "#2a2a32";
+  drawCtx.fillRect(cx - 1.5, cy - h / 2 - antH * 0.6, 3, antH);
+  drawCtx.fillStyle = "#444";
+  drawCtx.beginPath();
+  drawCtx.arc(cx, cy - h / 2 + antH * 0.6 + 1, 2, 0, Math.PI * 2);
+  drawCtx.fill();
+  drawCtx.fillStyle = "#8af28a";
+  const screenW = w * 0.7;
+  const screenH = h * 0.22;
+  drawCtx.fillRect(cx - screenW / 2, cy - h * 0.05, screenW, screenH);
+  drawCtx.fillStyle = "#0a0a0f";
+  for (let row = 0; row < 2; row += 1) {
+    for (let col = 0; col < 3; col += 1) {
+      drawCtx.fillRect(
+        cx - screenW / 2 + 3 + col * (screenW / 3),
+        cy + h * 0.22 + row * 4,
+        4,
+        2
+      );
+    }
+  }
+  const flashOn = (performance.now() / 500) % 2 < 1;
+  if (flashOn) {
+    drawCtx.fillStyle = "#ff3a3a";
+    drawCtx.beginPath();
+    drawCtx.arc(cx + w / 2 - 4, cy - h / 2 + 6, 2, 0, Math.PI * 2);
+    drawCtx.fill();
+  }
+  drawCtx.restore();
 }
 
 function drawFeature(drawCtx: CanvasRenderingContext2D, feature: MapFeature): void {
@@ -1181,6 +1382,22 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 
   const key = event.key.toLowerCase();
+
+  if (key === "e") {
+    event.preventDefault();
+    useActiveGadget();
+    return;
+  }
+  if (/^[0-9]$/.test(key)) {
+    event.preventDefault();
+    const slot = key === "0" ? 10 : Number.parseInt(key, 10);
+    if (gadgetAtSlot(slot)) {
+      setActiveSlot(slot);
+      statusEl.textContent = `Slot ${slot} active.`;
+    }
+    return;
+  }
+
   const moves: Record<string, readonly [number, number]> = {
     arrowup: [0, -1],
     w: [0, -1],
@@ -1301,13 +1518,1118 @@ nextLevelBtn.addEventListener("click", () => {
     return;
   }
 
+  awardBeatCredit(OUMG_GAME_ID);
   loadLevel(0);
-  statusEl.textContent = "More levels coming soon. Replaying Level 1.";
+  statusEl.textContent = "Maze conquered. Check the Mods & DLCs hub.";
 });
 
 window.addEventListener("keydown", handleKeydown, { passive: false });
 setupTouchControls();
-showStartMenu();
+
+const mazeXAudio = new Audio(mazeXAudioSrc);
+mazeXAudio.preload = "auto";
+mazeXAudio.volume = 0.95;
+
+const mazeXOverlay = document.getElementById("maze-x-overlay") as HTMLDivElement;
+const mazeXSubtitleEl = document.getElementById("maze-x-subtitle") as HTMLParagraphElement;
+const mazeXCloseBtn = document.getElementById("maze-x-close-btn") as HTMLButtonElement;
+
+interface SubtitleCue {
+  start: number;
+  end: number;
+  text: string;
+}
+
+const MAZE_X_SUBTITLES: SubtitleCue[] = [
+  { start: 0.0, end: 4.4, text: "The temperature is dropping..." },
+  { start: 4.4, end: 8.9, text: "Warning signs are appearing on the reactor screen." },
+  { start: 8.9, end: 12.4, text: "Please... send help." },
+  { start: 12.4, end: 15.8, text: "It's coming. I can feel it." },
+  { start: 15.8, end: 21.0, text: "...guide... help me..." },
+  { start: 21.0, end: 27.0, text: "I've been here all this time." },
+  { start: 27.0, end: 32.5, text: "Take your shape." },
+  { start: 32.5, end: 38.5, text: "You locked it up here." },
+];
+
+const ROTATION_SUBTITLES: SubtitleCue[] = [
+  { start: 0.0, end: 3.6, text: "Ah... you found Rotation." },
+  { start: 3.6, end: 8.5, text: "I remember making this for my client." },
+  { start: 8.5, end: 13.5, text: "Well, now that it has gotten me, it doesn't really matter anymore." },
+  { start: 13.5, end: 17.5, text: "And, well, anyway —" },
+  { start: 17.5, end: 22.0, text: "Click E and press one of the buttons." },
+  { start: 22.0, end: 27.5, text: "The platforms with green outline. Place it on one." },
+  { start: 27.5, end: 31.0, text: "It doesn't even matter anymore." },
+  { start: 31.0, end: 34.0, text: "It shouldn't be." },
+  { start: 34.0, end: 37.0, text: "It came here." },
+  { start: 37.0, end: 41.0, text: "It's gonna get you too." },
+];
+
+const rotationAudio = new Audio(mazeXRotationAudioSrc);
+rotationAudio.preload = "auto";
+rotationAudio.volume = 0.95;
+
+const elsaAudio = new Audio(mazeXElsaAudioSrc);
+elsaAudio.preload = "auto";
+elsaAudio.volume = 0.95;
+
+const ELSA_SUBTITLES: SubtitleCue[] = [
+  { start: 0.0, end: 1.4, text: "ELSA." },
+  { start: 1.4, end: 2.7, text: "ELSA." },
+  { start: 2.7, end: 4.0, text: "ELSA." },
+  { start: 4.0, end: 5.3, text: "ELSA." },
+  { start: 5.3, end: 6.6, text: "ELSA." },
+  { start: 6.6, end: 8.5, text: "ELSA." },
+];
+
+const hookshotAudio = new Audio(mazeXHookshotAudioSrc);
+hookshotAudio.preload = "auto";
+hookshotAudio.volume = 0.95;
+
+const HOOKSHOT_SUBTITLES: SubtitleCue[] = [
+  { start: 0.0, end: 1.7, text: "You're still here. Good." },
+  { start: 1.7, end: 3.6, text: "This one's called Hookshot." },
+  { start: 3.6, end: 4.7, text: "Press E." },
+  { start: 4.7, end: 5.9, text: "It pulls." },
+  { start: 5.9, end: 7.2, text: "It doesn't ask." },
+  { start: 7.2, end: 8.2, text: "It just goes." },
+  { start: 8.2, end: 9.5, text: "Try to stop it." },
+];
+
+const endingAudio = new Audio(mazeXEndingAudioSrc);
+endingAudio.preload = "auto";
+endingAudio.volume = 0.95;
+
+const ENDING_SUBTITLES: SubtitleCue[] = [
+  { start: 0.0, end: 1.3, text: "Great Yo-o-ou f-f-found m-me" },
+  { start: 1.3, end: 4.6, text: "but-t-t-t i-i-ll t-tell you s-somet-t-hing" },
+  { start: 4.6, end: 8.6, text: "I W-AS @1 @11 @10NG" },
+  { start: 8.6, end: 10.0, text: "hey whats that.." },
+  { start: 10.0, end: 11.4, text: "IS THAT A GUN!?!?" },
+  { start: 11.4, end: 12.5, text: "*POW!" },
+];
+
+let activeTransmissionCues: SubtitleCue[] = MAZE_X_SUBTITLES;
+let activeTransmissionAudio: HTMLAudioElement | null = null;
+let pendingAwardOnClose: "rotatron" | "mr-snapper" | "hookshot" | "ending" | null = null;
+
+const TRANSMISSION_PLAYERS: Record<string, () => void> = {
+  rotation: () => playRotationTransmission(),
+  elsa: () => playElsaTransmission(),
+  hookshot: () => playHookshotTransmission(),
+  ending: () => playEndingTransmission(),
+};
+
+let subtitleRaf = 0;
+
+const MAZE_X_SECRET_LEVEL_INDEX = -1;
+
+function isMazeXLevel(): boolean {
+  return (
+    isDlcUnlocked(OUMG_MAZE_X_DLC_ID) &&
+    state.levelIndex === LEVELS.length - 1 &&
+    state.level?.map.id !== MAZE_X_SECRET_MAP.map.id
+  );
+}
+
+function isMazeXSecretLevel(): boolean {
+  return MAZE_X_SECRET_MAPS.some((m) => m.map.id === state.level?.map.id);
+}
+
+function isMazeXAcquisitionLevel(): boolean {
+  return state.level?.map.id === MAZE_X_SECRET_MAP.map.id;
+}
+
+function isMazeXFinalLevel(): boolean {
+  return state.level?.map.id === MAZE_X_FINAL_MAP_ID;
+}
+
+function loadMazeXSecret(index = 0): void {
+  const map = MAZE_X_SECRET_MAPS[index];
+  if (!map) return;
+  stopMazeXTransmission();
+  rotorOpenById.clear();
+  breakableBrokenById.clear();
+  state.level = map;
+  state.levelIndex = MAZE_X_SECRET_LEVEL_INDEX;
+  state.player = { ...map.map.markers.start };
+  state.won = false;
+  state.rotationQuarter = 0;
+  state.controlsReversed = false;
+  state.playerCrossingAxis = null;
+  state.playerHiddenUnderBridge = false;
+  state.portalLock = null;
+  state.wellOpenUntil = {};
+  stopWellTicker();
+
+  const sceneWidth = map.cols * TILE_SIZE;
+  const sceneHeight = map.rows * TILE_SIZE;
+  const stageSize = Math.max(sceneWidth, sceneHeight);
+  sceneCanvas.width = sceneWidth;
+  sceneCanvas.height = sceneHeight;
+  canvas.width = stageSize;
+  canvas.height = stageSize;
+
+  levelNameEl.textContent = map.map.name;
+  subtitleEl.textContent = map.map.name;
+  statusEl.textContent = index === 0 ? "...where am I?" : "Use the gadget. (E)";
+  hideCompletionOverlay();
+  hideLevelSelector();
+  hideStartMenu();
+  updatePlayerVisibility();
+  updateGadgetHud();
+  draw();
+}
+
+function updateSubtitle(): void {
+  const audio = activeTransmissionAudio ?? mazeXAudio;
+  const t = audio.currentTime;
+  const cue = activeTransmissionCues.find((c) => t >= c.start && t < c.end);
+  mazeXSubtitleEl.textContent = cue ? cue.text : "";
+  if (!audio.paused && !audio.ended) {
+    subtitleRaf = window.requestAnimationFrame(updateSubtitle);
+  }
+}
+
+function playTransmission(audio: HTMLAudioElement, cues: SubtitleCue[]): void {
+  activeTransmissionAudio = audio;
+  activeTransmissionCues = cues;
+  mazeXOverlay.classList.add("is-visible");
+  mazeXOverlay.setAttribute("aria-hidden", "false");
+  mazeXSubtitleEl.textContent = "";
+  try {
+    audio.currentTime = 0;
+    void audio.play();
+  } catch {
+    // ignore
+  }
+  if (subtitleRaf) window.cancelAnimationFrame(subtitleRaf);
+  subtitleRaf = window.requestAnimationFrame(updateSubtitle);
+}
+
+function playMazeXTransmission(): void {
+  playTransmission(mazeXAudio, MAZE_X_SUBTITLES);
+}
+
+function playRotationTransmission(): void {
+  transmissionsPlayed.add("rotation");
+  pendingAwardOnClose = "rotatron";
+  playTransmission(rotationAudio, ROTATION_SUBTITLES);
+}
+
+function playElsaTransmission(): void {
+  transmissionsPlayed.add("elsa");
+  pendingAwardOnClose = "mr-snapper";
+  playTransmission(elsaAudio, ELSA_SUBTITLES);
+}
+
+function playHookshotTransmission(): void {
+  transmissionsPlayed.add("hookshot");
+  pendingAwardOnClose = "hookshot";
+  playTransmission(hookshotAudio, HOOKSHOT_SUBTITLES);
+}
+
+function playEndingTransmission(): void {
+  transmissionsPlayed.add("ending");
+  pendingAwardOnClose = "ending";
+  playTransmission(endingAudio, ENDING_SUBTITLES);
+}
+
+function stopMazeXTransmission(): void {
+  mazeXAudio.pause();
+  mazeXAudio.currentTime = 0;
+  rotationAudio.pause();
+  rotationAudio.currentTime = 0;
+  elsaAudio.pause();
+  elsaAudio.currentTime = 0;
+  hookshotAudio.pause();
+  hookshotAudio.currentTime = 0;
+  endingAudio.pause();
+  endingAudio.currentTime = 0;
+  mazeXOverlay.classList.remove("is-visible");
+  mazeXOverlay.setAttribute("aria-hidden", "true");
+  if (subtitleRaf) {
+    window.cancelAnimationFrame(subtitleRaf);
+    subtitleRaf = 0;
+  }
+  mazeXSubtitleEl.textContent = "";
+  activeTransmissionAudio = null;
+}
+
+const MAZE_X_SECRET_PENDING_KEY = "oumg-maze-x-secret-pending";
+const WALL_PHASER_KEY = "oumg-wall-phaser-acquired";
+
+const crashOverlay = document.getElementById("maze-x-crash") as HTMLDivElement;
+const wallPhaserOverlay = document.getElementById("wall-phaser-overlay") as HTMLDivElement;
+const wallPhaserCloseBtn = document.getElementById("wall-phaser-close") as HTMLButtonElement;
+
+function triggerMazeXCrashSequence(): void {
+  stopMazeXTransmission();
+  document.body.classList.add("maze-x-glitching");
+  window.setTimeout(() => {
+    crashOverlay.classList.add("is-visible");
+    crashOverlay.setAttribute("aria-hidden", "false");
+  }, 1500);
+  window.setTimeout(() => {
+    try {
+      localStorage.setItem(MAZE_X_SECRET_PENDING_KEY, "true");
+    } catch {
+      // ignore
+    }
+    window.location.reload();
+  }, 3200);
+}
+
+mazeXCloseBtn.addEventListener("click", () => {
+  if (pendingAwardOnClose === "rotatron") {
+    pendingAwardOnClose = null;
+    stopMazeXTransmission();
+    awardGadget("rotatron");
+    statusEl.textContent = "Rotatron acquired. Press 2 then E.";
+    return;
+  }
+  if (pendingAwardOnClose === "mr-snapper") {
+    pendingAwardOnClose = null;
+    stopMazeXTransmission();
+    awardGadget("mr-snapper");
+    statusEl.textContent = "Mr. Snapper acquired. Press 3 then E next to a cracked wall.";
+    return;
+  }
+  if (pendingAwardOnClose === "hookshot") {
+    pendingAwardOnClose = null;
+    stopMazeXTransmission();
+    awardGadget("hookshot");
+    statusEl.textContent = "Hookshot acquired. Press 4 then E to slide.";
+    return;
+  }
+  if (pendingAwardOnClose === "ending") {
+    pendingAwardOnClose = null;
+    stopMazeXTransmission();
+    showFinalEndScreen();
+    return;
+  }
+  triggerMazeXCrashSequence();
+});
+
+function showFinalEndScreen(): void {
+  const overlay = document.createElement("div");
+  overlay.className = "mazex-end-screen";
+  overlay.id = "mazex-end-screen";
+  overlay.innerHTML = `
+    <div class="mazex-end-card">
+      <p class="mazex-end-kicker">— END OF SIGNAL —</p>
+      <p class="mazex-end-line">The walkie-talkie goes silent.</p>
+      <p class="mazex-end-line mazex-end-faint">No more transmissions.</p>
+      <p class="mazex-end-line mazex-end-faint">No more maps.</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add("mazex-ended");
+  state.won = true;
+  window.setTimeout(() => startBossFight(), 10000);
+}
+
+// =====================
+// BOSS FIGHT
+// =====================
+
+const BOSS_GRID_COLS = 12;
+const BOSS_GRID_ROWS = 6;
+const BOSS_ATTACK_DURATION_MS = 8000;
+const BOSS_CHECKER_CYCLE_MS = 1800;
+const BOSS_CHECKER_WARNING_MS = 1100;
+const BOSS_CHECKER_ACTIVE_MS = 500;
+
+let bossCanvas: HTMLCanvasElement | null = null;
+let bossCtx: CanvasRenderingContext2D | null = null;
+let bossActive = false;
+let bossRaf = 0;
+let bossStartTime = 0;
+let bossPlayerX = Math.floor(BOSS_GRID_COLS / 2);
+let bossPlayerY = BOSS_GRID_ROWS - 1;
+let bossDead = false;
+let bossDeathOverlay: HTMLDivElement | null = null;
+
+const BOSS_MAX_HP = 3;
+const GUN_COOLDOWN_MS = 60000;
+let bossHp = BOSS_MAX_HP;
+let bossGunCooldownEnd = 0;
+let bossDefeated = false;
+let bossLastShotTime = -Infinity;
+let bossHitFlashTime = -Infinity;
+let bossDefeatedAt = 0;
+let bossPlayerPxX = 0;
+let bossPlayerPxY = 0;
+let bossRobotPxX = 0;
+let bossRobotPxY = 0;
+let bossVictoryOverlay: HTMLDivElement | null = null;
+
+function startBossFight(): void {
+  if (bossActive) return;
+  const endScreen = document.getElementById("mazex-end-screen");
+  if (endScreen) endScreen.remove();
+  document.body.classList.remove("mazex-ended");
+  document.body.classList.add("mazex-boss");
+
+  bossCanvas = document.createElement("canvas");
+  bossCanvas.className = "mazex-boss-canvas";
+  document.body.appendChild(bossCanvas);
+  bossCtx = bossCanvas.getContext("2d");
+  resizeBossCanvas();
+  window.addEventListener("resize", resizeBossCanvas);
+
+  bossActive = true;
+  bossDead = false;
+  bossDefeated = false;
+  bossHp = BOSS_MAX_HP;
+  bossGunCooldownEnd = 0;
+  bossLastShotTime = -Infinity;
+  bossHitFlashTime = -Infinity;
+  bossPlayerX = Math.floor(BOSS_GRID_COLS / 2);
+  bossPlayerY = BOSS_GRID_ROWS - 1;
+  bossStartTime = performance.now();
+
+  awardGadget("gun");
+  setActiveSlot(5);
+
+  window.addEventListener("keydown", handleBossKey, { passive: false });
+  bossRaf = window.requestAnimationFrame(loopBossFight);
+}
+
+function resizeBossCanvas(): void {
+  if (!bossCanvas) return;
+  bossCanvas.width = window.innerWidth;
+  bossCanvas.height = window.innerHeight;
+}
+
+function handleBossKey(e: KeyboardEvent): void {
+  if (!bossActive || bossDead) return;
+  const k = e.key.toLowerCase();
+  if (k === "arrowleft" || k === "a") {
+    bossPlayerX = Math.max(0, bossPlayerX - 1);
+    e.preventDefault();
+  } else if (k === "arrowright" || k === "d") {
+    bossPlayerX = Math.min(BOSS_GRID_COLS - 1, bossPlayerX + 1);
+    e.preventDefault();
+  } else if (k === "arrowup" || k === "w") {
+    bossPlayerY = Math.max(0, bossPlayerY - 1);
+    e.preventDefault();
+  } else if (k === "arrowdown" || k === "s") {
+    bossPlayerY = Math.min(BOSS_GRID_ROWS - 1, bossPlayerY + 1);
+    e.preventDefault();
+  }
+}
+
+function loopBossFight(now: number): void {
+  if (!bossActive || !bossCtx || !bossCanvas) return;
+  const elapsed = now - bossStartTime;
+  const w = bossCanvas.width;
+  const h = bossCanvas.height;
+  bossCtx.fillStyle = "#05060a";
+  bossCtx.fillRect(0, 0, w, h);
+
+  bossRobotPxX = w / 2;
+  bossRobotPxY = h * 0.25;
+  drawBossRobot(bossCtx, bossRobotPxX, bossRobotPxY, Math.min(w, h) * 0.35, elapsed);
+  drawBossHpBar(bossCtx, w, h);
+
+  const gridY = h * 0.55;
+  const gridH = h * 0.4;
+  const gridW = Math.min(w * 0.85, gridH * (BOSS_GRID_COLS / BOSS_GRID_ROWS));
+  const gridX = (w - gridW) / 2;
+  const tileW = gridW / BOSS_GRID_COLS;
+  const tileH = gridH / BOSS_GRID_ROWS;
+
+  const attackIndex = Math.floor(elapsed / BOSS_ATTACK_DURATION_MS) % 2;
+  const attackKind = attackIndex === 0 ? "checkered" : "spiral";
+
+  const danger = computeDanger(attackKind, elapsed);
+
+  for (let gy = 0; gy < BOSS_GRID_ROWS; gy++) {
+    for (let gx = 0; gx < BOSS_GRID_COLS; gx++) {
+      const d = danger[gy * BOSS_GRID_COLS + gx];
+      const tx = gridX + gx * tileW;
+      const ty = gridY + gy * tileH;
+      let fill = "#101422";
+      if (d === "warning") fill = "rgba(180, 60, 60, 0.55)";
+      else if (d === "active") fill = "#c83030";
+      bossCtx.fillStyle = fill;
+      bossCtx.fillRect(tx + 1, ty + 1, tileW - 2, tileH - 2);
+      bossCtx.strokeStyle = "rgba(120, 160, 220, 0.18)";
+      bossCtx.lineWidth = 1;
+      bossCtx.strokeRect(tx + 0.5, ty + 0.5, tileW - 1, tileH - 1);
+    }
+  }
+
+  if (attackKind === "spiral") {
+    drawSpiralOverlay(bossCtx, gridX, gridY, gridW, gridH, elapsed);
+  }
+
+  // Player marker
+  const pxX = gridX + bossPlayerX * tileW + tileW / 2;
+  const pxY = gridY + bossPlayerY * tileH + tileH / 2;
+  bossPlayerPxX = pxX;
+  bossPlayerPxY = pxY;
+  bossCtx.save();
+  bossCtx.shadowColor = "#6cf";
+  bossCtx.shadowBlur = 14;
+  bossCtx.fillStyle = "#cfeeff";
+  bossCtx.beginPath();
+  bossCtx.arc(pxX, pxY, Math.min(tileW, tileH) * 0.28, 0, Math.PI * 2);
+  bossCtx.fill();
+  bossCtx.restore();
+
+  drawBullet(bossCtx, now);
+  drawGunCooldown(bossCtx, w, h, now);
+
+  // Collision check
+  const playerDanger = danger[bossPlayerY * BOSS_GRID_COLS + bossPlayerX];
+  const spiralHit = attackKind === "spiral" && spiralHitsPlayer(elapsed, bossPlayerX, bossPlayerY);
+  if (!bossDead && !bossDefeated && (playerDanger === "active" || spiralHit)) {
+    bossDead = true;
+    showBossDeath();
+  }
+
+  if (bossActive) {
+    bossRaf = window.requestAnimationFrame(loopBossFight);
+  }
+}
+
+function computeDanger(kind: "checkered" | "spiral", elapsed: number): ("safe" | "warning" | "active")[] {
+  const out: ("safe" | "warning" | "active")[] = new Array(BOSS_GRID_COLS * BOSS_GRID_ROWS).fill("safe");
+  if (kind === "checkered") {
+    const cycle = Math.floor(elapsed / BOSS_CHECKER_CYCLE_MS);
+    const inCycle = elapsed % BOSS_CHECKER_CYCLE_MS;
+    const parity = cycle % 2;
+    let phase: "warning" | "active" | "safe" = "safe";
+    if (inCycle < BOSS_CHECKER_WARNING_MS) phase = "warning";
+    else if (inCycle < BOSS_CHECKER_WARNING_MS + BOSS_CHECKER_ACTIVE_MS) phase = "active";
+    for (let gy = 0; gy < BOSS_GRID_ROWS; gy++) {
+      for (let gx = 0; gx < BOSS_GRID_COLS; gx++) {
+        if ((gx + gy) % 2 === parity) {
+          out[gy * BOSS_GRID_COLS + gx] = phase;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+const SPIRAL_HIT_THRESHOLD = 0.22;
+const SPIRAL_VISUAL_THRESHOLD = 0.26;
+
+function spiralHitsPlayer(elapsed: number, gx: number, gy: number): boolean {
+  return spiralBandValue(elapsed, gx + 0.5, gy + 0.5) < SPIRAL_HIT_THRESHOLD;
+}
+
+function spiralBandValue(elapsed: number, gx: number, gy: number): number {
+  const cx = BOSS_GRID_COLS / 2;
+  const cy = BOSS_GRID_ROWS / 2;
+  const dx = gx - cx;
+  const dy = gy - cy;
+  const r = Math.sqrt(dx * dx + dy * dy);
+  const a = Math.atan2(dy, dx);
+  const k = 0.9;
+  const phase = (elapsed / 950) % (Math.PI * 2);
+  const arms = 2;
+  const m = ((a * arms - k * r * arms + phase * arms) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  return Math.min(m, Math.PI * 2 - m);
+}
+
+function drawSpiralOverlay(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, elapsed: number): void {
+  const tileW = w / BOSS_GRID_COLS;
+  const tileH = h / BOSS_GRID_ROWS;
+  for (let py = 0; py < h; py += 4) {
+    for (let px = 0; px < w; px += 4) {
+      const gx = px / tileW;
+      const gy = py / tileH;
+      const v = spiralBandValue(elapsed, gx, gy);
+      if (v < SPIRAL_VISUAL_THRESHOLD) {
+        const t = 1 - v / SPIRAL_VISUAL_THRESHOLD;
+        ctx.fillStyle = `rgba(240, 80, 130, ${(0.18 + t * 0.55).toFixed(3)})`;
+        ctx.fillRect(x + px, y + py, 4, 4);
+      }
+    }
+  }
+}
+
+function drawBossRobot(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, t: number): void {
+  const now = performance.now();
+  const sinceHit = now - bossHitFlashTime;
+  const shake = sinceHit < 350 ? Math.sin(sinceHit / 30) * (1 - sinceHit / 350) * 14 : 0;
+  const flash = sinceHit < 220 ? 1 - sinceHit / 220 : 0;
+  const sinceDefeat = bossDefeated ? now - bossDefeatedAt : 0;
+  const tilt = bossDefeated ? Math.min(1, sinceDefeat / 1200) * 0.6 : 0;
+  const drop = bossDefeated ? Math.min(1, sinceDefeat / 1500) ** 2 * 80 : 0;
+  ctx.save();
+  // subtle bobble
+  const bob = bossDefeated ? 0 : Math.sin(t / 600) * 4;
+  ctx.translate(cx + shake, cy + bob + drop);
+  ctx.rotate(tilt);
+
+  // shadow
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.beginPath();
+  ctx.ellipse(0, size * 0.5, size * 0.4, size * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // body
+  const bodyW = size * 0.7;
+  const bodyH = size * 0.55;
+  ctx.fillStyle = "#5a6068";
+  ctx.fillRect(-bodyW / 2, -bodyH * 0.2, bodyW, bodyH);
+  ctx.strokeStyle = "#1a1d22";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-bodyW / 2, -bodyH * 0.2, bodyW, bodyH);
+
+  // panel lines
+  ctx.strokeStyle = "rgba(20, 22, 28, 0.6)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const ly = -bodyH * 0.2 + (bodyH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(-bodyW / 2, ly);
+    ctx.lineTo(bodyW / 2, ly);
+    ctx.stroke();
+  }
+
+  // shoulders
+  ctx.fillStyle = "#3a3f47";
+  ctx.fillRect(-bodyW / 2 - size * 0.1, -bodyH * 0.15, size * 0.1, size * 0.25);
+  ctx.fillRect(bodyW / 2, -bodyH * 0.15, size * 0.1, size * 0.25);
+
+  // head
+  const headW = size * 0.45;
+  const headH = size * 0.35;
+  ctx.fillStyle = "#6a7078";
+  ctx.fillRect(-headW / 2, -bodyH * 0.2 - headH, headW, headH);
+  ctx.strokeStyle = "#1a1d22";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-headW / 2, -bodyH * 0.2 - headH, headW, headH);
+
+  // antenna
+  ctx.strokeStyle = "#1a1d22";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -bodyH * 0.2 - headH);
+  ctx.lineTo(0, -bodyH * 0.2 - headH - size * 0.12);
+  ctx.stroke();
+  ctx.fillStyle = "#ff3a3a";
+  ctx.beginPath();
+  ctx.arc(0, -bodyH * 0.2 - headH - size * 0.12, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // working eye
+  const flicker = ((t / 80) % 7 < 1) ? 0.4 : 1;
+  ctx.fillStyle = `rgba(255, 58, 58, ${flicker})`;
+  ctx.fillRect(-headW * 0.3, -bodyH * 0.2 - headH * 0.7, headW * 0.18, headH * 0.12);
+
+  // dead eye (X)
+  const eyeX = headW * 0.2;
+  const eyeY = -bodyH * 0.2 - headH * 0.65;
+  ctx.strokeStyle = "#1a1d22";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(eyeX - 6, eyeY - 6);
+  ctx.lineTo(eyeX + 6, eyeY + 6);
+  ctx.moveTo(eyeX + 6, eyeY - 6);
+  ctx.lineTo(eyeX - 6, eyeY + 6);
+  ctx.stroke();
+
+  // bullet hole on torso
+  const holeX = -bodyW * 0.12;
+  const holeY = bodyH * 0.08;
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(holeX, holeY, size * 0.045, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 + Math.sin(t / 1000 + i) * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(holeX, holeY);
+    ctx.lineTo(holeX + Math.cos(a) * size * 0.13, holeY + Math.sin(a) * size * 0.13);
+    ctx.stroke();
+  }
+  // spark drips
+  ctx.fillStyle = `rgba(255, 200, 60, ${0.5 + Math.sin(t / 200) * 0.4})`;
+  ctx.beginPath();
+  ctx.arc(holeX + 1, holeY + 6, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (flash > 0) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${(flash * 0.7).toFixed(3)})`;
+    ctx.fillRect(-bodyW / 2 - size * 0.15, -bodyH * 0.2 - headH - size * 0.15, bodyW + size * 0.3, bodyH + headH + size * 0.3);
+  }
+
+  ctx.restore();
+}
+
+function drawBossHpBar(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const barW = Math.min(420, w * 0.6);
+  const barH = 16;
+  const x = (w - barW) / 2;
+  const y = 24;
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+  ctx.fillRect(x - 4, y - 4, barW + 8, barH + 8);
+  ctx.fillStyle = "#1a1a22";
+  ctx.fillRect(x, y, barW, barH);
+  const pct = bossHp / BOSS_MAX_HP;
+  ctx.fillStyle = pct > 0.5 ? "#ff8080" : pct > 0 ? "#ff3a3a" : "#660000";
+  ctx.fillRect(x, y, barW * pct, barH);
+  ctx.strokeStyle = "#0a0a10";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, barW, barH);
+  ctx.fillStyle = "#cfeeff";
+  ctx.font = "12px ui-monospace, monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(`ROBOT  ${bossHp} / ${BOSS_MAX_HP}`, w / 2, y - 8);
+  ctx.restore();
+}
+
+function drawGunCooldown(ctx: CanvasRenderingContext2D, w: number, h: number, now: number): void {
+  const cdRemainingMs = Math.max(0, bossGunCooldownEnd - now);
+  const cdPct = 1 - cdRemainingMs / GUN_COOLDOWN_MS;
+  const barW = 220;
+  const barH = 12;
+  const x = w - barW - 28;
+  const y = h - 36;
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+  ctx.fillRect(x - 4, y - 18, barW + 8, barH + 24);
+  ctx.fillStyle = "#cfeeff";
+  ctx.font = "11px ui-monospace, monospace";
+  ctx.textAlign = "left";
+  const label = cdRemainingMs > 0 ? `GUN  ${Math.ceil(cdRemainingMs / 1000)}s` : "GUN  READY — press E";
+  ctx.fillText(label, x, y - 4);
+  ctx.fillStyle = "#1a1a22";
+  ctx.fillRect(x, y, barW, barH);
+  ctx.fillStyle = cdRemainingMs > 0 ? "#6cf" : "#7af09a";
+  ctx.fillRect(x, y, barW * cdPct, barH);
+  ctx.strokeStyle = "#0a0a10";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, barW, barH);
+  ctx.restore();
+}
+
+function drawBullet(ctx: CanvasRenderingContext2D, now: number): void {
+  const sinceShot = now - bossLastShotTime;
+  if (sinceShot < 0 || sinceShot > 260) return;
+  const t = Math.min(1, sinceShot / 220);
+  const x = bossPlayerPxX + (bossRobotPxX - bossPlayerPxX) * t;
+  const y = bossPlayerPxY + (bossRobotPxY - bossPlayerPxY) * t;
+  ctx.save();
+  ctx.shadowColor = "#ffe080";
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = "#fff8b0";
+  ctx.beginPath();
+  ctx.arc(x, y, 6, 0, Math.PI * 2);
+  ctx.fill();
+  // trail
+  ctx.strokeStyle = "rgba(255, 240, 160, 0.4)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(bossPlayerPxX, bossPlayerPxY);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function showBossVictoryScreen(): void {
+  if (bossVictoryOverlay) return;
+  bossVictoryOverlay = document.createElement("div");
+  bossVictoryOverlay.className = "mazex-boss-victory";
+  bossVictoryOverlay.innerHTML = `
+    <div class="mazex-boss-victory-card">
+      <p class="mazex-boss-victory-kicker">— ROBOT TERMINATED —</p>
+      <p class="mazex-boss-victory-title">YOU WIN</p>
+      <p class="mazex-boss-victory-flavor">The signal goes quiet. For real this time.</p>
+    </div>
+  `;
+  document.body.appendChild(bossVictoryOverlay);
+}
+
+function showBossDeath(): void {
+  if (bossDeathOverlay) return;
+  bossDeathOverlay = document.createElement("div");
+  bossDeathOverlay.className = "mazex-boss-death";
+  bossDeathOverlay.innerHTML = `
+    <div class="mazex-boss-death-card">
+      <p class="mazex-boss-death-title">YOU DIED</p>
+      <button id="mazex-boss-retry" type="button" class="mazex-boss-retry-btn">RETRY</button>
+    </div>
+  `;
+  document.body.appendChild(bossDeathOverlay);
+  const retryBtn = document.getElementById("mazex-boss-retry");
+  retryBtn?.addEventListener("click", () => {
+    bossDeathOverlay?.remove();
+    bossDeathOverlay = null;
+    bossDead = false;
+    bossPlayerX = Math.floor(BOSS_GRID_COLS / 2);
+    bossPlayerY = BOSS_GRID_ROWS - 1;
+    bossStartTime = performance.now();
+  });
+}
+
+function acquireWallPhaser(): void {
+  statusEl.textContent = "ZZT — PHASE!";
+  state.player = { x: state.player.x, y: Math.max(0, state.player.y - 3) };
+  draw();
+  window.setTimeout(() => {
+    try {
+      localStorage.setItem(WALL_PHASER_KEY, "true");
+    } catch {
+      // ignore
+    }
+    wallPhaserOverlay.classList.add("is-visible");
+    wallPhaserOverlay.setAttribute("aria-hidden", "false");
+  }, 400);
+}
+
+wallPhaserCloseBtn.addEventListener("click", () => {
+  wallPhaserOverlay.classList.remove("is-visible");
+  wallPhaserOverlay.setAttribute("aria-hidden", "true");
+  awardGadget("wall-phaser");
+  loadMazeXSecretByIndex(1);
+});
+
+interface GadgetDef {
+  id: string;
+  name: string;
+  slot: number;
+  hint: string;
+  use: () => void;
+}
+
+const GADGETS: Record<string, GadgetDef> = {
+  "wall-phaser": {
+    id: "wall-phaser",
+    name: "Wall Phaser",
+    slot: 1,
+    hint: "Press E to phase 3 tiles forward.",
+    use: useWallPhaser,
+  },
+  rotatron: {
+    id: "rotatron",
+    name: "Rotatron",
+    slot: 2,
+    hint: "Press E to rotate a green platform (≤3 tiles away).",
+    use: useRotatron,
+  },
+  "mr-snapper": {
+    id: "mr-snapper",
+    name: "Mr. Snapper",
+    slot: 3,
+    hint: "Press E to snap an adjacent cracked wall.",
+    use: useMrSnapper,
+  },
+  hookshot: {
+    id: "hookshot",
+    name: "Hookshot",
+    slot: 4,
+    hint: "Press E to slide until you hit something.",
+    use: useHookshot,
+  },
+  gun: {
+    id: "gun",
+    name: "Gun",
+    slot: 5,
+    hint: "Press E to fire. 60s cooldown.",
+    use: useGun,
+  },
+};
+
+const rotorOpenById = new Map<string, boolean>();
+const transmissionsPlayed = new Set<string>();
+
+function currentRotors() {
+  if (!state.level) return [] as { id: string; x: number; y: number }[];
+  return MAZE_X_ROTORS[state.level.map.id] ?? [];
+}
+
+function currentWalkies() {
+  if (!state.level) return [] as { id: string; x: number; y: number; transmissionId: string }[];
+  return MAZE_X_WALKIES[state.level.map.id] ?? [];
+}
+
+function rotorAt(x: number, y: number) {
+  return currentRotors().find((r) => r.x === x && r.y === y);
+}
+
+function walkieAt(x: number, y: number) {
+  return currentWalkies().find((w) => w.x === x && w.y === y);
+}
+
+function isRotorOpen(id: string): boolean {
+  return rotorOpenById.get(id) === true;
+}
+
+function toggleRotor(id: string): boolean {
+  const next = !isRotorOpen(id);
+  rotorOpenById.set(id, next);
+  return next;
+}
+
+function hasTransmissionPlayed(id: string): boolean {
+  return transmissionsPlayed.has(id);
+}
+
+function useRotatron(): void {
+  if (!state.level) return;
+  const rotors = currentRotors();
+  let nearest: { id: string; x: number; y: number } | null = null;
+  let nearestDist = Number.POSITIVE_INFINITY;
+  for (const r of rotors) {
+    const d = Math.abs(r.x - state.player.x) + Math.abs(r.y - state.player.y);
+    if (d <= 3 && d < nearestDist) {
+      nearest = r;
+      nearestDist = d;
+    }
+  }
+  if (!nearest) {
+    statusEl.textContent = "No green platforms in range.";
+    return;
+  }
+  const opened = toggleRotor(nearest.id);
+  statusEl.textContent = opened ? "Rotatron clicks. Platform rotated." : "Platform rotated shut.";
+  draw();
+}
+
+const breakableBrokenById = new Set<string>();
+
+function currentBreakables() {
+  if (!state.level) return [] as { id: string; x: number; y: number }[];
+  return MAZE_X_BREAKABLES[state.level.map.id] ?? [];
+}
+
+function breakableAt(x: number, y: number) {
+  return currentBreakables().find((b) => b.x === x && b.y === y);
+}
+
+function isBreakableBroken(id: string): boolean {
+  return breakableBrokenById.has(id);
+}
+
+function breakBreakable(id: string): void {
+  breakableBrokenById.add(id);
+}
+
+function useHookshot(): void {
+  if (!state.level) return;
+  const [dx, dy] = lastMoveDelta;
+  if (dx === 0 && dy === 0) return;
+  let x = state.player.x;
+  let y = state.player.y;
+  while (true) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (nx < 0 || ny < 0 || nx >= state.level.cols || ny >= state.level.rows) break;
+    if (!isWalkable(nx, ny)) break;
+    x = nx;
+    y = ny;
+  }
+  if (x === state.player.x && y === state.player.y) {
+    statusEl.textContent = "Hookshot found nothing to grab.";
+    return;
+  }
+  state.player = { x, y };
+  statusEl.textContent = "TWANG! Hookshot reels you in.";
+  updatePlayerVisibility();
+  if (state.level && samePoint(state.player, state.level.map.markers.exit)) {
+    state.won = true;
+    if (isMazeXSecretLevel()) onMazeXSecretBeaten();
+  }
+  draw();
+}
+
+function useGun(): void {
+  if (!bossActive) {
+    statusEl.textContent = "The gun is empty in your hands.";
+    return;
+  }
+  if (bossDead || bossDefeated) return;
+  const now = performance.now();
+  if (now < bossGunCooldownEnd) return;
+  bossGunCooldownEnd = now + GUN_COOLDOWN_MS;
+  bossLastShotTime = now;
+  bossHitFlashTime = now;
+  bossHp = Math.max(0, bossHp - 1);
+  if (bossHp <= 0) {
+    bossDefeated = true;
+    bossDefeatedAt = now;
+    window.setTimeout(() => showBossVictoryScreen(), 1800);
+  }
+}
+
+function useMrSnapper(): void {
+  if (!state.level) return;
+  const offsets: [number, number][] = [
+    [0, -1],
+    [0, 1],
+    [-1, 0],
+    [1, 0],
+  ];
+  for (const [ox, oy] of offsets) {
+    const tx = state.player.x + ox;
+    const ty = state.player.y + oy;
+    const b = breakableAt(tx, ty);
+    if (b && !isBreakableBroken(b.id)) {
+      breakBreakable(b.id);
+      statusEl.textContent = "SNAP! Wall shattered.";
+      draw();
+      return;
+    }
+  }
+  statusEl.textContent = "Nothing for Mr. Snapper to break.";
+}
+
+const OWNED_GADGETS_KEY = "oumg-mazex-owned-gadgets";
+const ACTIVE_SLOT_KEY = "oumg-mazex-active-slot";
+const NEXT_MAZE_X_INDEX_KEY = "oumg-mazex-next-index";
+const gadgetHudEl = document.getElementById("gadget-hud") as HTMLParagraphElement;
+
+function ownedGadgetIds(): string[] {
+  try {
+    const raw = localStorage.getItem(OWNED_GADGETS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function awardGadget(id: string): void {
+  const owned = new Set(ownedGadgetIds());
+  if (owned.has(id)) return;
+  owned.add(id);
+  try {
+    localStorage.setItem(OWNED_GADGETS_KEY, JSON.stringify([...owned]));
+  } catch {
+    // ignore
+  }
+  const def = GADGETS[id];
+  if (def) setActiveSlot(def.slot);
+  updateGadgetHud();
+}
+
+function activeSlot(): number {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SLOT_KEY);
+    const n = raw === null ? 1 : Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n >= 1 && n <= 10 ? n : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function setActiveSlot(slot: number): void {
+  try {
+    localStorage.setItem(ACTIVE_SLOT_KEY, String(slot));
+  } catch {
+    // ignore
+  }
+  updateGadgetHud();
+}
+
+function gadgetAtSlot(slot: number): GadgetDef | null {
+  const owned = new Set(ownedGadgetIds());
+  for (const id of owned) {
+    const def = GADGETS[id];
+    if (def && def.slot === slot) return def;
+  }
+  return null;
+}
+
+function updateGadgetHud(): void {
+  const owned = ownedGadgetIds();
+  if (owned.length === 0) {
+    gadgetHudEl.classList.add("hidden");
+    return;
+  }
+  gadgetHudEl.classList.remove("hidden");
+  const slot = activeSlot();
+  const def = gadgetAtSlot(slot);
+  if (def) {
+    gadgetHudEl.innerHTML = `<span class="gadget-hud-slot">[${def.slot}] E</span>${def.name} — ${def.hint}`;
+  } else {
+    gadgetHudEl.innerHTML = `<span class="gadget-hud-slot">[${slot}]</span>(empty slot)`;
+  }
+}
+
+function useActiveGadget(): void {
+  const def = gadgetAtSlot(activeSlot());
+  if (def) def.use();
+}
+
+function useWallPhaser(): void {
+  if (!state.level) return;
+  const [dx, dy] = lastMoveDelta;
+  if (dx === 0 && dy === 0) return;
+  const nx = Math.min(state.level.cols - 1, Math.max(0, state.player.x + dx * 3));
+  const ny = Math.min(state.level.rows - 1, Math.max(0, state.player.y + dy * 3));
+  state.player = { x: nx, y: ny };
+  statusEl.textContent = "ZZT — phased.";
+  updatePlayerVisibility();
+
+  if (state.level && samePoint(state.player, state.level.map.markers.exit)) {
+    state.won = true;
+    if (isMazeXSecretLevel()) {
+      onMazeXSecretBeaten();
+    }
+  }
+
+  draw();
+}
+
+function loadMazeXSecretByIndex(index: number): void {
+  if (index < 0 || index >= MAZE_X_SECRET_MAPS.length) {
+    showMazeXEndOfContent();
+    return;
+  }
+  try {
+    localStorage.setItem(NEXT_MAZE_X_INDEX_KEY, String(index));
+  } catch {
+    // ignore
+  }
+  loadMazeXSecret(index);
+}
+
+function onMazeXSecretBeaten(): void {
+  const current = (() => {
+    try {
+      const raw = localStorage.getItem(NEXT_MAZE_X_INDEX_KEY);
+      const n = raw === null ? 0 : Number.parseInt(raw, 10);
+      return Number.isFinite(n) ? n : 0;
+    } catch {
+      return 0;
+    }
+  })();
+  const next = current + 1;
+  if (next >= MAZE_X_SECRET_MAPS.length) {
+    showMazeXEndOfContent();
+    return;
+  }
+  loadMazeXSecretByIndex(next);
+}
+
+function showMazeXEndOfContent(): void {
+  statusEl.textContent = "MAZE_X SIGNAL LOST. Use Select Level to return.";
+  showCompletionOverlay();
+}
+function onTransmissionEnd(): void {
+  if (subtitleRaf) {
+    window.cancelAnimationFrame(subtitleRaf);
+    subtitleRaf = 0;
+  }
+  mazeXSubtitleEl.textContent = "— END OF TRANSMISSION —";
+}
+mazeXAudio.addEventListener("ended", onTransmissionEnd);
+rotationAudio.addEventListener("ended", onTransmissionEnd);
+elsaAudio.addEventListener("ended", onTransmissionEnd);
+hookshotAudio.addEventListener("ended", onTransmissionEnd);
+endingAudio.addEventListener("ended", onTransmissionEnd);
 
 function getFeatureDefinitionNames(): Iterable<string> {
   const byKind: FeatureKind[] = [
@@ -1320,4 +2642,22 @@ function getFeatureDefinitionNames(): Iterable<string> {
     "reset",
   ];
   return byKind.map((kind) => getFeatureDefinition(kind).label.toLowerCase());
+}
+
+let pendingMazeXSecret = false;
+try {
+  if (localStorage.getItem(MAZE_X_SECRET_PENDING_KEY) === "true") {
+    pendingMazeXSecret = true;
+    localStorage.removeItem(MAZE_X_SECRET_PENDING_KEY);
+  }
+} catch {
+  pendingMazeXSecret = false;
+}
+
+updateGadgetHud();
+
+if (pendingMazeXSecret) {
+  loadMazeXSecret(0);
+} else {
+  showStartMenu();
 }

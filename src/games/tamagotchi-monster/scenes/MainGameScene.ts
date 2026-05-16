@@ -7,6 +7,8 @@ import { ParticleSystem } from "../graphics/ParticleSystem";
 import { DecorationManager } from "../graphics/DecorationManager";
 import { GlitchManager, type GlitchType } from "../graphics/Glitch";
 import { drawPet } from "../graphics/Sprites";
+import { drawDancingMannequin } from "../graphics/DancingMannequin";
+import { MOD_TM_DANCER_KEY, isModEnabled } from "../../../shared/mods";
 import { drawMoneyBackground } from "../graphics/MoneyBackground";
 import { drawNu11Background } from "../graphics/Nu11Background";
 import { HUD } from "../ui/HUD";
@@ -438,16 +440,38 @@ export class MainGameScene implements Scene {
     this.decorations.draw(ctx);
 
     const petY = this.petY + this.animation.getBounceOffset();
+    const petX = this.petX + this.animation.getHorizontalOffset();
     const size = this.petSize * this.animation.getScaleFactor();
-    if (this.isCurs3dProfile && this.profile.pet.stage !== "egg") {
-      drawCurs3dPet(ctx, this.petX, petY, size, this.animation.getWobble());
+    const rotation = this.animation.getRotation();
+    const transformed = rotation !== 0;
+    if (transformed) {
+      ctx.save();
+      ctx.translate(petX, petY);
+      ctx.rotate(rotation);
+      ctx.translate(-petX, -petY);
+    }
+    const dancerMode =
+      isModEnabled(MOD_TM_DANCER_KEY) &&
+      this.profile.name.trim().toLowerCase() === "dancer";
+    if (dancerMode) {
+      drawDancingMannequin(
+        ctx,
+        petX,
+        petY,
+        size,
+        this.profile.pet.stage,
+        this.profile.pet.carePoints
+      );
+    } else if (this.isCurs3dProfile && this.profile.pet.stage !== "egg") {
+      drawCurs3dPet(ctx, petX, petY, size, this.animation.getWobble());
     } else {
-      drawPet(ctx, this.profile.pet.stage, this.petX, petY, size, {
+      drawPet(ctx, this.profile.pet.stage, petX, petY, size, {
         wobble: this.animation.getWobble(),
         blink: this.animation.getIsBlinking(),
         theme: getCurrentTheme(),
       });
     }
+    if (transformed) ctx.restore();
 
     this.particles.draw(ctx);
     if (this.glitchManager) this.glitchManager.draw(ctx, 800, 600);

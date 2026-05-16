@@ -394,3 +394,459 @@ export const MAZE_MAPS: readonly MazeMap[] = [
 ];
 
 export const NORMALIZED_MAZE_MAPS = MAZE_MAPS.map((map) => normalizeMazeMap(map));
+
+const mazeXSecretTerrain = [
+  "############################",
+  "#..........................#",
+  "##########################.#",
+  "#..........................#",
+  "#.##########################",
+  "#..........................#",
+  "##########################.#",
+  "#..........................#",
+  "#.##########################",
+  "#..........................#",
+  "############################",
+];
+
+const mazeXWallPhaserTerrain = [
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#..............#",
+  "################",
+];
+
+const mazeXChainTerrain = [
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#.....##.......#",
+  "################",
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#..............#",
+  "################",
+];
+
+const mazeXReverseTerrain = [
+  "####################",
+  "#..................#",
+  "####################",
+  "####################",
+  "#..................#",
+  "####################",
+  "####################",
+  "#..................#",
+  "####################",
+  "####################",
+  "#..................#",
+  "####################",
+];
+
+const mazeXRotationTerrain = [
+  "##############",
+  "#............#",
+  "###########.##",
+  "###########.##",
+  "#............#",
+  "#.############",
+  "#.############",
+  "#............#",
+  "##############",
+];
+
+const mazeXGatewayTerrain = [
+  "################",
+  "#..............#",
+  "##############.#",
+  "##############.#",
+  "#..............#",
+  "############.###",
+  "############.###",
+  "############.###",
+  "#..............#",
+  "################",
+];
+
+const mazeXPhaseAndRotateTerrain = [
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#..............#",
+  "##############.#",
+  "##############.#",
+  "#..............#",
+  "################",
+];
+
+const mazeXChainGatesTerrain = [
+  "##################",
+  "#................#",
+  "################.#",
+  "################.#",
+  "#................#",
+  "#.################",
+  "#.################",
+  "#.################",
+  "#.################",
+  "#................#",
+  "##################",
+];
+
+const mazeXElsaTerrain = [
+  "################",
+  "#..............#",
+  "##############.#",
+  "##############.#",
+  "#..............#",
+  "#.##############",
+  "#.##############",
+  "#.##############",
+  "################",
+  "#..............#",
+  "################",
+];
+
+const mazeXSnapperAlleyTerrain = [
+  "############",
+  "#..........#",
+  "##########.#",
+  "##########.#",
+  "#..........#",
+  "############",
+  "#.##########",
+  "############",
+  "#.##########",
+  "############",
+  "#..........#",
+  "############",
+];
+
+const mazeXTriplePlayTerrain = [
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#..............#",
+  "##############.#",
+  "##############.#",
+  "################",
+  "##############.#",
+  "##############.#",
+  "#..............#",
+  "################",
+];
+
+const mazeXTightSqueezeTerrain = [
+  "##############",
+  "#............#",
+  "##############",
+  "##############",
+  "#............#",
+  "##############",
+  "############.#",
+  "#............#",
+  "##############",
+];
+
+const mazeXHookshotTerrain = [
+  "#######################",
+  "#.....................#",
+  "#######################",
+  "#######################",
+  "#.....................#",
+  "#####################.#",
+  "#####################.#",
+  "#####################.#",
+  "#.....................#",
+  "#######################",
+];
+
+const mazeXSlideAndSnapTerrain = [
+  "################",
+  "#..............#",
+  "################",
+  "################",
+  "#..............#",
+  "################",
+  "#..............#",
+  "################",
+];
+
+const mazeXFullHouseTerrain = [
+  "##################",
+  "#................#",
+  "##################",
+  "##################",
+  "#................#",
+  "################.#",
+  "################.#",
+  "##################",
+  "################.#",
+  "################.#",
+  "#................#",
+  "##################",
+];
+
+const mazeXDescentTerrain = [
+  "############",
+  "#..........#",
+  "############",
+  "############",
+  "#..........#",
+  "##########.#",
+  "##########.#",
+  "##########.#",
+  "##########.#",
+  "#..........#",
+  "############",
+  "############",
+  "#..........#",
+  "############",
+];
+
+const mazeXFinalTerrain = [
+  "#####",
+  "#...#",
+  "#####",
+];
+
+export const MAZE_X_SECRET_MAPS = [
+  normalizeMazeMap(
+    createMazeMap(
+      999,
+      "MAZE_X: 0",
+      mazeXSecretTerrain,
+      { x: 1, y: 1 },
+      { x: 13, y: 9 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1000,
+      "MAZE_X: 1 — PHASE TEST",
+      mazeXWallPhaserTerrain,
+      { x: 1, y: 1 },
+      { x: 14, y: 7 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1001,
+      "MAZE_X: 2 — DOUBLE BACK",
+      mazeXChainTerrain,
+      { x: 1, y: 1 },
+      { x: 13, y: 10 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1002,
+      "MAZE_X: 3 — REVERSE PHASE",
+      mazeXReverseTerrain,
+      { x: 1, y: 10 },
+      { x: 18, y: 1 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1003,
+      "MAZE_X: 4 — ROTATION",
+      mazeXRotationTerrain,
+      { x: 1, y: 1 },
+      { x: 12, y: 7 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1004,
+      "MAZE_X: 5 — GATEWAY",
+      mazeXGatewayTerrain,
+      { x: 1, y: 1 },
+      { x: 13, y: 8 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1005,
+      "MAZE_X: 6 — PHASE & ROTATE",
+      mazeXPhaseAndRotateTerrain,
+      { x: 1, y: 1 },
+      { x: 14, y: 7 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1006,
+      "MAZE_X: 7 — CHAIN GATES",
+      mazeXChainGatesTerrain,
+      { x: 1, y: 1 },
+      { x: 16, y: 9 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1007,
+      "MAZE_X: 8 — ELSA",
+      mazeXElsaTerrain,
+      { x: 1, y: 1 },
+      { x: 14, y: 9 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1008,
+      "MAZE_X: 9 — SNAPPER ALLEY",
+      mazeXSnapperAlleyTerrain,
+      { x: 1, y: 1 },
+      { x: 10, y: 10 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1009,
+      "MAZE_X: 10 — TRIPLE PLAY",
+      mazeXTriplePlayTerrain,
+      { x: 1, y: 1 },
+      { x: 14, y: 10 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1010,
+      "MAZE_X: 11 — TIGHT SQUEEZE",
+      mazeXTightSqueezeTerrain,
+      { x: 1, y: 1 },
+      { x: 12, y: 7 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1011,
+      "MAZE_X: 12 — HOOKSHOT",
+      mazeXHookshotTerrain,
+      { x: 1, y: 1 },
+      { x: 1, y: 8 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1012,
+      "MAZE_X: 13 — SLIDE & SNAP",
+      mazeXSlideAndSnapTerrain,
+      { x: 1, y: 1 },
+      { x: 14, y: 6 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1013,
+      "MAZE_X: 14 — FULL HOUSE",
+      mazeXFullHouseTerrain,
+      { x: 1, y: 1 },
+      { x: 1, y: 10 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1014,
+      "MAZE_X: 15 — DESCENT",
+      mazeXDescentTerrain,
+      { x: 1, y: 1 },
+      { x: 1, y: 12 },
+      []
+    )
+  ),
+  normalizeMazeMap(
+    createMazeMap(
+      1015,
+      "MAZE_X: 16",
+      mazeXFinalTerrain,
+      { x: 1, y: 1 },
+      { x: 3, y: 1 },
+      []
+    )
+  ),
+];
+
+export const MAZE_X_FINAL_MAP_ID = 1015;
+
+export interface MazeXBreakable {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export const MAZE_X_BREAKABLES: Record<number, MazeXBreakable[]> = {
+  1007: [{ id: "b1", x: 1, y: 8 }],
+  1008: [
+    { id: "b1", x: 1, y: 5 },
+    { id: "b2", x: 1, y: 7 },
+    { id: "b3", x: 1, y: 9 },
+  ],
+  1009: [{ id: "b1", x: 14, y: 7 }],
+  1010: [{ id: "b1", x: 12, y: 5 }],
+  1012: [{ id: "b1", x: 14, y: 5 }],
+  1013: [{ id: "b1", x: 16, y: 7 }],
+};
+
+export interface MazeXRotor {
+  id: string;
+  x: number;
+  y: number;
+  startOpen?: boolean;
+}
+
+export interface MazeXWalkie {
+  id: string;
+  x: number;
+  y: number;
+  transmissionId: string;
+}
+
+export const MAZE_X_ROTORS: Record<number, MazeXRotor[]> = {
+  1003: [{ id: "r1", x: 2, y: 4 }],
+  1004: [{ id: "r1", x: 12, y: 5 }],
+  1005: [{ id: "r1", x: 13, y: 4 }],
+  1006: [
+    { id: "r1", x: 1, y: 5 },
+    { id: "r2", x: 1, y: 7 },
+  ],
+  1009: [{ id: "r1", x: 13, y: 4 }],
+  1010: [{ id: "r1", x: 2, y: 4 }],
+  1013: [{ id: "r1", x: 16, y: 4 }],
+  1014: [{ id: "r1", x: 10, y: 4 }],
+};
+
+export const MAZE_X_WALKIES: Record<number, MazeXWalkie[]> = {
+  1003: [{ id: "w-rotation", x: 11, y: 4, transmissionId: "rotation" }],
+  1007: [{ id: "w-elsa", x: 1, y: 5, transmissionId: "elsa" }],
+  1011: [{ id: "w-hookshot", x: 21, y: 1, transmissionId: "hookshot" }],
+  1015: [{ id: "w-ending", x: 3, y: 1, transmissionId: "ending" }],
+};
+
+export const MAZE_X_SECRET_MAP = MAZE_X_SECRET_MAPS[0]!;

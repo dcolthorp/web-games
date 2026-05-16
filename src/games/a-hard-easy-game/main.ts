@@ -13,6 +13,9 @@ import {
   TM_DELETED_FROM_HUB_KEY,
 } from "../../shared/ahegTrophy";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
+import { installOofShortcut } from "../../shared/oofShortcut";
+
+installOofShortcut();
 
 interface Vector2 {
   x: number;

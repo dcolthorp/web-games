@@ -7,6 +7,9 @@ import {
 } from "./shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "./shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "./shared/forceRefreshHotkey";
+import { installOofShortcut } from "./shared/oofShortcut";
+
+installOofShortcut();
 
 interface Game {
   id: string;

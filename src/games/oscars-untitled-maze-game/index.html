@@ -51,6 +51,7 @@
       <section class="hud">
         <p id="level-name">Level 1: The Basics</p>
         <p id="status">Use arrow keys, WASD, or tap the controls.</p>
+        <p id="gadget-hud" class="gadget-hud hidden" aria-live="polite"></p>
       </section>
 
       <div class="canvas-wrap">
@@ -115,6 +116,39 @@
         </div>
         <div id="level-selector-list" class="selector-list"></div>
       </div>
+    </div>
+
+    <div id="maze-x-crash" class="maze-x-crash" aria-hidden="true">
+      <div class="maze-x-crash-glitch"></div>
+      <div class="maze-x-crash-card">
+        <p class="maze-x-crash-title">Aw, Snap!</p>
+        <p class="maze-x-crash-text">Something went wrong while displaying this webpage.</p>
+        <p class="maze-x-crash-code">Error code: MAZE_X_BREACH</p>
+      </div>
+    </div>
+
+    <div id="wall-phaser-overlay" class="wall-phaser-overlay" aria-hidden="true">
+      <div class="wall-phaser-card">
+        <p class="wall-phaser-kicker">ITEM ACQUIRED</p>
+        <h2 class="wall-phaser-title">Wall Phaser</h2>
+        <p class="wall-phaser-flavor">Phase through walls. Reality optional.</p>
+        <button id="wall-phaser-close" type="button" class="wall-phaser-btn">OK</button>
+      </div>
+    </div>
+
+    <div id="maze-x-overlay" class="maze-x-overlay" aria-hidden="true">
+      <div class="maze-x-walkie" role="presentation">
+        <div class="maze-x-walkie-antenna"></div>
+        <div class="maze-x-walkie-body">
+          <div class="maze-x-walkie-led"></div>
+          <div class="maze-x-walkie-screen">
+            <p id="maze-x-subtitle" class="maze-x-subtitle"></p>
+          </div>
+          <div class="maze-x-walkie-grille"></div>
+          <div class="maze-x-walkie-knob"></div>
+        </div>
+      </div>
+      <button id="maze-x-close-btn" class="maze-x-close-btn" type="button">END TRANSMISSION</button>
     </div>
 
     <script type="module" src="./main.ts"></script>

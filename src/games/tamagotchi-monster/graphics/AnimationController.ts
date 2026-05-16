@@ -1,4 +1,10 @@
+import { MOD_TM_MORE_ANIMATIONS_KEY, isModEnabled } from "../../../shared/mods";
+
 export type AnimationType = "idle" | "eat" | "brush" | "happy" | "evolve";
+
+type IdleVariant = "bounce" | "sway" | "spin" | "wiggle" | "hop";
+const IDLE_VARIANTS: IdleVariant[] = ["bounce", "sway", "spin", "wiggle", "hop"];
+const IDLE_VARIANT_DURATION = 4.0;
 
 export class AnimationController {
   currentAnimation: AnimationType = "idle";
@@ -7,6 +13,9 @@ export class AnimationController {
   isBlinking = false;
   wobblePhase = 0;
   private evolveJustCompleted = false;
+  private idleTimer = 0;
+  private idleVariantIndex = 0;
+  private moreAnimations = isModEnabled(MOD_TM_MORE_ANIMATIONS_KEY);
 
   eatDuration = 1.5;
   brushDuration = 2.0;
@@ -18,6 +27,16 @@ export class AnimationController {
   update(dt: number): void {
     this.animationTimer += dt;
     this.wobblePhase += dt * 3;
+
+    if (this.currentAnimation === "idle" && this.moreAnimations) {
+      this.idleTimer += dt;
+      if (this.idleTimer >= IDLE_VARIANT_DURATION) {
+        this.idleTimer = 0;
+        this.idleVariantIndex = (this.idleVariantIndex + 1) % IDLE_VARIANTS.length;
+      }
+    } else {
+      this.idleTimer = 0;
+    }
 
     this.blinkTimer += dt;
     if (this.isBlinking) {
@@ -89,7 +108,36 @@ export class AnimationController {
 
   getBounceOffset(): number {
     if (this.currentAnimation === "happy") return Math.sin(this.animationTimer * 15) * 10;
-    if (this.currentAnimation === "idle") return Math.sin(this.animationTimer * 2) * 3;
+    if (this.currentAnimation === "idle") {
+      if (this.moreAnimations) {
+        const variant = IDLE_VARIANTS[this.idleVariantIndex];
+        const t = this.animationTimer;
+        if (variant === "hop") return Math.max(0, Math.sin(t * 6)) * 18;
+        if (variant === "sway") return Math.sin(t * 1.2) * 2;
+        if (variant === "wiggle") return Math.sin(t * 8) * 2;
+        if (variant === "spin") return Math.sin(t * 2) * 3;
+      }
+      return Math.sin(this.animationTimer * 2) * 3;
+    }
+    return 0;
+  }
+
+  getRotation(): number {
+    if (!this.moreAnimations) return 0;
+    if (this.currentAnimation !== "idle") return 0;
+    const variant = IDLE_VARIANTS[this.idleVariantIndex];
+    const t = this.animationTimer;
+    if (variant === "spin") return Math.sin(t * 2.5) * 0.35;
+    if (variant === "wiggle") return Math.sin(t * 10) * 0.12;
+    if (variant === "sway") return Math.sin(t * 1.5) * 0.18;
+    return 0;
+  }
+
+  getHorizontalOffset(): number {
+    if (!this.moreAnimations) return 0;
+    if (this.currentAnimation !== "idle") return 0;
+    const variant = IDLE_VARIANTS[this.idleVariantIndex];
+    if (variant === "sway") return Math.sin(this.animationTimer * 1.2) * 14;
     return 0;
   }
 

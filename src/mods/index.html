@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mods &amp; DLCs</title>
+    <link rel="stylesheet" href="../styles/main.css" />
+  </head>
+  <body>
+    <main class="menu-shell">
+      <section class="hero-panel">
+        <p class="eyebrow">Bolt-ons, hack-jobs &amp; honest expansions</p>
+        <div class="title-row">
+          <h1>Mods &amp; DLCs</h1>
+          <a class="hub-toggle" href="../" aria-label="Back to Games">
+            <svg viewBox="0 0 32 24" aria-hidden="true" focusable="false">
+              <path d="M3 5 L16 18 L29 5" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
+        </div>
+        <p class="subtitle">Half official. Half not. All suspicious.</p>
+        <div class="hero-stripes" aria-hidden="true"></div>
+      </section>
+
+      <section class="menu-container split-container" aria-label="Mods and DLCs">
+        <div class="split-half" aria-labelledby="dlcs-heading">
+          <div class="section-header">
+            <h2 id="dlcs-heading">DLCs</h2>
+            <p class="section-copy">Officially-ish sanctioned expansions.</p>
+          </div>
+          <ul class="game-list" id="dlc-list">
+            <li class="empty-state">No DLCs yet.</li>
+          </ul>
+        </div>
+        <div class="split-half" aria-labelledby="mods-heading">
+          <div class="section-header">
+            <h2 id="mods-heading">Mods</h2>
+            <p class="section-copy">Unofficial tinkering. Use at own risk.</p>
+          </div>
+          <ul class="game-list" id="mod-list">
+            <li class="empty-state">No mods yet.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

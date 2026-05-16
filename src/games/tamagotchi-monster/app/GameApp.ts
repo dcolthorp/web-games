@@ -20,6 +20,7 @@ import { ProfileSettingsScene } from "../scenes/ProfileSettingsScene";
 import { DeleteConfirmScene } from "../scenes/DeleteConfirmScene";
 import { MonsterIndexScene } from "../scenes/MonsterIndexScene";
 import { LeschatScene } from "../scenes/LeschatScene";
+import { MOD_TM_MORE_ANIMATIONS_KEY, isModEnabled } from "../../../shared/mods";
 
 type GameState =
   | "profile_select"
@@ -64,6 +65,10 @@ export class GameApp {
   private leschatScene: LeschatScene | null = null;
   private preIndexState: GameState | null = null;
   private settingsProfile: Profile | null = null;
+  private lastRenderedState: GameState | null = null;
+  private transitionTime = 0;
+  private readonly transitionDuration = 0.45;
+  private readonly moreAnimations = isModEnabled(MOD_TM_MORE_ANIMATIONS_KEY);
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas);
@@ -413,12 +418,38 @@ export class GameApp {
 
     this.update(dtSeconds);
 
+    if (this.moreAnimations) {
+      if (this.state !== this.lastRenderedState) {
+        this.transitionTime = 0;
+        this.lastRenderedState = this.state;
+      } else {
+        this.transitionTime += dtSeconds;
+      }
+    }
+
     this.renderer.clear("#000");
     this.renderer.beginLogical();
     this.render(this.renderer.ctx);
+    this.drawTransitionOverlay(this.renderer.ctx);
 
     requestAnimationFrame(this.tick);
   };
+
+  private drawTransitionOverlay(ctx: CanvasRenderingContext2D): void {
+    if (!this.moreAnimations) return;
+    if (this.transitionTime >= this.transitionDuration) return;
+    const p = this.transitionTime / this.transitionDuration;
+    const w = 800;
+    const h = 600;
+    const flashAlpha = Math.max(0, 0.55 * (1 - p));
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha.toFixed(3)})`;
+    ctx.fillRect(0, 0, w, h);
+    const wipeFrac = Math.min(1, p * 1.4);
+    ctx.fillStyle = "rgba(15, 15, 20, 0.55)";
+    ctx.fillRect(0, h * wipeFrac, w, h);
+    ctx.restore();
+  }
 
   private update(dt: number): void {
     switch (this.state) {

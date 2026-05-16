@@ -6,6 +6,9 @@ import {
 } from "../../shared/ahegTrophy";
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
+import { installOofShortcut } from "../../shared/oofShortcut";
+
+installOofShortcut();
 
 const AKL_TROPHY_DOOM_STARTED_KEY = "a-kids-life-trophy-doom-started";
 

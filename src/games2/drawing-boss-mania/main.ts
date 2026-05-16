@@ -1,3 +1,7 @@
+import { installOofShortcut } from "../../shared/oofShortcut";
+
+installOofShortcut();
+
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error("Game canvas missing");
@@ -74,7 +78,13 @@ interface Attack {
     | "redslime"
     | "redlaser"
     | "tornado"
-    | "fireball";
+    | "fireball"
+    | "portalreverse"
+    | "portaldrop"
+    | "portalsize"
+    | "dashorb"
+    | "spikeshot"
+    | "grabhand";
   rectX: number;
   rectY: number;
   rectW: number;
@@ -255,6 +265,7 @@ const BOSS_ROSTER_BASE: BossInfo[] = [
   { id: "mrpencil", name: "MR. PENCIL", blurb: "Sword. Hammer that quakes the floor. Shield. No platforms." },
   { id: "elemental", name: "THE ELEMENTAL", blurb: "Air → Earth → Fire → Water → Master. Each phase needs its own element bits." },
   { id: "beatrix", name: "BEATRIX LEBEAU", blurb: "Slime rancher with a vacpack. You're a carrot. Red slimes one-shot you. Grab tarrs." },
+  { id: "geom", name: "GEOMETRY DASH", blurb: "Tiny/big portals, reverse portal, drop portal, dash orbs. Spikes auto-fire at it." },
 ];
 
 let BOSS_ROSTER: BossInfo[] = [...BOSS_ROSTER_BASE];
@@ -278,7 +289,8 @@ function getNextBoss(id: string): string | null {
     pacman: "mrpencil",
     mrpencil: "elemental",
     elemental: "beatrix",
-    beatrix: customBossExists() ? "custom" : null,
+    beatrix: "geom",
+    geom: customBossExists() ? "custom" : null,
     custom: null,
   };
   return map[id] ?? null;
@@ -583,6 +595,314 @@ let chordToggleArmed = true;
 
 let playerLifted = false;
 let playerSubmergedTime = 0;
+
+// Lazily-created AudioContext for synthesized SFX (heartbeat).
+let audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  if (audioCtx) return audioCtx;
+  try {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    audioCtx = new Ctor();
+  } catch {
+    audioCtx = null;
+  }
+  return audioCtx;
+}
+
+function playHeartbeatThump(when: number, gainScale = 1): void {
+  const ac = getAudioCtx();
+  if (!ac) return;
+  const t0 = ac.currentTime + when;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.frequency.setValueAtTime(95, t0);
+  osc.frequency.exponentialRampToValueAtTime(38, t0 + 0.18);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.45 * gainScale, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+  osc.connect(gain).connect(ac.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.25);
+}
+
+let lastHeartbeatTime = -10;
+
+interface ObbySpike { x: number; y: number; size: number; }
+interface ObbyPlatform { x: number; y: number; w: number; h: number; }
+let obbyTimer = 0;
+let obbyDifficulty = 1;
+let obbyPlayerX = 0;
+let obbyPlayerY = 0;
+let obbyPlayerVx = 0;
+let obbyPlayerVy = 0;
+let obbyPlayerOnGround = true;
+let obbyPlayerFacing: 1 | -1 = 1;
+let obbySpikes: ObbySpike[] = [];
+let obbyPlatforms: ObbyPlatform[] = [];
+let obbyJumpHeld = false;
+const OBBY_GROUND_Y = HEIGHT - 70;
+const OBBY_CUBE_R = 18;
+const OBBY_SPEED = 320;
+const OBBY_JUMP_VELOCITY = 760;
+const OBBY_GRAVITY = 2200;
+const OBBY_GOAL_X = WIDTH - 50;
+
+function generateObbyCourse(diff: number): { spikes: ObbySpike[]; platforms: ObbyPlatform[] } {
+  const spikes: ObbySpike[] = [];
+  const platforms: ObbyPlatform[] = [];
+  // Sprinkle spikes through the middle band — spawn and goal stay clear.
+  const startSafe = 110;
+  const goalSafe = WIDTH - 150;
+  const spikeCount = 2 + diff;
+  for (let i = 0; i < spikeCount; i++) {
+    const x = startSafe + Math.random() * (goalSafe - startSafe);
+    spikes.push({ x, y: OBBY_GROUND_Y, size: 26 });
+    if (diff >= 3 && Math.random() < 0.4) {
+      spikes.push({ x: x + 28 + Math.random() * 14, y: OBBY_GROUND_Y, size: 26 });
+    }
+  }
+  // Floating platforms — more at higher difficulty, lower height as it scales.
+  const platformCount = 1 + Math.floor(diff / 2);
+  for (let i = 0; i < platformCount; i++) {
+    const x = startSafe + 60 + Math.random() * (goalSafe - startSafe - 120);
+    const y = OBBY_GROUND_Y - 70 - Math.random() * 80;
+    const w = Math.max(70, 120 - diff * 6);
+    platforms.push({ x, y, w, h: 12 });
+    // Higher difficulty: spikes on top of some platforms.
+    if (diff >= 4 && Math.random() < 0.45) {
+      spikes.push({ x: x + w / 2, y, size: 20 });
+    }
+  }
+  return { spikes, platforms };
+}
+
+function startObby(): void {
+  setScene("obby");
+  obbyTimer = 5;
+  obbyPlayerX = 60;
+  obbyPlayerY = OBBY_GROUND_Y - OBBY_CUBE_R;
+  obbyPlayerVx = 0;
+  obbyPlayerVy = 0;
+  obbyPlayerOnGround = true;
+  obbyPlayerFacing = 1;
+  obbyJumpHeld = false;
+  const course = generateObbyCourse(obbyDifficulty);
+  obbySpikes = course.spikes;
+  obbyPlatforms = course.platforms;
+  for (let i = attacks.length - 1; i >= 0; i--) {
+    if (attacks[i]?.kind === "grabhand") attacks.splice(i, 1);
+  }
+}
+
+function endObbySuccess(): void {
+  obbyDifficulty += 1;
+  // Restore player to a safe spot in the boss arena.
+  player.x = 200;
+  player.y = GROUND_Y;
+  player.vx = 0;
+  player.vy = 0;
+  player.onGround = true;
+  player.invuln = 1.5;
+  setScene("fight");
+}
+
+function endObbyFail(): void {
+  player.hp = 0;
+  gameState = bossMode ? "won" : "lost";
+  setScene("results");
+}
+
+function updateObby(dt: number): void {
+  if (paused) return;
+  obbyTimer -= dt;
+
+  const left = keys.has("ArrowLeft") || keys.has("a") || keys.has("A");
+  const right = keys.has("ArrowRight") || keys.has("d") || keys.has("D");
+  const wantsJump = keys.has(" ") || keys.has("ArrowUp") || keys.has("w") || keys.has("W");
+
+  if (left && !right) {
+    obbyPlayerVx = -OBBY_SPEED;
+    obbyPlayerFacing = -1;
+  } else if (right && !left) {
+    obbyPlayerVx = OBBY_SPEED;
+    obbyPlayerFacing = 1;
+  } else {
+    obbyPlayerVx = 0;
+  }
+
+  if (wantsJump && !obbyJumpHeld && obbyPlayerOnGround) {
+    obbyPlayerVy = -OBBY_JUMP_VELOCITY;
+    obbyPlayerOnGround = false;
+  }
+  obbyJumpHeld = wantsJump;
+
+  const prevBottom = obbyPlayerY + OBBY_CUBE_R;
+  obbyPlayerVy += OBBY_GRAVITY * dt;
+  obbyPlayerX += obbyPlayerVx * dt;
+  obbyPlayerY += obbyPlayerVy * dt;
+  obbyPlayerX = clampN(obbyPlayerX, OBBY_CUBE_R, WIDTH - OBBY_CUBE_R);
+
+  obbyPlayerOnGround = false;
+  // One-way platform collision (only land from above).
+  if (obbyPlayerVy >= 0) {
+    for (const p of obbyPlatforms) {
+      if (
+        obbyPlayerX + OBBY_CUBE_R > p.x &&
+        obbyPlayerX - OBBY_CUBE_R < p.x + p.w &&
+        prevBottom <= p.y + 1 &&
+        obbyPlayerY + OBBY_CUBE_R >= p.y
+      ) {
+        obbyPlayerY = p.y - OBBY_CUBE_R;
+        obbyPlayerVy = 0;
+        obbyPlayerOnGround = true;
+        break;
+      }
+    }
+  }
+  if (obbyPlayerY + OBBY_CUBE_R >= OBBY_GROUND_Y) {
+    obbyPlayerY = OBBY_GROUND_Y - OBBY_CUBE_R;
+    obbyPlayerVy = 0;
+    obbyPlayerOnGround = true;
+  }
+
+  // Spike collision.
+  for (const spike of obbySpikes) {
+    const dx = Math.abs(obbyPlayerX - spike.x);
+    const cubeBottom = obbyPlayerY + OBBY_CUBE_R;
+    const cubeTop = obbyPlayerY - OBBY_CUBE_R;
+    const apex = spike.y - spike.size;
+    if (
+      dx < OBBY_CUBE_R + spike.size / 2 - 5 &&
+      cubeBottom > apex + 3 &&
+      cubeTop < spike.y - 2
+    ) {
+      endObbyFail();
+      return;
+    }
+  }
+
+  // Reach the goal flag.
+  if (obbyPlayerX >= OBBY_GOAL_X) {
+    endObbySuccess();
+    return;
+  }
+
+  // Time out.
+  if (obbyTimer <= 0) {
+    endObbyFail();
+  }
+}
+
+function drawObby(): void {
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  // Parallax background stripes.
+  ctx.fillStyle = "rgba(255,255,255,0.04)";
+  for (let i = 0; i < 14; i++) {
+    ctx.fillRect(i * 90 + 20, 0, 28, HEIGHT);
+  }
+  // Floor.
+  ctx.fillStyle = "#0a0a14";
+  ctx.fillRect(0, OBBY_GROUND_Y, WIDTH, HEIGHT - OBBY_GROUND_Y);
+  ctx.fillStyle = "#3a78ff";
+  ctx.fillRect(0, OBBY_GROUND_Y, WIDTH, 4);
+
+  // Spawn pad highlight.
+  ctx.fillStyle = "rgba(120, 220, 120, 0.25)";
+  ctx.fillRect(0, OBBY_GROUND_Y - 4, 100, 4);
+
+  // Goal flag.
+  ctx.fillStyle = "#0a0a14";
+  ctx.fillRect(OBBY_GOAL_X - 2, OBBY_GROUND_Y - 90, 4, 90);
+  ctx.fillStyle = "#3aff8a";
+  ctx.beginPath();
+  ctx.moveTo(OBBY_GOAL_X + 2, OBBY_GROUND_Y - 88);
+  ctx.lineTo(OBBY_GOAL_X + 38, OBBY_GROUND_Y - 76);
+  ctx.lineTo(OBBY_GOAL_X + 2, OBBY_GROUND_Y - 64);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Platforms.
+  for (const p of obbyPlatforms) {
+    ctx.fillStyle = "#3a78ff";
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
+  }
+
+  // Spikes.
+  for (const spike of obbySpikes) {
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(spike.x - spike.size / 2, spike.y);
+    ctx.lineTo(spike.x + spike.size / 2, spike.y);
+    ctx.lineTo(spike.x, spike.y - spike.size);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Player cube.
+  ctx.save();
+  ctx.translate(obbyPlayerX, obbyPlayerY);
+  if (!obbyPlayerOnGround) ctx.rotate(elapsed * 6 * obbyPlayerFacing);
+  drawGeomCubeAt(0, 0, OBBY_CUBE_R, false);
+  ctx.restore();
+
+  // HUD.
+  ctx.fillStyle = "#fff";
+  ctx.font = "italic bold 56px 'Comic Sans MS', cursive";
+  ctx.textAlign = "center";
+  ctx.fillText(obbyTimer.toFixed(1), WIDTH / 2, 70);
+  ctx.font = "italic 18px 'Comic Sans MS', cursive";
+  ctx.fillStyle = "#a0c0ff";
+  ctx.fillText(`REACH THE FLAG  —  WAVE ${obbyDifficulty}`, WIDTH / 2, 100);
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.font = "italic 14px 'Comic Sans MS', cursive";
+  ctx.fillText("← → move   ·   SPACE / ↑ jump", WIDTH / 2, 122);
+}
+function pumpHeartbeat(active: boolean, intensity: number): void {
+  if (!active) {
+    lastHeartbeatTime = elapsed - 10;
+    return;
+  }
+  // Faster heartbeat as intensity climbs.
+  const interval = 1.0 - intensity * 0.45; // 1.0s → 0.55s
+  if (elapsed - lastHeartbeatTime > interval) {
+    playHeartbeatThump(0, intensity);
+    playHeartbeatThump(0.16, intensity * 0.85);
+    lastHeartbeatTime = elapsed;
+  }
+}
+
+function drawHorrorVignette(intensity: number): void {
+  if (intensity <= 0) return;
+  const beat = Math.max(
+    Math.pow(Math.max(0, Math.sin(elapsed * 6)), 8),
+    Math.pow(Math.max(0, Math.sin((elapsed - 0.16) * 6)), 8),
+  );
+  const alpha = 0.55 * intensity * (0.5 + beat * 0.5);
+  const grad = ctx.createRadialGradient(
+    WIDTH / 2,
+    HEIGHT / 2,
+    Math.min(WIDTH, HEIGHT) * 0.18,
+    WIDTH / 2,
+    HEIGHT / 2,
+    Math.max(WIDTH, HEIGHT) * 0.7,
+  );
+  grad.addColorStop(0, "rgba(140, 0, 0, 0)");
+  grad.addColorStop(0.55, `rgba(160, 0, 0, ${alpha * 0.4})`);
+  grad.addColorStop(1, `rgba(180, 0, 0, ${alpha})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+}
 type Scene =
   | "intro"
   | "fight"
@@ -592,7 +912,8 @@ type Scene =
   | "bossmode"
   | "warmup"
   | "levelselect"
-  | "bosscreator";
+  | "bosscreator"
+  | "obby";
 let scene: Scene = "intro";
 let sceneTime = 0;
 
@@ -620,6 +941,7 @@ const PAUSE_BTN_HIDDEN_SCENES: ReadonlySet<Scene> = new Set<Scene>([
   "bossmode",
   "levelselect",
   "bosscreator",
+  "obby",
 ]);
 
 function pauseButtonVisible(): boolean {
@@ -759,6 +1081,7 @@ function resetBossFight(): void {
     currentBossId === "mrpencil" ||
     currentBossId === "elemental" ||
     currentBossId === "beatrix" ||
+    currentBossId === "geom" ||
     (currentBossId === "custom" && !customBossConfig.platforms);
   if (!skipPlatforms) {
     buildPlatformLayout();
@@ -786,6 +1109,12 @@ function resetFight(): void {
     boss.homeY = 220;
     boss.radius = 70;
     boss.hpMax = 100;
+  } else if (currentBossId === "geom") {
+    boss.homeX = WIDTH - 140;
+    boss.homeY = 200;
+    boss.radius = 36;
+    boss.hpMax = 110;
+    obbyDifficulty = 1;
   } else if (currentBossId === "custom") {
     boss.homeX = WIDTH / 2;
     boss.homeY = 220;
@@ -835,6 +1164,7 @@ function resetFight(): void {
     currentBossId === "mrpencil" ||
     currentBossId === "elemental" ||
     currentBossId === "beatrix" ||
+    currentBossId === "geom" ||
     (currentBossId === "custom" && !customBossConfig.platforms);
   if (!skipPlatforms) {
     buildPlatformLayout();
@@ -847,7 +1177,7 @@ interface Pellet {
   platformIndex: number;
   bobPhase: number;
   id: number;
-  kind: "white" | "eraser" | Element | "tarr";
+  kind: "white" | "eraser" | Element | "tarr" | "spike";
 }
 const pellets: Pellet[] = [];
 let pelletSpawnTimer = 1.5;
@@ -883,7 +1213,13 @@ function buildPlatformLayout(): void {
 buildPlatformLayout();
 
 const keys = new Set<string>();
+function isTextFieldFocused(): boolean {
+  const ae = document.activeElement;
+  return ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement;
+}
 window.addEventListener("keydown", (event) => {
+  // Don't swallow keys while the user is typing in a real text field.
+  if (isTextFieldFocused()) return;
   if (
     event.key === "ArrowLeft" ||
     event.key === "ArrowRight" ||
@@ -968,6 +1304,10 @@ function handleClickAt(mx: number, my: number): void {
 }
 
 canvas.addEventListener("click", (event) => {
+  const ac = getAudioCtx();
+  if (ac && ac.state === "suspended") {
+    void ac.resume();
+  }
   const rect = canvas.getBoundingClientRect();
   const sx = canvas.width / rect.width;
   const sy = canvas.height / rect.height;
@@ -1499,10 +1839,8 @@ function aabbOverlap(a: { x: number; y: number; w: number; h: number }, b: { x: 
 
 function spawnAttack(): void {
   if (attacks.length > 0) return;
-  if (boss.phase === "ghost") {
-    spawnLaserAttack();
-    return;
-  }
+  // Per-boss branches first, since some bosses use the "ghost" phase as their
+  // own phase 2 (Geom, Mr. Pencil) and need their own attack pools.
   if (currentBossId === "mrpencil") {
     spawnPencilAttack();
     return;
@@ -1513,6 +1851,14 @@ function spawnAttack(): void {
   }
   if (currentBossId === "beatrix") {
     spawnRedSlime();
+    return;
+  }
+  if (currentBossId === "geom") {
+    spawnGeomAttack();
+    return;
+  }
+  if (boss.phase === "ghost") {
+    spawnLaserAttack();
     return;
   }
   if (currentBossId === "custom") {
@@ -2308,6 +2654,431 @@ function drawRedLaserAttack(a: Attack): void {
   ctx.restore();
 }
 
+function spawnGeomAttack(): void {
+  if (boss.phase === "ghost") {
+    // Phase 2: stretch a black hand at the player.
+    spawnGrabHand();
+    return;
+  }
+  const r = Math.random();
+  if (r < 0.25) spawnReversePortal();
+  else if (r < 0.5) spawnDropPortal();
+  else if (r < 0.75) spawnDashOrb();
+  else spawnSizePortal();
+}
+
+function spawnReversePortal(): void {
+  attacks.push({
+    kind: "portalreverse",
+    rectX: WIDTH / 2,
+    rectY: GROUND_Y - 130,
+    rectW: 0, rectH: 0,
+    horizontal: true, travelDir: 1,
+    warnTime: 1.0,
+    traverseTime: 0, traverseDuration: 0,
+    trackTime: 0, lockTime: 0, fireTime: 0,
+    phase: "warn",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickReversePortal(a: Attack, dt: number, idx: number): void {
+  a.warnTime -= dt;
+  if (a.warnTime <= 0) {
+    player.x = WIDTH - player.x;
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawReversePortal(a: Attack): void {
+  const cx = WIDTH / 2;
+  const cy = GROUND_Y - 130;
+  const t = 1 - Math.max(0, a.warnTime / 1.0);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(elapsed * 6);
+  ctx.fillStyle = `rgba(160, 80, 220, ${0.4 + t * 0.3})`;
+  ctx.beginPath();
+  ctx.arc(0, 0, 36 + t * 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#a020c0";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, 36, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = "#a020c0";
+  ctx.font = "italic bold 18px 'Comic Sans MS', cursive";
+  ctx.textAlign = "center";
+  ctx.fillText("REVERSE", cx, cy - 50);
+}
+
+function spawnDropPortal(): void {
+  attacks.push({
+    kind: "portaldrop",
+    rectX: clampN(player.x, 80, WIDTH - 80),
+    rectY: GROUND_Y - 30,
+    rectW: 0, rectH: 0,
+    horizontal: true, travelDir: 1,
+    warnTime: 0.8,
+    traverseTime: 0, traverseDuration: 0,
+    trackTime: 0, lockTime: 0, fireTime: 0,
+    phase: "warn",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickDropPortal(a: Attack, dt: number, idx: number): void {
+  a.warnTime -= dt;
+  if (a.warnTime <= 0) {
+    if (Math.abs(player.x - a.rectX) < 60) {
+      player.y = 60;
+      player.vy = 0;
+      player.onGround = false;
+      playerLifted = true; // Triggers fall damage on landing.
+    }
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawDropPortal(a: Attack): void {
+  const t = 1 - Math.max(0, a.warnTime / 0.8);
+  ctx.save();
+  ctx.translate(a.rectX, a.rectY);
+  ctx.rotate(elapsed * 7);
+  ctx.fillStyle = `rgba(80, 200, 240, ${0.4 + t * 0.3})`;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 50, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#1f7eb0";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 50, 20, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = "#1f7eb0";
+  ctx.font = "italic bold 16px 'Comic Sans MS', cursive";
+  ctx.textAlign = "center";
+  ctx.fillText("UP↑", a.rectX, a.rectY - 26);
+}
+
+function spawnSizePortal(): void {
+  const targetR = boss.radius < 25 ? 36 : 14;
+  attacks.push({
+    kind: "portalsize",
+    rectX: boss.x,
+    rectY: boss.y,
+    rectW: targetR,
+    rectH: 0,
+    horizontal: true, travelDir: 1,
+    warnTime: 0.5,
+    traverseTime: 0, traverseDuration: 0,
+    trackTime: 0, lockTime: 0, fireTime: 0,
+    phase: "warn",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickSizePortal(a: Attack, dt: number, idx: number): void {
+  a.warnTime -= dt;
+  if (a.warnTime <= 0) {
+    boss.radius = a.rectW;
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawSizePortal(a: Attack): void {
+  const t = 1 - Math.max(0, a.warnTime / 0.5);
+  const targetR = a.rectW;
+  ctx.save();
+  ctx.translate(boss.x, boss.y);
+  ctx.fillStyle = targetR < 25 ? "rgba(255, 80, 200, 0.45)" : "rgba(80, 220, 200, 0.45)";
+  ctx.beginPath();
+  ctx.arc(0, 0, 50 + t * 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = targetR < 25 ? "#c020a0" : "#10a0a0";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, 50, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function spawnDashOrb(): void {
+  attacks.push({
+    kind: "dashorb",
+    rectX: rand(120, WIDTH - 120),
+    rectY: rand(160, GROUND_Y - 100),
+    rectW: 0, rectH: 0,
+    horizontal: true, travelDir: 1,
+    warnTime: 0,
+    traverseTime: 0, traverseDuration: 6,
+    trackTime: 0, lockTime: 0, fireTime: 0,
+    phase: "active",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickDashOrb(a: Attack, dt: number, idx: number): void {
+  a.traverseTime += dt;
+  const aabb = getPlayerAabb();
+  const cx = aabb.x + aabb.w / 2;
+  const cy = aabb.y + aabb.h / 2;
+  const dx = a.rectX - cx;
+  const dy = a.rectY - cy;
+  if (dx * dx + dy * dy < 28 * 28) {
+    player.vy = -1100;
+    player.onGround = false;
+    attacks.splice(idx, 1);
+    return;
+  }
+  if (a.traverseTime >= a.traverseDuration) attacks.splice(idx, 1);
+}
+
+function drawDashOrb(a: Attack): void {
+  ctx.save();
+  ctx.fillStyle = `rgba(255, 220, 60, ${0.35 + 0.15 * Math.sin(elapsed * 8)})`;
+  ctx.beginPath();
+  ctx.arc(a.rectX, a.rectY, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#c08a00";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(a.rectX, a.rectY, 22, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "#1a1a1a";
+  ctx.font = "bold 22px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("↑", a.rectX, a.rectY);
+  ctx.textBaseline = "alphabetic";
+  ctx.restore();
+}
+
+function spawnSpikeShot(): void {
+  // Auto-fired when player collects a spike pellet — flies at the boss.
+  const dx = boss.x - player.x;
+  const dy = boss.y - (player.y - 50);
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = 720;
+  attacks.push({
+    kind: "spikeshot",
+    rectX: player.x,
+    rectY: player.y - 50,
+    rectW: (dx / len) * speed,
+    rectH: (dy / len) * speed,
+    horizontal: true, travelDir: 1,
+    warnTime: 0,
+    traverseTime: 0, traverseDuration: 0,
+    trackTime: 0, lockTime: 0, fireTime: 0,
+    phase: "active",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickSpikeShot(a: Attack, dt: number, idx: number): void {
+  a.rectX += a.rectW * dt;
+  a.rectY += a.rectH * dt;
+  a.traverseTime += dt;
+  // Don't deal damage while the cinematic is playing.
+  if (boss.phase === "transitioning") {
+    if (a.traverseTime > 4) attacks.splice(idx, 1);
+    return;
+  }
+  const dx = boss.x - a.rectX;
+  const dy = boss.y - a.rectY;
+  if (!a.hasHit && dx * dx + dy * dy < boss.radius * boss.radius && boss.shieldTime <= 0) {
+    boss.hp = Math.max(0, boss.hp - 8);
+    a.hasHit = true;
+    attacks.splice(idx, 1);
+    if (boss.hp <= 0) {
+      if (boss.phase === "alive") {
+        transitionToGhostPhase();
+      } else {
+        gameState = "won";
+      }
+    }
+    return;
+  }
+  if (a.rectX < -50 || a.rectX > WIDTH + 50 || a.rectY < -50 || a.rectY > HEIGHT + 50 || a.traverseTime > 4) {
+    attacks.splice(idx, 1);
+  }
+}
+
+function drawSpikeShot(a: Attack): void {
+  const angle = Math.atan2(a.rectH, a.rectW);
+  ctx.save();
+  ctx.translate(a.rectX, a.rectY);
+  ctx.rotate(angle);
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.moveTo(14, 0);
+  ctx.lineTo(-8, 7);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-8, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#0a0a0a";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function spawnGrabHand(): void {
+  attacks.push({
+    kind: "grabhand",
+    // rectX/rectY hold the hand's CURRENT position (starts at the boss).
+    rectX: boss.x,
+    rectY: boss.y,
+    // rectW/rectH hold the LOCKED target position once warn ends.
+    rectW: 0, rectH: 0,
+    horizontal: true, travelDir: 1,
+    warnTime: 1.0, // longer telegraph so it's dodgeable
+    traverseTime: 0, traverseDuration: 0.55, // extend duration
+    trackTime: 0,
+    lockTime: 2.0, // slow, dread-soaked reel toward the eye
+    fireTime: 0,
+    phase: "warn",
+    id: nextAttackId++,
+    hasHit: false,
+  });
+}
+
+function tickGrabHand(a: Attack, dt: number, idx: number): void {
+  if (a.phase === "warn") {
+    a.warnTime -= dt;
+    // The hand stays at the boss during warn — the target reticle is on the
+    // player's CURRENT position so they know exactly what to dodge.
+    a.rectX = boss.x;
+    a.rectY = boss.y;
+    if (a.warnTime <= 0) {
+      // Lock the target at the player's position the moment warn ends.
+      a.rectW = player.x;
+      a.rectH = player.y - 30;
+      a.phase = "active";
+      a.traverseTime = 0;
+    }
+    return;
+  }
+  if (a.phase === "active") {
+    // Hand extends from boss toward locked target.
+    a.traverseTime += dt;
+    const t = Math.min(1, a.traverseTime / a.traverseDuration);
+    a.rectX = boss.x + (a.rectW - boss.x) * t;
+    a.rectY = boss.y + (a.rectH - boss.y) * t;
+    // Grab check: any time during the reach, if hand overlaps the player, grab them.
+    const aabb = getPlayerAabb();
+    const px = aabb.x + aabb.w / 2;
+    const py = aabb.y + aabb.h / 2;
+    const dx = a.rectX - px;
+    const dy = a.rectY - py;
+    if (!a.hasHit && dx * dx + dy * dy < 30 * 30) {
+      a.hasHit = true;
+      a.phase = "fall"; // reuse "fall" as the reel state
+      a.traverseTime = 0;
+      // Snap hand onto the player's center — they're caught.
+      a.rectX = px;
+      a.rectY = py;
+      return;
+    }
+    if (a.traverseTime >= a.traverseDuration && !a.hasHit) {
+      // Missed — retract.
+      a.phase = "done";
+      attacks.splice(idx, 1);
+    }
+    return;
+  }
+  if (a.phase === "fall") {
+    // Reel: drag the player back into the boss's eye.
+    a.traverseTime += dt;
+    const t = Math.min(1, a.traverseTime / a.lockTime);
+    const easeT = t * t; // accelerate
+    const eyeX = boss.x;
+    const eyeY = boss.y - boss.radius * 0.3; // roughly at the eyes
+    const startX = a.rectW; // grab position
+    const startY = a.rectH;
+    a.rectX = startX + (eyeX - startX) * easeT;
+    a.rectY = startY + (eyeY - startY) * easeT;
+    // Override player physics to follow the hand.
+    player.x = a.rectX;
+    player.y = a.rectY + 30;
+    player.vx = 0;
+    player.vy = 0;
+    player.onGround = false;
+    if (t >= 1) {
+      // Consumed: instead of insta-kill, drop the kid into a Geometry Dash
+      // obby. Survive 5 seconds → escape; touch a spike → real game over.
+      attacks.splice(idx, 1);
+      startObby();
+    }
+  }
+}
+
+function drawGrabHand(a: Attack): void {
+  ctx.save();
+  if (a.phase === "warn") {
+    // Telegraph: dotted line + pulsing reticle on the player's current spot.
+    const tx = player.x;
+    const ty = player.y - 30;
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([10, 8]);
+    ctx.beginPath();
+    ctx.moveTo(boss.x, boss.y);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const pulse = 0.5 + 0.5 * Math.sin(elapsed * 16);
+    ctx.strokeStyle = `rgba(180, 30, 30, ${0.4 + pulse * 0.5})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 26 + pulse * 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(180, 30, 30, ${0.18 + pulse * 0.18})`;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 18, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Solid arm + hand.
+    const angle = Math.atan2(a.rectY - boss.y, a.rectX - boss.x);
+    ctx.strokeStyle = "#0a0a14";
+    ctx.lineWidth = 14;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(boss.x, boss.y);
+    ctx.lineTo(a.rectX, a.rectY);
+    ctx.stroke();
+    // Hand palm
+    ctx.fillStyle = "#0a0a14";
+    ctx.beginPath();
+    ctx.arc(a.rectX, a.rectY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    // Fingers spread perpendicular to the arm direction.
+    ctx.lineWidth = 6;
+    for (let i = -2; i <= 2; i++) {
+      const ang = angle + i * 0.32;
+      ctx.beginPath();
+      ctx.moveTo(a.rectX, a.rectY);
+      ctx.lineTo(a.rectX + Math.cos(ang) * 30, a.rectY + Math.sin(ang) * 30);
+      ctx.stroke();
+    }
+    if (a.phase === "fall") {
+      // Reeling — draw a subtle tug effect ring around the hand.
+      ctx.strokeStyle = "rgba(0,0,0,0.4)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(a.rectX, a.rectY, 26 + Math.sin(elapsed * 20) * 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function spawnTornado(): void {
   const themed = customBossConfig.fireTornado
     ? "fire"
@@ -2547,6 +3318,9 @@ function transitionToGhostPhase(): void {
   if (currentBossId === "mrpencil") {
     boss.radius = 36; // shrink hitbox to match the smaller phase-2 visuals
   }
+  if (currentBossId === "geom") {
+    boss.radius = 36; // reset to default in case a size portal had shrunk him
+  }
 }
 
 function tickTransition(dt: number): void {
@@ -2593,7 +3367,7 @@ function updatePlatforms(dt: number): void {
   }
 }
 
-function currentPelletKind(): "white" | "eraser" | Element | "tarr" {
+function currentPelletKind(): "white" | "eraser" | Element | "tarr" | "spike" {
   if (currentBossId === "mrpencil") return "eraser";
   if (currentBossId === "elemental") {
     if (elementalPhase === 4) {
@@ -2602,6 +3376,7 @@ function currentPelletKind(): "white" | "eraser" | Element | "tarr" {
     return ELEMENTS[elementalPhase]!;
   }
   if (currentBossId === "beatrix") return "tarr";
+  if (currentBossId === "geom") return "spike";
   return "white";
 }
 
@@ -2623,7 +3398,12 @@ function spawnPelletGround(): void {
 }
 
 function spawnPellet(): void {
-  if (currentBossId === "mrpencil" || currentBossId === "elemental" || currentBossId === "beatrix") {
+  if (
+    currentBossId === "mrpencil" ||
+    currentBossId === "elemental" ||
+    currentBossId === "beatrix" ||
+    currentBossId === "geom"
+  ) {
     spawnPelletGround();
     return;
   }
@@ -2666,6 +3446,9 @@ function updatePellets(dt: number): void {
       pellets.splice(i, 1);
       if (currentBossId === "elemental" && (collectedKind === "air" || collectedKind === "earth" || collectedKind === "fire" || collectedKind === "water")) {
         elementInventory[collectedKind] += 1;
+      } else if (collectedKind === "spike") {
+        // Auto-fire a spike at the boss the moment the player picks it up.
+        spawnSpikeShot();
       } else {
         pelletInventory += 1;
       }
@@ -2732,7 +3515,11 @@ function updateAttacks(dt: number): void {
     }
   }
   for (let i = attacks.length - 1; i >= 0; i--) {
-    const a = attacks[i]!;
+    // Defensive: an inner tick can call transitionToGhostPhase() which clears
+    // the attacks array (e.g. spike-shot kill), so re-check bounds each step.
+    if (i >= attacks.length) continue;
+    const a = attacks[i];
+    if (!a) continue;
     if (a.kind === "laser") {
       tickLaserAttack(a, dt, i);
       continue;
@@ -2783,6 +3570,30 @@ function updateAttacks(dt: number): void {
     }
     if (a.kind === "fireball") {
       tickFireball(a, dt, i);
+      continue;
+    }
+    if (a.kind === "portalreverse") {
+      tickReversePortal(a, dt, i);
+      continue;
+    }
+    if (a.kind === "portaldrop") {
+      tickDropPortal(a, dt, i);
+      continue;
+    }
+    if (a.kind === "portalsize") {
+      tickSizePortal(a, dt, i);
+      continue;
+    }
+    if (a.kind === "dashorb") {
+      tickDashOrb(a, dt, i);
+      continue;
+    }
+    if (a.kind === "spikeshot") {
+      tickSpikeShot(a, dt, i);
+      continue;
+    }
+    if (a.kind === "grabhand") {
+      tickGrabHand(a, dt, i);
       continue;
     }
     if (a.phase === "warn") {
@@ -3637,6 +4448,8 @@ function drawPellets(): void {
       drawElementBit(pel.x, pel.y + bob, pel.kind, pel.id);
     } else if (pel.kind === "tarr") {
       drawTarrPickup(pel.x, pel.y + bob);
+    } else if (pel.kind === "spike") {
+      drawSpikePickup(pel.x, pel.y + bob);
     } else {
       const r = 7;
       crayonFillCircle(pel.x, pel.y + bob, r, "#ffffff", 13000 + pel.id);
@@ -3647,6 +4460,21 @@ function drawPellets(): void {
       ctx.fill();
     }
   }
+}
+
+function drawSpikePickup(cx: number, cy: number): void {
+  ctx.save();
+  ctx.fillStyle = "#1a1a1a";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 12);
+  ctx.lineTo(cx - 9, cy + 6);
+  ctx.lineTo(cx + 9, cy + 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawTarrPickup(cx: number, cy: number): void {
@@ -3831,6 +4659,30 @@ function drawAttacks(): void {
       drawFireballAttack(a);
       continue;
     }
+    if (a.kind === "portalreverse") {
+      drawReversePortal(a);
+      continue;
+    }
+    if (a.kind === "portaldrop") {
+      drawDropPortal(a);
+      continue;
+    }
+    if (a.kind === "portalsize") {
+      drawSizePortal(a);
+      continue;
+    }
+    if (a.kind === "dashorb") {
+      drawDashOrb(a);
+      continue;
+    }
+    if (a.kind === "spikeshot") {
+      drawSpikeShot(a);
+      continue;
+    }
+    if (a.kind === "grabhand") {
+      drawGrabHand(a);
+      continue;
+    }
     if (a.phase === "warn") {
       const intensity = 1 - a.warnTime / 1.1;
       const pulse = 0.18 + 0.22 * Math.sin(elapsed * 14) + intensity * 0.2;
@@ -3876,10 +4728,104 @@ function drawActiveBoss(): void {
     drawElemental();
   } else if (currentBossId === "beatrix") {
     drawBeatrix();
+  } else if (currentBossId === "geom") {
+    drawGeom();
   } else if (currentBossId === "custom") {
     drawCustomBoss();
   } else {
     drawPacman();
+  }
+}
+
+function drawGeomCubeAt(cx: number, cy: number, r: number, isPhase2: boolean): void {
+  ctx.save();
+  // Body fill — vivid blue with a darker base for that GD cube look.
+  const bodyColor = isPhase2 ? "#0a0a14" : "#3a78ff";
+  const accentLight = isPhase2 ? "#1a1a26" : "#6aa0ff";
+  const accentDark = isPhase2 ? "#04040a" : "#1f4ec0";
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  if (!isPhase2) {
+    // Inset accent rectangles for the GD-icon look.
+    ctx.fillStyle = accentLight;
+    ctx.fillRect(cx - r + 4, cy - r + 4, r * 0.55, r * 0.18);
+    ctx.fillRect(cx - r + 4, cy + r * 0.55, r * 0.6, r * 0.18);
+    ctx.fillStyle = accentDark;
+    ctx.fillRect(cx + r * 0.4, cy - r + 4, r * 0.55, r * 0.18);
+    ctx.fillRect(cx + r * 0.3, cy + r * 0.5, r * 0.65, r * 0.22);
+  }
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 5;
+  ctx.strokeRect(cx - r, cy - r, r * 2, r * 2);
+
+  if (!isPhase2) {
+    // GD player face: two square-ish eyes + a horizontal mouth slit.
+    ctx.fillStyle = "#fff";
+    const eyeW = r * 0.28;
+    const eyeH = r * 0.36;
+    const eyeY = cy - r * 0.32;
+    ctx.fillRect(cx - r * 0.42, eyeY, eyeW, eyeH);
+    ctx.fillRect(cx + r * 0.14, eyeY, eyeW, eyeH);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - r * 0.42, eyeY, eyeW, eyeH);
+    ctx.strokeRect(cx + r * 0.14, eyeY, eyeW, eyeH);
+    ctx.fillStyle = "#000";
+    const pupilDx = clampN((player.x - cx) / 200, -0.5, 0.5);
+    const pupilDy = clampN((player.y - cy) / 200, -0.5, 0.5);
+    const pw = eyeW * 0.55;
+    const ph = eyeH * 0.55;
+    ctx.fillRect(
+      cx - r * 0.42 + (eyeW - pw) / 2 + pupilDx * eyeW * 0.4,
+      eyeY + (eyeH - ph) / 2 + pupilDy * eyeH * 0.4,
+      pw,
+      ph,
+    );
+    ctx.fillRect(
+      cx + r * 0.14 + (eyeW - pw) / 2 + pupilDx * eyeW * 0.4,
+      eyeY + (eyeH - ph) / 2 + pupilDy * eyeH * 0.4,
+      pw,
+      ph,
+    );
+    // Mouth — horizontal slit.
+    ctx.fillStyle = "#000";
+    ctx.fillRect(cx - r * 0.42, cy + r * 0.32, r * 0.84, r * 0.12);
+  } else {
+    // Phase 2: hollow black eye sockets with glowing white pupils.
+    ctx.fillStyle = "#000";
+    const eyeW = r * 0.4;
+    const eyeH = r * 0.45;
+    const eyeY = cy - r * 0.35;
+    ctx.fillRect(cx - r * 0.55, eyeY, eyeW, eyeH);
+    ctx.fillRect(cx + r * 0.15, eyeY, eyeW, eyeH);
+    ctx.fillStyle = "#fff";
+    const tinyDot = 3;
+    ctx.fillRect(cx - r * 0.4, eyeY + r * 0.06, tinyDot, tinyDot);
+    ctx.fillRect(cx + r * 0.3, eyeY + r * 0.06, tinyDot, tinyDot);
+    // Streaks under eyes.
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.lineWidth = 2;
+    for (let i = -1; i <= 1; i += 2) {
+      const sx = cx + i * r * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(sx, eyeY + eyeH);
+      ctx.lineTo(sx + i * 4, cy + r * 0.4);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawGeom(): void {
+  const cx = boss.x;
+  const cy = boss.y;
+  const r = boss.radius;
+  const isPhase2 = boss.phase === "ghost";
+  drawGeomCubeAt(cx, cy, r, isPhase2);
+  if (boss.vulnerableTime > 0) {
+    ctx.strokeStyle = "rgba(58,109,240,0.55)";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(cx - r - 4, cy - r - 4, r * 2 + 8, r * 2 + 8);
   }
 }
 
@@ -4080,6 +5026,34 @@ function drawBossCardPortrait(id: string, cx: number, cy: number, scale = 1): vo
       ctx.fillStyle = "#ff7aa6";
       ctx.fillRect(cx - 40 * scale, cy - 60 * scale, 80 * scale, 120 * scale);
     }
+    return;
+  }
+  if (id === "geom") {
+    const r = 50 * scale;
+    ctx.fillStyle = "#3a78ff";
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = "#6aa0ff";
+    ctx.fillRect(cx - r + 4, cy - r + 4, r * 0.55, r * 0.18);
+    ctx.fillStyle = "#1f4ec0";
+    ctx.fillRect(cx + r * 0.4, cy - r + 4, r * 0.55, r * 0.18);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = "#fff";
+    const eyeW = r * 0.28, eyeH = r * 0.36;
+    const eyeY = cy - r * 0.32;
+    ctx.fillRect(cx - r * 0.42, eyeY, eyeW, eyeH);
+    ctx.fillRect(cx + r * 0.14, eyeY, eyeW, eyeH);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - r * 0.42, eyeY, eyeW, eyeH);
+    ctx.strokeRect(cx + r * 0.14, eyeY, eyeW, eyeH);
+    ctx.fillStyle = "#000";
+    const pw = eyeW * 0.55, ph = eyeH * 0.55;
+    ctx.fillRect(cx - r * 0.42 + (eyeW - pw) / 2, eyeY + (eyeH - ph) / 2, pw, ph);
+    ctx.fillRect(cx + r * 0.14 + (eyeW - pw) / 2, eyeY + (eyeH - ph) / 2, pw, ph);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(cx - r * 0.42, cy + r * 0.32, r * 0.84, r * 0.12);
     return;
   }
   if (id === "custom") {
@@ -5006,6 +5980,12 @@ function drawHud(): void {
     ctx.fillStyle = pelletInventory > 0 && boss.vulnerableTime <= 0 ? "#1f4ea8" : "rgba(31,78,168,0.35)";
     ctx.font = "italic 14px 'Comic Sans MS', cursive";
     ctx.fillText("Press E to throw a TARR", pelletHudX + 70, pelletHudY + 6);
+  } else if (currentBossId === "geom") {
+    drawSpikePickup(pelletHudX, pelletHudY);
+    ctx.fillStyle = "#1f4ea8";
+    ctx.font = "italic 14px 'Comic Sans MS', cursive";
+    ctx.textAlign = "left";
+    ctx.fillText("SPIKES auto-fire when collected", pelletHudX + 22, pelletHudY + 5);
   } else {
     crayonFillCircle(pelletHudX, pelletHudY, 9, pelletInventory > 0 ? "#ffffff" : "#dcd6b8", 14000);
     crayonCircle(pelletHudX, pelletHudY, 9, "#222", 2, 14001);
@@ -5074,6 +6054,8 @@ function drawPhaseTransition(): void {
     ctx.globalAlpha = fadeOut;
     if (currentBossId === "mrpencil") {
       drawMrPencilForm(cx, cy, false);
+    } else if (currentBossId === "geom") {
+      drawGeomCubeAt(cx, cy, r, false);
     } else {
       drawPacmanShape(cx, cy, r, "#ffd23a", 0.6);
     }
@@ -5170,6 +6152,8 @@ function drawPhaseTransition(): void {
     ctx.globalAlpha = stage4;
     if (currentBossId === "mrpencil") {
       drawMrPencilAngry(cx, cy);
+    } else if (currentBossId === "geom") {
+      drawGeomCubeAt(cx, cy, r, true);
     } else {
       drawGhostBody(cx, cy, r);
     }
@@ -5303,6 +6287,12 @@ function drawArenaSnapshot(): void {
   if (bossMode && currentBossId === "elemental" && boss.phase !== "transitioning") {
     drawElementalAimReticle();
   }
+  // Horror cue when the grab hand is in flight or has caught the kid.
+  // Horror cue only fires once the hand has actually caught the kid.
+  const grab = attacks.find((a) => a.kind === "grabhand" && a.phase === "fall");
+  const horrorIntensity = grab ? 1 : 0;
+  drawHorrorVignette(horrorIntensity);
+  pumpHeartbeat(horrorIntensity > 0, horrorIntensity);
   drawBossHpBar();
   if (bossMode) drawBossModeHud();
   else drawHud();
@@ -6618,6 +7608,9 @@ function frame(timestamp: number): void {
     drawLevelSelectScene();
   } else if (scene === "bosscreator") {
     drawBossCreatorScene();
+  } else if (scene === "obby") {
+    if (!paused) updateObby(dt);
+    drawObby();
   }
 
   if (!paused) tickAutoClicker(dtRaw);

@@ -496,3 +496,479 @@ h1 {
     padding: 12px;
   }
 }
+
+.maze-x-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 32px;
+  background: #050507;
+  z-index: 1000;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.maze-x-overlay.is-visible {
+  display: flex;
+  animation: maze-x-flicker 0.08s steps(2) infinite;
+}
+
+.maze-x-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px),
+    radial-gradient(circle at 50% 50%, rgba(40, 60, 40, 0.18), transparent 70%);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.maze-x-walkie {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(420px, 80vw);
+}
+
+.maze-x-walkie-antenna {
+  width: 6px;
+  height: 90px;
+  background: linear-gradient(180deg, #555, #1a1a1a);
+  border-radius: 3px 3px 0 0;
+}
+
+.maze-x-walkie-antenna::after {
+  content: "";
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: -4px -4px 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #888, #111);
+}
+
+.maze-x-walkie-body {
+  position: relative;
+  width: 100%;
+  background: linear-gradient(180deg, #1d1d22, #0a0a0e);
+  border: 3px solid #050507;
+  border-radius: 18px;
+  padding: 28px 24px 38px;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.08),
+    inset 0 -10px 30px rgba(0, 0, 0, 0.6),
+    0 24px 60px rgba(0, 0, 0, 0.8);
+}
+
+.maze-x-walkie-led {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff3a3a;
+  box-shadow: 0 0 14px 3px rgba(255, 58, 58, 0.7);
+  animation: maze-x-led-blink 0.9s ease-in-out infinite;
+}
+
+.maze-x-walkie-screen {
+  background: #0d1408;
+  border: 3px solid #050a02;
+  border-radius: 6px;
+  min-height: 120px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.8);
+  position: relative;
+}
+
+.maze-x-walkie-screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 4px);
+  pointer-events: none;
+}
+
+.maze-x-subtitle {
+  color: #a8f5a8;
+  font-family: "Courier New", ui-monospace, monospace;
+  font-size: clamp(1rem, 2.4vw, 1.5rem);
+  line-height: 1.4;
+  text-align: center;
+  text-shadow: 0 0 6px rgba(140, 240, 140, 0.55);
+  letter-spacing: 0.03em;
+  margin: 0;
+  min-height: 1.4em;
+}
+
+.maze-x-walkie-grille {
+  margin-top: 18px;
+  height: 32px;
+  border-radius: 4px;
+  background: repeating-linear-gradient(180deg, #050507 0 3px, #1c1c20 3px 6px);
+  border: 2px solid #050507;
+}
+
+.maze-x-walkie-knob {
+  position: absolute;
+  bottom: 8px;
+  right: 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #555, #111 75%);
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.6);
+}
+
+.maze-x-close-btn {
+  background: #1a1a1f;
+  color: #a8f5a8;
+  border: 2px solid #2a2a30;
+  padding: 12px 28px;
+  font-family: "Courier New", ui-monospace, monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.maze-x-close-btn:hover {
+  border-color: #a8f5a8;
+}
+
+@keyframes maze-x-led-blink {
+  0%, 60%, 100% { opacity: 1; }
+  70%, 80% { opacity: 0.2; }
+}
+
+@keyframes maze-x-flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.96; }
+  100% { opacity: 1; }
+}
+
+.maze-x-glitching #maze {
+  animation: maze-x-canvas-glitch 0.18s steps(3) infinite;
+  filter: contrast(1.4) saturate(2);
+}
+
+.maze-x-glitching {
+  animation: maze-x-body-shake 0.06s steps(2) infinite;
+}
+
+.maze-x-glitching::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1500;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 0, 80, 0.18) 0 2px, transparent 2px 4px),
+    repeating-linear-gradient(90deg, rgba(0, 255, 200, 0.12) 0 3px, transparent 3px 6px),
+    radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.18), transparent 60%);
+  mix-blend-mode: screen;
+  animation: maze-x-overlay-shift 0.12s steps(4) infinite;
+}
+
+@keyframes maze-x-canvas-glitch {
+  0% { transform: translate(0, 0) skewX(0deg); }
+  20% { transform: translate(-6px, 2px) skewX(-2deg); }
+  40% { transform: translate(8px, -4px) skewX(3deg); }
+  60% { transform: translate(-3px, 5px) skewX(-1deg); }
+  80% { transform: translate(4px, -2px) skewX(2deg); }
+  100% { transform: translate(0, 0) skewX(0deg); }
+}
+
+@keyframes maze-x-body-shake {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(2px, -2px); }
+}
+
+@keyframes maze-x-overlay-shift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-4px, 0); }
+  50% { transform: translate(4px, -2px); }
+  75% { transform: translate(-2px, 3px); }
+  100% { transform: translate(0, 0); }
+}
+
+.maze-x-crash {
+  position: fixed;
+  inset: 0;
+  display: none;
+  background: #f1f3f4;
+  z-index: 2000;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  color: #202124;
+}
+
+.maze-x-crash.is-visible { display: block; }
+
+.maze-x-crash-card {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 480px;
+  padding: 32px;
+  text-align: center;
+}
+
+.maze-x-crash-title {
+  font-size: 2.2rem;
+  font-weight: 400;
+  margin: 0 0 16px;
+}
+
+.maze-x-crash-text {
+  font-size: 1rem;
+  color: #5f6368;
+  margin: 0 0 24px;
+}
+
+.maze-x-crash-code {
+  font-size: 0.85rem;
+  color: #80868b;
+  font-family: ui-monospace, monospace;
+  margin: 0;
+}
+
+.wall-phaser-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 6, 10, 0.92);
+  z-index: 1100;
+  backdrop-filter: blur(4px);
+}
+
+.wall-phaser-overlay.is-visible {
+  display: flex;
+  animation: wall-phaser-fadein 0.3s ease;
+}
+
+.wall-phaser-card {
+  background: linear-gradient(180deg, #1a1d2a, #0a0c14);
+  border: 3px solid #6cf;
+  border-radius: 14px;
+  padding: 38px 44px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(102, 204, 255, 0.4);
+  max-width: 440px;
+}
+
+.wall-phaser-kicker {
+  color: #6cf;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.3em;
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+}
+
+.wall-phaser-title {
+  color: #fff;
+  font-size: 2.4rem;
+  margin: 0 0 14px;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 18px rgba(102, 204, 255, 0.6);
+}
+
+.wall-phaser-flavor {
+  color: #a8b8d0;
+  font-style: italic;
+  margin: 0 0 28px;
+}
+
+.wall-phaser-btn {
+  background: #6cf;
+  color: #051022;
+  border: 0;
+  padding: 12px 32px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+@keyframes wall-phaser-fadein {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.gadget-hud {
+  margin: 4px 0 0;
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 0.9rem;
+  color: #6cf;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 8px rgba(102, 204, 255, 0.4);
+}
+
+.gadget-hud.hidden { display: none; }
+
+.gadget-hud .gadget-hud-slot {
+  color: #fff;
+  background: #0a1828;
+  border: 1px solid #6cf;
+  padding: 1px 7px;
+  margin-right: 6px;
+}
+
+.mazex-end-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: mazex-end-fadein 1.5s ease forwards;
+  pointer-events: auto;
+}
+
+.mazex-end-card {
+  color: #c8c8c8;
+  font-family: ui-monospace, "Courier New", monospace;
+  text-align: center;
+  padding: 32px;
+  max-width: 480px;
+}
+
+.mazex-end-kicker {
+  color: #6cf;
+  letter-spacing: 0.4em;
+  font-size: 0.9rem;
+  margin: 0 0 28px;
+  opacity: 0.7;
+}
+
+.mazex-end-line {
+  font-size: 1.3rem;
+  margin: 14px 0;
+}
+
+.mazex-end-line.mazex-end-faint {
+  opacity: 0.45;
+  font-size: 1rem;
+}
+
+@keyframes mazex-end-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+body.mazex-ended #maze,
+body.mazex-ended .controls,
+body.mazex-ended .hud,
+body.mazex-ended h1,
+body.mazex-ended .subtitle {
+  filter: blur(2px) grayscale(0.6);
+  pointer-events: none;
+}
+
+.mazex-boss-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  background: #05060a;
+  display: block;
+}
+
+body.mazex-boss #maze,
+body.mazex-boss .controls,
+body.mazex-boss .hud,
+body.mazex-boss h1,
+body.mazex-boss .subtitle,
+body.mazex-boss .game-shell {
+  display: none !important;
+}
+
+.mazex-boss-death {
+  position: fixed;
+  inset: 0;
+  z-index: 4500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  animation: mazex-end-fadein 0.4s ease forwards;
+}
+
+.mazex-boss-death-card {
+  text-align: center;
+  font-family: ui-monospace, "Courier New", monospace;
+}
+
+.mazex-boss-death-title {
+  color: #ff3a3a;
+  font-size: 4rem;
+  letter-spacing: 0.2em;
+  text-shadow: 0 0 24px rgba(255, 58, 58, 0.6);
+  margin: 0 0 32px;
+}
+
+.mazex-boss-retry-btn {
+  background: #1a1a1f;
+  color: #ff8888;
+  border: 2px solid #ff3a3a;
+  padding: 14px 38px;
+  font-family: inherit;
+  font-size: 1rem;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+}
+
+.mazex-boss-retry-btn:hover {
+  background: #ff3a3a;
+  color: #0a0008;
+}
+
+.mazex-boss-victory {
+  position: fixed;
+  inset: 0;
+  z-index: 4600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.86);
+  animation: mazex-end-fadein 0.8s ease forwards;
+}
+
+.mazex-boss-victory-card {
+  text-align: center;
+  font-family: ui-monospace, "Courier New", monospace;
+  color: #cfeeff;
+  padding: 36px;
+}
+
+.mazex-boss-victory-kicker {
+  color: #7af09a;
+  letter-spacing: 0.32em;
+  font-size: 0.9rem;
+  margin: 0 0 24px;
+}
+
+.mazex-boss-victory-title {
+  color: #fff;
+  font-size: 3.4rem;
+  letter-spacing: 0.18em;
+  text-shadow: 0 0 24px rgba(122, 240, 154, 0.6);
+  margin: 0 0 24px;
+}
+
+.mazex-boss-victory-flavor {
+  color: #88a;
+  font-size: 1.1rem;
+  margin: 0;
+}
