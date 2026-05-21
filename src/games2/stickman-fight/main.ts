@@ -116,8 +116,14 @@ interface Stickman {
   ai: boolean;
   dead: boolean;
   color: string;
+  // per-frame hit cooldown so damage doesn't stack every frame
+  hitCooldown: number;
+  // grace period when round begins
+  grace: number;
   // AI
   swingPhase: number;
+  // postural target (for upright assist)
+  uprightStrength: number;
 }
 
 function makeStickman(x: number, y: number, opts: { ai: boolean; weapon: WeaponId; color: string; hp: number }): Stickman {
@@ -153,8 +159,43 @@ function makeStickman(x: number, y: number, opts: { ai: boolean; weapon: WeaponI
     ai: opts.ai,
     dead: false,
     color: opts.color,
+    hitCooldown: 0,
+    grace: 90, // ~1.5 seconds of invulnerability at spawn
     swingPhase: Math.random() * Math.PI * 2,
+    uprightStrength: 1,
   };
+}
+
+// Postural assist: keep stickman upright while alive.
+// Without this the ragdoll just collapses immediately.
+function applyPosture(s: Stickman): void {
+  if (s.dead) return;
+  const k = s.uprightStrength;
+
+  // Head wants to be above the hip
+  const desiredHeadY = s.hip.y - 60;
+  s.head.y += (desiredHeadY - s.head.y) * 0.05 * k;
+
+  // Neck between hip and head
+  const desiredNeckX = (s.head.x + s.hip.x) * 0.5;
+  const desiredNeckY = (s.head.y + s.hip.y) * 0.5;
+  s.neck.x += (desiredNeckX - s.neck.x) * 0.18 * k;
+  s.neck.y += (desiredNeckY - s.neck.y) * 0.18 * k;
+
+  // Feet stay roughly under the hip, on the ground
+  const footTargetY = GROUND_Y - 4;
+  s.footL.y += (footTargetY - s.footL.y) * 0.08 * k;
+  s.footR.y += (footTargetY - s.footR.y) * 0.08 * k;
+  const footLTargetX = s.hip.x - 12 * s.facing;
+  const footRTargetX = s.hip.x + 12 * s.facing;
+  s.footL.x += (footLTargetX - s.footL.x) * 0.04 * k;
+  s.footR.x += (footRTargetX - s.footR.x) * 0.04 * k;
+
+  // Off-hand wants to rest by the neck
+  const offHandTargetX = s.neck.x - 18 * s.facing;
+  const offHandTargetY = s.neck.y + 6;
+  s.handL.x += (offHandTargetX - s.handL.x) * 0.04 * k;
+  s.handL.y += (offHandTargetY - s.handL.y) * 0.04 * k;
 }
 
 // Weapon hand tip position (extending from the active hand)
@@ -277,6 +318,15 @@ function drawStickman(s: Stickman): void {
     }
   }
 
+  // Grace shield
+  if (!s.dead && s.grace > 0) {
+    ctx.strokeStyle = `rgba(120, 200, 255, ${0.4 + 0.3 * Math.sin(s.grace * 0.3)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(s.hip.x, s.hip.y - 20, 42, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   // HP bar
   if (!s.dead) {
     const barX = s.head.x - 18, barY = s.head.y - 22;
@@ -318,11 +368,12 @@ const hits: Hit[] = [];
 
 function checkWeaponHits(attacker: Stickman, defender: Stickman): void {
   if (attacker.dead || defender.dead) return;
+  if (defender.grace > 0 || defender.hitCooldown > 0) return;
   const tip = weaponTip(attacker);
   const tipVx = tip.x - tip.px;
   const tipVy = tip.y - tip.py;
   const speed = Math.hypot(tipVx, tipVy);
-  if (speed < 4) return; // minimum swing speed to deal damage
+  if (speed < 5) return; // minimum swing speed to deal damage
   const w = WEAPONS[attacker.weapon];
 
   const targets: { p: Particle; mult: number }[] = [
@@ -342,17 +393,22 @@ function checkWeaponHits(attacker: Stickman, defender: Stickman): void {
       // Tip extra if the contact is near the tip
       const distFromTip = Math.hypot(t.p.x - tip.x, t.p.y - tip.y);
       const tipFactor = 1 + w.tipBonus * Math.max(0, 1 - distFromTip / 30);
-      const dmg = w.damage * t.mult * (speed * 0.18) * tipFactor;
+      const dmg = w.damage * t.mult * (speed * 0.10) * tipFactor;
       defender.hp -= dmg;
+      defender.hitCooldown = 18; // ~0.3s before next hit lands
 
       // knockback impulse
-      const kx = tipVx * 0.55;
-      const ky = tipVy * 0.55 - 1.5;
+      const kx = tipVx * 0.45;
+      const ky = tipVy * 0.45 - 1.2;
       applyImpulse(t.p, kx, ky);
+      applyImpulse(defender.hip, kx * 0.3, ky * 0.2);
 
       hits.push({ x: t.p.x, y: t.p.y, life: 14 });
 
-      if (defender.hp <= 0) defender.dead = true;
+      if (defender.hp <= 0) {
+        defender.dead = true;
+        defender.uprightStrength = 0;
+      }
       // only one hit per swing-tick per defender to avoid combo blowups
       return;
     }
@@ -409,14 +465,14 @@ let enemies: Stickman[] = [];
 function spawnRound(round: number): void {
   enemies = [];
   const count = Math.min(1 + Math.floor((round - 1) / 2), 4);
-  const enemyWeapons: WeaponId[] = ["fist", "stick", "stick", "bat", "bat", "sword", "spear", "hammer"];
+  const enemyWeapons: WeaponId[] = ["fist", "fist", "stick", "stick", "bat", "sword", "spear", "hammer"];
   for (let i = 0; i < count; i++) {
     const wpn = enemyWeapons[Math.min(round - 1 + i, enemyWeapons.length - 1)] ?? "fist";
-    const e = makeStickman(WIDTH - 200 - i * 80, GROUND_Y - 35, {
+    const e = makeStickman(WIDTH - 100 - i * 90, GROUND_Y - 35, {
       ai: true,
       weapon: wpn,
       color: "#a83232",
-      hp: 50 + round * 15,
+      hp: 40 + round * 12,
     });
     e.facing = -1;
     enemies.push(e);
@@ -620,29 +676,31 @@ shopBtn.addEventListener("click", () => {
 // AI
 // ─────────────────────────────────────────────────────────────────────────────
 
-function updateAI(e: Stickman, dt: number): void {
+function updateAI(e: Stickman, _dt: number): void {
   if (e.dead) return;
   // Move toward player
   const dx = player.hip.x - e.hip.x;
   const dir = Math.sign(dx) || 1;
   e.facing = dir as 1 | -1;
-  const wReach = WEAPONS[e.weapon].length + 40;
+  const wReach = WEAPONS[e.weapon].length + 30;
 
   // Walk if too far
   if (Math.abs(dx) > wReach) {
-    // small push toward player on each foot
-    applyImpulse(e.hip, -dir * 0.25, 0);
-    applyImpulse(e.footL, -dir * 0.18, 0);
-    applyImpulse(e.footR, -dir * 0.18, 0);
+    const speed = 0.18 + Math.min(0.12, save.round * 0.015);
+    applyImpulse(e.hip, -dir * speed, 0);
+    applyImpulse(e.footL, -dir * speed * 0.8, 0);
+    applyImpulse(e.footR, -dir * speed * 0.8, 0);
   }
 
-  // Swing arm in a sinusoidal pattern
-  e.swingPhase += 0.12 + Math.min(0.05, save.round * 0.01);
+  // Only swing when in range or close to it; pause between swings.
+  const inRange = Math.abs(dx) < wReach + 30;
+  const swingSpeed = 0.06 + Math.min(0.05, save.round * 0.008);
+  e.swingPhase += inRange ? swingSpeed : swingSpeed * 0.3;
   const swing = Math.sin(e.swingPhase);
-  const targetHandX = e.neck.x + dir * (20 + swing * 30);
-  const targetHandY = e.neck.y + Math.cos(e.swingPhase) * 25;
-  // pull hand toward target
-  const pullStrength = 0.18 + Math.min(0.15, save.round * 0.02);
+  const armReach = 26 + swing * 22;
+  const targetHandX = e.neck.x + dir * armReach;
+  const targetHandY = e.neck.y + Math.cos(e.swingPhase) * 18 - 4;
+  const pullStrength = 0.10 + Math.min(0.10, save.round * 0.012);
   e.handR.x += (targetHandX - e.handR.x) * pullStrength;
   e.handR.y += (targetHandY - e.handR.y) * pullStrength;
 }
@@ -691,6 +749,9 @@ function step(): void {
   // Physics step
   const all = [player, ...enemies];
   for (const s of all) {
+    if (s.grace > 0) s.grace--;
+    if (s.hitCooldown > 0) s.hitCooldown--;
+    applyPosture(s);
     for (const p of s.parts) updateParticle(p);
   }
   // Multiple constraint passes
