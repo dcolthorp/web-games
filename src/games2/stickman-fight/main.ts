@@ -766,21 +766,17 @@ function step(): void {
 
   // Dragging hand
   if (dragging && !player.dead) {
-    // move hand toward mouse with spring
     const k = 0.35;
     dragging.x += (mouseX - dragging.x) * k;
     dragging.y += (mouseY - dragging.y) * k;
   } else if (!player.dead) {
-    // Rest: pull weapon hand back toward a neutral guard position
-    // and damp residual velocity so the body doesn't drift after a swing.
-    const restX = player.neck.x + 22;
-    const restY = player.neck.y + 4;
-    player.handR.x += (restX - player.handR.x) * 0.12;
-    player.handR.y += (restY - player.handR.y) * 0.12;
-    // Damp horizontal velocity on the body
-    const dampHip = 0.85;
-    player.hip.px = player.hip.x - (player.hip.x - player.hip.px) * dampHip;
-    player.head.px = player.head.x - (player.head.x - player.head.px) * dampHip;
+    // No dragging, no keys: damp horizontal velocity to zero on every body part
+    // so the stickman comes to a complete rest instead of carrying swing momentum.
+    const movingH = keys.has("arrowleft") || keys.has("a") || keys.has("arrowright") || keys.has("d");
+    const damp = movingH ? 0.92 : 0.55;
+    for (const p of player.parts) {
+      p.px = p.x - (p.x - p.px) * damp;
+    }
   }
 
   // Physics step
