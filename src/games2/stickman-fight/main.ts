@@ -472,13 +472,20 @@ function spawnRound(round: number): void {
   enemies = [];
   const count = Math.min(1 + Math.floor((round - 1) / 2), 4);
   const enemyWeapons: WeaponId[] = ["fist", "fist", "stick", "stick", "bat", "sword", "spear", "hammer"];
+  // HP grows linearly through round 13, then sharply tapers — round 14+ is a
+  // gentle climb rather than a slog. Caps ~270 HP no matter how high you go.
+  const hpForRound = (r: number): number => {
+    if (r <= 13) return 40 + r * 12; // round 13 → 196
+    const extra = Math.sqrt(r - 13) * 14; // round 14 → +14, round 30 → +56, asymptotic
+    return Math.min(270, 196 + extra);
+  };
   for (let i = 0; i < count; i++) {
     const wpn = enemyWeapons[Math.min(round - 1 + i, enemyWeapons.length - 1)] ?? "fist";
     const e = makeStickman(WIDTH - 100 - i * 90, GROUND_Y - 35, {
       ai: true,
       weapon: wpn,
       color: "#a83232",
-      hp: 40 + round * 12,
+      hp: hpForRound(round),
     });
     e.facing = -1;
     enemies.push(e);
