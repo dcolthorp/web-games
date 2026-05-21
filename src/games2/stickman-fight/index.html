@@ -12,6 +12,12 @@
       <header class="sf-header">
         <a class="sf-back" href="../">← Games 2</a>
         <h1>Stickman Fight</h1>
+        <div class="sf-level-picker" title="Jump to a specific round">
+          <button id="sf-round-down" type="button" aria-label="Previous round">−</button>
+          <input id="sf-round-input" type="number" min="1" max="99" value="1" />
+          <button id="sf-round-up" type="button" aria-label="Next round">+</button>
+          <button id="sf-round-go" type="button">Go</button>
+        </div>
         <div class="sf-stats">
           <span id="sf-coins">💰 0</span>
           <span id="sf-round">Round 1</span>

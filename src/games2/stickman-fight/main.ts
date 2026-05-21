@@ -566,12 +566,28 @@ const panel = document.getElementById("sf-panel")!;
 const coinsEl = document.getElementById("sf-coins")!;
 const roundEl = document.getElementById("sf-round")!;
 const shopBtn = document.getElementById("sf-shop-btn") as HTMLButtonElement;
+const roundInput = document.getElementById("sf-round-input") as HTMLInputElement;
+const roundDown = document.getElementById("sf-round-down") as HTMLButtonElement;
+const roundUp = document.getElementById("sf-round-up") as HTMLButtonElement;
+const roundGo = document.getElementById("sf-round-go") as HTMLButtonElement;
 
 let paused = false;
 
 function updateHUD(): void {
   coinsEl.textContent = `💰 ${save.coins}`;
   roundEl.textContent = `Round ${save.round}`;
+  roundInput.value = String(save.round);
+}
+
+function jumpToRound(target: number): void {
+  const clamped = Math.max(1, Math.min(99, Math.floor(target)));
+  save.round = clamped;
+  persistSave();
+  updateHUD();
+  spawnRound(clamped);
+  resetPlayer();
+  roundResolved = false;
+  showStartRound();
 }
 
 function openShop(): void {
@@ -703,6 +719,23 @@ function resetPlayer(): void {
 
 shopBtn.addEventListener("click", () => {
   if (!paused) openShop();
+});
+
+roundDown.addEventListener("click", () => {
+  const v = Number(roundInput.value) || save.round;
+  roundInput.value = String(Math.max(1, v - 1));
+});
+roundUp.addEventListener("click", () => {
+  const v = Number(roundInput.value) || save.round;
+  roundInput.value = String(Math.min(99, v + 1));
+});
+roundGo.addEventListener("click", () => {
+  const v = Number(roundInput.value);
+  if (!Number.isFinite(v)) return;
+  jumpToRound(v);
+});
+roundInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") roundGo.click();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
