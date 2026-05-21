@@ -69,10 +69,14 @@
   position: absolute;
   inset: 0;
   background: rgba(10, 12, 24, 0.78);
-  display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 12px;
+  display: flex;
+}
+
+.sf-overlay[hidden] {
+  display: none !important;
 }
 
 .sf-panel {
