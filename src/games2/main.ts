@@ -19,6 +19,13 @@ const games: Game[] = [
     genre: "Boss Doodle",
     blurb: "Sketch your way through bosses that won't sit still.",
   },
+  {
+    id: "stickman-fight",
+    name: "Stickman Fight",
+    path: "./stickman-fight/",
+    genre: "Ragdoll Brawl",
+    blurb: "Swing weapons, flop around, and earn coins to upgrade your arsenal.",
+  },
 ];
 
 function renderGameList(): void {

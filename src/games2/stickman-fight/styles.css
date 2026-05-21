@@ -1,0 +1,148 @@
+.sf-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  color: #f4f4f4;
+  font-family: system-ui, sans-serif;
+}
+
+.sf-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 960px;
+}
+
+.sf-header h1 {
+  margin: 0;
+  flex: 1;
+  font-size: 28px;
+}
+
+.sf-back {
+  color: #f4f4f4;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.sf-stats {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.sf-stats button {
+  background: #ffcc33;
+  color: #222;
+  border: none;
+  padding: 8px 14px;
+  font-weight: 800;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sf-stats button:hover {
+  background: #ffd75c;
+}
+
+.sf-stage {
+  position: relative;
+}
+
+#game {
+  background: linear-gradient(#7fc2ff 0%, #c8e8ff 65%, #d6b687 65%, #b58a5a 100%);
+  border-radius: 12px;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#game:active {
+  cursor: grabbing;
+}
+
+.sf-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 12, 24, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.sf-panel {
+  background: #1c1f2e;
+  border: 2px solid #ffcc33;
+  border-radius: 12px;
+  padding: 22px 26px;
+  min-width: 360px;
+  max-width: 600px;
+  color: #f4f4f4;
+}
+
+.sf-panel h2 {
+  margin: 0 0 12px;
+}
+
+.sf-panel .sf-shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.sf-panel .sf-shop-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #262a3d;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.sf-panel .sf-shop-item.equipped {
+  border: 1px solid #4ad295;
+}
+
+.sf-panel .sf-shop-item button {
+  background: #ffcc33;
+  color: #222;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sf-panel .sf-shop-item button:disabled {
+  background: #555;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+.sf-panel .sf-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.sf-panel .sf-actions button {
+  background: #4ad295;
+  color: #0a0c18;
+  border: none;
+  padding: 9px 16px;
+  font-weight: 800;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sf-hint {
+  max-width: 960px;
+  text-align: center;
+  opacity: 0.85;
+}

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/colthorp/Developer/games && git add -A && { git diff --cached --quiet || { git commit -m \"auto: $(date '+%Y-%m-%d %H:%M:%S')\" && git push 2>/dev/null; }; } 2>/dev/null || true",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

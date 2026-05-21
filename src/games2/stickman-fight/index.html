@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stickman Fight</title>
+    <link rel="stylesheet" href="../../styles/main.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="sf-shell">
+      <header class="sf-header">
+        <a class="sf-back" href="../">← Games 2</a>
+        <h1>Stickman Fight</h1>
+        <div class="sf-stats">
+          <span id="sf-coins">💰 0</span>
+          <span id="sf-round">Round 1</span>
+          <button id="sf-shop-btn" type="button">Shop</button>
+        </div>
+      </header>
+      <div class="sf-stage">
+        <canvas id="game" width="960" height="560"></canvas>
+        <div class="sf-overlay" id="sf-overlay" hidden>
+          <div class="sf-panel" id="sf-panel"></div>
+        </div>
+      </div>
+      <p class="sf-hint">
+        Drag your stickman's <b>hand</b> to swing your weapon. Arrow keys / WASD to nudge the body.
+        Faster swings hit harder.
+      </p>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

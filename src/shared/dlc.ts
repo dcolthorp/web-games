@@ -53,7 +53,15 @@ export function unlockDlc(dlcId: string): void {
 
 export function isDlcPurchased(dlcId: string): boolean {
   try {
-    return localStorage.getItem(PURCHASED_KEY_PREFIX + dlcId) === "true";
+    if (localStorage.getItem(PURCHASED_KEY_PREFIX + dlcId) === "true") return true;
+    // Legacy migration: anything that was ever unlocked is considered purchased.
+    // Avoids forcing users to re-spend a credit because the ownership flag
+    // didn't exist when they first bought the DLC.
+    if (localStorage.getItem(UNLOCKED_KEY_PREFIX + dlcId) === "true") {
+      localStorage.setItem(PURCHASED_KEY_PREFIX + dlcId, "true");
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
