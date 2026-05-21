@@ -507,16 +507,26 @@ let enemies: Stickman[] = [];
 
 function spawnRound(round: number): void {
   enemies = [];
-  const count = Math.min(1 + Math.floor((round - 1) / 2), 4);
+  // Round 10 is the "secret challenge" round (clear with fists → unlock Rage Quit).
+  // Give it way fewer/weaker enemies than the curve would normally produce so the
+  // bare-hands run is actually fun rather than a 4-hammer beatdown.
+  const isSecretRound = round === 10;
+  const count = isSecretRound ? 2 : Math.min(1 + Math.floor((round - 1) / 2), 4);
   const enemyWeapons: WeaponId[] = ["fist", "fist", "stick", "stick", "bat", "sword", "spear", "hammer"];
   // HP grows linearly through round 13, then sharply tapers — round 14+ is a
   // gentle climb rather than a slog. Caps ~270 HP no matter how high you go.
   const hpForRound = (r: number): number => {
+    if (r === 10) return 60; // secret-round enemies are glass-cannons
     if (r <= 13) return 40 + r * 12; // round 13 → 196
     return Math.min(200, 196 + (r - 13)); // gentle climb to a hard cap at 200
   };
   for (let i = 0; i < count; i++) {
-    const wpn = enemyWeapons[Math.min(round - 1 + i, enemyWeapons.length - 1)] ?? "fist";
+    let wpn: WeaponId;
+    if (isSecretRound) {
+      wpn = i === 0 ? "fist" : "stick"; // one bare-hands rival, one stick
+    } else {
+      wpn = enemyWeapons[Math.min(round - 1 + i, enemyWeapons.length - 1)] ?? "fist";
+    }
     const e = makeStickman(WIDTH - 100 - i * 90, GROUND_Y - 35, {
       ai: true,
       weapon: wpn,
