@@ -476,8 +476,7 @@ function spawnRound(round: number): void {
   // gentle climb rather than a slog. Caps ~270 HP no matter how high you go.
   const hpForRound = (r: number): number => {
     if (r <= 13) return 40 + r * 12; // round 13 → 196
-    const extra = Math.sqrt(r - 13) * 14; // round 14 → +14, round 30 → +56, asymptotic
-    return Math.min(270, 196 + extra);
+    return Math.min(200, 196 + (r - 13)); // gentle climb to a hard cap at 200
   };
   for (let i = 0; i < count; i++) {
     const wpn = enemyWeapons[Math.min(round - 1 + i, enemyWeapons.length - 1)] ?? "fist";
