@@ -172,30 +172,36 @@ function applyPosture(s: Stickman): void {
   if (s.dead) return;
   const k = s.uprightStrength;
 
+  // Hip wants to stay near a standing height above the ground
+  const desiredHipY = GROUND_Y - 35;
+  s.hip.y += (desiredHipY - s.hip.y) * 0.12 * k;
+
   // Head wants to be above the hip
   const desiredHeadY = s.hip.y - 60;
-  s.head.y += (desiredHeadY - s.head.y) * 0.05 * k;
+  const desiredHeadX = s.hip.x;
+  s.head.y += (desiredHeadY - s.head.y) * 0.10 * k;
+  s.head.x += (desiredHeadX - s.head.x) * 0.04 * k;
 
   // Neck between hip and head
   const desiredNeckX = (s.head.x + s.hip.x) * 0.5;
   const desiredNeckY = (s.head.y + s.hip.y) * 0.5;
-  s.neck.x += (desiredNeckX - s.neck.x) * 0.18 * k;
-  s.neck.y += (desiredNeckY - s.neck.y) * 0.18 * k;
+  s.neck.x += (desiredNeckX - s.neck.x) * 0.22 * k;
+  s.neck.y += (desiredNeckY - s.neck.y) * 0.22 * k;
 
   // Feet stay roughly under the hip, on the ground
   const footTargetY = GROUND_Y - 4;
-  s.footL.y += (footTargetY - s.footL.y) * 0.08 * k;
-  s.footR.y += (footTargetY - s.footR.y) * 0.08 * k;
-  const footLTargetX = s.hip.x - 12 * s.facing;
-  const footRTargetX = s.hip.x + 12 * s.facing;
-  s.footL.x += (footLTargetX - s.footL.x) * 0.04 * k;
-  s.footR.x += (footRTargetX - s.footR.x) * 0.04 * k;
+  s.footL.y += (footTargetY - s.footL.y) * 0.15 * k;
+  s.footR.y += (footTargetY - s.footR.y) * 0.15 * k;
+  const footLTargetX = s.hip.x - 12;
+  const footRTargetX = s.hip.x + 12;
+  s.footL.x += (footLTargetX - s.footL.x) * 0.08 * k;
+  s.footR.x += (footRTargetX - s.footR.x) * 0.08 * k;
 
   // Off-hand wants to rest by the neck
   const offHandTargetX = s.neck.x - 18 * s.facing;
   const offHandTargetY = s.neck.y + 6;
-  s.handL.x += (offHandTargetX - s.handL.x) * 0.04 * k;
-  s.handL.y += (offHandTargetY - s.handL.y) * 0.04 * k;
+  s.handL.x += (offHandTargetX - s.handL.x) * 0.06 * k;
+  s.handL.y += (offHandTargetY - s.handL.y) * 0.06 * k;
 }
 
 // Weapon hand tip position (extending from the active hand)
@@ -457,7 +463,7 @@ const player: Stickman = makeStickman(220, GROUND_Y - 35, {
   ai: false,
   weapon: save.equipped,
   color: "#111",
-  hp: 100,
+  hp: 150,
 });
 
 let enemies: Stickman[] = [];
@@ -635,6 +641,26 @@ function showRoundComplete(reward: number): void {
     updateHUD();
     spawnRound(save.round);
     resetPlayer();
+    roundResolved = false;
+    showStartRound();
+  });
+}
+
+function showStartRound(): void {
+  paused = true;
+  overlay.hidden = false;
+  panel.innerHTML = `
+    <h2>Round ${save.round}</h2>
+    <p>Drag your stickman's <b>right hand</b> (the one holding the weapon) around the canvas to swing.
+       Faster swings hit harder. Tap arrows / WASD to nudge your body and jump.</p>
+    <p>You're holding: <b>${WEAPONS[save.equipped].name}</b></p>
+    <div class="sf-actions">
+      <button id="sf-shop-open">Shop</button>
+      <button id="sf-fight">Fight! →</button>
+    </div>
+  `;
+  panel.querySelector<HTMLButtonElement>("#sf-shop-open")!.addEventListener("click", openShop);
+  panel.querySelector<HTMLButtonElement>("#sf-fight")!.addEventListener("click", () => {
     closeOverlay();
   });
 }
@@ -654,7 +680,8 @@ function showDefeat(): void {
   panel.querySelector<HTMLButtonElement>("#sf-retry")!.addEventListener("click", () => {
     spawnRound(save.round);
     resetPlayer();
-    closeOverlay();
+    roundResolved = false;
+    showStartRound();
   });
 }
 
@@ -664,7 +691,7 @@ function closeOverlay(): void {
 }
 
 function resetPlayer(): void {
-  const fresh = makeStickman(220, GROUND_Y - 35, { ai: false, weapon: save.equipped, color: "#111", hp: 100 });
+  const fresh = makeStickman(220, GROUND_Y - 35, { ai: false, weapon: save.equipped, color: "#111", hp: 150 });
   Object.assign(player, fresh);
 }
 
@@ -848,4 +875,5 @@ function step(): void {
 }
 
 updateHUD();
+showStartRound();
 requestAnimationFrame(step);
