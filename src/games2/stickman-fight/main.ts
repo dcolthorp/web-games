@@ -9,7 +9,7 @@ const GRAVITY = 0.55;
 const AIR_DAMP = 0.992;
 const GROUND_FRIC = 0.86;
 
-type WeaponId = "fist" | "stick" | "bat" | "sword" | "hammer" | "spear" | "lightsaber";
+type WeaponId = "fist" | "stick" | "bat" | "sword" | "hammer" | "spear" | "lightsaber" | "ragequit";
 
 interface WeaponDef {
   id: WeaponId;
@@ -30,9 +30,12 @@ const WEAPONS: Record<WeaponId, WeaponDef> = {
   spear:      { id: "spear",      name: "Spear",         price: 220,  length: 120,width: 3,  color: "#bdbdbd", damage: 1.4, tipBonus: 1.2 },
   hammer:     { id: "hammer",     name: "War Hammer",    price: 350,  length: 70, width: 14, color: "#5a5a66", damage: 2.4, tipBonus: 0.4 },
   lightsaber: { id: "lightsaber", name: "Lightsaber",    price: 900,  length: 95, width: 7,  color: "#5cffff", damage: 3.2, tipBonus: 1.0 },
+  // Secret weapon: unlocked by clearing round 10 with bare fists. Price is 1 coin
+  // as a token "buy" — its real cost was paid in pain.
+  ragequit:   { id: "ragequit",   name: "Rage Quit",     price: 1,    length: 60, width: 6,  color: "#ff2a2a", damage: 99,  tipBonus: 0   },
 };
 
-const WEAPON_ORDER: WeaponId[] = ["fist", "stick", "bat", "sword", "spear", "hammer", "lightsaber"];
+const WEAPON_ORDER: WeaponId[] = ["fist", "stick", "bat", "sword", "spear", "hammer", "lightsaber", "ragequit"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Verlet particles & sticks
@@ -124,6 +127,10 @@ interface Stickman {
   swingPhase: number;
   // postural target (for upright assist)
   uprightStrength: number;
+  // When > 0, this stickman is shaking/reddening then will vanish.
+  ragequitTimer: number;
+  // True once ragequit timer reaches 0 — caller removes them from play.
+  vanished: boolean;
 }
 
 function makeStickman(x: number, y: number, opts: { ai: boolean; weapon: WeaponId; color: string; hp: number }): Stickman {
@@ -163,6 +170,8 @@ function makeStickman(x: number, y: number, opts: { ai: boolean; weapon: WeaponI
     grace: 90, // ~1.5 seconds of invulnerability at spawn
     swingPhase: Math.random() * Math.PI * 2,
     uprightStrength: 1,
+    ragequitTimer: 0,
+    vanished: false,
   };
 }
 
@@ -231,8 +240,22 @@ function weaponTip(s: Stickman): { x: number; y: number; px: number; py: number;
 
 function drawStickman(s: Stickman): void {
   ctx.save();
-  ctx.strokeStyle = s.color;
-  ctx.fillStyle = s.color;
+  // Rage Quit meltdown: shake, redden, then fade out
+  let shakeX = 0, shakeY = 0;
+  let drawColor = s.color;
+  let globalAlpha = 1;
+  if (s.ragequitTimer > 0) {
+    const t = s.ragequitTimer;
+    const intensity = Math.min(1, (75 - t) / 30 + 0.4);
+    shakeX = (Math.random() - 0.5) * 10 * intensity;
+    shakeY = (Math.random() - 0.5) * 10 * intensity;
+    drawColor = "#ff2a2a";
+    globalAlpha = Math.min(1, t / 25); // fade out in last ~25 frames
+  }
+  ctx.translate(shakeX, shakeY);
+  ctx.globalAlpha = globalAlpha;
+  ctx.strokeStyle = drawColor;
+  ctx.fillStyle = drawColor;
   ctx.lineWidth = 4;
   ctx.lineCap = "round";
 
@@ -252,7 +275,7 @@ function drawStickman(s: Stickman): void {
   // head
   ctx.beginPath();
   ctx.arc(s.head.x, s.head.y, s.head.radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = s.ragequitTimer > 0 ? "#ff6a6a" : "#fff";
   ctx.fill();
   ctx.stroke();
   // eyes
@@ -411,7 +434,13 @@ function checkWeaponHits(attacker: Stickman, defender: Stickman): void {
 
       hits.push({ x: t.p.x, y: t.p.y, life: 14 });
 
-      if (defender.hp <= 0) {
+      // Rage Quit: any contact triggers the meltdown animation regardless of HP.
+      if (attacker.weapon === "ragequit" && defender.ragequitTimer <= 0) {
+        defender.ragequitTimer = 75; // ~1.25s of red shaking before vanish
+        defender.uprightStrength = 0;
+        defender.hp = 0;
+        defender.dead = true;
+      } else if (defender.hp <= 0) {
         defender.dead = true;
         defender.uprightStrength = 0;
       }
@@ -432,6 +461,7 @@ interface SaveData {
   owned: WeaponId[];
   equipped: WeaponId;
   round: number;
+  ragequitUnlocked: boolean;
 }
 
 function loadSave(): SaveData {
@@ -444,16 +474,23 @@ function loadSave(): SaveData {
         owned: Array.isArray(data.owned) ? data.owned : ["fist"],
         equipped: data.equipped ?? "fist",
         round: data.round ?? 1,
+        ragequitUnlocked: !!data.ragequitUnlocked,
       };
     }
   } catch {}
-  return { coins: 0, owned: ["fist"], equipped: "fist", round: 1 };
+  return { coins: 0, owned: ["fist"], equipped: "fist", round: 1, ragequitUnlocked: false };
 }
 
 function persistSave(): void {
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ coins: save.coins, owned: save.owned, equipped: save.equipped, round: save.round })
+    JSON.stringify({
+      coins: save.coins,
+      owned: save.owned,
+      equipped: save.equipped,
+      round: save.round,
+      ragequitUnlocked: save.ragequitUnlocked,
+    })
   );
 }
 
@@ -597,18 +634,22 @@ function openShop(): void {
     <h2>Weapon Shop</h2>
     <p>Buy bigger sticks. Hit harder.</p>
     <div class="sf-shop-list">
-      ${WEAPON_ORDER.map((id) => {
+      ${WEAPON_ORDER.filter((id) => id !== "ragequit" || save.ragequitUnlocked).map((id) => {
         const w = WEAPONS[id];
         const owned = save.owned.includes(id);
         const equipped = save.equipped === id;
         const canBuy = !owned && save.coins >= w.price;
+        const isSecret = id === "ragequit";
         let btn = "";
         if (equipped) btn = `<button disabled>Equipped</button>`;
         else if (owned) btn = `<button data-equip="${id}">Equip</button>`;
         else btn = `<button data-buy="${id}" ${canBuy ? "" : "disabled"}>${canBuy ? `Buy 💰${w.price}` : `💰${w.price}`}</button>`;
+        const label = isSecret
+          ? `<b style="color:#ff6a6a;">${w.name}</b> — one-shot. They turn red, shake, and vanish.`
+          : `<b>${w.name}</b> — dmg ${w.damage.toFixed(1)}${w.tipBonus ? ` + tip ${w.tipBonus.toFixed(1)}` : ""}, reach ${w.length}`;
         return `
-          <div class="sf-shop-item ${equipped ? "equipped" : ""}">
-            <span><b>${w.name}</b> — dmg ${w.damage.toFixed(1)}${w.tipBonus ? ` + tip ${w.tipBonus.toFixed(1)}` : ""}, reach ${w.length}</span>
+          <div class="sf-shop-item ${equipped ? "equipped" : ""}" ${isSecret ? 'style="border:1px solid #ff2a2a;"' : ""}>
+            <span>${label}</span>
             ${btn}
           </div>
         `;
@@ -645,12 +686,16 @@ function openShop(): void {
   panel.querySelector<HTMLButtonElement>("#sf-close-shop")!.addEventListener("click", closeOverlay);
 }
 
-function showRoundComplete(reward: number): void {
+function showRoundComplete(reward: number, secretUnlocked = false): void {
   paused = true;
   overlay.hidden = false;
+  const secret = secretUnlocked
+    ? `<p style="color:#ff6a6a;font-weight:800;">🔓 SECRET UNLOCKED: Rage Quit is now available in the shop.</p>`
+    : "";
   panel.innerHTML = `
     <h2>Round ${save.round} Cleared!</h2>
     <p>You earned 💰 ${reward}.</p>
+    ${secret}
     <div class="sf-actions">
       <button id="sf-shop-open">Visit Shop</button>
       <button id="sf-next">Next Round →</button>
@@ -823,9 +868,15 @@ function step(): void {
   for (const s of all) {
     if (s.grace > 0) s.grace--;
     if (s.hitCooldown > 0) s.hitCooldown--;
+    if (s.ragequitTimer > 0) {
+      s.ragequitTimer--;
+      if (s.ragequitTimer === 0) s.vanished = true;
+    }
     applyPosture(s);
     for (const p of s.parts) updateParticle(p);
   }
+  // Remove vanished enemies
+  enemies = enemies.filter((e) => !e.vanished);
   // Multiple constraint passes
   for (let i = 0; i < 4; i++) {
     for (const s of all) {
@@ -897,13 +948,17 @@ function step(): void {
     if (player.dead) {
       roundResolved = true;
       setTimeout(showDefeat, 1200);
-    } else if (enemies.every((e) => e.dead)) {
+    } else if (enemies.length > 0 && enemies.every((e) => e.dead)) {
       roundResolved = true;
       const reward = 20 + save.round * 10;
       save.coins += reward;
+      // Secret unlock: cleared round 10 with bare fists.
+      const justUnlocked =
+        save.round === 10 && player.weapon === "fist" && !save.ragequitUnlocked;
+      if (justUnlocked) save.ragequitUnlocked = true;
       persistSave();
       updateHUD();
-      setTimeout(() => showRoundComplete(reward), 900);
+      setTimeout(() => showRoundComplete(reward, justUnlocked), 900);
     }
   }
   if (roundResolved && (player.dead || enemies.every((e) => e.dead)) && !overlay.hidden === false) {
