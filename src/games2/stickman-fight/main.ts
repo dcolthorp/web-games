@@ -714,9 +714,9 @@ function updateAI(e: Stickman, _dt: number): void {
   // Walk if too far
   if (Math.abs(dx) > wReach) {
     const speed = 0.18 + Math.min(0.12, save.round * 0.015);
-    applyImpulse(e.hip, -dir * speed, 0);
-    applyImpulse(e.footL, -dir * speed * 0.8, 0);
-    applyImpulse(e.footR, -dir * speed * 0.8, 0);
+    applyImpulse(e.hip, dir * speed, 0);
+    applyImpulse(e.footL, dir * speed * 0.8, 0);
+    applyImpulse(e.footR, dir * speed * 0.8, 0);
   }
 
   // Only swing when in range or close to it; pause between swings.
@@ -750,17 +750,16 @@ function step(): void {
     if (keys.has("arrowleft") || keys.has("a")) moveX -= 0.5;
     if (keys.has("arrowright") || keys.has("d")) moveX += 0.5;
     if (moveX !== 0) {
-      applyImpulse(player.hip, -moveX, 0);
-      applyImpulse(player.footL, -moveX * 0.8, 0);
-      applyImpulse(player.footR, -moveX * 0.8, 0);
+      applyImpulse(player.hip, moveX, 0);
+      applyImpulse(player.footL, moveX * 0.8, 0);
+      applyImpulse(player.footR, moveX * 0.8, 0);
     }
-    if ((keys.has("arrowup") || keys.has("w") || keys.has(" ")) && player.hip.y > GROUND_Y - 50) {
-      // jump if grounded (approx)
-      const grounded = player.footL.y >= GROUND_Y - player.footL.radius - 1
-        || player.footR.y >= GROUND_Y - player.footR.radius - 1;
+    if (keys.has("arrowup") || keys.has("w") || keys.has(" ")) {
+      const grounded = player.footL.y >= GROUND_Y - player.footL.radius - 2
+        || player.footR.y >= GROUND_Y - player.footR.radius - 2;
       if (grounded) {
-        applyImpulse(player.hip, 0, 9);
-        applyImpulse(player.head, 0, 7);
+        applyImpulse(player.hip, 0, -9);
+        applyImpulse(player.head, 0, -7);
       }
     }
   }
@@ -771,6 +770,17 @@ function step(): void {
     const k = 0.35;
     dragging.x += (mouseX - dragging.x) * k;
     dragging.y += (mouseY - dragging.y) * k;
+  } else if (!player.dead) {
+    // Rest: pull weapon hand back toward a neutral guard position
+    // and damp residual velocity so the body doesn't drift after a swing.
+    const restX = player.neck.x + 22;
+    const restY = player.neck.y + 4;
+    player.handR.x += (restX - player.handR.x) * 0.12;
+    player.handR.y += (restY - player.handR.y) * 0.12;
+    // Damp horizontal velocity on the body
+    const dampHip = 0.85;
+    player.hip.px = player.hip.x - (player.hip.x - player.hip.px) * dampHip;
+    player.head.px = player.head.x - (player.head.x - player.head.px) * dampHip;
   }
 
   // Physics step
