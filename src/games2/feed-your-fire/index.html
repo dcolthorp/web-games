@@ -128,16 +128,35 @@
 
       .secret-zone {
         position: fixed;
-        right: 0;
+        right: 270px;
         bottom: 16px;
-        width: 18px;
-        height: 200px;
+        width: 60px;
+        height: 340px;
         z-index: 5;
+      }
+      .secret-hint {
+        position: fixed;
+        right: 290px;
+        bottom: 180px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ff5bff;
+        box-shadow: 0 0 10px #ff5bff, 0 0 22px rgba(255, 91, 255, 0.6);
+        opacity: 0;
+        animation: secret-pulse 1.4s ease-in-out infinite;
+        z-index: 5;
+        pointer-events: none;
+      }
+      .secret-hint.armed { opacity: 1; }
+      @keyframes secret-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.6); }
       }
       .secret-btn {
         position: fixed;
-        right: -120px;
-        bottom: 90px;
+        right: 290px;
+        bottom: 120px;
         padding: 10px 14px;
         border-radius: 10px;
         border: 1px solid #ff5bff;
@@ -150,13 +169,16 @@
         text-transform: uppercase;
         cursor: pointer;
         opacity: 0;
-        transition: right 250ms ease, opacity 250ms ease;
+        transform: translateX(20px);
+        transition: opacity 250ms ease, transform 250ms ease;
         box-shadow: 0 0 14px rgba(255, 91, 255, 0.5);
         z-index: 7;
+        pointer-events: none;
       }
       .secret-btn.revealed {
-        right: 280px;
         opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
       }
       .secret-btn:disabled { opacity: 0.25 !important; cursor: not-allowed; }
 
@@ -199,6 +221,7 @@
       </div>
     </div>
     <div class="secret-zone" id="secret-zone" aria-hidden="true"></div>
+    <div class="secret-hint" id="secret-hint" aria-hidden="true"></div>
     <button id="secret-btn" class="secret-btn" type="button" disabled>★ Rainbow Beyond ★</button>
     <div id="toast" class="toast"></div>
     <script type="module" src="./main.ts"></script>

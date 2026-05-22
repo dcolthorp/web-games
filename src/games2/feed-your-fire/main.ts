@@ -67,6 +67,7 @@ const meterFill = document.getElementById("meter-fill") as HTMLDivElement;
 const gasList = document.getElementById("gas-list") as HTMLDivElement;
 const secretBtn = document.getElementById("secret-btn") as HTMLButtonElement;
 const secretZone = document.getElementById("secret-zone") as HTMLDivElement;
+const secretHint = document.getElementById("secret-hint") as HTMLDivElement;
 const toastEl = document.getElementById("toast") as HTMLDivElement;
 const hintEl = document.getElementById("hint") as HTMLSpanElement;
 
@@ -210,7 +211,9 @@ function burstParticles(n: number, gas?: Gasoline) {
 }
 
 function checkSecretAvailability() {
-  secretBtn.disabled = !(state.reachedLevel8 && !state.rainbowBeyondUnlocked);
+  const available = state.reachedLevel8 && !state.rainbowBeyondUnlocked;
+  secretBtn.disabled = !available;
+  secretHint.classList.toggle("armed", available);
 }
 
 let secretHoverTimer: number | null = null;
