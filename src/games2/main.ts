@@ -63,3 +63,10 @@ function renderGameList(): void {
 }
 
 renderGameList();
+
+const trapFloor2 = document.getElementById("trap-floor-2");
+if (trapFloor2 instanceof HTMLButtonElement) {
+  trapFloor2.addEventListener("click", () => {
+    window.location.replace("https://www.youtube.com/watch?v=XqZsoesa55w");
+  });
+}
