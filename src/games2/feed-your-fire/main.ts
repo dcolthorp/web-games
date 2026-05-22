@@ -291,7 +291,7 @@ function startBoss() {
   state.bossHp = BOSS_MAX_HP;
   state.bossMaxHp = BOSS_MAX_HP;
   state.bossShake = 0;
-  nextFlickerAt = 1.5;
+  nextFlickerAt = 0.9;
   flickerEnd = 0;
   hideCutsceneText();
   // delayed warning text
@@ -843,35 +843,49 @@ function drawBoss() {
   ctx.fillText(`THE FIRE — ${state.bossHp} / ${state.bossMaxHp}`, canvasWidth / 2, barY + barH / 2);
 }
 
-// Boss face flicker: every ~1.6–3.0s, show the cute face for ~110ms.
-let nextFlickerAt = 1.5;
+// Boss face flicker: every ~0.9–1.8s, show the cute face for ~220ms.
+let nextFlickerAt = 0.9;
 let flickerEnd = 0;
 function isFlickerFrame(): boolean {
   const tNow = state.modeTimer;
   if (tNow >= nextFlickerAt && tNow > flickerEnd) {
-    flickerEnd = tNow + 0.11;
-    nextFlickerAt = tNow + 1.6 + Math.random() * 1.4;
+    flickerEnd = tNow + 0.22;
+    nextFlickerAt = tNow + 0.9 + Math.random() * 0.9;
   }
   return tNow < flickerEnd;
 }
 
 function drawCutePetFace(flameW: number, flameH: number, _t: number) {
-  // The original happy pet-fire face — same eyes/smile as drawPlay.
+  // Drawn in the SAME spot as the creepy face so the swap is unmistakable.
+  // Eyes — round, big, friendly.
+  const eyeOff = flameW * 0.3;
+  const eyeY = -flameH * 0.22;
+  const eyeR = flameW * 0.11;
   ctx.fillStyle = "#1a0a05";
-  const eyeY = -flameH * 0.45;
   ctx.beginPath();
-  ctx.ellipse(-flameW * 0.25, eyeY, flameW * 0.06, flameW * 0.08, 0, 0, Math.PI * 2);
-  ctx.ellipse(flameW * 0.25, eyeY, flameW * 0.06, flameW * 0.08, 0, 0, Math.PI * 2);
+  ctx.ellipse(-eyeOff, eyeY, eyeR, eyeR * 1.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(eyeOff, eyeY, eyeR, eyeR * 1.1, 0, 0, Math.PI * 2);
   ctx.fill();
+  // White sparkle highlights
   ctx.fillStyle = "#fff";
   ctx.beginPath();
-  ctx.arc(-flameW * 0.25 + 2, eyeY - 2, flameW * 0.02, 0, Math.PI * 2);
-  ctx.arc(flameW * 0.25 + 2, eyeY - 2, flameW * 0.02, 0, Math.PI * 2);
+  ctx.arc(-eyeOff + eyeR * 0.35, eyeY - eyeR * 0.4, eyeR * 0.3, 0, Math.PI * 2);
+  ctx.arc(eyeOff + eyeR * 0.35, eyeY - eyeR * 0.4, eyeR * 0.3, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "#1a0a05";
-  ctx.lineWidth = 3;
+
+  // Rosy blush dots
+  ctx.fillStyle = "rgba(255, 130, 130, 0.55)";
   ctx.beginPath();
-  ctx.arc(0, -flameH * 0.3, flameW * 0.18, 0.2, Math.PI - 0.2);
+  ctx.arc(-flameW * 0.55, -flameH * 0.05, flameW * 0.08, 0, Math.PI * 2);
+  ctx.arc(flameW * 0.55, -flameH * 0.05, flameW * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Big curved smile (positioned over where the creepy mouth would be)
+  ctx.strokeStyle = "#1a0a05";
+  ctx.lineWidth = Math.max(4, flameW * 0.03);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.arc(0, -flameH * 0.05, flameW * 0.38, 0.25, Math.PI - 0.25);
   ctx.stroke();
 }
 
