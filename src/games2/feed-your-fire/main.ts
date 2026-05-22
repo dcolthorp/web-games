@@ -72,6 +72,12 @@ const toastEl = document.getElementById("toast") as HTMLDivElement;
 const hintEl = document.getElementById("hint") as HTMLSpanElement;
 const cutsceneTextEl = document.getElementById("cutscene-text") as HTMLDivElement;
 const replayBtn = document.getElementById("replay-btn") as HTMLButtonElement;
+const surrenderBtn = document.getElementById("surrender-btn") as HTMLButtonElement;
+
+surrenderBtn.addEventListener("click", () => {
+  const ok = window.confirm("Surrender? Your fire and coins will be reset to Level 1.");
+  if (ok) window.location.reload();
+});
 
 type Mode = "play" | "takeover" | "boss" | "watering" | "ending";
 
@@ -285,6 +291,8 @@ function startBoss() {
   state.bossHp = BOSS_MAX_HP;
   state.bossMaxHp = BOSS_MAX_HP;
   state.bossShake = 0;
+  nextFlickerAt = 1.5;
+  flickerEnd = 0;
   hideCutsceneText();
   // delayed warning text
   setTimeout(() => {
@@ -803,61 +811,12 @@ function drawBoss() {
   ctx.bezierCurveTo(-flameW * 1.15, flameH * 0.1, -flameW, -flameH * 0.5, 0, -flameH);
   ctx.fill();
 
-  // Creepy face
-  // Eyes — angry slanted
-  ctx.fillStyle = "#000";
-  ctx.save();
-  ctx.translate(-flameW * 0.3, -flameH * 0.25);
-  ctx.rotate(-0.3);
-  ctx.beginPath();
-  ctx.ellipse(0, 0, flameW * 0.18, flameW * 0.09, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-  ctx.save();
-  ctx.translate(flameW * 0.3, -flameH * 0.25);
-  ctx.rotate(0.3);
-  ctx.beginPath();
-  ctx.ellipse(0, 0, flameW * 0.18, flameW * 0.09, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  // Glowing pupils
-  ctx.fillStyle = "#ff2222";
-  const pupilPulse = 1 + Math.sin(t * 6) * 0.2;
-  ctx.beginPath();
-  ctx.arc(-flameW * 0.28, -flameH * 0.24, 4 * pupilPulse, 0, Math.PI * 2);
-  ctx.arc(flameW * 0.32, -flameH * 0.24, 4 * pupilPulse, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Jagged grin
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  const mouthY = flameH * 0.05;
-  const mouthW = flameW * 0.55;
-  ctx.moveTo(-mouthW, mouthY);
-  ctx.lineTo(mouthW, mouthY);
-  ctx.lineTo(mouthW * 0.85, mouthY + flameH * 0.1);
-  ctx.lineTo(-mouthW * 0.85, mouthY + flameH * 0.1);
-  ctx.closePath();
-  ctx.fill();
-  // Teeth
-  ctx.fillStyle = "#fff";
-  const teethCount = 8;
-  for (let i = 0; i < teethCount; i++) {
-    const tx = -mouthW + (i + 0.5) * ((mouthW * 2) / teethCount);
-    ctx.beginPath();
-    ctx.moveTo(tx - 4, mouthY);
-    ctx.lineTo(tx + 4, mouthY);
-    ctx.lineTo(tx, mouthY + 14);
-    ctx.closePath();
-    ctx.fill();
-    // bottom tooth
-    ctx.beginPath();
-    ctx.moveTo(tx - 4, mouthY + flameH * 0.1);
-    ctx.lineTo(tx + 4, mouthY + flameH * 0.1);
-    ctx.lineTo(tx, mouthY + flameH * 0.1 - 14);
-    ctx.closePath();
-    ctx.fill();
+  // Face: occasionally flickers to the original cute pet-fire face for one frame.
+  const flicker = isFlickerFrame();
+  if (flicker) {
+    drawCutePetFace(flameW, flameH, t);
+  } else {
+    drawEvenCreepierFace(flameW, flameH, t);
   }
   ctx.restore();
 
@@ -882,6 +841,165 @@ function drawBoss() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(`THE FIRE — ${state.bossHp} / ${state.bossMaxHp}`, canvasWidth / 2, barY + barH / 2);
+}
+
+// Boss face flicker: every ~1.6–3.0s, show the cute face for ~110ms.
+let nextFlickerAt = 1.5;
+let flickerEnd = 0;
+function isFlickerFrame(): boolean {
+  const tNow = state.modeTimer;
+  if (tNow >= nextFlickerAt && tNow > flickerEnd) {
+    flickerEnd = tNow + 0.11;
+    nextFlickerAt = tNow + 1.6 + Math.random() * 1.4;
+  }
+  return tNow < flickerEnd;
+}
+
+function drawCutePetFace(flameW: number, flameH: number, _t: number) {
+  // The original happy pet-fire face — same eyes/smile as drawPlay.
+  ctx.fillStyle = "#1a0a05";
+  const eyeY = -flameH * 0.45;
+  ctx.beginPath();
+  ctx.ellipse(-flameW * 0.25, eyeY, flameW * 0.06, flameW * 0.08, 0, 0, Math.PI * 2);
+  ctx.ellipse(flameW * 0.25, eyeY, flameW * 0.06, flameW * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(-flameW * 0.25 + 2, eyeY - 2, flameW * 0.02, 0, Math.PI * 2);
+  ctx.arc(flameW * 0.25 + 2, eyeY - 2, flameW * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#1a0a05";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, -flameH * 0.3, flameW * 0.18, 0.2, Math.PI - 0.2);
+  ctx.stroke();
+}
+
+function drawEvenCreepierFace(flameW: number, flameH: number, t: number) {
+  // Heavy eyebrows — drawn first so they look like brow ridges over the eyes.
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = Math.max(4, flameW * 0.025);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-flameW * 0.5, -flameH * 0.42);
+  ctx.lineTo(-flameW * 0.12, -flameH * 0.28);
+  ctx.moveTo(flameW * 0.5, -flameH * 0.42);
+  ctx.lineTo(flameW * 0.12, -flameH * 0.28);
+  ctx.stroke();
+
+  // Sunken eye sockets (bigger, deeper, darker)
+  const eyeOff = flameW * 0.32;
+  const eyeY = -flameH * 0.22;
+  ctx.fillStyle = "#000";
+  ctx.save();
+  ctx.translate(-eyeOff, eyeY);
+  ctx.rotate(-0.35);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, flameW * 0.22, flameW * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.save();
+  ctx.translate(eyeOff, eyeY);
+  ctx.rotate(0.35);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, flameW * 0.22, flameW * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Bloody glowing pupils, larger, with a halo
+  const pupilPulse = 1 + Math.sin(t * 6) * 0.25;
+  // pupil halo
+  ctx.globalCompositeOperation = "lighter";
+  for (const sx of [-1, 1]) {
+    const px = sx * eyeOff * 0.9;
+    const py = eyeY;
+    const halo = ctx.createRadialGradient(px, py, 0, px, py, flameW * 0.12);
+    halo.addColorStop(0, "rgba(255, 30, 30, 0.95)");
+    halo.addColorStop(1, "rgba(255, 30, 30, 0)");
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(px, py, flameW * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#ff0a0a";
+  ctx.beginPath();
+  ctx.arc(-eyeOff * 0.9, eyeY, flameW * 0.04 * pupilPulse, 0, Math.PI * 2);
+  ctx.arc(eyeOff * 0.9, eyeY, flameW * 0.04 * pupilPulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Blood/tar drips below each eye
+  ctx.fillStyle = "rgba(120, 0, 0, 0.9)";
+  for (const sx of [-1, 1]) {
+    const baseX = sx * eyeOff * 0.95;
+    const dripLen = flameH * 0.18 + Math.sin(t * 1.3 + sx) * 4;
+    ctx.beginPath();
+    ctx.moveTo(baseX - 3, eyeY + 6);
+    ctx.lineTo(baseX + 3, eyeY + 6);
+    ctx.lineTo(baseX, eyeY + dripLen);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Huge gaping mouth — taller, wider, with curved arch
+  const mouthYTop = flameH * 0.0;
+  const mouthW = flameW * 0.72;
+  const mouthH = flameH * 0.22;
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.moveTo(-mouthW, mouthYTop);
+  ctx.quadraticCurveTo(0, mouthYTop - mouthH * 0.15, mouthW, mouthYTop);
+  ctx.quadraticCurveTo(mouthW * 0.92, mouthYTop + mouthH * 1.1, 0, mouthYTop + mouthH * 1.15);
+  ctx.quadraticCurveTo(-mouthW * 0.92, mouthYTop + mouthH * 1.1, -mouthW, mouthYTop);
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner mouth glow (red maw)
+  const maw = ctx.createRadialGradient(0, mouthYTop + mouthH * 0.5, 0, 0, mouthYTop + mouthH * 0.5, mouthW * 0.9);
+  maw.addColorStop(0, "rgba(180, 0, 0, 0.8)");
+  maw.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = maw;
+  ctx.beginPath();
+  ctx.ellipse(0, mouthYTop + mouthH * 0.5, mouthW * 0.85, mouthH * 0.85, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Jagged teeth — uneven, sharp, more of them
+  ctx.fillStyle = "#f5ecd2";
+  const teethCount = 13;
+  for (let i = 0; i < teethCount; i++) {
+    const ratio = (i + 0.5) / teethCount;
+    const tx = -mouthW * 0.92 + ratio * (mouthW * 1.84);
+    const topTaper = mouthYTop + Math.sin(ratio * Math.PI) * 4 - 2;
+    const len = 14 + ((i * 7) % 11);
+    // top fang
+    ctx.beginPath();
+    ctx.moveTo(tx - 5, topTaper);
+    ctx.lineTo(tx + 5, topTaper);
+    ctx.lineTo(tx + (i % 2 === 0 ? 1 : -1), topTaper + len);
+    ctx.closePath();
+    ctx.fill();
+    // bottom fang (offset between top fangs)
+    const btx = tx + (mouthW / teethCount) / 2;
+    if (Math.abs(btx) < mouthW * 0.9) {
+      const blen = 12 + ((i * 5) % 9);
+      const bottomY = mouthYTop + mouthH * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(btx - 4, bottomY);
+      ctx.lineTo(btx + 4, bottomY);
+      ctx.lineTo(btx + (i % 2 === 0 ? -1 : 1), bottomY - blen);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Scar across the face
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-flameW * 0.55, -flameH * 0.05);
+  ctx.lineTo(flameW * 0.05, -flameH * 0.18);
+  ctx.lineTo(flameW * 0.45, -flameH * 0.02);
+  ctx.stroke();
 }
 
 function drawWatering() {

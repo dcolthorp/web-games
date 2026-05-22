@@ -205,9 +205,34 @@
       body.fy-cutscene .shop-wrap,
       body.fy-cutscene .secret-zone,
       body.fy-cutscene .secret-hint,
-      body.fy-cutscene .secret-btn {
+      body.fy-cutscene .secret-btn,
+      body.fy-cutscene .surrender-btn {
         display: none !important;
       }
+
+      .surrender-btn {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 120, 120, 0.5);
+        background: rgba(40, 12, 12, 0.85);
+        color: #ffb3b3;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        z-index: 5;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        transition: background 120ms ease, transform 80ms ease;
+      }
+      .surrender-btn:hover {
+        background: rgba(80, 20, 20, 0.95);
+        color: #ffd4d4;
+      }
+      .surrender-btn:active { transform: translateY(1px); }
 
       .cutscene-text {
         position: fixed;
@@ -286,6 +311,7 @@
     <div class="secret-zone" id="secret-zone" aria-hidden="true"></div>
     <div class="secret-hint" id="secret-hint" aria-hidden="true"></div>
     <button id="secret-btn" class="secret-btn" type="button" disabled>★ Rainbow Beyond ★</button>
+    <button id="surrender-btn" class="surrender-btn" type="button" title="Reset the game">🏳️ Surrender</button>
     <div id="toast" class="toast"></div>
     <div id="cutscene-text" class="cutscene-text"></div>
     <button id="replay-btn" class="replay-btn" type="button">↻ Play Again</button>
