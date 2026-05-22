@@ -26,6 +26,13 @@ const games: Game[] = [
     genre: "Ragdoll Brawl",
     blurb: "Swing weapons, flop around, and earn coins to upgrade your arsenal.",
   },
+  {
+    id: "feed-your-fire",
+    name: "Feed Your Fire",
+    path: "./feed-your-fire/",
+    genre: "Pet Pyro",
+    blurb: "Pour rainbow gasoline into a clingy little fire and watch it grow up.",
+  },
 ];
 
 function renderGameList(): void {

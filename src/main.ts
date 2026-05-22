@@ -58,13 +58,6 @@ const games: Game[] = [
     blurb: "Raise a weird little creature and keep its glitchy little life on track.",
   },
   {
-    id: "feed-your-fire",
-    name: "Feed Your Fire",
-    path: "./games/feed-your-fire/",
-    genre: "Pet Pyro",
-    blurb: "Pour rainbow gasoline into a clingy little fire and watch it grow up.",
-  },
-  {
     id: "a-kids-life",
     name: "A Kid's Life",
     path: "./games/a-kids-life/",
