@@ -73,8 +73,7 @@ const hintEl = document.getElementById("hint") as HTMLSpanElement;
 const state = {
   level: 1,
   fuel: 0,
-  coins: 10,
-  selected: GASOLINES[0]!.id,
+  coins: 0,
   reachedLevel8: false,
   rainbowBeyondUnlocked: false,
   particles: [] as Particle[],
@@ -103,10 +102,6 @@ function showToast(msg: string, durationMs = 1800) {
   }, durationMs);
 }
 
-function selectedGas(): Gasoline {
-  return GASOLINES.find((g) => g.id === state.selected) ?? GASOLINES[0]!;
-}
-
 function currentMaxLevel(): number {
   return state.rainbowBeyondUnlocked ? 9 : 8;
 }
@@ -126,7 +121,6 @@ function renderShop() {
     const unlocked = state.level >= gas.unlocksAtLevel;
     const affordable = state.coins >= gas.cost;
     btn.disabled = !unlocked;
-    btn.style.outline = state.selected === gas.id ? "2px solid #ffd97a" : "";
     btn.innerHTML = `
       <span class="gas-swatch" style="background:${gas.color}; color:${gas.glow};"></span>
       <span class="gas-name">${gas.name} Gas</span>
@@ -138,9 +132,7 @@ function renderShop() {
     `;
     btn.addEventListener("click", () => {
       if (!unlocked) return;
-      state.selected = gas.id;
-      renderShop();
-      showToast(`Selected ${gas.name} gasoline`);
+      feedFire(gas);
     });
     gasList.appendChild(btn);
   }
@@ -164,8 +156,7 @@ function levelUp() {
   burstParticles(120);
 }
 
-function feedFire() {
-  const gas = selectedGas();
+function feedFire(gas: Gasoline) {
   if (state.level < gas.unlocksAtLevel) {
     showToast(`${gas.name} gas needs Level ${gas.unlocksAtLevel}`);
     return;
@@ -178,13 +169,13 @@ function feedFire() {
   const need = fuelNeededForNext();
   if (need === 0) {
     showToast("Fire is at max level — burn baby burn!");
-    burstParticles(40);
+    burstParticles(40, gas);
     renderHud();
     renderShop();
     return;
   }
   state.fuel += gas.fuel;
-  burstParticles(20 + Math.min(60, gas.fuel / 2));
+  burstParticles(20 + Math.min(60, gas.fuel / 2), gas);
   while (state.fuel >= fuelNeededForNext() && state.level < currentMaxLevel()) {
     state.fuel -= fuelNeededForNext();
     levelUp();
@@ -197,11 +188,10 @@ function feedFire() {
   checkSecretAvailability();
 }
 
-function burstParticles(n: number) {
+function burstParticles(n: number, gas?: Gasoline) {
   const cx = canvasWidth / 2;
   const cy = canvasHeight * 0.62;
-  const gas = selectedGas();
-  const rainbow = state.level >= 9 || gas.id === "rainbow";
+  const rainbow = state.level >= 9 || gas?.id === "rainbow";
   for (let i = 0; i < n; i++) {
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
     const speed = 80 + Math.random() * 220;
@@ -257,6 +247,21 @@ secretBtn.addEventListener("click", () => {
   renderShop();
 });
 
+interface FloatingText {
+  x: number;
+  y: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  text: string;
+  color: string;
+}
+const floatingTexts: FloatingText[] = [];
+
+function coinsPerClick(): number {
+  return state.level;
+}
+
 canvas.addEventListener("pointerdown", (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
@@ -265,8 +270,36 @@ canvas.addEventListener("pointerdown", (e) => {
   const cy = canvasHeight * 0.62;
   const dx = x - cx;
   const dy = y - cy;
-  if (dx * dx + dy * dy < 180 * 180) {
-    feedFire();
+  if (dx * dx + dy * dy < 200 * 200) {
+    const gained = coinsPerClick();
+    state.coins += gained;
+    floatingTexts.push({
+      x,
+      y,
+      vy: -60,
+      life: 0,
+      maxLife: 0.9,
+      text: `+🪙${gained}`,
+      color: "#ffd97a",
+    });
+    // tiny spark burst when clicked
+    for (let i = 0; i < 6; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 40 + Math.random() * 60;
+      state.particles.push({
+        x,
+        y,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s - 20,
+        life: 0,
+        maxLife: 0.4 + Math.random() * 0.3,
+        size: 2 + Math.random() * 2,
+        hue: 45,
+        rainbow: state.level >= 9,
+      });
+    }
+    renderHud();
+    renderShopAffordability();
   }
 });
 
@@ -276,9 +309,17 @@ function tick(now: number) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
 
-  // coins per second scales with level
-  const cps = state.level * state.level * 0.5;
-  state.coins += cps * dt;
+  // update floating texts
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const f = floatingTexts[i]!;
+    f.life += dt;
+    if (f.life >= f.maxLife) {
+      floatingTexts.splice(i, 1);
+      continue;
+    }
+    f.y += f.vy * dt;
+    f.vy *= 0.96;
+  }
 
   // update particles
   for (let i = state.particles.length - 1; i >= 0; i--) {
@@ -443,16 +484,15 @@ function draw() {
   }
   ctx.globalCompositeOperation = "source-over";
 
-  // Click hint ring (subtle)
-  if (state.coins >= selectedGas().cost && state.level >= selectedGas().unlocksAtLevel) {
-    const ringAlpha = 0.2 + Math.sin(t * 3) * 0.15;
-    ctx.strokeStyle = `rgba(255, 220, 150, ${ringAlpha})`;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 8]);
-    ctx.beginPath();
-    ctx.arc(cx, cy - 10, baseSize * 1.6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+  // Floating texts (coin gains)
+  ctx.font = "bold 18px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (const f of floatingTexts) {
+    const ft = f.life / f.maxLife;
+    const alpha = 1 - ft;
+    ctx.fillStyle = `${f.color}${Math.floor(alpha * 255).toString(16).padStart(2, "0")}`;
+    ctx.fillText(f.text, f.x, f.y);
   }
 }
 
@@ -467,5 +507,5 @@ resize();
 renderShop();
 renderHud();
 checkSecretAvailability();
-hintEl.textContent = "Pick a gasoline, then click the fire to feed it 🔥";
+hintEl.textContent = "Click the fire for coins · Buy gasoline in the shop to level up 🔥";
 requestAnimationFrame(tick);
