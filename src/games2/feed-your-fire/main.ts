@@ -76,7 +76,10 @@ const surrenderBtn = document.getElementById("surrender-btn") as HTMLButtonEleme
 
 surrenderBtn.addEventListener("click", () => {
   const ok = window.confirm("Surrender? Your fire and coins will be reset to Level 1.");
-  if (ok) window.location.reload();
+  if (ok) {
+    clearSave();
+    window.location.reload();
+  }
 });
 
 type Mode = "play" | "takeover" | "boss" | "watering" | "ending";
@@ -110,6 +113,58 @@ const state = {
 const BOSS_MAX_HP = 30;
 const TAKEOVER_DURATION = 4.5;
 const WATERING_DURATION = 4.5;
+
+const SAVE_KEY = "feed-your-fire-save-v1";
+const SAVE_INTERVAL_MS = 2000;
+
+interface SaveData {
+  level: number;
+  fuel: number;
+  coins: number;
+  reachedLevel8: boolean;
+  rainbowBeyondUnlocked: boolean;
+}
+
+function saveGame() {
+  try {
+    const data: SaveData = {
+      level: state.level,
+      fuel: state.fuel,
+      coins: state.coins,
+      reachedLevel8: state.reachedLevel8,
+      rainbowBeyondUnlocked: state.rainbowBeyondUnlocked,
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch {
+    // storage might be unavailable; ignore.
+  }
+}
+
+function loadGame(): boolean {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw) as Partial<SaveData>;
+    if (typeof data.level === "number") state.level = Math.max(1, Math.min(9, data.level));
+    if (typeof data.fuel === "number") state.fuel = Math.max(0, data.fuel);
+    if (typeof data.coins === "number") state.coins = Math.max(0, data.coins);
+    if (typeof data.reachedLevel8 === "boolean") state.reachedLevel8 = data.reachedLevel8;
+    if (typeof data.rainbowBeyondUnlocked === "boolean") {
+      state.rainbowBeyondUnlocked = data.rainbowBeyondUnlocked;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearSave() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 let canvasWidth = 0;
 let canvasHeight = 0;
@@ -218,6 +273,7 @@ function feedFire(gas: Gasoline) {
   renderHud();
   renderShop();
   checkSecretAvailability();
+  saveGame();
 }
 
 function burstParticles(n: number, gas?: Gasoline) {
@@ -275,6 +331,7 @@ secretBtn.addEventListener("click", () => {
   state.fuel = 0;
   secretBtn.classList.remove("revealed");
   secretBtn.disabled = true;
+  saveGame();
   startTakeover();
 });
 
@@ -330,6 +387,7 @@ function hideCutsceneText() {
 }
 
 replayBtn.addEventListener("click", () => {
+  clearSave();
   window.location.reload();
 });
 
@@ -406,6 +464,7 @@ canvas.addEventListener("pointerdown", (e) => {
 });
 
 let lastTime = performance.now();
+let lastAutosave = performance.now();
 function tick(now: number) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
@@ -453,10 +512,19 @@ function tick(now: number) {
   if (state.mode === "play") {
     coinsLabel.textContent = `🪙 ${Math.floor(state.coins)}`;
     if (Math.random() < 0.05) renderShopAffordability();
+    if (now - lastAutosave >= SAVE_INTERVAL_MS) {
+      lastAutosave = now;
+      saveGame();
+    }
   }
 
   requestAnimationFrame(tick);
 }
+
+// Save on unload as a final safety net.
+window.addEventListener("beforeunload", () => {
+  if (state.mode === "play") saveGame();
+});
 
 function spawnWaterDrops(dt: number) {
   const rate = 220;
@@ -1162,8 +1230,12 @@ function hexAlpha(hex: string, alpha: number): string {
 
 // boot
 resize();
+const restored = loadGame();
 renderShop();
 renderHud();
 checkSecretAvailability();
 hintEl.textContent = "Click the fire for coins · Buy gasoline in the shop to level up 🔥";
+if (restored) {
+  showToast(`Welcome back — Level ${state.level}, 🪙${Math.floor(state.coins)}`, 2400);
+}
 requestAnimationFrame(tick);
