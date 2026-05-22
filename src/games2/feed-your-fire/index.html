@@ -199,6 +199,69 @@
         pointer-events: none;
       }
       .toast.show { opacity: 1; }
+
+      body.fy-cutscene .top-bar,
+      body.fy-cutscene .hud,
+      body.fy-cutscene .shop-wrap,
+      body.fy-cutscene .secret-zone,
+      body.fy-cutscene .secret-hint,
+      body.fy-cutscene .secret-btn {
+        display: none !important;
+      }
+
+      .cutscene-text {
+        position: fixed;
+        left: 50%;
+        top: 18%;
+        transform: translateX(-50%);
+        font-size: clamp(22px, 4vw, 44px);
+        font-weight: 900;
+        letter-spacing: 0.15em;
+        color: #ffe9b8;
+        text-shadow: 0 0 18px #ff3b00, 0 0 40px #ff7a1f, 0 4px 8px rgba(0, 0, 0, 0.9);
+        text-align: center;
+        z-index: 20;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 600ms ease;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .cutscene-text.show { opacity: 1; }
+      .cutscene-text.water {
+        color: #d4f3ff;
+        text-shadow: 0 0 18px #4ab8ff, 0 0 40px #1f6fff, 0 4px 8px rgba(0, 0, 0, 0.9);
+      }
+
+      .replay-btn {
+        position: fixed;
+        left: 50%;
+        bottom: 12%;
+        transform: translateX(-50%);
+        padding: 14px 24px;
+        border-radius: 14px;
+        border: 1px solid rgba(180, 220, 255, 0.6);
+        background: linear-gradient(135deg, #1a2a3a, #0a1420);
+        color: #e0f0ff;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        cursor: pointer;
+        z-index: 25;
+        box-shadow: 0 8px 24px rgba(0, 40, 80, 0.6);
+        opacity: 0;
+        transition: opacity 600ms ease;
+        pointer-events: none;
+      }
+      .replay-btn.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .replay-btn:hover {
+        background: linear-gradient(135deg, #243a52, #11202e);
+      }
     </style>
   </head>
   <body>
@@ -224,6 +287,8 @@
     <div class="secret-hint" id="secret-hint" aria-hidden="true"></div>
     <button id="secret-btn" class="secret-btn" type="button" disabled>★ Rainbow Beyond ★</button>
     <div id="toast" class="toast"></div>
+    <div id="cutscene-text" class="cutscene-text"></div>
+    <button id="replay-btn" class="replay-btn" type="button">↻ Play Again</button>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>
