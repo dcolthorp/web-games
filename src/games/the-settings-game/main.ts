@@ -637,6 +637,36 @@ const levels: Level[] = [
       ];
     },
   },
+  {
+    name: "Enable Glitches",
+    hint: "Walls block everything. Flip the switch and walk through them like they were never there.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      { type: "checkbox", id: "glitches", label: "Enable Glitches", value: false },
+    ],
+    build: (_v) => {
+      const wall = (id: string, x: number, w = 32, y = 0, h = 480): Entity => ({
+        id,
+        kind: "wall",
+        x,
+        y,
+        w,
+        h,
+        visible: true,
+        color: "#7c5a9a",
+      });
+      return [
+        { id: "ground", kind: "platform", x: 0, y: 480, w: 720, h: 40, visible: true },
+        // Three sealed chambers between you and the flag.
+        wall("w-1", 170),
+        wall("w-2", 340),
+        wall("w-3", 510),
+        // Ceiling so you can't jump over even with a perfect arc.
+        { id: "ceiling", kind: "wall", x: 0, y: 0, w: 720, h: 20, visible: true, color: "#7c5a9a" },
+        { id: "goal", kind: "goal", x: 640, y: 430, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
@@ -878,9 +908,13 @@ function updateCamera(): void {
 }
 
 function solidEntities(): Entity[] {
-  return entities.filter(
-    (e) => e.visible && (e.kind === "platform" || e.kind === "wall" || e.kind === "toast")
-  );
+  const noClip = settingValues["glitches"] === true;
+  return entities.filter((e) => {
+    if (!e.visible) return false;
+    if (e.kind === "platform" || e.kind === "toast") return true;
+    if (e.kind === "wall") return !noClip;
+    return false;
+  });
 }
 
 function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -1065,10 +1099,30 @@ function render(): void {
       ctx.fillStyle = "rgba(255,255,255,0.12)";
       ctx.fillRect(e.x, e.y, e.w, 2);
     } else if (e.kind === "wall") {
-      ctx.fillStyle = e.color ?? "#7c5a9a";
-      ctx.fillRect(e.x, e.y, e.w, e.h);
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
-      ctx.strokeRect(e.x + 0.5, e.y + 0.5, e.w - 1, e.h - 1);
+      const phantom = settingValues["glitches"] === true;
+      if (phantom) {
+        // Glitched: render with low opacity + horizontal RGB shift bands.
+        const t = performance.now();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = e.color ?? "#7c5a9a";
+        ctx.fillRect(e.x, e.y, e.w, e.h);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(255, 60, 200, 0.25)";
+        ctx.fillRect(e.x - 2, e.y, e.w, e.h);
+        ctx.fillStyle = "rgba(60, 255, 220, 0.25)";
+        ctx.fillRect(e.x + 2, e.y, e.w, e.h);
+        // Scanline noise.
+        ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        for (let yy = e.y; yy < e.y + e.h; yy += 6) {
+          const jitter = ((t / 30 + yy) % 12) - 6;
+          ctx.fillRect(e.x + jitter, yy, e.w, 2);
+        }
+      } else {
+        ctx.fillStyle = e.color ?? "#7c5a9a";
+        ctx.fillRect(e.x, e.y, e.w, e.h);
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.strokeRect(e.x + 0.5, e.y + 0.5, e.w - 1, e.h - 1);
+      }
     } else if (e.kind === "spike") {
       ctx.fillStyle = "#ff6b7a";
       const spikeW = 12;
@@ -1194,8 +1248,17 @@ function render(): void {
     }
   }
 
-  // Player
-  ctx.fillStyle = "#6dd3ff";
+  // Player — with glitch effect if no-clip is on.
+  const noClip = settingValues["glitches"] === true;
+  if (noClip) {
+    // Magenta + cyan RGB-shifted ghosts behind the player.
+    const shift = 3 + Math.sin(performance.now() / 60) * 2;
+    ctx.fillStyle = "rgba(255, 60, 200, 0.6)";
+    ctx.fillRect(player.x - shift, player.y, player.w, player.h);
+    ctx.fillStyle = "rgba(60, 255, 220, 0.6)";
+    ctx.fillRect(player.x + shift, player.y, player.w, player.h);
+  }
+  ctx.fillStyle = noClip ? "rgba(109, 211, 255, 0.85)" : "#6dd3ff";
   ctx.fillRect(player.x, player.y, player.w, player.h);
   ctx.fillStyle = "#0c1a2e";
   const eyeW = Math.max(2, Math.round(player.w * 0.18));
