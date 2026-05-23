@@ -75,96 +75,101 @@ const H = canvas.height;
 const levels: Level[] = [
   {
     name: "Tutorial: The Slider",
-    hint: "Slide the platform up to reach the flag.",
+    hint: "Raise the platform until you can hop up to the flag.",
     spawn: { x: 60, y: 420 },
     settings: [
       {
         type: "range",
-        id: "platform-y",
+        id: "platform-height",
         label: "Platform Height",
-        min: 100,
-        max: 460,
+        min: 0,
+        max: 260,
         step: 1,
-        value: 460,
+        value: 0,
         unit: "px",
       },
     ],
-    build: (v) => [
-      { id: "ground", kind: "platform", x: 0, y: 480, w: W, h: 40, visible: true },
-      {
-        id: "lift",
-        kind: "platform",
-        x: 320,
-        y: v["platform-y"] as number,
-        w: 160,
-        h: 18,
-        visible: true,
-        color: "#6dd3ff",
-      },
-      { id: "goal", kind: "goal", x: 640, y: 90, w: 40, h: 50, visible: true },
-      { id: "left-wall", kind: "wall", x: 240, y: 200, w: 20, h: 280, visible: true },
-      { id: "right-wall", kind: "wall", x: 540, y: 200, w: 20, h: 280, visible: true },
-    ],
+    build: (v) => {
+      const height = v["platform-height"] as number;
+      return [
+        { id: "ground", kind: "platform", x: 0, y: 480, w: W, h: 40, visible: true },
+        {
+          id: "lift",
+          kind: "platform",
+          x: 360,
+          y: 466 - height,
+          w: 180,
+          h: 14,
+          visible: true,
+          color: "#6dd3ff",
+        },
+        { id: "shelf", kind: "platform", x: 580, y: 200, w: 140, h: 14, visible: true },
+        { id: "goal", kind: "goal", x: 640, y: 150, w: 40, h: 50, visible: true },
+      ];
+    },
   },
   {
     name: "Uncheck the Wall",
     hint: "There's a wall in your way. Take a look at the checkboxes.",
     spawn: { x: 60, y: 420 },
     settings: [
-      { type: "checkbox", id: "wall-a", label: "Show Wall A", value: true },
-      { type: "checkbox", id: "wall-b", label: "Show Wall B", value: true },
+      { id: "blocker", label: "Show Blocker", type: "checkbox", value: true },
+      { id: "ceiling", label: "Show Ceiling Bar", type: "checkbox", value: true },
       {
+        id: "step-height",
         type: "range",
-        id: "platform-y",
         label: "Step Height",
-        min: 200,
-        max: 460,
+        min: 0,
+        max: 280,
         step: 1,
-        value: 460,
+        value: 0,
       },
     ],
-    build: (v) => [
-      { id: "ground", kind: "platform", x: 0, y: 480, w: W, h: 40, visible: true },
-      {
-        id: "wall-a",
-        kind: "wall",
-        x: 220,
-        y: 280,
-        w: 24,
-        h: 200,
-        visible: v["wall-a"] as boolean,
-      },
-      {
-        id: "wall-b",
-        kind: "wall",
-        x: 520,
-        y: 100,
-        w: 24,
-        h: 280,
-        visible: v["wall-b"] as boolean,
-      },
-      {
-        id: "step",
-        kind: "platform",
-        x: 360,
-        y: v["platform-y"] as number,
-        w: 120,
-        h: 16,
-        visible: true,
-        color: "#6dd3ff",
-      },
-      { id: "goal", kind: "goal", x: 640, y: 90, w: 40, h: 50, visible: true },
-      { id: "shelf", kind: "platform", x: 580, y: 140, w: 140, h: 16, visible: true },
-    ],
+    build: (v) => {
+      const height = v["step-height"] as number;
+      return [
+        { id: "ground", kind: "platform", x: 0, y: 480, w: W, h: 40, visible: true },
+        {
+          id: "blocker",
+          kind: "wall",
+          x: 240,
+          y: 380,
+          w: 24,
+          h: 100,
+          visible: v["blocker"] as boolean,
+        },
+        {
+          id: "ceiling",
+          kind: "wall",
+          x: 360,
+          y: 260,
+          w: 200,
+          h: 18,
+          visible: v["ceiling"] as boolean,
+        },
+        {
+          id: "step",
+          kind: "platform",
+          x: 380,
+          y: 466 - height,
+          w: 140,
+          h: 14,
+          visible: true,
+          color: "#6dd3ff",
+        },
+        { id: "shelf", kind: "platform", x: 580, y: 180, w: 140, h: 14, visible: true },
+        { id: "goal", kind: "goal", x: 640, y: 130, w: 40, h: 50, visible: true },
+      ];
+    },
   },
   {
     name: "Build the Staircase",
     hint: "Three sliders, three platforms. Make a staircase.",
     spawn: { x: 40, y: 420 },
     settings: [
-      { type: "range", id: "p1", label: "Platform 1 Y", min: 100, max: 460, step: 1, value: 460 },
-      { type: "range", id: "p2", label: "Platform 2 Y", min: 100, max: 460, step: 1, value: 460 },
-      { type: "range", id: "p3", label: "Platform 3 Y", min: 100, max: 460, step: 1, value: 460 },
+      { type: "range", id: "p1", label: "Platform 1 Height", min: 0, max: 360, step: 1, value: 0 },
+      { type: "range", id: "p2", label: "Platform 2 Height", min: 0, max: 360, step: 1, value: 0 },
+      { type: "range", id: "p3", label: "Platform 3 Height", min: 0, max: 360, step: 1, value: 0 },
       { type: "checkbox", id: "spikes", label: "Enable Spikes", value: true },
     ],
     build: (v) => {
@@ -174,7 +179,7 @@ const levels: Level[] = [
           id: "p1",
           kind: "platform",
           x: 150,
-          y: v["p1"] as number,
+          y: 466 - (v["p1"] as number),
           w: 110,
           h: 14,
           visible: true,
@@ -184,7 +189,7 @@ const levels: Level[] = [
           id: "p2",
           kind: "platform",
           x: 320,
-          y: v["p2"] as number,
+          y: 466 - (v["p2"] as number),
           w: 110,
           h: 14,
           visible: true,
@@ -194,14 +199,14 @@ const levels: Level[] = [
           id: "p3",
           kind: "platform",
           x: 490,
-          y: v["p3"] as number,
+          y: 466 - (v["p3"] as number),
           w: 110,
           h: 14,
           visible: true,
           color: "#f472b6",
         },
-        { id: "goal", kind: "goal", x: 640, y: 90, w: 40, h: 50, visible: true },
-        { id: "shelf", kind: "platform", x: 600, y: 140, w: 120, h: 16, visible: true },
+        { id: "shelf", kind: "platform", x: 600, y: 100, w: 120, h: 14, visible: true },
+        { id: "goal", kind: "goal", x: 640, y: 50, w: 40, h: 50, visible: true },
       ];
       if (v["spikes"] as boolean) {
         entities.push({ id: "spikes", kind: "spike", x: 240, y: 462, w: 60, h: 18, visible: true });
@@ -216,7 +221,7 @@ const levels: Level[] = [
     spawn: { x: 40, y: 420 },
     settings: [
       { type: "range", id: "gravity", label: "Gravity", min: 400, max: 2400, step: 10, value: 1600 },
-      { type: "range", id: "jump", label: "Jump Strength", min: 200, max: 900, step: 5, value: 480 },
+      { type: "range", id: "jump", label: "Jump Strength", min: 200, max: 1000, step: 5, value: 680 },
       { type: "range", id: "gap-x", label: "Gap Platform X", min: 200, max: 520, step: 1, value: 200 },
       { type: "checkbox", id: "ceiling", label: "Show Ceiling", value: true },
       {
@@ -273,8 +278,8 @@ const player = {
 };
 
 let gravity = 1600;
-let jumpStrength = 480;
-const moveSpeed = 220;
+let jumpStrength = 680;
+const moveSpeed = 240;
 
 const keys: Record<string, boolean> = {};
 window.addEventListener("keydown", (e) => {
@@ -312,7 +317,7 @@ function loadLevel(index: number): void {
   player.vx = 0;
   player.vy = 0;
   gravity = 1600;
-  jumpStrength = 480;
+  jumpStrength = 680;
   if (level.settings.some((s) => s.id === "gravity")) {
     gravity = settingValues["gravity"] as number;
   }
