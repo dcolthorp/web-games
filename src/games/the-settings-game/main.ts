@@ -505,15 +505,16 @@ const levels: Level[] = [
     name: "Zoom",
     hint: "It's all in here. Zoom out to see the level — then zoom back in to play.",
     spawn: { x: 40, y: 420 },
-    worldW: 2000,
+    worldW: 2500,
     worldH: 520,
     settings: [
       { type: "range", id: "zoom", label: "Zoom", min: 30, max: 100, step: 1, value: 100, unit: "%" },
       { type: "range", id: "lift-height", label: "Bridge Height", min: 0, max: 240, step: 1, value: 0 },
       { type: "checkbox", id: "blocker", label: "Show Blocker", value: true },
       { type: "checkbox", id: "orbs", label: "Enable Custom Orbs", value: false },
+      { type: "range", id: "brightness", label: "Brightness", min: 0, max: 100, step: 1, value: 100, unit: "%" },
       { type: "checkbox", id: "notify", label: "Enable Notifications", value: false },
-      { type: "range", id: "notify-x", label: "Notification X", min: 1310, max: 1500, step: 1, value: 1430 },
+      { type: "range", id: "notify-x", label: "Notification X", min: 1770, max: 1950, step: 1, value: 1850 },
       {
         type: "palette",
         id: "preference",
@@ -530,6 +531,9 @@ const levels: Level[] = [
       const liftH = v["lift-height"] as number;
       const blocker = v["blocker"] as boolean;
       const orbsOn = v["orbs"] as boolean;
+      const brightness = v["brightness"] as number;
+      const darkVisible = brightness >= 50;
+      const lightVisible = brightness <= 50;
       const notifyOn = v["notify"] as boolean;
       const pref = v["preference"] as string;
       const PLAT = "#a78bfa";
@@ -560,18 +564,42 @@ const levels: Level[] = [
         { id: "g-3", kind: "platform", x: 1130, y: 480, w: 150, h: 40, visible: true },
         { id: "orb-a", kind: "orb", x: 870, y: 290, w: 40, h: 40, visible: orbsOn },
         { id: "orb-b", kind: "orb", x: 970, y: 180, w: 40, h: 40, visible: orbsOn },
-        // Section 4: red wall + spike pit, bridged by the notification toast.
+        // Section 4: brightness bridges over a spike pit. Dark bridge then light bridge,
+        // with an overlap region so you can swap mid-cross.
+        { id: "pit-spike-bright", kind: "spike", x: 1280, y: 502, w: 360, h: 18, visible: true },
+        {
+          id: "dark-bridge",
+          kind: "platform",
+          x: 1280,
+          y: 480,
+          w: 200,
+          h: 14,
+          visible: darkVisible,
+          color: "#1a2240",
+        },
+        {
+          id: "light-bridge",
+          kind: "platform",
+          x: 1440,
+          y: 480,
+          w: 200,
+          h: 14,
+          visible: lightVisible,
+          color: "#f6f1c4",
+        },
+        { id: "g-after-bright", kind: "platform", x: 1600, y: 480, w: 140, h: 40, visible: true },
+        // Section 5: red wall + spike pit, bridged by the notification toast.
         {
           id: "p-wall-red",
           kind: "wall",
-          x: 1280,
+          x: 1740,
           y: 200,
           w: 26,
           h: 280,
           visible: pref !== "red",
           color: wallColors["red"],
         },
-        { id: "pit-spike-2", kind: "spike", x: 1310, y: 502, w: 270, h: 18, visible: true },
+        { id: "pit-spike-2", kind: "spike", x: 1770, y: 502, w: 270, h: 18, visible: true },
         {
           id: "toast",
           kind: "toast",
@@ -582,12 +610,12 @@ const levels: Level[] = [
           visible: notifyOn,
           label: "Bridge incoming",
         },
-        // Section 5: long final ground with two more preference walls.
-        { id: "g-final", kind: "platform", x: 1580, y: 480, w: 420, h: 40, visible: true },
+        // Section 6: long final ground with two more preference walls.
+        { id: "g-final", kind: "platform", x: 2040, y: 480, w: 400, h: 40, visible: true },
         {
           id: "p-wall-yellow",
           kind: "wall",
-          x: 1750,
+          x: 2210,
           y: 200,
           w: 26,
           h: 280,
@@ -597,14 +625,14 @@ const levels: Level[] = [
         {
           id: "p-wall-blue",
           kind: "wall",
-          x: 1880,
+          x: 2340,
           y: 200,
           w: 26,
           h: 280,
           visible: pref !== "blue",
           color: wallColors["blue"],
         },
-        { id: "goal", kind: "goal", x: 1940, y: 430, w: 40, h: 50, visible: true },
+        { id: "goal", kind: "goal", x: 2390, y: 430, w: 40, h: 50, visible: true },
       ];
     },
   },
