@@ -259,6 +259,77 @@ const levels: Level[] = [
       return entities;
     },
   },
+  {
+    name: "Brightness",
+    hint: "Dark platforms only appear when brightness is at least halfway up. Light platforms only appear when it's at least halfway down.",
+    spawn: { x: 40, y: 420 },
+    settings: [
+      {
+        type: "range",
+        id: "brightness",
+        label: "Brightness",
+        min: 0,
+        max: 100,
+        step: 1,
+        value: 100,
+        unit: "%",
+      },
+    ],
+    build: (v) => {
+      const brightness = v["brightness"] as number;
+      const darkVisible = brightness >= 50;
+      const lightVisible = brightness <= 50;
+      return [
+        { id: "ground-left", kind: "platform", x: 0, y: 480, w: 220, h: 40, visible: true },
+        { id: "ledge", kind: "platform", x: 340, y: 320, w: 120, h: 14, visible: true, color: "#5a7ab8" },
+        { id: "ground-right", kind: "platform", x: 600, y: 480, w: 160, h: 40, visible: true },
+        { id: "pit-spike", kind: "spike", x: 220, y: 502, w: 380, h: 18, visible: true },
+        // Dark platforms (visible at high brightness — they're dark, so you need light to see them)
+        {
+          id: "dark-1",
+          kind: "platform",
+          x: 170,
+          y: 400,
+          w: 100,
+          h: 14,
+          visible: darkVisible,
+          color: "#1a2240",
+        },
+        {
+          id: "dark-2",
+          kind: "platform",
+          x: 270,
+          y: 360,
+          w: 100,
+          h: 14,
+          visible: darkVisible,
+          color: "#1a2240",
+        },
+        // Light platforms (visible at low brightness — they glow in the dark)
+        {
+          id: "light-1",
+          kind: "platform",
+          x: 470,
+          y: 260,
+          w: 100,
+          h: 14,
+          visible: lightVisible,
+          color: "#f6f1c4",
+        },
+        {
+          id: "light-2",
+          kind: "platform",
+          x: 600,
+          y: 200,
+          w: 120,
+          h: 14,
+          visible: lightVisible,
+          color: "#f6f1c4",
+        },
+        { id: "goal", kind: "goal", x: 660, y: 150, w: 36, h: 50, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
@@ -588,6 +659,19 @@ function render(): void {
   ctx.fillStyle = "#0c1a2e";
   ctx.fillRect(player.x + 4, player.y + 8, 4, 4);
   ctx.fillRect(player.x + 14, player.y + 8, 4, 4);
+
+  // Brightness overlay
+  if (typeof settingValues["brightness"] === "number") {
+    const brightness = settingValues["brightness"] as number;
+    if (brightness < 100) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${(100 - brightness) / 125})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (brightness > 100) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${(brightness - 100) / 200})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
 }
 
 // ----- Loop -----
