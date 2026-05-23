@@ -7,7 +7,7 @@ interface Rect {
   h: number;
 }
 
-type Kind = "platform" | "wall" | "spike" | "goal" | "toast";
+type Kind = "platform" | "wall" | "spike" | "goal" | "toast" | "orb";
 
 interface Entity extends Rect {
   id: string;
@@ -480,6 +480,25 @@ const levels: Level[] = [
       ];
     },
   },
+  {
+    name: "Custom Orbs",
+    hint: "Enable Custom Orbs. Tap jump while you're inside an orb mid-air to jump again.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      { type: "checkbox", id: "orbs", label: "Enable Custom Orbs", value: false },
+    ],
+    build: (v) => {
+      const orbsOn = v["orbs"] as boolean;
+      return [
+        { id: "ground-left", kind: "platform", x: 0, y: 480, w: 160, h: 40, visible: true },
+        { id: "ground-right", kind: "platform", x: 600, y: 480, w: 160, h: 40, visible: true },
+        { id: "pit-spike", kind: "spike", x: 160, y: 502, w: 440, h: 18, visible: true },
+        { id: "orb-1", kind: "orb", x: 250, y: 350, w: 40, h: 40, visible: orbsOn },
+        { id: "orb-2", kind: "orb", x: 420, y: 280, w: 40, h: 40, visible: orbsOn },
+        { id: "goal", kind: "goal", x: 680, y: 430, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
@@ -516,6 +535,7 @@ function applyPlayerScale(scale: number): void {
 let gravity = 1600;
 let jumpStrength = 680;
 const moveSpeed = 240;
+let prevJump = false;
 
 const keys: Record<string, boolean> = {};
 window.addEventListener("keydown", (e) => {
@@ -724,9 +744,20 @@ function step(dt: number): void {
   if (right) targetVX += moveSpeed;
   player.vx = targetVX;
 
+  const jumpHeld = Boolean(jump);
+  const jumpEdge = jumpHeld && !prevJump;
+  prevJump = jumpHeld;
   if (jump && player.onGround) {
     player.vy = -jumpStrength;
     player.onGround = false;
+  } else if (jumpEdge && !player.onGround) {
+    // Geometry-Dash-style orb: tap jump while overlapping an orb to jump again.
+    for (const e of entities) {
+      if (e.visible && e.kind === "orb" && rectsOverlap(player, e)) {
+        player.vy = -jumpStrength;
+        break;
+      }
+    }
   }
 
   player.vy += gravity * dt;
@@ -886,6 +917,30 @@ function render(): void {
         ctx.textBaseline = "middle";
         ctx.fillText(e.label, e.x + 26, e.y + e.h / 2);
       }
+    } else if (e.kind === "orb") {
+      const cx = e.x + e.w / 2;
+      const cy = e.y + e.h / 2;
+      const r = Math.min(e.w, e.h) / 2;
+      // Pulse
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 220);
+      ctx.fillStyle = `rgba(246, 211, 101, ${0.18 + 0.12 * pulse})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 6 + 2 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      // Orb body
+      const grad = ctx.createRadialGradient(cx - r / 3, cy - r / 3, 1, cx, cy, r);
+      grad.addColorStop(0, "#fff5c4");
+      grad.addColorStop(1, "#f6a93f");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Ring
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r - 3, 0, Math.PI * 2);
+      ctx.stroke();
     } else if (e.kind === "goal") {
       // Flag pole
       ctx.fillStyle = "#dbe2ff";
