@@ -1,0 +1,219 @@
+:root {
+  color-scheme: dark;
+  --bg-top: #0f172a;
+  --bg-bottom: #050810;
+  --panel: rgba(20, 28, 48, 0.85);
+  --panel-border: rgba(140, 170, 255, 0.18);
+  --text: #eef3ff;
+  --muted: #9fb0d4;
+  --accent: #6dd3ff;
+  --accent-glow: rgba(109, 211, 255, 0.35);
+  --goal: #f6d365;
+  --danger: #ff6b7a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(109, 211, 255, 0.18), transparent 40%),
+    radial-gradient(circle at 80% 100%, rgba(246, 211, 101, 0.12), transparent 50%),
+    linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.back-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+.back-link:hover { color: var(--text); }
+
+.hero {
+  margin-top: 16px;
+  text-align: center;
+}
+.hero h1 {
+  margin: 8px 0 6px;
+  font-size: 44px;
+  letter-spacing: 1px;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--accent), #c08bff 60%, var(--goal));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.subtitle {
+  margin: 0 auto;
+  max-width: 580px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.hud {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0 16px;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+.hud #status {
+  margin: 0;
+  font-size: 14px;
+}
+.hud #level-label {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+.hud button {
+  background: rgba(109, 211, 255, 0.14);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.hud button:hover {
+  background: rgba(109, 211, 255, 0.28);
+}
+
+.play-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+
+.canvas-wrap {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, #1a2547, #0a1024);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45);
+}
+canvas#game {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.settings-panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+}
+.settings-panel h2 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 8px;
+}
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+.setting label {
+  color: var(--text);
+  font-weight: 600;
+}
+.setting .value {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.setting input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.setting.checkbox .setting-row {
+  cursor: pointer;
+}
+.setting input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.setting input[type="color"] {
+  width: 38px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.setting select {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.hint {
+  margin: 14px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.toast {
+  position: absolute;
+  inset: auto 0 24px 0;
+  text-align: center;
+  pointer-events: none;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--goal);
+  text-shadow: 0 0 16px var(--accent-glow);
+  opacity: 0;
+  transition: opacity 240ms;
+}
+.toast.show { opacity: 1; }
+
+@media (max-width: 880px) {
+  .play-area {
+    grid-template-columns: 1fr;
+  }
+}

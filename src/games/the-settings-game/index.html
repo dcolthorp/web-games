@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Settings Game</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../">← Menu</a>
+      <header class="hero">
+        <p class="eyebrow">A platformer for tinkerers</p>
+        <h1>The Settings Game</h1>
+        <p class="subtitle">
+          The level <em>is</em> the settings menu. Drag sliders to move platforms.
+          Uncheck a wall to delete it. Reach the flag.
+        </p>
+      </header>
+
+      <section class="hud" aria-label="Status">
+        <p id="status">Arrow keys / WASD to move. Space to jump.</p>
+        <p id="level-label">Level 1 of 4</p>
+        <button id="restart-btn" type="button">Reset Level</button>
+      </section>
+
+      <section class="play-area">
+        <div class="canvas-wrap">
+          <canvas id="game" width="720" height="520" aria-label="The Settings Game play area"></canvas>
+        </div>
+        <aside class="settings-panel" aria-label="Level settings">
+          <h2>Settings</h2>
+          <div id="settings-body" class="settings-body"></div>
+          <p class="hint" id="settings-hint">Tweak these to build a path to the flag.</p>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

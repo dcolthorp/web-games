@@ -21,6 +21,7 @@ export default defineConfig({
         ),
         aKidsLife: resolve(__dirname, "src/games/a-kids-life/index.html"),
         tamagotchiMonster: resolve(__dirname, "src/games/tamagotchi-monster/index.html"),
+        theSettingsGame: resolve(__dirname, "src/games/the-settings-game/index.html"),
         feedYourFire: resolve(__dirname, "src/games2/feed-your-fire/index.html"),
       },
     },
