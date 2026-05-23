@@ -27,6 +27,13 @@ const games: Game[] = [
     blurb: "Swing weapons, flop around, and earn coins to upgrade your arsenal.",
   },
   {
+    id: "the-settings-game",
+    name: "The Settings Game",
+    path: "../games/the-settings-game/",
+    genre: "Platformer / Meta",
+    blurb: "Tinker the settings menu to bend the level into something you can finish.",
+  },
+  {
     id: "feed-your-fire",
     name: "Feed Your Fire",
     path: "./feed-your-fire/",

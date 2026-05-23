@@ -63,6 +63,8 @@ interface Level {
   spawn: { x: number; y: number };
   settings: Setting[];
   build: (values: Record<string, number | string | boolean>) => Entity[];
+  worldW?: number;
+  worldH?: number;
 }
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -499,6 +501,113 @@ const levels: Level[] = [
       ];
     },
   },
+  {
+    name: "Zoom",
+    hint: "It's all in here. Zoom out to see the level — then zoom back in to play.",
+    spawn: { x: 40, y: 420 },
+    worldW: 2000,
+    worldH: 520,
+    settings: [
+      { type: "range", id: "zoom", label: "Zoom", min: 30, max: 100, step: 1, value: 100, unit: "%" },
+      { type: "range", id: "lift-height", label: "Bridge Height", min: 0, max: 240, step: 1, value: 0 },
+      { type: "checkbox", id: "blocker", label: "Show Blocker", value: true },
+      { type: "checkbox", id: "orbs", label: "Enable Custom Orbs", value: false },
+      { type: "checkbox", id: "notify", label: "Enable Notifications", value: false },
+      { type: "range", id: "notify-x", label: "Notification X", min: 1310, max: 1500, step: 1, value: 1430 },
+      {
+        type: "palette",
+        id: "preference",
+        label: "Preference Color",
+        options: [
+          { key: "red", color: "#ff6b7a", label: "Red" },
+          { key: "yellow", color: "#f6d365", label: "Yellow" },
+          { key: "blue", color: "#6dd3ff", label: "Blue" },
+        ],
+        value: "",
+      },
+    ],
+    build: (v) => {
+      const liftH = v["lift-height"] as number;
+      const blocker = v["blocker"] as boolean;
+      const orbsOn = v["orbs"] as boolean;
+      const notifyOn = v["notify"] as boolean;
+      const pref = v["preference"] as string;
+      const PLAT = "#a78bfa";
+      const wallColors: Record<string, string> = {
+        red: "#ff6b7a",
+        yellow: "#f6d365",
+        blue: "#6dd3ff",
+      };
+      return [
+        // Section 1: opening ground.
+        { id: "g-1", kind: "platform", x: 0, y: 480, w: 320, h: 40, visible: true },
+        // Section 2: slider lifts a platform; checkbox deletes a blocker wall.
+        { id: "lift", kind: "platform", x: 160, y: 466 - liftH, w: 150, h: 14, visible: true, color: PLAT },
+        {
+          id: "blocker-wall",
+          kind: "wall",
+          x: 360,
+          y: 200,
+          w: 28,
+          h: 280,
+          visible: blocker,
+          color: "#7c5a9a",
+        },
+        { id: "shelf-1", kind: "platform", x: 410, y: 280, w: 160, h: 14, visible: true, color: PLAT },
+        // Section 3: spike pit crossed by orbs.
+        { id: "g-2", kind: "platform", x: 570, y: 480, w: 230, h: 40, visible: true },
+        { id: "pit-spike-1", kind: "spike", x: 800, y: 502, w: 330, h: 18, visible: true },
+        { id: "g-3", kind: "platform", x: 1130, y: 480, w: 150, h: 40, visible: true },
+        { id: "orb-a", kind: "orb", x: 870, y: 290, w: 40, h: 40, visible: orbsOn },
+        { id: "orb-b", kind: "orb", x: 970, y: 180, w: 40, h: 40, visible: orbsOn },
+        // Section 4: red wall + spike pit, bridged by the notification toast.
+        {
+          id: "p-wall-red",
+          kind: "wall",
+          x: 1280,
+          y: 200,
+          w: 26,
+          h: 280,
+          visible: pref !== "red",
+          color: wallColors["red"],
+        },
+        { id: "pit-spike-2", kind: "spike", x: 1310, y: 502, w: 270, h: 18, visible: true },
+        {
+          id: "toast",
+          kind: "toast",
+          x: v["notify-x"] as number,
+          y: 400,
+          w: 200,
+          h: 36,
+          visible: notifyOn,
+          label: "Bridge incoming",
+        },
+        // Section 5: long final ground with two more preference walls.
+        { id: "g-final", kind: "platform", x: 1580, y: 480, w: 420, h: 40, visible: true },
+        {
+          id: "p-wall-yellow",
+          kind: "wall",
+          x: 1750,
+          y: 200,
+          w: 26,
+          h: 280,
+          visible: pref !== "yellow",
+          color: wallColors["yellow"],
+        },
+        {
+          id: "p-wall-blue",
+          kind: "wall",
+          x: 1880,
+          y: 200,
+          w: 26,
+          h: 280,
+          visible: pref !== "blue",
+          color: wallColors["blue"],
+        },
+        { id: "goal", kind: "goal", x: 1940, y: 430, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
@@ -536,6 +645,11 @@ let gravity = 1600;
 let jumpStrength = 680;
 const moveSpeed = 240;
 let prevJump = false;
+let zoom = 1;
+let cameraX = W / 2;
+let cameraY = H / 2;
+let worldW = W;
+let worldH = H;
 
 const keys: Record<string, boolean> = {};
 window.addEventListener("keydown", (e) => {
@@ -578,6 +692,13 @@ function loadLevel(index: number): void {
   player.vy = 0;
   gravity = 1600;
   jumpStrength = 680;
+  worldW = level.worldW ?? W;
+  worldH = level.worldH ?? H;
+  zoom = 1;
+  if (level.settings.some((s) => s.id === "zoom")) {
+    zoom = (settingValues["zoom"] as number) / 100;
+  }
+  updateCamera();
   if (level.settings.some((s) => s.id === "gravity")) {
     gravity = settingValues["gravity"] as number;
   }
@@ -621,6 +742,10 @@ function renderSettings(level: Level): void {
         if (s.id === "gravity") gravity = num;
         if (s.id === "jump") jumpStrength = num;
         if (s.id === "player-scale") applyPlayerScale(num / 100);
+        if (s.id === "zoom") {
+          zoom = num / 100;
+          updateCamera();
+        }
         rebuildEntities();
       });
     } else if (s.type === "checkbox") {
@@ -712,6 +837,17 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+function updateCamera(): void {
+  const visW = W / zoom;
+  const visH = H / zoom;
+  const targetX = player.x + player.w / 2;
+  const targetY = player.y + player.h / 2;
+  if (visW >= worldW) cameraX = worldW / 2;
+  else cameraX = Math.max(visW / 2, Math.min(worldW - visW / 2, targetX));
+  if (visH >= worldH) cameraY = worldH / 2;
+  else cameraY = Math.max(visH / 2, Math.min(worldH - visH / 2, targetY));
+}
+
 function solidEntities(): Entity[] {
   return entities.filter(
     (e) => e.visible && (e.kind === "platform" || e.kind === "wall" || e.kind === "toast")
@@ -791,8 +927,9 @@ function step(dt: number): void {
 
   // Bounds
   if (player.x < 0) player.x = 0;
-  if (player.x + player.w > W) player.x = W - player.w;
-  if (player.y > H + 200) {
+  if (player.x + player.w > worldW) player.x = worldW - player.w;
+  updateCamera();
+  if (player.y > worldH + 200) {
     loadLevel(currentLevelIndex);
     return;
   }
@@ -856,19 +993,38 @@ function render(): void {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
+  // World transform: zoom + camera.
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-cameraX, -cameraY);
+
+  // Out-of-world shading.
+  if (worldW !== W || worldH !== H) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+    ctx.fillRect(-2000, -2000, 2000 + worldW + 2000, 2000);
+    ctx.fillRect(-2000, worldH, 2000 + worldW + 2000, 2000);
+    ctx.fillRect(-2000, 0, 2000, worldH);
+    ctx.fillRect(worldW, 0, 2000, worldH);
+    // World frame
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.lineWidth = 2 / zoom;
+    ctx.strokeRect(0, 0, worldW, worldH);
+  }
+
   // Grid overlay (subtle)
   ctx.strokeStyle = "rgba(255,255,255,0.04)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 40) {
+  ctx.lineWidth = 1 / zoom;
+  for (let x = 0; x <= worldW; x += 40) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
-    ctx.lineTo(x, H);
+    ctx.lineTo(x, worldH);
     ctx.stroke();
   }
-  for (let y = 0; y < H; y += 40) {
+  for (let y = 0; y <= worldH; y += 40) {
     ctx.beginPath();
     ctx.moveTo(0, y);
-    ctx.lineTo(W, y);
+    ctx.lineTo(worldW, y);
     ctx.stroke();
   }
 
@@ -971,7 +1127,9 @@ function render(): void {
   ctx.fillRect(player.x + Math.round(player.w * 0.18), eyeY, eyeW, eyeH);
   ctx.fillRect(player.x + Math.round(player.w * 0.64), eyeY, eyeW, eyeH);
 
-  // Brightness overlay
+  ctx.restore();
+
+  // Brightness overlay (screen space, on top of everything)
   if (typeof settingValues["brightness"] === "number") {
     const brightness = settingValues["brightness"] as number;
     if (brightness < 100) {
