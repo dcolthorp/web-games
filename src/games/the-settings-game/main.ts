@@ -15,6 +15,8 @@ interface Entity extends Rect {
   color?: string;
   visible: boolean;
   label?: string;
+  // When true, the entity stays solid for physics but does not render.
+  hidden?: boolean;
 }
 
 interface SliderSetting {
@@ -667,6 +669,153 @@ const levels: Level[] = [
       ];
     },
   },
+  {
+    name: "Volume",
+    hint: "Audio volume blows wind from the left. Crank it up to glide across the pit.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      { type: "range", id: "volume", label: "Volume", min: 0, max: 100, step: 1, value: 50, unit: "%" },
+    ],
+    build: (_v) => [
+      { id: "g-left", kind: "platform", x: 0, y: 480, w: 180, h: 40, visible: true },
+      { id: "g-right", kind: "platform", x: 540, y: 480, w: 180, h: 40, visible: true },
+      { id: "pit", kind: "spike", x: 180, y: 502, w: 360, h: 18, visible: true },
+      { id: "goal", kind: "goal", x: 660, y: 430, w: 40, h: 50, visible: true },
+    ],
+  },
+  {
+    name: "Time of Day",
+    hint: "Day platforms only stand in the day. Night platforms only stand at night.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      {
+        type: "select",
+        id: "time-of-day",
+        label: "Time of Day",
+        options: [
+          { value: "day", label: "Day" },
+          { value: "night", label: "Night" },
+        ],
+        value: "day",
+      },
+    ],
+    build: (v) => {
+      const isDay = v["time-of-day"] === "day";
+      return [
+        { id: "g-left", kind: "platform", x: 0, y: 480, w: 180, h: 40, visible: true },
+        { id: "pit", kind: "spike", x: 180, y: 502, w: 380, h: 18, visible: true },
+        {
+          id: "day-bridge",
+          kind: "platform",
+          x: 180,
+          y: 480,
+          w: 220,
+          h: 14,
+          visible: isDay,
+          color: "#f6d365",
+        },
+        {
+          id: "night-bridge",
+          kind: "platform",
+          x: 360,
+          y: 480,
+          w: 220,
+          h: 14,
+          visible: !isDay,
+          color: "#3b3b78",
+        },
+        { id: "g-right", kind: "platform", x: 560, y: 480, w: 160, h: 40, visible: true },
+        { id: "goal", kind: "goal", x: 660, y: 430, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
+  {
+    name: "Vibration",
+    hint: "A loose platform is wedged up high. Enable vibration to shake it loose.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      { type: "checkbox", id: "vibration", label: "Enable Vibration", value: false },
+    ],
+    build: (v) => {
+      const vibe = v["vibration"] as boolean;
+      return [
+        { id: "g-left", kind: "platform", x: 0, y: 480, w: 200, h: 40, visible: true },
+        { id: "pit", kind: "spike", x: 200, y: 502, w: 320, h: 18, visible: true },
+        { id: "g-right", kind: "platform", x: 520, y: 480, w: 200, h: 40, visible: true },
+        // Loose platform — wedged at the ceiling until vibration shakes it down.
+        {
+          id: "loose",
+          kind: "platform",
+          x: 240,
+          y: vibe ? 380 : 30,
+          w: 240,
+          h: 16,
+          visible: true,
+          color: vibe ? "#7ee8a3" : "#6c7a99",
+        },
+        { id: "goal", kind: "goal", x: 660, y: 430, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
+  {
+    name: "Mouse Sensitivity",
+    hint: "Way too fast at default. Lower sensitivity for a precise landing on the narrow ledge.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      {
+        type: "range",
+        id: "sensitivity",
+        label: "Mouse Sensitivity",
+        min: 20,
+        max: 300,
+        step: 1,
+        value: 200,
+        unit: "%",
+      },
+    ],
+    build: (_v) => [
+      { id: "g-left", kind: "platform", x: 0, y: 480, w: 200, h: 40, visible: true },
+      { id: "pit-1", kind: "spike", x: 200, y: 502, w: 200, h: 18, visible: true },
+      // Tiny ledge — too easy to skid past at high sensitivity.
+      { id: "ledge", kind: "platform", x: 400, y: 480, w: 36, h: 40, visible: true, color: "#6dd3ff" },
+      { id: "pit-2", kind: "spike", x: 436, y: 502, w: 134, h: 18, visible: true },
+      { id: "g-right", kind: "platform", x: 570, y: 480, w: 150, h: 40, visible: true },
+      { id: "goal", kind: "goal", x: 660, y: 430, w: 40, h: 50, visible: true },
+    ],
+  },
+  {
+    name: "Tutorial Tips",
+    hint: "There's a path of invisible platforms. Tips reveal them — but they're always solid.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      { type: "checkbox", id: "tips", label: "Show Tutorial Tips", value: false },
+    ],
+    build: (v) => {
+      const tips = v["tips"] as boolean;
+      const hidden = (id: string, x: number, y: number, w: number, h: number): Entity => ({
+        id,
+        kind: "platform",
+        x,
+        y,
+        w,
+        h,
+        // Always solid — visibility only changes the render. Handle in render path.
+        visible: true,
+        color: tips ? "#a78bfa" : "rgba(0,0,0,0)",
+        label: tips ? "Tip" : undefined,
+      });
+      return [
+        { id: "g-left", kind: "platform", x: 0, y: 480, w: 160, h: 40, visible: true },
+        { id: "pit", kind: "spike", x: 160, y: 502, w: 400, h: 18, visible: true },
+        hidden("h-1", 200, 420, 80, 14),
+        hidden("h-2", 320, 360, 80, 14),
+        hidden("h-3", 440, 300, 80, 14),
+        { id: "g-right", kind: "platform", x: 560, y: 480, w: 160, h: 40, visible: true },
+        { id: "goal", kind: "goal", x: 660, y: 250, w: 40, h: 50, visible: true },
+        { id: "shelf", kind: "platform", x: 560, y: 300, w: 160, h: 14, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
@@ -938,10 +1087,19 @@ function step(dt: number): void {
   const right = keys["arrowright"] || keys["d"];
   const jump = keys["arrowup"] || keys["w"] || keys[" "];
 
+  const speedMul =
+    typeof settingValues["sensitivity"] === "number"
+      ? (settingValues["sensitivity"] as number) / 100
+      : 1;
   let targetVX = 0;
-  if (left) targetVX -= moveSpeed;
-  if (right) targetVX += moveSpeed;
+  if (left) targetVX -= moveSpeed * speedMul;
+  if (right) targetVX += moveSpeed * speedMul;
   player.vx = targetVX;
+  // Wind from the "Volume" slider — only while airborne.
+  if (typeof settingValues["volume"] === "number" && !player.onGround) {
+    const wind = ((settingValues["volume"] as number) - 50) * 12;
+    player.vx += wind;
+  }
 
   const jumpHeld = Boolean(jump);
   const jumpEdge = jumpHeld && !prevJump;
@@ -1093,6 +1251,7 @@ function render(): void {
 
   for (const e of entities) {
     if (!e.visible) continue;
+    if (e.hidden) continue;
     if (e.kind === "platform") {
       ctx.fillStyle = e.color ?? "#5a7ab8";
       ctx.fillRect(e.x, e.y, e.w, e.h);
