@@ -376,7 +376,8 @@ function loadLevel(index: number): void {
   levelLabel.textContent = `Level ${index + 1} of ${levels.length} — ${level.name}`;
   settingsHint.textContent = level.hint;
 
-  // Reset settings to defaults
+  // Reset settings to defaults (clear leftovers from prior levels first)
+  for (const key of Object.keys(settingValues)) delete settingValues[key];
   for (const s of level.settings) {
     settingValues[s.id] = s.value;
   }
