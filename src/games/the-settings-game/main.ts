@@ -799,10 +799,10 @@ const levels: Level[] = [
         y,
         w,
         h,
-        // Always solid — visibility only changes the render. Handle in render path.
+        // Always solid; only the render is gated by the Tips checkbox.
         visible: true,
-        color: tips ? "#a78bfa" : "rgba(0,0,0,0)",
-        label: tips ? "Tip" : undefined,
+        hidden: !tips,
+        color: "#a78bfa",
       });
       return [
         { id: "g-left", kind: "platform", x: 0, y: 480, w: 160, h: 40, visible: true },
