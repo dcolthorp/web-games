@@ -509,6 +509,7 @@ const levels: Level[] = [
     worldH: 520,
     settings: [
       { type: "range", id: "zoom", label: "Zoom", min: 30, max: 100, step: 1, value: 100, unit: "%" },
+      { type: "range", id: "graphics", label: "Graphics", min: 1, max: 9999999999, step: 1, value: 1 },
       { type: "range", id: "lift-height", label: "Bridge Height", min: 0, max: 240, step: 1, value: 0 },
       { type: "checkbox", id: "blocker", label: "Show Blocker", value: true },
       { type: "checkbox", id: "orbs", label: "Enable Custom Orbs", value: false },
@@ -1145,6 +1146,54 @@ function render(): void {
     }
   }
 
+  // Graphics meter — intensity ramps logarithmically with the slider value.
+  const gfxRaw = typeof settingValues["graphics"] === "number" ? (settingValues["graphics"] as number) : 1;
+  const gfxIntensity = Math.min(1, Math.log10(Math.max(1, gfxRaw)) / 10);
+  if (gfxIntensity > 0.05) {
+    const t = performance.now() / 1000;
+    // Aura around the player.
+    const auraR = 14 + 30 * gfxIntensity;
+    const auraGrad = ctx.createRadialGradient(
+      player.x + player.w / 2,
+      player.y + player.h / 2,
+      4,
+      player.x + player.w / 2,
+      player.y + player.h / 2,
+      auraR
+    );
+    auraGrad.addColorStop(0, `rgba(109, 211, 255, ${0.4 * gfxIntensity})`);
+    auraGrad.addColorStop(1, "rgba(109, 211, 255, 0)");
+    ctx.fillStyle = auraGrad;
+    ctx.fillRect(
+      player.x + player.w / 2 - auraR,
+      player.y + player.h / 2 - auraR,
+      auraR * 2,
+      auraR * 2
+    );
+    // Sparkles trailing the player.
+    const sparkleCount = Math.floor(2 + 30 * gfxIntensity);
+    ctx.fillStyle = `rgba(255, 245, 196, ${0.6 * gfxIntensity})`;
+    for (let i = 0; i < sparkleCount; i++) {
+      const a = (i / sparkleCount) * Math.PI * 2 + t * 2 + i;
+      const r = 6 + 22 * gfxIntensity + 6 * Math.sin(t * 3 + i);
+      const sx = player.x + player.w / 2 + Math.cos(a) * r;
+      const sy = player.y + player.h / 2 + Math.sin(a) * r;
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+    // Bloom on the goal flag.
+    for (const e of entities) {
+      if (e.kind !== "goal" || !e.visible) continue;
+      const cx = e.x + e.w / 2;
+      const cy = e.y + e.h / 2;
+      const bloomR = 50 + 80 * gfxIntensity;
+      const bg = ctx.createRadialGradient(cx, cy, 6, cx, cy, bloomR);
+      bg.addColorStop(0, `rgba(246, 211, 101, ${0.4 * gfxIntensity})`);
+      bg.addColorStop(1, "rgba(246, 211, 101, 0)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(cx - bloomR, cy - bloomR, bloomR * 2, bloomR * 2);
+    }
+  }
+
   // Player
   ctx.fillStyle = "#6dd3ff";
   ctx.fillRect(player.x, player.y, player.w, player.h);
@@ -1156,6 +1205,15 @@ function render(): void {
   ctx.fillRect(player.x + Math.round(player.w * 0.64), eyeY, eyeW, eyeH);
 
   ctx.restore();
+
+  // Screen-space rainbow flashes when graphics is maxed out.
+  if (gfxIntensity > 0.85) {
+    const flash = (gfxIntensity - 0.85) / 0.15;
+    const t = performance.now() / 1000;
+    const hue = (t * 90) % 360;
+    ctx.fillStyle = `hsla(${hue}, 90%, 60%, ${0.08 * flash})`;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // Brightness overlay (screen space, on top of everything)
   if (typeof settingValues["brightness"] === "number") {
