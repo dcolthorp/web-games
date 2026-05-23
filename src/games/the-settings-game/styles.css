@@ -198,18 +198,18 @@ canvas#game {
 }
 .swatch {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   cursor: pointer;
   padding: 0;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
-  transition: transform 120ms ease;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 .swatch:hover { transform: scale(1.06); }
 .swatch:active { transform: scale(0.94); }
-.swatch .swatch-x {
+.swatch .swatch-check {
   position: absolute;
   inset: 0;
   display: flex;
@@ -217,18 +217,14 @@ canvas#game {
   justify-content: center;
   font-size: 18px;
   font-weight: 800;
-  color: rgba(20, 24, 40, 0.85);
+  color: rgba(20, 24, 40, 0.9);
   opacity: 0;
 }
-.swatch.is-off {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.45);
-  filter: grayscale(0.6) brightness(0.55);
+.swatch.is-active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 0 5px rgba(255, 255, 255, 0.65);
 }
-.swatch.is-off .swatch-x {
-  opacity: 1;
-  color: rgba(255, 255, 255, 0.9);
-}
+.swatch.is-active .swatch-check { opacity: 1; }
 
 .hint {
   margin: 14px 0 0;
