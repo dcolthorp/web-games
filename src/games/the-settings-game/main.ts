@@ -46,14 +46,22 @@ interface SelectSetting {
   options: { value: string; label: string }[];
   value: string;
 }
-type Setting = SliderSetting | CheckboxSetting | ColorSetting | SelectSetting;
+interface PaletteSetting {
+  type: "palette";
+  id: string;
+  label: string;
+  options: { key: string; color: string; label: string }[];
+  // Keys currently "active" (platforms of that color stay visible and solid).
+  value: string[];
+}
+type Setting = SliderSetting | CheckboxSetting | ColorSetting | SelectSetting | PaletteSetting;
 
 interface Level {
   name: string;
   hint: string;
   spawn: { x: number; y: number };
   settings: Setting[];
-  build: (values: Record<string, number | string | boolean>) => Entity[];
+  build: (values: Record<string, number | string | boolean | string[]>) => Entity[];
 }
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -425,13 +433,79 @@ const levels: Level[] = [
       ];
     },
   },
+  {
+    name: "Preference Colors",
+    hint: "Click a swatch to make walls of that color invisible — and walk-through.",
+    spawn: { x: 30, y: 420 },
+    settings: [
+      {
+        type: "palette",
+        id: "active-colors",
+        label: "Preference Colors",
+        options: [
+          { key: "red", color: "#ff6b7a", label: "Red" },
+          { key: "blue", color: "#6dd3ff", label: "Blue" },
+          { key: "yellow", color: "#f6d365", label: "Yellow" },
+          { key: "green", color: "#7ee8a3", label: "Green" },
+        ],
+        value: ["red", "blue", "yellow", "green"],
+      },
+    ],
+    build: (v) => {
+      const active = new Set(v["active-colors"] as string[]);
+      const colors: Record<string, string> = {
+        red: "#ff6b7a",
+        blue: "#6dd3ff",
+        yellow: "#f6d365",
+        green: "#7ee8a3",
+      };
+      const wall = (id: string, x: number, y: number, w: number, h: number, c: string): Entity => ({
+        id,
+        kind: "wall",
+        x,
+        y,
+        w,
+        h,
+        visible: active.has(c),
+        color: colors[c],
+      });
+      const plat = (id: string, x: number, y: number, w: number, h: number, c: string): Entity => ({
+        id,
+        kind: "platform",
+        x,
+        y,
+        w,
+        h,
+        visible: active.has(c),
+        color: colors[c],
+      });
+      return [
+        { id: "ground", kind: "platform", x: 0, y: 480, w: W, h: 40, visible: true },
+        // Red wall blocks the first corridor at floor level.
+        wall("w-red-1", 160, 360, 24, 120, "red"),
+        // Blue stepping platform — needed to climb up.
+        plat("p-blue-1", 220, 380, 110, 14, "blue"),
+        // Yellow ceiling bar forces ducking past — toggle off to fly over.
+        wall("w-yellow-1", 300, 260, 220, 22, "yellow"),
+        // Green platform partway up.
+        plat("p-green-1", 360, 320, 100, 14, "green"),
+        // Red wall again — gates the right side at mid-height.
+        wall("w-red-2", 500, 200, 24, 220, "red"),
+        // Blue high platform.
+        plat("p-blue-2", 540, 200, 100, 14, "blue"),
+        // Yellow shelf right at the goal.
+        plat("p-yellow-1", 600, 150, 130, 14, "yellow"),
+        { id: "goal", kind: "goal", x: 650, y: 100, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
 
 let currentLevelIndex = 0;
 let entities: Entity[] = [];
-const settingValues: Record<string, number | string | boolean> = {};
+const settingValues: Record<string, number | string | boolean | string[]> = {};
 
 const BASE_PLAYER_W = 22;
 const BASE_PLAYER_H = 28;
@@ -489,7 +563,7 @@ function loadLevel(index: number): void {
   // Reset settings to defaults (clear leftovers from prior levels first)
   for (const key of Object.keys(settingValues)) delete settingValues[key];
   for (const s of level.settings) {
-    settingValues[s.id] = s.value;
+    settingValues[s.id] = Array.isArray(s.value) ? [...s.value] : s.value;
   }
   renderSettings(level);
   rebuildEntities();
@@ -587,6 +661,38 @@ function renderSettings(level: Level): void {
         settingValues[s.id] = select.value;
         if (s.id === "theme") theme = select.value;
         rebuildEntities();
+      });
+    } else if (s.type === "palette") {
+      const swatchHtml = s.options
+        .map(
+          (o) =>
+            `<button type="button" class="swatch" data-key="${o.key}" style="background:${o.color}" aria-label="Toggle ${o.label}"><span class="swatch-x">✕</span></button>`
+        )
+        .join("");
+      wrap.innerHTML = `
+        <div class="setting-row">
+          <label>${s.label}</label>
+        </div>
+        <div class="palette-row">${swatchHtml}</div>
+      `;
+      const refresh = (): void => {
+        const active = settingValues[s.id] as string[];
+        wrap.querySelectorAll<HTMLButtonElement>(".swatch").forEach((btn) => {
+          const key = btn.dataset["key"] ?? "";
+          btn.classList.toggle("is-off", !active.includes(key));
+        });
+      };
+      refresh();
+      wrap.querySelectorAll<HTMLButtonElement>(".swatch").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const key = btn.dataset["key"] ?? "";
+          const active = settingValues[s.id] as string[];
+          const idx = active.indexOf(key);
+          if (idx >= 0) active.splice(idx, 1);
+          else active.push(key);
+          refresh();
+          rebuildEntities();
+        });
       });
     }
 
