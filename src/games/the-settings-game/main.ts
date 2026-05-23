@@ -7,13 +7,14 @@ interface Rect {
   h: number;
 }
 
-type Kind = "platform" | "wall" | "spike" | "goal";
+type Kind = "platform" | "wall" | "spike" | "goal" | "toast";
 
 interface Entity extends Rect {
   id: string;
   kind: Kind;
   color?: string;
   visible: boolean;
+  label?: string;
 }
 
 interface SliderSetting {
@@ -330,6 +331,100 @@ const levels: Level[] = [
       ];
     },
   },
+  {
+    name: "Font Size",
+    hint: "Shrink yourself to squeeze under the overhang.",
+    spawn: { x: 40, y: 420 },
+    settings: [
+      {
+        type: "range",
+        id: "player-scale",
+        label: "Font Size",
+        min: 50,
+        max: 150,
+        step: 5,
+        value: 100,
+        unit: "%",
+      },
+      {
+        type: "range",
+        id: "overhang-y",
+        label: "Overhang Y",
+        min: 380,
+        max: 470,
+        step: 1,
+        value: 460,
+      },
+    ],
+    build: (v) => {
+      const overhangY = v["overhang-y"] as number;
+      return [
+        { id: "ground", kind: "platform", x: 0, y: 480, w: W, h: 40, visible: true },
+        // Low overhang the default-sized player cannot fit under.
+        {
+          id: "overhang",
+          kind: "wall",
+          x: 200,
+          y: 0,
+          w: 360,
+          h: overhangY,
+          visible: true,
+          color: "#7c5a9a",
+        },
+        // High shelf with the flag, reached after passing under.
+        { id: "step", kind: "platform", x: 565, y: 380, w: 80, h: 14, visible: true, color: "#6dd3ff" },
+        { id: "shelf", kind: "platform", x: 580, y: 250, w: 140, h: 14, visible: true },
+        { id: "goal", kind: "goal", x: 640, y: 200, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
+  {
+    name: "Notifications",
+    hint: "Enable notifications. The toast is your bridge.",
+    spawn: { x: 40, y: 420 },
+    settings: [
+      { type: "checkbox", id: "notify", label: "Enable Notifications", value: false },
+      {
+        type: "range",
+        id: "notify-x",
+        label: "Notification X",
+        min: 180,
+        max: 540,
+        step: 1,
+        value: 180,
+      },
+      {
+        type: "range",
+        id: "notify-y",
+        label: "Notification Y",
+        min: 180,
+        max: 440,
+        step: 1,
+        value: 380,
+      },
+      { type: "checkbox", id: "do-not-disturb", label: "Do Not Disturb", value: false },
+    ],
+    build: (v) => {
+      const notifyOn = (v["notify"] as boolean) && !(v["do-not-disturb"] as boolean);
+      return [
+        { id: "ground-left", kind: "platform", x: 0, y: 480, w: 180, h: 40, visible: true },
+        { id: "ground-right", kind: "platform", x: 560, y: 480, w: 200, h: 40, visible: true },
+        { id: "pit-spike", kind: "spike", x: 180, y: 502, w: 380, h: 18, visible: true },
+        { id: "shelf", kind: "platform", x: 600, y: 240, w: 140, h: 14, visible: true },
+        {
+          id: "toast",
+          kind: "toast",
+          x: v["notify-x"] as number,
+          y: v["notify-y"] as number,
+          w: 180,
+          h: 36,
+          visible: notifyOn,
+          label: "New reminder",
+        },
+        { id: "goal", kind: "goal", x: 660, y: 190, w: 40, h: 50, visible: true },
+      ];
+    },
+  },
 ];
 
 // ----- State -----
@@ -338,15 +433,30 @@ let currentLevelIndex = 0;
 let entities: Entity[] = [];
 const settingValues: Record<string, number | string | boolean> = {};
 
+const BASE_PLAYER_W = 22;
+const BASE_PLAYER_H = 28;
+
 const player = {
   x: 0,
   y: 0,
-  w: 22,
-  h: 28,
+  w: BASE_PLAYER_W,
+  h: BASE_PLAYER_H,
   vx: 0,
   vy: 0,
   onGround: false,
 };
+
+function applyPlayerScale(scale: number): void {
+  const newW = Math.round(BASE_PLAYER_W * scale);
+  const newH = Math.round(BASE_PLAYER_H * scale);
+  // Anchor to bottom-center so the player doesn't sink into a platform.
+  const cx = player.x + player.w / 2;
+  const bottom = player.y + player.h;
+  player.w = newW;
+  player.h = newH;
+  player.x = cx - newW / 2;
+  player.y = bottom - newH;
+}
 
 let gravity = 1600;
 let jumpStrength = 680;
@@ -384,6 +494,9 @@ function loadLevel(index: number): void {
   renderSettings(level);
   rebuildEntities();
 
+  // Reset player size before placing.
+  player.w = BASE_PLAYER_W;
+  player.h = BASE_PLAYER_H;
   player.x = level.spawn.x;
   player.y = level.spawn.y;
   player.vx = 0;
@@ -398,6 +511,9 @@ function loadLevel(index: number): void {
   }
   if (level.settings.some((s) => s.id === "theme")) {
     theme = settingValues["theme"] as string;
+  }
+  if (level.settings.some((s) => s.id === "player-scale")) {
+    applyPlayerScale((settingValues["player-scale"] as number) / 100);
   }
 }
 
@@ -429,6 +545,7 @@ function renderSettings(level: Level): void {
         valueEl.textContent = formatValueRaw(num, s.unit);
         if (s.id === "gravity") gravity = num;
         if (s.id === "jump") jumpStrength = num;
+        if (s.id === "player-scale") applyPlayerScale(num / 100);
         rebuildEntities();
       });
     } else if (s.type === "checkbox") {
@@ -491,7 +608,24 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
 }
 
 function solidEntities(): Entity[] {
-  return entities.filter((e) => e.visible && (e.kind === "platform" || e.kind === "wall"));
+  return entities.filter(
+    (e) => e.visible && (e.kind === "platform" || e.kind === "wall" || e.kind === "toast")
+  );
+}
+
+function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  const radius = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + radius, y);
+  c.lineTo(x + w - radius, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + radius);
+  c.lineTo(x + w, y + h - radius);
+  c.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  c.lineTo(x + radius, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - radius);
+  c.lineTo(x, y + radius);
+  c.quadraticCurveTo(x, y, x + radius, y);
+  c.closePath();
 }
 
 function step(dt: number): void {
@@ -634,6 +768,28 @@ function render(): void {
         ctx.closePath();
         ctx.fill();
       }
+    } else if (e.kind === "toast") {
+      // Notification toast — rounded card with text, acts as a platform.
+      const r = 8;
+      ctx.fillStyle = e.color ?? "rgba(30, 38, 64, 0.96)";
+      roundRect(ctx, e.x, e.y, e.w, e.h, r);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(109, 211, 255, 0.55)";
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, e.x + 0.5, e.y + 0.5, e.w - 1, e.h - 1, r);
+      ctx.stroke();
+      // Bell icon
+      ctx.fillStyle = "#f6d365";
+      ctx.beginPath();
+      ctx.arc(e.x + 14, e.y + e.h / 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // Label
+      if (e.label) {
+        ctx.fillStyle = "#eef3ff";
+        ctx.font = "600 11px 'Trebuchet MS', sans-serif";
+        ctx.textBaseline = "middle";
+        ctx.fillText(e.label, e.x + 26, e.y + e.h / 2);
+      }
     } else if (e.kind === "goal") {
       // Flag pole
       ctx.fillStyle = "#dbe2ff";
@@ -658,8 +814,11 @@ function render(): void {
   ctx.fillStyle = "#6dd3ff";
   ctx.fillRect(player.x, player.y, player.w, player.h);
   ctx.fillStyle = "#0c1a2e";
-  ctx.fillRect(player.x + 4, player.y + 8, 4, 4);
-  ctx.fillRect(player.x + 14, player.y + 8, 4, 4);
+  const eyeW = Math.max(2, Math.round(player.w * 0.18));
+  const eyeH = Math.max(2, Math.round(player.h * 0.14));
+  const eyeY = player.y + Math.round(player.h * 0.28);
+  ctx.fillRect(player.x + Math.round(player.w * 0.18), eyeY, eyeW, eyeH);
+  ctx.fillRect(player.x + Math.round(player.w * 0.64), eyeY, eyeW, eyeH);
 
   // Brightness overlay
   if (typeof settingValues["brightness"] === "number") {
