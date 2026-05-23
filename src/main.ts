@@ -58,13 +58,6 @@ const games: Game[] = [
     blurb: "Raise a weird little creature and keep its glitchy little life on track.",
   },
   {
-    id: "the-settings-game",
-    name: "The Settings Game",
-    path: "./games/the-settings-game/",
-    genre: "Platformer / Meta",
-    blurb: "A platformer where the level is its own settings menu. Sliders move platforms; checkboxes delete walls.",
-  },
-  {
     id: "a-kids-life",
     name: "A Kid's Life",
     path: "./games/a-kids-life/",
