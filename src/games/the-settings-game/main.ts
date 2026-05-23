@@ -209,8 +209,8 @@ const levels: Level[] = [
         { id: "goal", kind: "goal", x: 640, y: 50, w: 40, h: 50, visible: true },
       ];
       if (v["spikes"] as boolean) {
-        entities.push({ id: "spikes", kind: "spike", x: 240, y: 462, w: 60, h: 18, visible: true });
-        entities.push({ id: "spikes2", kind: "spike", x: 420, y: 462, w: 60, h: 18, visible: true });
+        entities.push({ id: "spikes", kind: "spike", x: 264, y: 462, w: 48, h: 18, visible: true });
+        entities.push({ id: "spikes2", kind: "spike", x: 434, y: 462, w: 48, h: 18, visible: true });
       }
       return entities;
     },
