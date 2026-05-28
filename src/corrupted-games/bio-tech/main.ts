@@ -24,6 +24,11 @@ resize();
 // ---------------------------------------------------------------------------
 const keys = new Set<string>();
 let advancePressed = false;
+let interactPressed = false; // "i" — read sign
+let aimPressed = false; // "1" — toggle grapple aiming
+let grappleClick = false; // clicked while aiming
+let mouseX = 0;
+let mouseY = 0;
 
 window.addEventListener("keydown", (e) => {
   keys.add(e.key.toLowerCase());
@@ -31,11 +36,23 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     advancePressed = true;
   }
+  if (e.key.toLowerCase() === "i") interactPressed = true;
+  if (e.key === "1") aimPressed = true;
+  ensureAudio();
 });
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
+canvas.addEventListener("pointermove", (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = e.clientX - r.left;
+  mouseY = e.clientY - r.top;
+});
 canvas.addEventListener("pointerdown", () => {
-  advancePressed = true;
   ensureAudio();
+  if (scene === "explore" && aiming) {
+    grappleClick = true;
+  } else {
+    advancePressed = true;
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -221,7 +238,8 @@ type Scene =
   | "interior"
   | "slice"
   | "armRun"
-  | "armCutscene";
+  | "armCutscene"
+  | "explore";
 let scene: Scene = "dialogue";
 
 // Global fade overlay (1 = fully black)
@@ -259,7 +277,6 @@ const particles: Particle[] = [];
 
 // --- Overworld ---
 let heroX = 0;
-let heroVY = 0;
 let camX = 0;
 const GROUND_FRAC = 0.78;
 const BUILDING_WORLD_X = 1600;
@@ -279,6 +296,25 @@ let reachedArm = false;
 let cutsceneTimer = 0;
 let hasBioArm = false;
 let powerUpPlayed = false;
+
+// --- Explore / grappling hook ---
+const EXPLORE_WIDTH = 2600;
+const SIGN_X = 1700;
+const GRAVITY = 2000;
+interface Platform {
+  x: number;
+  w: number;
+  top: number; // height above the floor
+}
+const platforms: Platform[] = [{ x: 1980, w: 300, top: 180 }];
+let heroY = 0; // height above floor (0 = on the ground)
+let heroVY = 0; // vertical velocity (positive = up)
+let heroFacing = true; // true = facing right
+let showSign = false;
+let aiming = false;
+let grappling = false;
+let targetWX = 0; // grapple target, world x
+let targetH = 0; // grapple target, height above floor
 
 // ---------------------------------------------------------------------------
 // Update
@@ -476,10 +512,93 @@ function update(dt: number): void {
         }
       }
       updateParticles(dt);
+      if (cutsceneTimer > 2.8 && advancePressed) {
+        scene = "explore";
+        heroY = 0;
+        heroVY = 0;
+        heroFacing = true;
+        showSign = false;
+        aiming = false;
+        grappling = false;
+        particles.length = 0;
+      }
+      break;
+    }
+
+    case "explore": {
+      fade = Math.max(0, fade - dt * 1.2);
+      const floorY = H * GROUND_FRAC;
+      const touchingSign = Math.abs(heroX - SIGN_X) < 60;
+
+      if (interactPressed) showSign = touchingSign ? !showSign : false;
+      if (aimPressed && hasBioArm && !grappling) aiming = !aiming;
+
+      if (aiming && grappleClick) {
+        aiming = false;
+        grappling = true;
+        targetWX = Math.max(0, Math.min(EXPLORE_WIDTH, mouseX + camX));
+        targetH = Math.max(0, floorY - mouseY);
+        heroFacing = targetWX >= heroX;
+      }
+
+      if (grappling) {
+        const dx = targetWX - heroX;
+        const dy = targetH - heroY;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < 16) {
+          grappling = false;
+          heroVY = 0;
+        } else {
+          const sp = 1100;
+          heroX += (dx / d) * sp * dt;
+          heroY += (dy / d) * sp * dt;
+        }
+      } else {
+        const speed = 230;
+        if (keys.has("arrowright") || keys.has("d")) {
+          heroX += speed * dt;
+          heroFacing = true;
+        }
+        if (keys.has("arrowleft") || keys.has("a")) {
+          heroX -= speed * dt;
+          heroFacing = false;
+        }
+        // vertical physics: rest on floor or a platform, otherwise fall
+        let support = 0;
+        for (const p of platforms) {
+          if (
+            heroX >= p.x &&
+            heroX <= p.x + p.w &&
+            heroVY <= 0 &&
+            heroY <= p.top + 1 &&
+            heroY >= p.top - 34
+          ) {
+            support = Math.max(support, p.top);
+          }
+        }
+        if (heroVY <= 0 && heroY <= support + 0.5) {
+          heroY = support;
+          heroVY = 0;
+        } else {
+          heroVY -= GRAVITY * dt;
+          heroY += heroVY * dt;
+          if (heroY < 0) {
+            heroY = 0;
+            heroVY = 0;
+          }
+        }
+      }
+
+      heroX = Math.max(40, Math.min(EXPLORE_WIDTH - 40, heroX));
+      camX = Math.max(0, Math.min(EXPLORE_WIDTH - W, heroX - W * 0.4));
+      updateParticles(dt);
       break;
     }
   }
   advancePressed = false;
+  interactPressed = false;
+  aimPressed = false;
+  grappleClick = false;
 }
 
 function spawnMeteorTrail(): void {
@@ -584,6 +703,8 @@ function draw(): void {
     drawArmRun();
   } else if (scene === "armCutscene") {
     drawArmCutscene();
+  } else if (scene === "explore") {
+    drawExplore();
   }
 
   // global fade
@@ -1066,9 +1187,11 @@ function drawArmCutscene(): void {
     ctx.fillStyle = "#7affde";
     ctx.font = "bold 36px system-ui, sans-serif";
     ctx.fillText("BIO ARM ONLINE", W / 2, H / 2 - 16);
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = "16px system-ui, sans-serif";
-    ctx.fillText("To be continued...", W / 2, H / 2 + 28);
+    if (cutsceneTimer > 2.8 && Math.floor(cutsceneTimer * 2) % 2 === 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.font = "16px system-ui, sans-serif";
+      ctx.fillText("press space to continue", W / 2, H / 2 + 28);
+    }
   }
 }
 
@@ -1080,6 +1203,159 @@ function caption(text: string): void {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, W / 2, H - 45);
+}
+
+function drawSignPost(x: number, floorY: number): void {
+  ctx.fillStyle = "#4a3a22";
+  ctx.fillRect(x - 4, floorY - 64, 8, 64); // post
+  ctx.fillStyle = "#6b5333";
+  ctx.fillRect(x - 36, floorY - 108, 72, 48); // board frame
+  ctx.fillStyle = "#caa86a";
+  ctx.fillRect(x - 31, floorY - 103, 62, 38); // board face
+  ctx.fillStyle = "#3a2a14";
+  ctx.font = "bold 30px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("i", x, floorY - 82);
+}
+
+function drawExplore(): void {
+  const floorY = H * GROUND_FRAC;
+  drawLabRoom(EXPLORE_WIDTH, floorY);
+
+  const u = Math.max(4, Math.min(W, H) / 90);
+
+  // world objects
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  // the now-empty bio arm pod
+  ctx.fillStyle = "#1d2a30";
+  ctx.fillRect(BIOARM_X - 30, floorY - 60, 60, 60);
+  ctx.fillStyle = "#2b3d44";
+  ctx.fillRect(BIOARM_X - 38, floorY - 70, 76, 12);
+
+  // platforms (grapple ledges)
+  for (const p of platforms) {
+    ctx.fillStyle = "#2a2440";
+    ctx.fillRect(p.x, floorY - p.top, p.w, 16);
+    ctx.fillStyle = "#3a3358";
+    ctx.fillRect(p.x, floorY - p.top, p.w, 4);
+    // support strut
+    ctx.fillStyle = "rgba(58,51,88,0.5)";
+    ctx.fillRect(p.x + p.w / 2 - 4, floorY - p.top + 16, 8, p.top - 16);
+  }
+
+  // sign
+  drawSignPost(SIGN_X, floorY);
+
+  drawParticles();
+  ctx.restore();
+
+  // hero (with bio arm), positioned at current height
+  const yFeet = floorY - heroY + 6;
+  drawCharacter(heroX - camX, yFeet, u, HERO, heroFacing, "bio");
+
+  // grapple rope from the bio-arm hand to the target
+  if (grappling) {
+    const shoulderX = heroX - camX + (heroFacing ? 6 : -6) * u;
+    const shoulderY = yFeet - 18 * u;
+    ctx.strokeStyle = "#7affde";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(shoulderX, shoulderY);
+    ctx.lineTo(targetWX - camX, floorY - targetH);
+    ctx.stroke();
+    // hook head
+    ctx.fillStyle = "#cfe9ff";
+    ctx.fillRect(targetWX - camX - 5, floorY - targetH - 5, 10, 10);
+  }
+
+  // aiming reticle
+  if (aiming) {
+    ctx.strokeStyle = "#7affde";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, 16, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(mouseX - 22, mouseY);
+    ctx.lineTo(mouseX + 22, mouseY);
+    ctx.moveTo(mouseX, mouseY - 22);
+    ctx.lineTo(mouseX, mouseY + 22);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(122,255,222,0.9)";
+    ctx.font = "16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("click a spot to grapple onto", mouseX, mouseY - 26);
+  }
+
+  // controls hint
+  ctx.fillStyle = "rgba(158,255,160,0.7)";
+  ctx.font = "14px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("← → / A D  move    ·    I  read sign    ·    1  grappling hook", 18, 56);
+
+  // "press I" hint when touching the sign
+  const touchingSign = Math.abs(heroX - SIGN_X) < 60;
+  if (touchingSign && !showSign) {
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("Press I to read", SIGN_X - camX, floorY - 116);
+  }
+
+  // sign info panel
+  if (showSign) drawSignPanel();
+}
+
+function drawSignPanel(): void {
+  const lines = hasBioArm
+    ? [
+        "GRAPPLING HOOK MANEUVER",
+        "",
+        "Press  1 , then click a place",
+        "to grapple onto.",
+        "Use it with your Bio Arm!",
+      ]
+    : [
+        "GRAPPLING HOOK MANEUVER",
+        "",
+        "You need the Bio Arm to use this.",
+        "Go back and get it first!",
+      ];
+
+  const bw = Math.min(520, W * 0.8);
+  const bh = 220;
+  const x = (W - bw) / 2;
+  const y = (H - bh) / 2;
+
+  ctx.fillStyle = "rgba(5,10,16,0.92)";
+  ctx.strokeStyle = "#7affde";
+  ctx.lineWidth = 3;
+  roundRect(x, y, bw, bh, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  lines.forEach((line, i) => {
+    if (i === 0) {
+      ctx.fillStyle = "#7affde";
+      ctx.font = "bold 22px system-ui, sans-serif";
+    } else {
+      ctx.fillStyle = "#e8f0e8";
+      ctx.font = "18px system-ui, sans-serif";
+    }
+    ctx.fillText(line, W / 2, y + 44 + i * 32);
+  });
+
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "13px system-ui, sans-serif";
+  ctx.fillText("press I to close", W / 2, y + bh - 18);
 }
 
 // A small glowing knife. (x, yTip) is the top of the blade; grows downward.
