@@ -12,6 +12,7 @@ export default defineConfig({
         menu: resolve(__dirname, "src/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
         mods: resolve(__dirname, "src/mods/index.html"),
+        corruptedGames: resolve(__dirname, "src/corrupted-games/index.html"),
         drawingBossMania: resolve(__dirname, "src/games2/drawing-boss-mania/index.html"),
         stickmanFight: resolve(__dirname, "src/games2/stickman-fight/index.html"),
         aHardEasyGame: resolve(__dirname, "src/games/a-hard-easy-game/index.html"),
