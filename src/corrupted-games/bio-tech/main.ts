@@ -35,7 +35,75 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 canvas.addEventListener("pointerdown", () => {
   advancePressed = true;
+  ensureAudio();
 });
+
+// ---------------------------------------------------------------------------
+// Audio (synthesized — no asset files)
+// ---------------------------------------------------------------------------
+let audioCtx: AudioContext | null = null;
+function ensureAudio(): void {
+  if (!audioCtx) {
+    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioCtx = new Ctor();
+  }
+  if (audioCtx.state === "suspended") void audioCtx.resume();
+}
+window.addEventListener("keydown", ensureAudio, { once: false });
+
+function playSlice(): void {
+  if (!audioCtx) return;
+  const ac = audioCtx;
+  const now = ac.currentTime;
+
+  // noise burst (the "shhk" of the cut)
+  const dur = 0.35;
+  const buffer = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    const t = i / data.length;
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.2);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 1900;
+  bp.Q.value = 0.7;
+  const ng = ac.createGain();
+  ng.gain.value = 0.5;
+  src.connect(bp).connect(ng).connect(ac.destination);
+  src.start(now);
+
+  // metallic descending "shing"
+  const osc = ac.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(2400, now);
+  osc.frequency.exponentialRampToValueAtTime(380, now + 0.28);
+  const og = ac.createGain();
+  og.gain.setValueAtTime(0.22, now);
+  og.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+  osc.connect(og).connect(ac.destination);
+  osc.start(now);
+  osc.stop(now + 0.33);
+}
+
+function playPowerUp(): void {
+  if (!audioCtx) return;
+  const ac = audioCtx;
+  const now = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(220, now);
+  osc.frequency.exponentialRampToValueAtTime(880, now + 0.5);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.3, now + 0.1);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+  osc.connect(g).connect(ac.destination);
+  osc.start(now);
+  osc.stop(now + 0.72);
+}
 
 // ---------------------------------------------------------------------------
 // Pixel character drawing (Minecraft-ish blocky figures)
@@ -70,7 +138,16 @@ const SCIENTIST: Palette = {
 };
 
 // Draw a blocky humanoid. (x, yFeet) is the bottom-center. u = pixel unit.
-function drawCharacter(x: number, yFeet: number, u: number, pal: Palette, faceRight: boolean): void {
+type ArmState = "normal" | "missing" | "bio";
+
+function drawCharacter(
+  x: number,
+  yFeet: number,
+  u: number,
+  pal: Palette,
+  faceRight: boolean,
+  rightArm: ArmState = "normal"
+): void {
   const px = (gx: number, gy: number, gw: number, gh: number, color: string) => {
     ctx.fillStyle = color;
     // grid origin: character is 16u wide, 32u tall. center horizontally on x.
@@ -85,12 +162,24 @@ function drawCharacter(x: number, yFeet: number, u: number, pal: Palette, faceRi
   px(4, 30, 4, 2, pal.shoes);
   px(8, 30, 4, 2, pal.shoes);
 
-  // Arms (y 8..20)
+  // Left arm (always present)
   px(0, 8, 4, 12, pal.shirtDark);
-  px(12, 8, 4, 12, pal.shirtDark);
-  // hands
   px(0, 18, 4, 2, pal.skin);
-  px(12, 18, 4, 2, pal.skin);
+
+  // Right arm — normal, sliced off, or bionic
+  if (rightArm === "normal") {
+    px(12, 8, 4, 12, pal.shirtDark);
+    px(12, 18, 4, 2, pal.skin);
+  } else if (rightArm === "bio") {
+    px(12, 8, 4, 6, "#5a6b72"); // metal upper
+    px(12, 13, 4, 2, "#7affde"); // glowing joint
+    px(12, 15, 4, 5, "#3a464c"); // metal forearm
+    px(12, 18, 4, 2, "#7affde"); // glowing hand
+  } else {
+    // missing: bloody stump at the shoulder
+    px(12, 8, 3, 3, "#7a1414");
+    px(11, 9, 2, 2, "#b02020");
+  }
 
   // Body (y 8..20)
   px(4, 8, 8, 12, pal.shirt);
@@ -124,7 +213,16 @@ function drawCharacter(x: number, yFeet: number, u: number, pal: Palette, faceRi
 // ---------------------------------------------------------------------------
 // Scene state machine
 // ---------------------------------------------------------------------------
-type Scene = "dialogue" | "fadeOut" | "meteor" | "objective" | "overworld" | "interior";
+type Scene =
+  | "dialogue"
+  | "fadeOut"
+  | "meteor"
+  | "objective"
+  | "overworld"
+  | "interior"
+  | "slice"
+  | "armRun"
+  | "armCutscene";
 let scene: Scene = "dialogue";
 
 // Global fade overlay (1 = fully black)
@@ -172,6 +270,16 @@ let entering = false; // fading out to walk inside the building
 const INTERIOR_WIDTH = 1500;
 const PEDESTAL_X = 820; // where the knife-on-a-pedestal sits inside
 let grabbedKnife = false;
+let knifeHeldTimer = 0; // pause after grabbing before the screen cuts to black
+
+// --- Slice / arm run / cutscene ---
+let sliceTimer = 0;
+const ARMRUN_WIDTH = 1500;
+const BIOARM_X = 1240; // the bio arm pod at the end of the run
+let reachedArm = false;
+let cutsceneTimer = 0;
+let hasBioArm = false;
+let powerUpPlayed = false;
 
 // ---------------------------------------------------------------------------
 // Update
@@ -292,7 +400,97 @@ function update(dt: number): void {
       }
       if (!grabbedKnife && Math.abs(heroX - PEDESTAL_X) < 70) {
         grabbedKnife = true; // walk up to it and grab the knife
+        knifeHeldTimer = 0;
       }
+      if (grabbedKnife) {
+        knifeHeldTimer += dt;
+        if (knifeHeldTimer > 1.7) {
+          fade = Math.min(1, fade + dt * 2.0); // cut to black
+          if (fade >= 1) {
+            scene = "slice";
+            sliceTimer = 0;
+            ensureAudio();
+            playSlice();
+          }
+        }
+      }
+      break;
+    }
+
+    case "slice": {
+      // black screen, the slice sound plays, then reveal the wound
+      sliceTimer += dt;
+      if (sliceTimer > 1.8) {
+        scene = "armRun";
+        heroX = 60;
+        camX = 0;
+        particles.length = 0;
+        reachedArm = false;
+        fade = 1; // fade in to the wounded hero
+      }
+      break;
+    }
+
+    case "armRun": {
+      fade = Math.max(0, fade - dt * 1.0); // fade in
+      const speed = 200; // a little slower — you're hurt
+      if (keys.has("arrowright") || keys.has("d")) heroX += speed * dt;
+      if (keys.has("arrowleft") || keys.has("a")) heroX -= speed * dt;
+      heroX = Math.max(40, Math.min(ARMRUN_WIDTH - 40, heroX));
+      camX = Math.max(0, Math.min(ARMRUN_WIDTH - W, heroX - W * 0.4));
+      updateParticles(dt);
+      // occasional blood drip from the stump
+      const u = Math.max(4, Math.min(W, H) / 90);
+      if (Math.random() < 0.25 && particles.length < 70) {
+        particles.push({
+          x: heroX + 6 * u,
+          y: H * GROUND_FRAC - 22 * u,
+          vx: (Math.random() - 0.5) * 10,
+          vy: 10,
+          life: 0,
+          max: 0.7 + Math.random() * 0.4,
+          size: 3 + Math.random() * 3,
+          color: "rgba(150,20,20,0.85)",
+        });
+      }
+      if (!reachedArm && heroX >= BIOARM_X - 70) {
+        reachedArm = true;
+        scene = "armCutscene";
+        cutsceneTimer = 0;
+        hasBioArm = false;
+        powerUpPlayed = false;
+        particles.length = 0;
+      }
+      break;
+    }
+
+    case "armCutscene": {
+      cutsceneTimer += dt;
+      // arm attaches around t=2.2
+      if (cutsceneTimer >= 2.2 && !hasBioArm) {
+        hasBioArm = true;
+        if (!powerUpPlayed) {
+          ensureAudio();
+          playPowerUp();
+          powerUpPlayed = true;
+        }
+        // spark burst at the shoulder
+        for (let i = 0; i < 40; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const sp = 60 + Math.random() * 180;
+          particles.push({
+            x: BIOARM_X - 80,
+            y: H * GROUND_FRAC - 20 * (Math.max(4, Math.min(W, H) / 90)),
+            vx: Math.cos(a) * sp,
+            vy: Math.sin(a) * sp,
+            life: 0,
+            max: 0.5 + Math.random() * 0.5,
+            size: 3 + Math.random() * 5,
+            color: Math.random() > 0.5 ? "#7affde" : "#ffffff",
+          });
+        }
+      }
+      updateParticles(dt);
       break;
     }
   }
@@ -395,6 +593,12 @@ function draw(): void {
     drawOverworld();
   } else if (scene === "interior") {
     drawInterior();
+  } else if (scene === "slice") {
+    drawSlice();
+  } else if (scene === "armRun") {
+    drawArmRun();
+  } else if (scene === "armCutscene") {
+    drawArmCutscene();
   }
 
   // global fade
@@ -699,17 +903,198 @@ function drawInterior(): void {
 
   // pickup message
   if (grabbedKnife && fade < 0.2) {
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#7affde";
     ctx.font = "bold 32px system-ui, sans-serif";
-    ctx.fillText("You grabbed the knife.", W / 2, H / 2 - 16);
+    ctx.fillText("You grabbed the knife.", W / 2, H / 2);
+  }
+}
+
+// Shared dark lab room background (used by slice/armRun/cutscene).
+function drawLabRoom(width: number, floorY: number): void {
+  ctx.fillStyle = "#0a0810";
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  ctx.fillStyle = "#161020";
+  ctx.fillRect(0, 0, width, floorY);
+  ctx.fillStyle = "#221830";
+  ctx.fillRect(0, floorY - 28, width, 28);
+  ctx.fillStyle = "#0e0b16";
+  ctx.fillRect(0, floorY, width, H - floorY);
+
+  ctx.strokeStyle = "rgba(122,255,222,0.07)";
+  ctx.lineWidth = 2;
+  for (let fx = 0; fx < width; fx += 90) {
+    ctx.beginPath();
+    ctx.moveTo(fx, floorY);
+    ctx.lineTo(fx, H);
+    ctx.stroke();
+  }
+
+  // broken machines along the wall
+  for (let mx = 140; mx < width - 120; mx += 320) {
+    ctx.fillStyle = "#2a2440";
+    ctx.fillRect(mx, floorY - 90, 70, 90);
+    ctx.fillStyle = "#3a3358";
+    ctx.fillRect(mx, floorY - 90, 70, 12);
+    const lit = Math.floor(performance.now() / 220 + mx) % 4 !== 0;
+    ctx.fillStyle = lit ? "#7affde" : "#163a33";
+    ctx.fillRect(mx + 12, floorY - 70, 46, 30);
+  }
+  ctx.restore();
+}
+
+// The Bio Arm — a robotic teal/metal arm. (x, y) is its center.
+function drawBioArm(x: number, y: number, s: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  // upper arm
+  ctx.fillStyle = "#5a6b72";
+  ctx.fillRect(-6 * s, -22 * s, 12 * s, 18 * s);
+  // glowing elbow joint
+  ctx.fillStyle = "#7affde";
+  ctx.fillRect(-6 * s, -6 * s, 12 * s, 4 * s);
+  // forearm
+  ctx.fillStyle = "#3a464c";
+  ctx.fillRect(-6 * s, -2 * s, 12 * s, 16 * s);
+  // plating highlights
+  ctx.fillStyle = "#7d909a";
+  ctx.fillRect(-6 * s, -22 * s, 3 * s, 36 * s);
+  // glowing fingers
+  ctx.fillStyle = "#7affde";
+  ctx.fillRect(-6 * s, 14 * s, 3 * s, 6 * s);
+  ctx.fillRect(-1 * s, 14 * s, 3 * s, 7 * s);
+  ctx.fillRect(4 * s, 14 * s, 2 * s, 5 * s);
+  ctx.restore();
+}
+
+function drawSlice(): void {
+  // pure black; a single white flash line at the very start of the cut
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, W, H);
+  if (sliceTimer < 0.18) {
+    ctx.strokeStyle = `rgba(255,255,255,${1 - sliceTimer / 0.18})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.2, H * 0.3);
+    ctx.lineTo(W * 0.8, H * 0.7);
+    ctx.stroke();
+  }
+}
+
+function drawArmRun(): void {
+  const floorY = H * GROUND_FRAC;
+  drawLabRoom(ARMRUN_WIDTH, floorY);
+
+  const u = Math.max(4, Math.min(W, H) / 90);
+
+  // the Bio Arm pod at the end
+  ctx.save();
+  ctx.translate(-camX, 0);
+  const glow = ctx.createRadialGradient(BIOARM_X, floorY - 70, 6, BIOARM_X, floorY - 70, 120);
+  glow.addColorStop(0, "rgba(122,255,222,0.4)");
+  glow.addColorStop(1, "rgba(122,255,222,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(BIOARM_X - 120, floorY - 200, 240, 220);
+  // pod / stand
+  ctx.fillStyle = "#1d2a30";
+  ctx.fillRect(BIOARM_X - 30, floorY - 60, 60, 60);
+  ctx.fillStyle = "#2b3d44";
+  ctx.fillRect(BIOARM_X - 38, floorY - 70, 76, 12);
+  drawBioArm(BIOARM_X, floorY - 96, 1.6);
+  // label
+  ctx.fillStyle = "#7affde";
+  ctx.font = "bold 14px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText("BIO ARM", BIOARM_X, floorY - 132);
+  drawParticles();
+  ctx.restore();
+
+  // wounded hero, missing the right arm, holding the knife in the left hand
+  const facingRight = heroX <= BIOARM_X;
+  drawCharacter(heroX - camX, floorY + 6, u, HERO, facingRight, "missing");
+  drawKnife(heroX - camX - 9 * u, floorY - 12 * u, 0.7, true);
+
+  // objective
+  ctx.fillStyle = "rgba(255,120,120,0.9)";
+  ctx.font = "18px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("!  Get to the BIO ARM!", 18, 56);
+}
+
+function drawArmCutscene(): void {
+  const floorY = H * GROUND_FRAC;
+  drawLabRoom(ARMRUN_WIDTH, floorY);
+
+  const u = Math.max(4, Math.min(W, H) / 90);
+  const heroScreenX = BIOARM_X - 80 - camX; // hero stands just left of the pod
+  const shoulderX = heroScreenX + 6 * u;
+  const shoulderY = floorY - 20 * u;
+
+  // pod
+  ctx.save();
+  ctx.translate(-camX, 0);
+  ctx.fillStyle = "#1d2a30";
+  ctx.fillRect(BIOARM_X - 30, floorY - 60, 60, 60);
+  ctx.fillStyle = "#2b3d44";
+  ctx.fillRect(BIOARM_X - 38, floorY - 70, 76, 12);
+  ctx.restore();
+
+  // hero — gains the bio arm partway through
+  drawCharacter(heroScreenX, floorY + 6, u, HERO, true, hasBioArm ? "bio" : "missing");
+
+  // the flying arm travels from the pod to the shoulder between t=1.0 and t=2.2
+  if (!hasBioArm) {
+    const podX = BIOARM_X - camX;
+    const podY = floorY - 96;
+    const t = Math.max(0, Math.min(1, (cutsceneTimer - 1.0) / 1.2));
+    const ax = podX + (shoulderX - podX) * t;
+    const ay = podY + (shoulderY - podY) * t;
+    drawBioArm(ax, ay, 1.6 - 0.6 * t);
+  }
+
+  drawParticles();
+
+  // flash at attach moment
+  if (cutsceneTimer >= 2.2 && cutsceneTimer < 2.45) {
+    ctx.fillStyle = `rgba(255,255,255,${1 - (cutsceneTimer - 2.2) / 0.25})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // captions
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  if (cutsceneTimer < 1.0) {
+    caption("There... a replacement.");
+  } else if (cutsceneTimer < 2.2) {
+    caption("Reaching for the Bio Arm...");
+  } else if (cutsceneTimer > 2.6) {
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#7affde";
+    ctx.font = "bold 36px system-ui, sans-serif";
+    ctx.fillText("BIO ARM ONLINE", W / 2, H / 2 - 16);
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "16px system-ui, sans-serif";
     ctx.fillText("To be continued...", W / 2, H / 2 + 28);
   }
+}
+
+function caption(text: string): void {
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(0, H - 90, W, 90);
+  ctx.fillStyle = "#e8f0e8";
+  ctx.font = "22px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, W / 2, H - 45);
 }
 
 // A small glowing knife. (x, yTip) is the top of the blade; grows downward.
