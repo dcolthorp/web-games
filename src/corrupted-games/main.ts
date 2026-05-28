@@ -12,7 +12,13 @@ interface Game {
 }
 
 const games: Game[] = [
-  // c0rrupt3d games go here
+  {
+    id: "bio-tech",
+    name: "Bio Tech",
+    path: "./bio-tech/",
+    genre: "Fan-made",
+    blurb: "A fanmade game for Bionic.",
+  },
 ];
 
 function renderGameList(): void {
