@@ -232,6 +232,7 @@ function update(dt: number): void {
         scene = "overworld";
         heroX = 80;
         camX = 0;
+        particles.length = 0; // clear leftover explosion debris
       }
       break;
 
@@ -243,7 +244,8 @@ function update(dt: number): void {
       // camera follows
       camX = Math.max(0, heroX - W * 0.35);
       updateParticles(dt);
-      spawnSmoke();
+      const groundY = H * GROUND_FRAC;
+      spawnSmokeAt(BUILDING_WORLD_X, groundY - H * 0.32); // smoke from the strange building's roof
       if (!reachedBuilding && heroX >= BUILDING_WORLD_X - 120) {
         reachedBuilding = true;
       }
@@ -287,12 +289,11 @@ function spawnExplosion(): void {
   }
 }
 
-function spawnSmoke(): void {
-  const { ix, iy } = impactPos();
+function spawnSmokeAt(cx: number, cy: number): void {
   if (particles.length > 240) return;
   particles.push({
-    x: ix + (Math.random() - 0.5) * 60,
-    y: iy,
+    x: cx + (Math.random() - 0.5) * 60,
+    y: cy,
     vx: (Math.random() - 0.5) * 20,
     vy: -30 - Math.random() * 30,
     life: 0,
@@ -300,6 +301,11 @@ function spawnSmoke(): void {
     size: 14 + Math.random() * 18,
     color: "rgba(60,60,70,0.6)",
   });
+}
+
+function spawnSmoke(): void {
+  const { ix, iy } = impactPos();
+  spawnSmokeAt(ix, iy);
 }
 
 function updateParticles(dt: number): void {
@@ -547,9 +553,9 @@ function drawOverworld(): void {
   // strange building far right
   drawBuilding(BUILDING_WORLD_X, groundY, true);
 
-  // particles drift over building (in world space approx)
-  ctx.restore();
+  // smoke rises from the building (world space, moves with camera)
   drawParticles();
+  ctx.restore();
 
   // hero
   const u = Math.max(4, Math.min(W, H) / 90);
