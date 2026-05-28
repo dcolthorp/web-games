@@ -27,7 +27,6 @@ let advancePressed = false;
 let interactPressed = false; // "i" — read sign
 let aimPressed = false; // "1" — toggle grapple aiming
 let grappleClick = false; // clicked while aiming
-let pointerHeld = false; // mouse held down (drill maneuver)
 let mouseX = 0;
 let mouseY = 0;
 
@@ -49,18 +48,11 @@ canvas.addEventListener("pointermove", (e) => {
 });
 canvas.addEventListener("pointerdown", () => {
   ensureAudio();
-  pointerHeld = true;
   if (scene === "explore" && aiming) {
     grappleClick = true;
   } else {
     advancePressed = true;
   }
-});
-window.addEventListener("pointerup", () => {
-  pointerHeld = false;
-});
-window.addEventListener("pointercancel", () => {
-  pointerHeld = false;
 });
 
 // ---------------------------------------------------------------------------
@@ -682,9 +674,9 @@ function update(dt: number): void {
         else if (prevX >= w.x && heroX < w.x + WALL_HALF + MARGIN) heroX = w.x + WALL_HALF + MARGIN;
       }
 
-      // drill: hold the mouse button while up against a cracked wall
+      // drill: hold the 2 key while up against a cracked wall
       drillingNow = false;
-      if (pointerHeld) {
+      if (keys.has("2")) {
         let target: Wall | null = null;
         for (const w of walls) {
           if (w.hp <= 0) continue;
@@ -1602,7 +1594,7 @@ function drawDrill(): void {
     ctx.fillText("DRILL MANEUVER", W / 2, H / 2 - 14);
     ctx.fillStyle = `rgba(255,255,255,${0.85 * a})`;
     ctx.font = "18px system-ui, sans-serif";
-    ctx.fillText("Hold click to drill through cracked walls!", W / 2, H / 2 + 22);
+    ctx.fillText("Hold  2  to drill through cracked walls!", W / 2, H / 2 + 22);
   }
 
   // control hint
@@ -1610,7 +1602,7 @@ function drawDrill(): void {
   ctx.font = "14px system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.fillText("← → / A D  move    ·    hold CLICK to drill", 18, 56);
+  ctx.fillText("← → / A D  move    ·    hold  2  to drill", 18, 56);
 
   // end of section
   if (heroX >= DRILL_WIDTH - 60 && fade < 0.2) {
