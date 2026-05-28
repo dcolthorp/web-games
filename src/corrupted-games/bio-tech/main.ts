@@ -550,6 +550,9 @@ function drawOverworld(): void {
   ctx.save();
   ctx.translate(-camX, 0);
 
+  // ground detail so movement is visible (world space)
+  drawGroundDetail(groundY);
+
   // strange building far right
   drawBuilding(BUILDING_WORLD_X, groundY, true);
 
@@ -576,6 +579,47 @@ function drawOverworld(): void {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("To be continued...", W / 2, H / 2);
+  }
+}
+
+// Repeating ground features drawn in world space so they scroll past the player.
+function drawGroundDetail(groundY: number): void {
+  const startX = Math.floor(camX / 120) * 120 - 120;
+  const endX = camX + W + 120;
+
+  for (let wx = startX; wx < endX; wx += 120) {
+    // deterministic "random" per tile so it doesn't flicker
+    const seed = Math.abs(Math.sin(wx * 0.013)) ;
+
+    // grass tuft
+    ctx.fillStyle = "#2c4a2c";
+    const gx = wx + 30;
+    ctx.fillRect(gx, groundY - 10, 4, 10);
+    ctx.fillRect(gx + 5, groundY - 14, 4, 14);
+    ctx.fillRect(gx + 10, groundY - 8, 4, 8);
+
+    // a rock every few tiles
+    if (seed > 0.6) {
+      ctx.fillStyle = "#3a3f46";
+      ctx.fillRect(wx + 70, groundY - 12, 22, 12);
+      ctx.fillStyle = "#2a2e34";
+      ctx.fillRect(wx + 70, groundY - 12, 22, 4);
+    }
+
+    // dashed path line on the ground
+    ctx.fillStyle = "rgba(120,150,120,0.25)";
+    ctx.fillRect(wx + 50, groundY + 18, 50, 4);
+  }
+
+  // distance markers counting toward the building
+  ctx.fillStyle = "rgba(158,255,160,0.35)";
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  for (let mx = 400; mx < BUILDING_WORLD_X; mx += 400) {
+    ctx.fillRect(mx, groundY - 40, 3, 40);
+    const metersLeft = Math.max(0, Math.round((BUILDING_WORLD_X - mx) / 100));
+    ctx.fillText(`${metersLeft}m`, mx, groundY - 44);
   }
 }
 
