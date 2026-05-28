@@ -124,7 +124,7 @@ function drawCharacter(x: number, yFeet: number, u: number, pal: Palette, faceRi
 // ---------------------------------------------------------------------------
 // Scene state machine
 // ---------------------------------------------------------------------------
-type Scene = "dialogue" | "fadeOut" | "meteor" | "objective" | "overworld";
+type Scene = "dialogue" | "fadeOut" | "meteor" | "objective" | "overworld" | "interior";
 let scene: Scene = "dialogue";
 
 // Global fade overlay (1 = fully black)
@@ -166,7 +166,12 @@ let heroVY = 0;
 let camX = 0;
 const GROUND_FRAC = 0.78;
 const BUILDING_WORLD_X = 1600;
-let reachedBuilding = false;
+let entering = false; // fading out to walk inside the building
+
+// --- Interior ---
+const INTERIOR_WIDTH = 1500;
+const METEOR_INTERIOR_X = 820; // where the crashed meteor sits inside
+let reachedMeteor = false;
 
 // ---------------------------------------------------------------------------
 // Update
@@ -246,8 +251,47 @@ function update(dt: number): void {
       updateParticles(dt);
       const groundY = H * GROUND_FRAC;
       spawnSmokeAt(BUILDING_WORLD_X, groundY - H * 0.32); // smoke from the strange building's roof
-      if (!reachedBuilding && heroX >= BUILDING_WORLD_X - 120) {
-        reachedBuilding = true;
+      if (!entering && heroX >= BUILDING_WORLD_X - 60) {
+        entering = true; // reached the door — start walking in
+      }
+      if (entering) {
+        fade = Math.min(1, fade + dt * 1.4);
+        if (fade >= 1) {
+          scene = "interior";
+          heroX = 60;
+          camX = 0;
+          particles.length = 0;
+          entering = false;
+          reachedMeteor = false;
+        }
+      }
+      break;
+    }
+
+    case "interior": {
+      fade = Math.max(0, fade - dt * 1.2); // fade in
+      const speed = 220;
+      if (keys.has("arrowright") || keys.has("d")) heroX += speed * dt;
+      if (keys.has("arrowleft") || keys.has("a")) heroX -= speed * dt;
+      heroX = Math.max(40, Math.min(INTERIOR_WIDTH - 40, heroX));
+      camX = Math.max(0, Math.min(INTERIOR_WIDTH - W, heroX - W * 0.4));
+      updateParticles(dt);
+      // eerie glow rising off the embedded meteor
+      const cy = H * GROUND_FRAC - 20;
+      if (particles.length < 80) {
+        particles.push({
+          x: METEOR_INTERIOR_X + (Math.random() - 0.5) * 80,
+          y: cy,
+          vx: (Math.random() - 0.5) * 12,
+          vy: -25 - Math.random() * 25,
+          life: 0,
+          max: 1.2 + Math.random() * 1.0,
+          size: 5 + Math.random() * 8,
+          color: Math.random() > 0.5 ? "rgba(122,255,222,0.5)" : "rgba(158,255,160,0.45)",
+        });
+      }
+      if (!reachedMeteor && Math.abs(heroX - METEOR_INTERIOR_X) < 90) {
+        reachedMeteor = true;
       }
       break;
     }
@@ -349,6 +393,8 @@ function draw(): void {
     if (scene === "objective") drawObjectiveOverlay();
   } else if (scene === "overworld") {
     drawOverworld();
+  } else if (scene === "interior") {
+    drawInterior();
   }
 
   // global fade
@@ -570,15 +616,93 @@ function drawOverworld(): void {
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.fillText("→ Go to the strange building", 18, 56);
+}
 
-  if (reachedBuilding) {
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
+function drawInterior(): void {
+  const floorY = H * GROUND_FRAC;
+
+  // dark room
+  ctx.fillStyle = "#0a0810";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  // back wall
+  ctx.fillStyle = "#161020";
+  ctx.fillRect(0, 0, INTERIOR_WIDTH, floorY);
+  // wall trim
+  ctx.fillStyle = "#221830";
+  ctx.fillRect(0, floorY - 28, INTERIOR_WIDTH, 28);
+
+  // floor
+  ctx.fillStyle = "#0e0b16";
+  ctx.fillRect(0, floorY, INTERIOR_WIDTH, H - floorY);
+  // floor tile lines
+  ctx.strokeStyle = "rgba(122,255,222,0.07)";
+  ctx.lineWidth = 2;
+  for (let fx = 0; fx < INTERIOR_WIDTH; fx += 90) {
+    ctx.beginPath();
+    ctx.moveTo(fx, floorY);
+    ctx.lineTo(fx, H);
+    ctx.stroke();
+  }
+
+  // broken lab machines along the wall
+  for (const mx of [180, 360, 1180, 1320]) {
+    ctx.fillStyle = "#2a2440";
+    ctx.fillRect(mx, floorY - 90, 70, 90);
+    ctx.fillStyle = "#3a3358";
+    ctx.fillRect(mx, floorY - 90, 70, 12);
+    // a flickering screen
+    const lit = Math.floor(performance.now() / 220 + mx) % 4 !== 0;
+    ctx.fillStyle = lit ? "#7affde" : "#163a33";
+    ctx.fillRect(mx + 12, floorY - 70, 46, 30);
+  }
+
+  // crater + embedded meteor
+  ctx.fillStyle = "#070509";
+  ctx.beginPath();
+  ctx.ellipse(METEOR_INTERIOR_X, floorY + 6, 150, 34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // glowing meteor
+  const glow = ctx.createRadialGradient(
+    METEOR_INTERIOR_X, floorY - 24, 6,
+    METEOR_INTERIOR_X, floorY - 24, 110
+  );
+  glow.addColorStop(0, "rgba(122,255,222,0.55)");
+  glow.addColorStop(1, "rgba(122,255,222,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(METEOR_INTERIOR_X - 120, floorY - 140, 240, 180);
+  ctx.fillStyle = "#241c12";
+  ctx.beginPath();
+  ctx.arc(METEOR_INTERIOR_X, floorY - 18, 46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#7affde";
+  for (const [dx, dy] of [[-14, -10], [10, 4], [-4, 14], [18, -8]] as const) {
+    ctx.fillRect(METEOR_INTERIOR_X + dx, floorY - 18 + dy, 6, 6);
+  }
+
+  // eerie glow particles
+  drawParticles();
+  ctx.restore();
+
+  // hero
+  const u = Math.max(4, Math.min(W, H) / 90);
+  drawCharacter(heroX - camX, floorY + 6, u, HERO, heroX <= METEOR_INTERIOR_X);
+
+  // prompt when standing at the meteor
+  if (reachedMeteor && fade < 0.2) {
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#9effa0";
-    ctx.font = "bold 40px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("To be continued...", W / 2, H / 2);
+    ctx.fillStyle = "#7affde";
+    ctx.font = "bold 34px system-ui, sans-serif";
+    ctx.fillText("What... is that thing?", W / 2, H / 2 - 16);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "16px system-ui, sans-serif";
+    ctx.fillText("To be continued...", W / 2, H / 2 + 28);
   }
 }
 
