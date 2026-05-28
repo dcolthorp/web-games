@@ -560,7 +560,7 @@ function drawOverworld(): void {
   ctx.font = "16px system-ui, sans-serif";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.fillText("→ Go to the strange building", 18, 18);
+  ctx.fillText("→ Go to the strange building", 18, 56);
 
   if (reachedBuilding) {
     ctx.fillStyle = "rgba(0,0,0,0.55)";
