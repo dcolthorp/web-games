@@ -27,6 +27,7 @@ let advancePressed = false;
 let interactPressed = false; // "i" — read sign
 let aimPressed = false; // "1" — toggle grapple aiming
 let grappleClick = false; // clicked while aiming
+let pointerHeld = false; // mouse held down (drill maneuver)
 let mouseX = 0;
 let mouseY = 0;
 
@@ -48,11 +49,18 @@ canvas.addEventListener("pointermove", (e) => {
 });
 canvas.addEventListener("pointerdown", () => {
   ensureAudio();
+  pointerHeld = true;
   if (scene === "explore" && aiming) {
     grappleClick = true;
   } else {
     advancePressed = true;
   }
+});
+window.addEventListener("pointerup", () => {
+  pointerHeld = false;
+});
+window.addEventListener("pointercancel", () => {
+  pointerHeld = false;
 });
 
 // ---------------------------------------------------------------------------
@@ -120,6 +128,25 @@ function playPowerUp(): void {
   osc.connect(g).connect(ac.destination);
   osc.start(now);
   osc.stop(now + 0.72);
+}
+
+function playDrill(): void {
+  if (!audioCtx) return;
+  const ac = audioCtx;
+  const now = ac.currentTime;
+  const dur = 0.13;
+  const buffer = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 480;
+  const g = ac.createGain();
+  g.gain.value = 0.22;
+  src.connect(lp).connect(g).connect(ac.destination);
+  src.start(now);
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +266,8 @@ type Scene =
   | "slice"
   | "armRun"
   | "armCutscene"
-  | "explore";
+  | "explore"
+  | "drill";
 let scene: Scene = "dialogue";
 
 // Global fade overlay (1 = fully black)
@@ -315,6 +343,25 @@ let aiming = false;
 let grappling = false;
 let targetWX = 0; // grapple target, world x
 let targetH = 0; // grapple target, height above floor
+let leavingExplore = false; // fading out to the drill section
+
+// --- Drill section ---
+const DRILL_WIDTH = 2400;
+interface Wall {
+  x: number; // center
+  hp: number;
+  maxHp: number;
+}
+const walls: Wall[] = [
+  { x: 760, hp: 1.6, maxHp: 1.6 },
+  { x: 1380, hp: 1.8, maxHp: 1.8 },
+  { x: 1960, hp: 2.0, maxHp: 2.0 },
+];
+let drillBannerT = 0;
+let drillSoundTimer = 0;
+let drillingNow = false;
+const WALL_HALF = 22;
+const WALL_H = 170;
 
 // ---------------------------------------------------------------------------
 // Update
@@ -592,6 +639,106 @@ function update(dt: number): void {
       heroX = Math.max(40, Math.min(EXPLORE_WIDTH - 40, heroX));
       camX = Math.max(0, Math.min(EXPLORE_WIDTH - W, heroX - W * 0.4));
       updateParticles(dt);
+
+      // reached the end of the screen → next section (the drill)
+      if (!grappling && heroX >= EXPLORE_WIDTH - 46) leavingExplore = true;
+      if (leavingExplore) {
+        fade = Math.min(1, fade + dt * 1.6);
+        if (fade >= 1) {
+          scene = "drill";
+          heroX = 60;
+          heroY = 0;
+          heroVY = 0;
+          heroFacing = true;
+          camX = 0;
+          particles.length = 0;
+          leavingExplore = false;
+          drillBannerT = 0;
+          for (const w of walls) w.hp = w.maxHp;
+        }
+      }
+      break;
+    }
+
+    case "drill": {
+      fade = Math.max(0, fade - dt * 1.2);
+      drillBannerT += dt;
+      const speed = 230;
+      const prevX = heroX;
+      if (keys.has("arrowright") || keys.has("d")) {
+        heroX += speed * dt;
+        heroFacing = true;
+      }
+      if (keys.has("arrowleft") || keys.has("a")) {
+        heroX -= speed * dt;
+        heroFacing = false;
+      }
+
+      // intact walls block the path
+      const MARGIN = 18;
+      for (const w of walls) {
+        if (w.hp <= 0) continue;
+        if (prevX <= w.x && heroX > w.x - WALL_HALF - MARGIN) heroX = w.x - WALL_HALF - MARGIN;
+        else if (prevX >= w.x && heroX < w.x + WALL_HALF + MARGIN) heroX = w.x + WALL_HALF + MARGIN;
+      }
+
+      // drill: hold the mouse button while up against a cracked wall
+      drillingNow = false;
+      if (pointerHeld) {
+        let target: Wall | null = null;
+        for (const w of walls) {
+          if (w.hp <= 0) continue;
+          const dir = w.x - heroX;
+          if (Math.abs(dir) < WALL_HALF + MARGIN + 16 && dir >= 0 === heroFacing) {
+            target = w;
+            break;
+          }
+        }
+        if (target) {
+          drillingNow = true;
+          target.hp -= dt;
+          // debris flying off the wall
+          if (particles.length < 90) {
+            particles.push({
+              x: target.x - (heroFacing ? WALL_HALF : -WALL_HALF),
+              y: H * GROUND_FRAC - WALL_H * (0.3 + Math.random() * 0.5),
+              vx: (heroFacing ? -1 : 1) * (60 + Math.random() * 120),
+              vy: -40 + Math.random() * 60,
+              life: 0,
+              max: 0.5 + Math.random() * 0.4,
+              size: 3 + Math.random() * 5,
+              color: Math.random() > 0.5 ? "#5a5468" : "#6b6478",
+            });
+          }
+          drillSoundTimer -= dt;
+          if (drillSoundTimer <= 0) {
+            ensureAudio();
+            playDrill();
+            drillSoundTimer = 0.11;
+          }
+          if (target.hp <= 0) {
+            // wall shatters
+            for (let i = 0; i < 30; i++) {
+              const a = Math.random() * Math.PI * 2;
+              const sp = 60 + Math.random() * 200;
+              particles.push({
+                x: target.x,
+                y: H * GROUND_FRAC - WALL_H * 0.5,
+                vx: Math.cos(a) * sp,
+                vy: Math.sin(a) * sp,
+                life: 0,
+                max: 0.6 + Math.random() * 0.5,
+                size: 4 + Math.random() * 6,
+                color: Math.random() > 0.5 ? "#5a5468" : "#39344a",
+              });
+            }
+          }
+        }
+      }
+
+      heroX = Math.max(40, Math.min(DRILL_WIDTH - 40, heroX));
+      camX = Math.max(0, Math.min(DRILL_WIDTH - W, heroX - W * 0.4));
+      updateParticles(dt);
       break;
     }
   }
@@ -705,6 +852,8 @@ function draw(): void {
     drawArmCutscene();
   } else if (scene === "explore") {
     drawExplore();
+  } else if (scene === "drill") {
+    drawDrill();
   }
 
   // global fade
@@ -1356,6 +1505,123 @@ function drawSignPanel(): void {
   ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.font = "13px system-ui, sans-serif";
   ctx.fillText("press I to close", W / 2, y + bh - 18);
+}
+
+function drawCrackedWall(w: Wall, floorY: number): void {
+  const top = floorY - WALL_H;
+  const broken = 1 - w.hp / w.maxHp;
+
+  ctx.fillStyle = "#4a4458";
+  ctx.fillRect(w.x - WALL_HALF, top, WALL_HALF * 2, WALL_H);
+  ctx.fillStyle = "#39344a";
+  ctx.fillRect(w.x - WALL_HALF, top, WALL_HALF * 2, 8);
+  // brick lines
+  ctx.strokeStyle = "rgba(20,18,30,0.5)";
+  ctx.lineWidth = 1;
+  for (let by = top + 24; by < floorY; by += 24) {
+    ctx.beginPath();
+    ctx.moveTo(w.x - WALL_HALF, by);
+    ctx.lineTo(w.x + WALL_HALF, by);
+    ctx.stroke();
+  }
+
+  // cracks: jagged lines from the center, more as it breaks
+  ctx.strokeStyle = "#15121f";
+  ctx.lineWidth = 2;
+  const cy = top + WALL_H * 0.45;
+  const crackCount = 2 + Math.floor(broken * 4);
+  for (let i = 0; i < crackCount; i++) {
+    const ang = (i / crackCount) * Math.PI * 2 + 0.4;
+    ctx.beginPath();
+    ctx.moveTo(w.x, cy);
+    let cx = w.x;
+    let ccy = cy;
+    for (let s = 0; s < 3; s++) {
+      cx += Math.cos(ang) * 10 + Math.sin(i * 3 + s) * 4;
+      ccy += Math.sin(ang) * 10 + Math.cos(i * 2 + s) * 4;
+      ctx.lineTo(cx, ccy);
+    }
+    ctx.stroke();
+  }
+
+  // a hole that grows open as you drill through
+  if (broken > 0.15) {
+    const hole = (broken - 0.15) * (WALL_HALF + 6);
+    ctx.fillStyle = "#0a0810";
+    ctx.beginPath();
+    ctx.ellipse(w.x, cy, hole, hole * 1.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawDrill(): void {
+  const floorY = H * GROUND_FRAC;
+  drawLabRoom(DRILL_WIDTH, floorY);
+
+  const u = Math.max(4, Math.min(W, H) / 90);
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+  for (const w of walls) {
+    if (w.hp > 0) drawCrackedWall(w, floorY);
+  }
+  drawParticles();
+  ctx.restore();
+
+  // hero with bio arm
+  drawCharacter(heroX - camX, floorY + 6, u, HERO, heroFacing, "bio");
+
+  // spinning drill bit on the bio arm while drilling
+  if (drillingNow) {
+    const bx = heroX - camX + (heroFacing ? 1 : -1) * 10 * u;
+    const by = floorY - 12 * u;
+    ctx.save();
+    ctx.translate(bx, by);
+    if (!heroFacing) ctx.scale(-1, 1);
+    ctx.fillStyle = "#9aa7ad";
+    ctx.fillRect(0, -3, 16, 6);
+    ctx.fillStyle = Math.floor(performance.now() / 40) % 2 ? "#cfe9ff" : "#9fc4e0";
+    ctx.beginPath();
+    ctx.moveTo(16, -7);
+    ctx.lineTo(30, 0);
+    ctx.lineTo(16, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // intro banner
+  if (drillBannerT < 4) {
+    const a = drillBannerT < 3 ? 1 : 4 - drillBannerT;
+    ctx.fillStyle = `rgba(0,0,0,${0.5 * a})`;
+    ctx.fillRect(0, H / 2 - 56, W, 112);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = `rgba(122,255,222,${a})`;
+    ctx.font = "bold 32px system-ui, sans-serif";
+    ctx.fillText("DRILL MANEUVER", W / 2, H / 2 - 14);
+    ctx.fillStyle = `rgba(255,255,255,${0.85 * a})`;
+    ctx.font = "18px system-ui, sans-serif";
+    ctx.fillText("Hold click to drill through cracked walls!", W / 2, H / 2 + 22);
+  }
+
+  // control hint
+  ctx.fillStyle = "rgba(158,255,160,0.7)";
+  ctx.font = "14px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("← → / A D  move    ·    hold CLICK to drill", 18, 56);
+
+  // end of section
+  if (heroX >= DRILL_WIDTH - 60 && fade < 0.2) {
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#7affde";
+    ctx.font = "bold 36px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("To be continued...", W / 2, H / 2);
+  }
 }
 
 // A small glowing knife. (x, yTip) is the top of the blade; grows downward.
