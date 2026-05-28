@@ -176,9 +176,8 @@ function drawCharacter(
     px(12, 15, 4, 5, "#3a464c"); // metal forearm
     px(12, 18, 4, 2, "#7affde"); // glowing hand
   } else {
-    // missing: bloody stump at the shoulder
-    px(12, 8, 3, 3, "#7a1414");
-    px(11, 9, 2, 2, "#b02020");
+    // missing: just a short empty sleeve at the shoulder (no blood)
+    px(12, 8, 4, 4, pal.shirtDark);
   }
 
   // Body (y 8..20)
@@ -439,20 +438,6 @@ function update(dt: number): void {
       heroX = Math.max(40, Math.min(ARMRUN_WIDTH - 40, heroX));
       camX = Math.max(0, Math.min(ARMRUN_WIDTH - W, heroX - W * 0.4));
       updateParticles(dt);
-      // occasional blood drip from the stump
-      const u = Math.max(4, Math.min(W, H) / 90);
-      if (Math.random() < 0.25 && particles.length < 70) {
-        particles.push({
-          x: heroX + 6 * u,
-          y: H * GROUND_FRAC - 22 * u,
-          vx: (Math.random() - 0.5) * 10,
-          vy: 10,
-          life: 0,
-          max: 0.7 + Math.random() * 0.4,
-          size: 3 + Math.random() * 3,
-          color: "rgba(150,20,20,0.85)",
-        });
-      }
       if (!reachedArm && heroX >= BIOARM_X - 70) {
         reachedArm = true;
         scene = "armCutscene";
