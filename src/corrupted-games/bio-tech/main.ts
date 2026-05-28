@@ -27,6 +27,7 @@ let advancePressed = false;
 let interactPressed = false; // "i" — read sign
 let aimPressed = false; // "1" — toggle grapple aiming
 let grappleClick = false; // clicked while aiming
+let jumpPressed = false; // edge-triggered jump (space / up / w)
 let mouseX = 0;
 let mouseY = 0;
 
@@ -38,6 +39,9 @@ window.addEventListener("keydown", (e) => {
   }
   if (e.key.toLowerCase() === "i") interactPressed = true;
   if (e.key === "1") aimPressed = true;
+  if ((e.key === " " || e.key === "ArrowUp" || e.key.toLowerCase() === "w") && !e.repeat) {
+    jumpPressed = true;
+  }
   ensureAudio();
 });
 window.addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
@@ -139,6 +143,24 @@ function playDrill(): void {
   g.gain.value = 0.22;
   src.connect(lp).connect(g).connect(ac.destination);
   src.start(now);
+}
+
+function playBoing(pitch: number): void {
+  if (!audioCtx) return;
+  const ac = audioCtx;
+  const now = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(180 * pitch, now);
+  osc.frequency.exponentialRampToValueAtTime(620 * pitch, now + 0.14);
+  osc.frequency.exponentialRampToValueAtTime(300 * pitch, now + 0.28);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.3, now + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(g).connect(ac.destination);
+  osc.start(now);
+  osc.stop(now + 0.32);
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +281,8 @@ type Scene =
   | "armRun"
   | "armCutscene"
   | "explore"
-  | "drill";
+  | "drill"
+  | "springs";
 let scene: Scene = "dialogue";
 
 // Global fade overlay (1 = fully black)
@@ -352,8 +375,21 @@ const walls: Wall[] = [
 let drillBannerT = 0;
 let drillSoundTimer = 0;
 let drillingNow = false;
+let leavingDrill = false; // fading out to the spring-shoes section
 const WALL_HALF = 22;
 const WALL_H = 170;
+
+// --- Spring shoes section ---
+const SPRINGS_WIDTH = 2000;
+const SHOES_X = 520;
+const JUMP_V = 800; // jump strength (with GRAVITY=2000, apex ≈ 160px)
+const SPRING_STEP: Platform = { x: 1250, w: 170, top: 150 };
+const SPRING_EXIT: Platform = { x: 1520, w: 260, top: 300 };
+const springPlatforms: Platform[] = [SPRING_STEP, SPRING_EXIT];
+let hasSpringShoes = false;
+let usedDoubleJump = false;
+let springBannerT = 0;
+let reachedSpringsEnd = false;
 
 // ---------------------------------------------------------------------------
 // Update
@@ -731,6 +767,106 @@ function update(dt: number): void {
       heroX = Math.max(40, Math.min(DRILL_WIDTH - 40, heroX));
       camX = Math.max(0, Math.min(DRILL_WIDTH - W, heroX - W * 0.4));
       updateParticles(dt);
+
+      // reached the end → spring-shoes section
+      if (heroX >= DRILL_WIDTH - 46) leavingDrill = true;
+      if (leavingDrill) {
+        fade = Math.min(1, fade + dt * 1.6);
+        if (fade >= 1) {
+          scene = "springs";
+          heroX = 60;
+          heroY = 0;
+          heroVY = 0;
+          heroFacing = true;
+          camX = 0;
+          particles.length = 0;
+          leavingDrill = false;
+          hasSpringShoes = false;
+          usedDoubleJump = false;
+          springBannerT = 99; // no banner until shoes are grabbed
+          reachedSpringsEnd = false;
+        }
+      }
+      break;
+    }
+
+    case "springs": {
+      fade = Math.max(0, fade - dt * 1.2);
+      springBannerT += dt;
+      const speed = 230;
+      if (keys.has("arrowright") || keys.has("d")) {
+        heroX += speed * dt;
+        heroFacing = true;
+      }
+      if (keys.has("arrowleft") || keys.has("a")) {
+        heroX -= speed * dt;
+        heroFacing = false;
+      }
+
+      // grab the spring shoes
+      if (!hasSpringShoes && Math.abs(heroX - SHOES_X) < 50 && heroY < 40) {
+        hasSpringShoes = true;
+        springBannerT = 0;
+        ensureAudio();
+        playPowerUp();
+      }
+
+      // find support (floor spans the whole width; platforms add ledges)
+      let support = 0;
+      for (const p of springPlatforms) {
+        if (
+          heroX >= p.x &&
+          heroX <= p.x + p.w &&
+          heroVY <= 0 &&
+          heroY <= p.top + 1 &&
+          heroY >= p.top - 34
+        ) {
+          support = Math.max(support, p.top);
+        }
+      }
+      const grounded = heroVY <= 0 && heroY <= support + 0.5;
+      if (grounded) {
+        heroY = support;
+        heroVY = 0;
+        usedDoubleJump = false;
+      }
+
+      // jump / double jump
+      if (jumpPressed && hasSpringShoes) {
+        if (grounded) {
+          heroVY = JUMP_V;
+          ensureAudio();
+          playBoing(1);
+        } else if (!usedDoubleJump) {
+          heroVY = JUMP_V;
+          usedDoubleJump = true;
+          ensureAudio();
+          playBoing(1.4);
+        }
+      }
+
+      // integrate vertical motion when airborne or rising
+      if (heroVY > 0 || !grounded) {
+        heroVY -= GRAVITY * dt;
+        heroY += heroVY * dt;
+        if (heroY < 0) {
+          heroY = 0;
+          heroVY = 0;
+        }
+      }
+
+      heroX = Math.max(40, Math.min(SPRINGS_WIDTH - 40, heroX));
+      camX = Math.max(0, Math.min(SPRINGS_WIDTH - W, heroX - W * 0.4));
+      updateParticles(dt);
+
+      // reached the high exit ledge
+      if (
+        heroX >= SPRING_EXIT.x &&
+        heroX <= SPRING_EXIT.x + SPRING_EXIT.w &&
+        heroY >= SPRING_EXIT.top - 8
+      ) {
+        reachedSpringsEnd = true;
+      }
       break;
     }
   }
@@ -738,6 +874,7 @@ function update(dt: number): void {
   interactPressed = false;
   aimPressed = false;
   grappleClick = false;
+  jumpPressed = false;
 }
 
 function spawnMeteorTrail(): void {
@@ -846,6 +983,8 @@ function draw(): void {
     drawExplore();
   } else if (scene === "drill") {
     drawDrill();
+  } else if (scene === "springs") {
+    drawSprings();
   }
 
   // global fade
@@ -1603,9 +1742,128 @@ function drawDrill(): void {
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.fillText("← → / A D  move    ·    hold  2  to drill", 18, 56);
+}
 
-  // end of section
-  if (heroX >= DRILL_WIDTH - 60 && fade < 0.2) {
+// A pair of spring shoes. (x, yFeet) is on the ground; coils underneath the boots.
+function drawSpringShoes(x: number, yFeet: number, s: number): void {
+  for (const dx of [-9 * s, 9 * s]) {
+    // coil spring
+    ctx.strokeStyle = "#9aa7ad";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const baseY = yFeet;
+    const topY = yFeet - 12 * s;
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      const yy = baseY + (topY - baseY) * t;
+      const xx = x + dx + (i % 2 === 0 ? -4 * s : 4 * s);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    // boot
+    ctx.fillStyle = "#c0392b";
+    ctx.fillRect(x + dx - 7 * s, yFeet - 20 * s, 14 * s, 9 * s);
+    ctx.fillStyle = "#7a241a";
+    ctx.fillRect(x + dx - 7 * s, yFeet - 13 * s, 14 * s, 2 * s);
+  }
+}
+
+function drawSprings(): void {
+  const floorY = H * GROUND_FRAC;
+
+  // brighter, hopeful room
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#10131f");
+  g.addColorStop(1, "#1c2433");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.translate(-camX, 0);
+
+  // floor
+  ctx.fillStyle = "#141a26";
+  ctx.fillRect(0, floorY, SPRINGS_WIDTH, H - floorY);
+  ctx.strokeStyle = "rgba(122,255,222,0.07)";
+  ctx.lineWidth = 2;
+  for (let fx = 0; fx < SPRINGS_WIDTH; fx += 90) {
+    ctx.beginPath();
+    ctx.moveTo(fx, floorY);
+    ctx.lineTo(fx, H);
+    ctx.stroke();
+  }
+
+  // platforms
+  for (const p of springPlatforms) {
+    ctx.fillStyle = "#2a3650";
+    ctx.fillRect(p.x, floorY - p.top, p.w, 16);
+    ctx.fillStyle = "#3d4f74";
+    ctx.fillRect(p.x, floorY - p.top, p.w, 4);
+    ctx.fillStyle = "rgba(42,54,80,0.5)";
+    ctx.fillRect(p.x + p.w / 2 - 4, floorY - p.top + 16, 8, p.top - 16);
+  }
+
+  // exit doorway on the high ledge
+  const ex = SPRING_EXIT.x + SPRING_EXIT.w / 2;
+  const eTop = floorY - SPRING_EXIT.top;
+  ctx.fillStyle = "#7affde";
+  ctx.fillRect(ex - 26, eTop - 70, 52, 70);
+  ctx.fillStyle = "#0a0810";
+  ctx.fillRect(ex - 18, eTop - 60, 36, 60);
+  ctx.fillStyle = "#7affde";
+  ctx.font = "bold 13px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText("EXIT", ex, eTop - 76);
+
+  // the spring shoes on the ground (until grabbed)
+  if (!hasSpringShoes) {
+    const glow = ctx.createRadialGradient(SHOES_X, floorY - 20, 4, SHOES_X, floorY - 20, 90);
+    glow.addColorStop(0, "rgba(255,120,90,0.35)");
+    glow.addColorStop(1, "rgba(255,120,90,0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(SHOES_X - 90, floorY - 110, 180, 130);
+    drawSpringShoes(SHOES_X, floorY, 1.4);
+  }
+
+  drawParticles();
+  ctx.restore();
+
+  // hero — wears the spring shoes once grabbed
+  const u = Math.max(4, Math.min(W, H) / 90);
+  const yFeet = floorY - heroY + 6;
+  drawCharacter(heroX - camX, yFeet, u, HERO, heroFacing, "bio");
+  if (hasSpringShoes) {
+    drawSpringShoes(heroX - camX, yFeet + 6, u * 0.55);
+  }
+
+  // control hint
+  ctx.fillStyle = "rgba(158,255,160,0.7)";
+  ctx.font = "14px system-ui, sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  const hint = hasSpringShoes
+    ? "← → move    ·    SPACE / ↑  jump    ·    press again to DOUBLE JUMP"
+    : "← → / A D  move    ·    grab the Spring Shoes →";
+  ctx.fillText(hint, 18, 56);
+
+  // pickup banner
+  if (hasSpringShoes && springBannerT < 4.5) {
+    const a = springBannerT < 3.5 ? 1 : (4.5 - springBannerT) / 1;
+    ctx.fillStyle = `rgba(0,0,0,${0.5 * a})`;
+    ctx.fillRect(0, H / 2 - 60, W, 120);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = `rgba(255,150,120,${a})`;
+    ctx.font = "bold 32px system-ui, sans-serif";
+    ctx.fillText("SPRING SHOES!", W / 2, H / 2 - 16);
+    ctx.fillStyle = `rgba(255,255,255,${0.85 * a})`;
+    ctx.font = "18px system-ui, sans-serif";
+    ctx.fillText("Press SPACE / ↑ to jump — press again to DOUBLE JUMP!", W / 2, H / 2 + 22);
+  }
+
+  if (reachedSpringsEnd && fade < 0.2) {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#7affde";
