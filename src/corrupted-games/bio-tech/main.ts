@@ -170,8 +170,8 @@ let entering = false; // fading out to walk inside the building
 
 // --- Interior ---
 const INTERIOR_WIDTH = 1500;
-const METEOR_INTERIOR_X = 820; // where the crashed meteor sits inside
-let reachedMeteor = false;
+const PEDESTAL_X = 820; // where the knife-on-a-pedestal sits inside
+let grabbedKnife = false;
 
 // ---------------------------------------------------------------------------
 // Update
@@ -262,7 +262,7 @@ function update(dt: number): void {
           camX = 0;
           particles.length = 0;
           entering = false;
-          reachedMeteor = false;
+          grabbedKnife = false;
         }
       }
       break;
@@ -276,22 +276,22 @@ function update(dt: number): void {
       heroX = Math.max(40, Math.min(INTERIOR_WIDTH - 40, heroX));
       camX = Math.max(0, Math.min(INTERIOR_WIDTH - W, heroX - W * 0.4));
       updateParticles(dt);
-      // eerie glow rising off the embedded meteor
-      const cy = H * GROUND_FRAC - 20;
-      if (particles.length < 80) {
+      // eerie glow rising off the knife (until it's grabbed)
+      const knifeY = H * GROUND_FRAC - 96;
+      if (!grabbedKnife && particles.length < 60) {
         particles.push({
-          x: METEOR_INTERIOR_X + (Math.random() - 0.5) * 80,
-          y: cy,
-          vx: (Math.random() - 0.5) * 12,
-          vy: -25 - Math.random() * 25,
+          x: PEDESTAL_X + (Math.random() - 0.5) * 40,
+          y: knifeY,
+          vx: (Math.random() - 0.5) * 10,
+          vy: -20 - Math.random() * 20,
           life: 0,
-          max: 1.2 + Math.random() * 1.0,
-          size: 5 + Math.random() * 8,
+          max: 1.0 + Math.random() * 0.9,
+          size: 4 + Math.random() * 6,
           color: Math.random() > 0.5 ? "rgba(122,255,222,0.5)" : "rgba(158,255,160,0.45)",
         });
       }
-      if (!reachedMeteor && Math.abs(heroX - METEOR_INTERIOR_X) < 90) {
-        reachedMeteor = true;
+      if (!grabbedKnife && Math.abs(heroX - PEDESTAL_X) < 70) {
+        grabbedKnife = true; // walk up to it and grab the knife
       }
       break;
     }
@@ -660,50 +660,78 @@ function drawInterior(): void {
     ctx.fillRect(mx + 12, floorY - 70, 46, 30);
   }
 
-  // crater + embedded meteor
-  ctx.fillStyle = "#070509";
-  ctx.beginPath();
-  ctx.ellipse(METEOR_INTERIOR_X, floorY + 6, 150, 34, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // glowing meteor
+  // glow behind the pedestal
   const glow = ctx.createRadialGradient(
-    METEOR_INTERIOR_X, floorY - 24, 6,
-    METEOR_INTERIOR_X, floorY - 24, 110
+    PEDESTAL_X, floorY - 90, 6,
+    PEDESTAL_X, floorY - 90, 130
   );
-  glow.addColorStop(0, "rgba(122,255,222,0.55)");
+  glow.addColorStop(0, grabbedKnife ? "rgba(122,255,222,0.08)" : "rgba(122,255,222,0.4)");
   glow.addColorStop(1, "rgba(122,255,222,0)");
   ctx.fillStyle = glow;
-  ctx.fillRect(METEOR_INTERIOR_X - 120, floorY - 140, 240, 180);
-  ctx.fillStyle = "#241c12";
-  ctx.beginPath();
-  ctx.arc(METEOR_INTERIOR_X, floorY - 18, 46, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#7affde";
-  for (const [dx, dy] of [[-14, -10], [10, 4], [-4, 14], [18, -8]] as const) {
-    ctx.fillRect(METEOR_INTERIOR_X + dx, floorY - 18 + dy, 6, 6);
+  ctx.fillRect(PEDESTAL_X - 140, floorY - 220, 280, 240);
+
+  // pedestal
+  const px = PEDESTAL_X;
+  ctx.fillStyle = "#2b2740";
+  ctx.fillRect(px - 34, floorY - 14, 68, 14); // base
+  ctx.fillStyle = "#221f33";
+  ctx.fillRect(px - 22, floorY - 64, 44, 50); // column
+  ctx.fillStyle = "#36314f";
+  ctx.fillRect(px - 30, floorY - 74, 60, 12); // top slab
+
+  // the knife (only while still on the pedestal)
+  if (!grabbedKnife) {
+    drawKnife(px, floorY - 78, 1, false);
   }
 
   // eerie glow particles
   drawParticles();
   ctx.restore();
 
-  // hero
+  // hero (faces the pedestal as you approach)
   const u = Math.max(4, Math.min(W, H) / 90);
-  drawCharacter(heroX - camX, floorY + 6, u, HERO, heroX <= METEOR_INTERIOR_X);
+  const facingRight = heroX <= PEDESTAL_X;
+  drawCharacter(heroX - camX, floorY + 6, u, HERO, facingRight);
+  // knife held in hand once grabbed
+  if (grabbedKnife) {
+    drawKnife(heroX - camX + (facingRight ? 9 * u : -9 * u), floorY - 12 * u, 0.7, !facingRight);
+  }
 
-  // prompt when standing at the meteor
-  if (reachedMeteor && fade < 0.2) {
+  // pickup message
+  if (grabbedKnife && fade < 0.2) {
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#7affde";
-    ctx.font = "bold 34px system-ui, sans-serif";
-    ctx.fillText("What... is that thing?", W / 2, H / 2 - 16);
+    ctx.font = "bold 32px system-ui, sans-serif";
+    ctx.fillText("You grabbed the knife.", W / 2, H / 2 - 16);
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "16px system-ui, sans-serif";
     ctx.fillText("To be continued...", W / 2, H / 2 + 28);
   }
+}
+
+// A small glowing knife. (x, yTip) is the top of the blade; grows downward.
+function drawKnife(x: number, yTip: number, s: number, flip: boolean): void {
+  ctx.save();
+  ctx.translate(x, yTip);
+  if (flip) ctx.scale(-1, 1);
+  // blade
+  ctx.fillStyle = "#cfe9ff";
+  ctx.fillRect(-3 * s, 0, 6 * s, 34 * s);
+  ctx.fillStyle = "#9fc4e0";
+  ctx.fillRect(0, 0, 3 * s, 34 * s);
+  // edge glint
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(-3 * s, 0, 2 * s, 34 * s);
+  // guard
+  ctx.fillStyle = "#3a3358";
+  ctx.fillRect(-9 * s, 34 * s, 18 * s, 5 * s);
+  // handle
+  ctx.fillStyle = "#5a3a1a";
+  ctx.fillRect(-3 * s, 39 * s, 6 * s, 16 * s);
+  ctx.restore();
 }
 
 // Repeating ground features drawn in world space so they scroll past the player.
