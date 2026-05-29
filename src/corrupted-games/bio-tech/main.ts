@@ -1769,6 +1769,31 @@ function drawSpringShoes(x: number, yFeet: number, s: number): void {
   }
 }
 
+// Spring shoes worn on the hero's feet: red boots with a coil under each foot.
+// yTop = bottom of the (lifted) character; yBottom = the ground the springs sit on.
+function drawWornSprings(x: number, yTop: number, yBottom: number, u: number): void {
+  for (const dx of [-2 * u, 2 * u]) {
+    // coil spring from the foot down to the ground
+    ctx.strokeStyle = "#aeb8bd";
+    ctx.lineWidth = Math.max(2, u * 0.5);
+    ctx.beginPath();
+    const segs = 5;
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const yy = yTop + (yBottom - yTop) * t;
+      const xx = x + dx + (i % 2 === 0 ? -1.4 * u : 1.4 * u);
+      if (i === 0) ctx.moveTo(xx, yy);
+      else ctx.lineTo(xx, yy);
+    }
+    ctx.stroke();
+    // red boot over the foot
+    ctx.fillStyle = "#c0392b";
+    ctx.fillRect(x + dx - 2 * u, yTop - 2 * u, 4 * u, 2.5 * u);
+    ctx.fillStyle = "#7a241a";
+    ctx.fillRect(x + dx - 2 * u, yTop - 0.5 * u, 4 * u, 0.6 * u);
+  }
+}
+
 function drawSprings(): void {
   const floorY = H * GROUND_FRAC;
 
@@ -1830,12 +1855,14 @@ function drawSprings(): void {
   drawParticles();
   ctx.restore();
 
-  // hero — wears the spring shoes once grabbed
+  // hero — once the shoes are on, stand up on the springs (feet lifted, coils beneath)
   const u = Math.max(4, Math.min(W, H) / 90);
-  const yFeet = floorY - heroY + 6;
-  drawCharacter(heroX - camX, yFeet, u, HERO, heroFacing, "bio");
+  const yGround = floorY - heroY + 6; // where the feet rest
+  const lift = hasSpringShoes ? u * 4 : 0;
+  const hx = heroX - camX;
+  drawCharacter(hx, yGround - lift, u, HERO, heroFacing, "bio");
   if (hasSpringShoes) {
-    drawSpringShoes(heroX - camX, yFeet + 6, u * 0.55);
+    drawWornSprings(hx, yGround - lift, yGround, u);
   }
 
   // control hint
