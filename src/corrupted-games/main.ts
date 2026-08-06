@@ -15,7 +15,7 @@ const games: Game[] = [
   {
     id: "bio-tech",
     name: "Bio Tech",
-    path: "./bio-tech/",
+    path: "./bio-tech/index.html",
     genre: "Fan-made",
     blurb: "A fanmade game for Bionic.",
   },

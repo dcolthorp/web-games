@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sharks in the Water</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="top-bar">
+        <a href="../index.html">← Games 3</a>
+        <h1>Sharks in the Water</h1>
+        <p>The supplies are floating. So is the shark.</p>
+      </header>
+      <section class="game-shell" aria-label="Sharks in the Water game">
+        <button class="pause-button" data-action="pause" type="button" aria-label="Pause game">Pause</button>
+        <button class="changelog-button" data-action="changelog" type="button" aria-label="Open changelog" hidden>Changelog</button>
+        <button class="fish-index-button" data-action="fish-index" type="button" aria-label="Open fish index" hidden>Fish Index</button>
+        <button class="map-button" data-action="map" type="button" aria-label="View full map" hidden>View Map</button>
+        <button class="rename-button" data-action="rename" type="button" aria-label="Rename save file and raft" hidden>Rename</button>
+        <button class="save-files-button" data-action="save-files" type="button" aria-label="Save and quit to the save menu" hidden>Quit to Menu</button>
+        <section class="save-selector" id="save-selector" aria-label="Choose a save file">
+          <header>
+            <h2>Choose a Save File</h2>
+            <p>Each slot has its own progress and game mode.</p>
+          </header>
+          <div class="save-slot-list" id="save-slot-list"></div>
+          <button class="multiplayer-menu-button" data-action="multiplayer" type="button">Multiplayer</button>
+        </section>
+        <section class="multiplayer-dialog" id="multiplayer-dialog" aria-label="Multiplayer room" hidden>
+          <h2>Multiplayer</h2>
+          <p>Create a room and tell your friend the code, or type their code to join.</p>
+          <p class="multiplayer-address-note">Both computers must open the same published game address. A different computer cannot open your localhost address.</p>
+          <button type="button" data-action="create-room">Create Room</button>
+          <div class="room-code-display" id="room-code-display" hidden>
+            <span>Your room code</span>
+            <strong id="room-code-value">------</strong>
+            <small>Give this code to Player 2.</small>
+          </div>
+          <label for="join-room-code">Join with a code</label>
+          <div class="join-room-row">
+            <input id="join-room-code" type="text" maxlength="6" autocomplete="off" placeholder="ABC123" />
+            <button type="button" data-action="join-room">Join</button>
+          </div>
+          <p class="multiplayer-status" id="multiplayer-status">Not connected</p>
+          <button type="button" data-action="close-multiplayer">Back to Saves</button>
+        </section>
+        <form class="naming-dialog" id="naming-dialog" aria-label="Name your voyage" hidden>
+          <h2>Name Your Voyage</h2>
+          <p>Choose names yourself or roll the dice for a surprise.</p>
+          <label for="save-name-input">Save file name</label>
+          <div class="name-input-row">
+            <input id="save-name-input" name="saveName" type="text" maxlength="24" autocomplete="off" required />
+            <button class="random-name-button" type="button" data-random-name="save" aria-label="Give the save file a random name" title="Random save name"><span class="dice-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
+          </div>
+          <label for="raft-name-input">Raft name</label>
+          <div class="name-input-row">
+            <input id="raft-name-input" name="raftName" type="text" maxlength="24" autocomplete="off" required />
+            <button class="random-name-button" type="button" data-random-name="raft" aria-label="Give the raft a random name" title="Random raft name"><span class="dice-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></button>
+          </div>
+          <div class="naming-actions">
+            <button type="submit">Set Sail</button>
+            <button type="button" data-action="cancel-naming">Cancel</button>
+          </div>
+        </form>
+        <section class="changelog-panel" id="changelog-panel" aria-label="Complete game changelog" hidden>
+          <header>
+            <div>
+              <h2>Complete Changelog</h2>
+              <p>Scroll down to travel from the first prototype to the latest update.</p>
+            </div>
+          </header>
+          <ol id="changelog-list"></ol>
+        </section>
+        <section class="fish-index-panel" id="fish-index-panel" aria-label="Fish index" hidden>
+          <header>
+            <h2>F<span class="title-fish" aria-hidden="true"></span><span class="visually-hidden">I</span>SH Index</h2>
+            <p id="fish-index-progress">Discover fish by casting from somewhere safe.</p>
+            <div class="bread-tray">
+              <div class="bread-slice" id="fish-index-bread" draggable="true" role="button" aria-label="Draggable bread slice"></div>
+              <span>Drag this bread into the Glitched Fish when it becomes a toaster!</span>
+            </div>
+          </header>
+          <ol id="fish-index-list"></ol>
+        </section>
+        <button class="shopkeeper-button" data-action="shop" type="button" aria-label="Open traveling shop" hidden>Shop</button>
+        <button class="terrain-button" data-action="terrain" type="button" aria-label="Use terrain generator" hidden>Use Generator</button>
+        <button class="time-warper-button" data-action="time-warper" type="button" aria-label="Use time warper" hidden>Time Warper</button>
+        <button class="crate-spawner-button" data-action="crate-spawner" type="button" aria-label="Open crate menu" hidden>Crates</button>
+        <button class="deposit-button" data-action="deposit" type="button" aria-label="Deposit selected items" hidden>Deposit Items</button>
+        <form class="deposit-dialog" id="deposit-dialog" hidden>
+          <h2>Deposit Items</h2>
+          <label for="deposit-item">What do you want to store?</label>
+          <select id="deposit-item" name="item"></select>
+          <label for="deposit-amount">How many?</label>
+          <input id="deposit-amount" name="amount" type="number" min="1" step="1" value="1" inputmode="numeric" />
+          <div class="deposit-actions">
+            <button type="submit">Put in Chest</button>
+            <button type="button" data-action="cancel-deposit">Cancel</button>
+          </div>
+        </form>
+        <canvas id="game" width="960" height="600" tabindex="0" aria-label="Raft survival game with supply crates and a shark"></canvas>
+        <div class="touch-controls" aria-label="Touch controls">
+          <button data-direction="left" aria-label="Swim left">←</button>
+          <span>
+            <button data-direction="up" aria-label="Swim up">↑</button>
+            <button data-direction="down" aria-label="Swim down">↓</button>
+          </span>
+          <button data-direction="right" aria-label="Swim right">→</button>
+          <button class="craft-button" data-action="craft" aria-label="Open crafting">Craft</button>
+          <button class="craft-button" data-action="eat" aria-label="Eat food">Eat</button>
+          <button class="craft-button" data-action="harvest" aria-label="Harvest coconuts">Harvest</button>
+          <button class="craft-button" data-action="hunt" aria-label="Attack shark or hunt animal">Attack</button>
+          <button class="craft-button" data-action="fish" aria-label="Start fishing">Fish</button>
+          <button class="craft-button" data-action="chest" aria-label="Open chest">Chest</button>
+        </div>
+      </section>
+      <p class="instructions">Move: WASD/arrows · Hold Space: speed boost · R: fish · G: terrain generator · K: crates · E: eat · C: craft · B: chest · J: shop · F: coconuts · H: attack/hunt · P: pause</p>
+      <section class="shopkeeper-status" aria-live="polite" aria-label="Traveling shopkeeper timer">
+        <span class="shopkeeper-status-label">Technology Merchant</span>
+        <strong id="shopkeeper-counter">Arrives 3:00 after you begin</strong>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

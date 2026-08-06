@@ -1,0 +1,1416 @@
+:root {
+  color-scheme: dark;
+  font-family: "Trebuchet MS", system-ui, sans-serif;
+  background: #031d32;
+  color: #eefcff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 18% 10%, rgba(76, 226, 235, 0.2), transparent 28%),
+    linear-gradient(180deg, #074968, #03253f 55%, #021522);
+}
+
+body.level-1000-horror {
+  background:
+    radial-gradient(circle at 50% 15%, rgba(194, 13, 38, 0.34), transparent 24%),
+    repeating-linear-gradient(97deg, rgba(255, 28, 52, 0.035) 0 2px, transparent 2px 13px),
+    linear-gradient(180deg, #360208, #170105 55%, #050002);
+  color: #ffd4d8;
+}
+
+body.level-1000-horror::before,
+body.level-1000-horror::after {
+  content: "";
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  pointer-events: none;
+}
+
+body.level-1000-horror::before {
+  background: repeating-linear-gradient(0deg, rgba(255, 25, 48, 0.025) 0 1px, transparent 1px 5px);
+  animation: horror-static 180ms steps(2) infinite;
+}
+
+body.level-1000-horror::after {
+  background: radial-gradient(circle, transparent 45%, rgba(23, 0, 4, 0.34) 78%, rgba(0, 0, 0, 0.72));
+  animation: horror-breathe 4.5s ease-in-out infinite;
+}
+
+body.level-1000-horror .top-bar h1 {
+  color: #ff334d;
+  text-shadow: 0 0 9px #e00024, 0 5px 0 #3b000a, 3px 0 16px rgba(255, 0, 38, 0.78);
+  animation: horror-title 3.7s steps(1) infinite;
+}
+
+body.level-1000-horror .top-bar a,
+body.level-1000-horror .top-bar p,
+body.level-1000-horror .instructions {
+  color: #e97884;
+}
+
+body.level-1000-horror .game-shell {
+  border-color: #ff304a;
+  background: #250007;
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.85), 0 0 42px rgba(255, 0, 38, 0.46), inset 0 0 34px rgba(68, 0, 10, 0.8);
+}
+
+body.level-1000-horror .pause-button,
+body.level-1000-horror .changelog-button,
+body.level-1000-horror .fish-index-button,
+body.level-1000-horror .map-button,
+body.level-1000-horror .rename-button,
+body.level-1000-horror .save-files-button,
+body.level-1000-horror .shopkeeper-button,
+body.level-1000-horror .time-warper-button,
+body.level-1000-horror .crate-spawner-button,
+body.level-1000-horror .deposit-button {
+  border-color: #e52b45;
+  background: rgba(32, 0, 7, 0.96);
+  color: #ffb1ba;
+  box-shadow: 0 0 12px rgba(255, 0, 38, 0.3);
+}
+
+body.level-1000-horror .changelog-panel,
+body.level-1000-horror .fish-index-panel,
+body.level-1000-horror .deposit-dialog {
+  border-color: #d6243f;
+  background: rgba(22, 0, 5, 0.985);
+  scrollbar-color: #d6243f #29040a;
+}
+
+body.level-1000-horror .changelog-panel header,
+body.level-1000-horror .fish-index-panel header {
+  background: #1d0005;
+  border-bottom-color: rgba(255, 48, 74, 0.35);
+}
+
+body.level-1000-horror .changelog-panel h2,
+body.level-1000-horror .fish-index-panel h2 {
+  color: #ff4359;
+}
+
+body.level-1000-horror .changelog-panel li,
+body.level-1000-horror .fish-index-card {
+  border-color: rgba(255, 48, 74, 0.38);
+  background: rgba(67, 5, 16, 0.82);
+}
+
+body.level-1000-horror .shopkeeper-status {
+  border-color: #d6243f;
+  background: linear-gradient(135deg, rgba(64, 0, 10, 0.98), rgba(15, 0, 4, 0.98));
+  color: #ffd0d5;
+  box-shadow: 0 0 28px rgba(255, 0, 38, 0.32);
+}
+
+body.level-1000-horror .shopkeeper-status-label {
+  color: #ff4359;
+}
+
+body.level-1000-horror .touch-controls {
+  background: rgba(24, 0, 5, 0.92);
+}
+
+body.level-1000-horror .touch-controls button {
+  border-color: #d6243f;
+  background: #4a0914;
+}
+
+@keyframes horror-static {
+  from { transform: translateY(0); opacity: 0.72; }
+  to { transform: translateY(3px); opacity: 0.94; }
+}
+
+@keyframes horror-breathe {
+  0%, 100% { opacity: 0.68; }
+  50% { opacity: 1; }
+}
+
+@keyframes horror-title {
+  0%, 91%, 100% { transform: translate(0); }
+  92% { transform: translate(-2px, 1px); }
+  94% { transform: translate(3px, -1px); }
+  96% { transform: translate(-1px, 0); }
+}
+
+main {
+  width: min(1040px, calc(100vw - 24px));
+  margin: 0 auto;
+  padding: 18px 0 24px;
+}
+
+.top-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.top-bar a { color: #8ff9f5; font-weight: 800; text-decoration: none; }
+.top-bar a:hover { text-decoration: underline; }
+.top-bar h1 { margin: 0; font-size: clamp(2rem, 6vw, 4rem); line-height: 1; text-align: center; text-transform: uppercase; }
+.top-bar p { margin: 0; color: #a9dae5; text-align: right; }
+
+.game-shell {
+  position: relative;
+  overflow: hidden;
+  border: 5px solid #8ff9f5;
+  border-radius: 20px;
+  background: #063858;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45), 0 0 35px rgba(70, 236, 231, 0.15);
+}
+
+.pause-button {
+  position: absolute;
+  top: 90px;
+  right: 14px;
+  z-index: 3;
+  min-width: 86px;
+  padding: 9px 14px;
+  border: 2px solid #8ff9f5;
+  border-radius: 10px;
+  background: rgba(3, 29, 50, 0.9);
+  color: #ffffff;
+  font: 800 0.85rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.pause-button:hover {
+  background: #075878;
+}
+
+.changelog-button {
+  position: absolute;
+  top: 140px;
+  right: 14px;
+  z-index: 4;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 2px solid #ffe56b;
+  border-radius: 10px;
+  background: rgba(3, 29, 50, 0.94);
+  color: #ffe56b;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.changelog-button:hover {
+  background: #075878;
+  color: #ffffff;
+}
+
+.changelog-button[hidden] {
+  display: none;
+}
+
+.save-files-button {
+  position: absolute;
+  top: 340px;
+  right: 14px;
+  z-index: 8;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 2px solid #bca7ff;
+  border-radius: 10px;
+  background: rgba(35, 25, 72, 0.95);
+  color: #e7dfff;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.save-files-button:hover { background: #57439a; }
+.save-files-button[hidden] { display: none; }
+
+.fish-index-button {
+  position: absolute;
+  top: 190px;
+  right: 14px;
+  z-index: 8;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 2px solid #70d9ff;
+  border-radius: 10px;
+  background: rgba(10, 57, 83, 0.96);
+  color: #d9f7ff;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.fish-index-button:hover { background: #16759b; }
+.fish-index-button[hidden] { display: none; }
+
+.map-button {
+  position: absolute;
+  top: 240px;
+  right: 14px;
+  z-index: 8;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 2px solid #7dffb2;
+  border-radius: 10px;
+  background: rgba(8, 64, 62, 0.96);
+  color: #d9ffe8;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.map-button:hover { background: #168678; }
+.map-button[hidden] { display: none; }
+
+.rename-button {
+  position: absolute;
+  top: 290px;
+  right: 14px;
+  z-index: 8;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 2px solid #ffd86b;
+  border-radius: 10px;
+  background: rgba(83, 55, 12, 0.96);
+  color: #fff3bd;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rename-button:hover { background: #8b651c; }
+.rename-button[hidden] { display: none; }
+
+.fish-index-panel {
+  position: absolute;
+  inset: 70px 138px 34px 34px;
+  z-index: 7;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+  border: 3px solid #70d9ff;
+  border-radius: 18px;
+  background: rgba(1, 18, 30, 0.98);
+  box-shadow: 0 22px 65px rgba(0, 0, 0, 0.7);
+  scrollbar-color: #70d9ff #0a3346;
+  overscroll-behavior: contain;
+}
+.fish-index-panel[hidden] { display: none; }
+.fish-index-panel header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -24px;
+  padding: 18px 24px 14px;
+  border-bottom: 2px solid rgba(112, 217, 255, 0.28);
+  background: #011724;
+}
+.fish-index-panel h2 { margin: 0; color: #8ff9f5; font-size: clamp(1.5rem, 4vw, 2rem); text-transform: uppercase; }
+.fish-index-panel header p { margin: 5px 0 0; color: #b8e2e8; font-weight: 700; }
+.bread-tray {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px dashed #e4ad65;
+  border-radius: 10px;
+  background: rgba(96, 54, 23, 0.38);
+  color: #f7d9ae;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+.bread-slice {
+  position: relative;
+  width: 38px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 4px solid #b96d2f;
+  border-radius: 15px 15px 7px 7px;
+  background: #ffe1a1;
+  box-shadow: inset 0 0 0 3px #f6c979, 0 3px 7px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+.bread-slice:active { cursor: grabbing; transform: scale(0.94); }
+.bread-slice::before,
+.bread-slice::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d49b51;
+}
+.bread-slice::before { left: 8px; top: 10px; box-shadow: 13px 8px 0 #d49b51; }
+.bread-slice::after { right: 7px; top: 7px; }
+.title-fish {
+  position: relative;
+  display: inline-block;
+  width: 0.78em;
+  height: 0.34em;
+  margin: 0 0.12em 0 0.08em;
+  border: 0.07em solid #d4edf1;
+  border-radius: 55% 65% 65% 55%;
+  background: #7895a4;
+  transform: rotate(90deg);
+  vertical-align: 0.05em;
+}
+.title-fish::before {
+  content: "";
+  position: absolute;
+  left: -0.35em;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-top: 0.25em solid transparent;
+  border-bottom: 0.25em solid transparent;
+  border-right: 0.38em solid #7895a4;
+  transform: translateY(-50%);
+}
+.title-fish::after {
+  content: "";
+  position: absolute;
+  right: 0.12em;
+  top: 0.06em;
+  width: 0.09em;
+  height: 0.09em;
+  border-radius: 50%;
+  background: #092b3d;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.fish-index-panel ol {
+  position: relative;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fish-index-card {
+  position: relative;
+  z-index: 0;
+  padding: 15px;
+  border: 2px solid var(--fish-color, #70d9ff);
+  border-radius: 12px;
+  background: rgba(8, 54, 72, 0.78);
+}
+.fish-picture {
+  position: relative;
+  z-index: 0;
+  contain: paint;
+  isolation: isolate;
+  width: 138px;
+  height: 76px;
+  margin: 0 auto 10px;
+  overflow: hidden;
+  border: 2px solid rgba(207, 247, 255, 0.24);
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 45%, rgba(57, 163, 194, 0.3), transparent 55%), #062b40;
+}
+.fish-body {
+  position: absolute;
+  left: 39px;
+  top: 23px;
+  width: 72px;
+  height: 32px;
+  border: 3px solid rgba(238, 253, 255, 0.75);
+  border-radius: 50% 58% 58% 50%;
+  background: #9aadb4;
+}
+.fish-tail {
+  position: absolute;
+  left: 19px;
+  top: 22px;
+  width: 0;
+  height: 0;
+  border-top: 17px solid transparent;
+  border-bottom: 17px solid transparent;
+  border-right: 28px solid #8198a0;
+}
+.fish-eye {
+  position: absolute;
+  z-index: 2;
+  left: 92px;
+  top: 31px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #edfaff;
+  border-radius: 50%;
+  background: #092331;
+}
+.fish-ornament,
+.fish-pixel { position: absolute; z-index: 3; }
+.fish-pixel { display: none; }
+
+.fish-blue-mackerel .fish-body {
+  background: repeating-linear-gradient(105deg, #4c91ba 0 9px, #a8d9e8 9px 14px);
+}
+.fish-blue-mackerel .fish-tail { border-right-color: #4c91ba; }
+
+.fish-tiny-sardine .fish-body { left: 50px; top: 29px; width: 55px; height: 22px; background: #a8c7cf; }
+.fish-tiny-sardine .fish-tail { left: 34px; top: 28px; border-top-width: 12px; border-bottom-width: 12px; border-right-width: 21px; border-right-color: #829fa8; }
+.fish-tiny-sardine .fish-eye { left: 91px; top: 34px; width: 5px; height: 5px; border-width: 1px; }
+
+.fish-tuna .fish-body { left: 32px; width: 86px; background: linear-gradient(#456c82 0 50%, #b9d4dc 51%); }
+.fish-tuna .fish-tail { left: 10px; border-right-color: #456c82; }
+
+.fish-clownfish .fish-body { border-color: #fff5dc; background: repeating-linear-gradient(90deg, #ff813b 0 18px, #fff4df 18px 25px, #222f38 25px 30px); }
+.fish-clownfish .fish-tail { border-right-color: #ff813b; }
+
+.fish-pufferfish .fish-body { left: 47px; top: 17px; width: 53px; height: 43px; border-radius: 50%; background: radial-gradient(circle, #7b603a 0 2px, transparent 3px), #e4bd61; background-size: 12px 12px; }
+.fish-pufferfish .fish-tail { left: 28px; top: 25px; border-right-color: #c89e4f; }
+.fish-pufferfish .fish-eye { left: 84px; top: 28px; }
+
+.fish-goldfish .fish-body { border-color: #fff0a0; background: linear-gradient(135deg, #ff9e2c, #ffe35f); }
+.fish-goldfish .fish-tail { border-right-color: #ffad32; }
+
+.fish-diamondfish .fish-body {
+  border-radius: 0;
+  clip-path: polygon(5% 50%, 25% 8%, 75% 8%, 100% 50%, 75% 92%, 25% 92%);
+  background: linear-gradient(135deg, #ffffff 0 24%, #6feeff 25% 50%, #baffff 51% 74%, #61bfdf 75%);
+}
+.fish-diamondfish .fish-tail { border-right-color: #8cf5ff; }
+.fish-diamondfish .fish-ornament {
+  left: 65px;
+  top: 25px;
+  width: 2px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  transform: rotate(27deg);
+}
+
+.fish-swordfish .fish-body { left: 31px; width: 76px; background: linear-gradient(#477c9b, #a6d7e8); }
+.fish-swordfish .fish-tail { left: 12px; border-right-color: #477c9b; }
+.fish-swordfish .fish-ornament { left: 105px; top: 35px; width: 28px; height: 4px; background: #d8f2fa; transform: skewX(-20deg); }
+
+.fish-anglerfish .fish-body { background: #334954; border-color: #839ba3; }
+.fish-anglerfish .fish-tail { border-right-color: #334954; }
+.fish-anglerfish .fish-ornament { left: 78px; top: 8px; width: 26px; height: 23px; border: 2px solid #9fb2b7; border-bottom: 0; border-left: 0; border-radius: 0 18px 0 0; }
+.fish-anglerfish .fish-ornament::after { content: ""; position: absolute; right: -5px; top: -4px; width: 9px; height: 9px; border-radius: 50%; background: #fff36b; box-shadow: 0 0 10px #fff36b; }
+
+.fish-jellyfish .fish-body { left: 48px; top: 12px; width: 51px; height: 37px; border-radius: 50% 50% 20% 20%; background: rgba(231, 132, 255, 0.72); }
+.fish-jellyfish .fish-tail, .fish-jellyfish .fish-eye { display: none; }
+.fish-jellyfish .fish-ornament { left: 53px; top: 46px; width: 42px; height: 22px; border-bottom: 4px dotted #ef9cff; border-left: 3px solid #ef9cff; border-right: 3px solid #ef9cff; }
+
+.fish-old-boot .fish-body { left: 48px; top: 13px; width: 35px; height: 42px; border-radius: 8px 8px 4px 14px; background: #79523a; transform: rotate(-12deg); }
+.fish-old-boot .fish-tail, .fish-old-boot .fish-eye { display: none; }
+.fish-old-boot .fish-ornament { left: 69px; top: 45px; width: 42px; height: 16px; border: 3px solid #b58a63; border-radius: 3px 12px 6px 5px; background: #79523a; transform: rotate(-4deg); }
+
+.fish-kingfish .fish-body { border-color: #ecd3ff; background: linear-gradient(135deg, #6946a6, #bc83e3); }
+.fish-kingfish .fish-tail { border-right-color: #7650ae; }
+.fish-kingfish .fish-ornament {
+  left: 69px;
+  top: 7px;
+  width: 35px;
+  height: 22px;
+  background: #ffd84e;
+  clip-path: polygon(0 100%, 0 30%, 25% 65%, 48% 0, 72% 65%, 100% 25%, 100% 100%);
+}
+
+.fish-rubber-duck .fish-body {
+  left: 38px;
+  top: 34px;
+  width: 62px;
+  height: 27px;
+  border-color: #fff3a2;
+  background: #ffd83f;
+}
+.fish-rubber-duck .fish-tail { display: none; }
+.fish-rubber-duck .fish-ornament {
+  left: 79px;
+  top: 15px;
+  width: 29px;
+  height: 29px;
+  border: 3px solid #fff3a2;
+  border-radius: 50%;
+  background: #ffd83f;
+}
+.fish-rubber-duck .fish-ornament::after {
+  content: "";
+  position: absolute;
+  right: -16px;
+  top: 12px;
+  width: 18px;
+  height: 8px;
+  border-radius: 2px 8px 8px 2px;
+  background: #ff8e32;
+}
+.fish-rubber-duck .fish-eye { left: 96px; top: 23px; width: 6px; height: 6px; border-width: 1px; }
+
+.fish-pirate-fish .fish-body { border-color: #ffd8c8; background: linear-gradient(135deg, #9f3840, #e07062); }
+.fish-pirate-fish .fish-tail { border-right-color: #9f3840; }
+.fish-pirate-fish .fish-eye { width: 13px; height: 8px; border: 0; border-radius: 0; background: #17212a; }
+.fish-pirate-fish .fish-ornament { left: 64px; top: 10px; width: 41px; height: 10px; border-radius: 50% 50% 0 0; background: #17212a; }
+
+.fish-icefish .fish-body { border-color: #ffffff; background: linear-gradient(135deg, #eaffff, #83dcff 55%, #ffffff); box-shadow: 0 0 12px #8ee8ff; }
+.fish-icefish .fish-tail { border-right-color: #a7eaff; }
+.fish-lavafish .fish-body { border-color: #ffcf68; background: repeating-linear-gradient(125deg, #5f1f19 0 10px, #ff4b22 10px 18px, #ffbf36 18px 22px); box-shadow: 0 0 12px #ff5c25; }
+.fish-lavafish .fish-tail { border-right-color: #ff512b; }
+
+.fish-godfish .fish-body {
+  border-color: #ffffff;
+  background: linear-gradient(135deg, #ffffff, #fff4a7 40%, #b9f8ff 75%, #ffffff);
+  box-shadow: 0 0 16px #ffffff, 0 0 28px #ffe56b;
+}
+.fish-godfish .fish-tail { border-right-color: #fff4a7; filter: drop-shadow(0 0 6px #ffffff); }
+.fish-godfish .fish-ornament {
+  left: 53px;
+  top: 10px;
+  width: 47px;
+  height: 12px;
+  border: 3px solid #ffe56b;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #ffffff;
+}
+
+.fish-moonfish .fish-body { border-color: #e7ebff; background: radial-gradient(circle at 67% 35%, #ffffff 0 3px, transparent 4px), #7885bd; box-shadow: 0 0 12px #adb9ff; }
+.fish-moonfish .fish-tail { border-right-color: #7885bd; }
+.fish-moonfish .fish-ornament { left: 58px; top: 28px; width: 20px; height: 20px; border-radius: 50%; box-shadow: 7px 0 0 #e7ebff; }
+
+.fish-sunfish .fish-body { left: 50px; top: 14px; width: 49px; height: 49px; border-radius: 50%; border-color: #fff0a2; background: #f4a83e; box-shadow: 0 0 14px #ffc85b; }
+.fish-sunfish .fish-tail { left: 31px; top: 24px; border-right-color: #e79335; }
+.fish-sunfish .fish-eye { left: 85px; top: 29px; }
+
+.fish-ghostfish .fish-body { background: rgba(218, 250, 242, 0.42); border-color: #effffb; box-shadow: 0 0 14px #cbfff4; }
+.fish-ghostfish .fish-tail { border-right-color: rgba(218, 250, 242, 0.52); }
+.fish-ghostfish .fish-eye { background: transparent; border-color: #365d64; }
+
+.fish-robot-fish .fish-body { border-radius: 5px; border-color: #d5e0e3; background: repeating-linear-gradient(90deg, #637882 0 15px, #a6b9bf 15px 19px); }
+.fish-robot-fish .fish-tail { border-right-color: #647982; }
+.fish-robot-fish .fish-eye { border-radius: 1px; border: 0; background: #ff4242; box-shadow: 0 0 7px #ff4242; }
+.fish-robot-fish .fish-ornament { left: 58px; top: 18px; width: 23px; height: 5px; background: #d4e0e4; }
+
+.fish-voidfish .fish-body { border-color: #8d72e2; background: radial-gradient(circle at 65% 40%, #bd8cff 0 3px, transparent 4px), #17102c; box-shadow: 0 0 18px #7652dc; }
+.fish-voidfish .fish-tail { border-right-color: #2e2053; filter: drop-shadow(0 0 5px #7652dc); }
+.fish-voidfish .fish-eye { background: #ffffff; box-shadow: 0 0 7px #bd8cff; }
+
+.fish-glitched-fish .fish-body {
+  border: 0;
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, #ff39d1 0 9px, #54f6ff 9px 18px, #18122c 18px 25px);
+  clip-path: polygon(0 12%, 76% 12%, 76% 0, 100% 0, 100% 76%, 88% 76%, 88% 100%, 12% 100%, 12% 78%, 0 78%);
+  image-rendering: pixelated;
+}
+.fish-glitched-fish .fish-tail {
+  border: 0;
+  width: 28px;
+  height: 34px;
+  background: linear-gradient(135deg, #54f6ff 0 45%, transparent 46% 54%, #ff39d1 55%);
+  clip-path: polygon(0 0, 100% 25%, 55% 50%, 100% 75%, 0 100%);
+}
+.fish-glitched-fish .fish-eye { border-radius: 0; border: 0; background: #fff72e; box-shadow: 7px 5px 0 #ff39d1; }
+.fish-glitched-fish .fish-pixel { display: block; width: 9px; height: 9px; background: #54f6ff; }
+.fish-glitched-fish .fish-pixel-one { left: 9px; top: 10px; }
+.fish-glitched-fish .fish-pixel-two { right: 8px; bottom: 8px; background: #ff39d1; }
+.fish-glitched-fish .fish-pixel-three { left: 61px; top: 4px; width: 14px; height: 7px; background: #fff72e; }
+
+.fish-glitched-fish.glitch-flicker {
+  animation: fish-glitch-flicker 90ms steps(2, jump-none) infinite;
+}
+
+@keyframes fish-glitch-flicker {
+  0% { transform: translate(0); filter: hue-rotate(0deg) contrast(1); }
+  25% { transform: translate(5px, -2px); filter: hue-rotate(110deg) contrast(1.8); }
+  50% { transform: translate(-4px, 3px); filter: hue-rotate(240deg) invert(0.15); }
+  75% { transform: translate(2px, 1px); filter: hue-rotate(310deg) contrast(2.2); }
+}
+
+.fish-glitched-fish.toaster-mode .fish-tail,
+.fish-glitched-fish.toaster-mode .fish-eye,
+.fish-glitched-fish.toaster-mode .fish-ornament,
+.fish-glitched-fish.toaster-mode .fish-pixel {
+  display: none;
+}
+
+.fish-glitched-fish.toaster-mode .fish-body {
+  left: 42px;
+  top: 20px;
+  width: 60px;
+  height: 42px;
+  overflow: visible;
+  border: 4px solid #d6e2e5;
+  border-radius: 12px 12px 8px 8px;
+  clip-path: none;
+  background: linear-gradient(135deg, #566b75, #d5e0e3 42%, #748992 70%, #384d57);
+  box-shadow: 0 0 13px #54f6ff, 7px -4px 0 rgba(255, 57, 209, 0.55);
+  transform: none;
+}
+
+.fish-glitched-fish.toaster-mode .fish-body::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 6px;
+  width: 35px;
+  height: 6px;
+  border: 2px solid #1b2a31;
+  border-radius: 50%;
+  background: #07151c;
+  box-shadow: 0 17px 0 -1px #ff55dc;
+}
+
+.fish-glitched-fish.toaster-mode .fish-body::after {
+  content: "";
+  position: absolute;
+  right: -14px;
+  top: 17px;
+  width: 13px;
+  height: 5px;
+  border-radius: 0 5px 5px 0;
+  background: #fff72e;
+  box-shadow: 2px 4px 0 #273a43;
+}
+
+.fish-glitched-fish.bread-drop-ready {
+  border-color: #ffe56b;
+  box-shadow: inset 0 0 18px rgba(255, 229, 107, 0.55), 0 0 12px #ffe56b;
+}
+
+.fish-glitched-fish.toasting-bread::before,
+.fish-glitched-fish.toast-popped::before {
+  content: "";
+  position: absolute;
+  z-index: 8;
+  left: 58px;
+  top: 13px;
+  width: 31px;
+  height: 28px;
+  border: 3px solid #b96d2f;
+  border-radius: 11px 11px 5px 5px;
+  background: #ffe1a1;
+  box-shadow: inset 0 0 0 2px #f6c979;
+}
+
+.fish-glitched-fish.toasting-bread::before {
+  animation: bread-into-toaster 1.4s ease-in forwards;
+}
+
+.fish-glitched-fish.toast-popped::before {
+  top: 5px;
+  border-color: #754016;
+  background: #d98d38;
+  box-shadow: inset 0 0 0 2px #b86c25, 0 0 12px #ffcf55;
+  animation: toast-pop 420ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.fish-glitched-fish.toast-popped { cursor: pointer; }
+.fish-glitched-fish.toast-clicked::before { animation: toast-click-bounce 160ms ease-out both; }
+
+body.level-1000-horror .fish-index-panel {
+  background:
+    repeating-linear-gradient(101deg, rgba(255, 31, 58, 0.025) 0 2px, transparent 2px 17px),
+    rgba(14, 0, 4, 0.99);
+}
+
+body.level-1000-horror .fish-index-panel h2 {
+  text-shadow: 2px 0 #6f0015, -2px 0 #240008, 0 0 12px #ff1738;
+  animation: drowned-index-title 2.8s steps(1) infinite;
+}
+
+body.level-1000-horror .title-fish {
+  border-color: #a51629;
+  background: #16070b;
+  box-shadow: 0 0 8px #ff1738;
+}
+
+body.level-1000-horror .title-fish::before { border-right-color: #16070b; }
+body.level-1000-horror .title-fish::after { background: #ff1738; box-shadow: 0 0 6px #ff001e; }
+
+body.level-1000-horror .fish-index-card {
+  overflow: hidden;
+  border-color: #781427;
+  background: linear-gradient(145deg, rgba(71, 5, 18, 0.91), rgba(20, 1, 6, 0.96));
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.72), 0 0 10px rgba(255, 0, 38, 0.12);
+}
+
+body.level-1000-horror .fish-index-card::after {
+  content: "";
+  position: absolute;
+  right: -12px;
+  bottom: -18px;
+  width: 70px;
+  height: 70px;
+  border: 2px solid rgba(180, 18, 43, 0.2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 8px rgba(120, 7, 27, 0.12), 0 0 0 18px rgba(90, 2, 18, 0.09);
+}
+
+body.level-1000-horror .fish-index-card h3 { color: #ff697a; text-shadow: 0 0 7px rgba(255, 0, 38, 0.72); }
+body.level-1000-horror .fish-index-card p { color: #c58d95; }
+body.level-1000-horror .fish-index-card .fish-count { color: #e23b53; }
+
+body.level-1000-horror .fish-picture {
+  border-color: rgba(255, 40, 70, 0.5);
+  background:
+    radial-gradient(circle at 20% 32%, rgba(255, 23, 56, 0.13), transparent 7%),
+    radial-gradient(circle at 76% 64%, rgba(255, 23, 56, 0.1), transparent 8%),
+    #090106;
+  box-shadow: inset 0 0 25px #000000, 0 0 9px rgba(255, 0, 38, 0.28);
+  animation: drowned-fish-drift 3.7s ease-in-out infinite;
+}
+
+body.level-1000-horror .fish-picture:not(.toaster-mode) .fish-body {
+  border-color: #8b2536;
+  filter: grayscale(0.68) sepia(0.4) hue-rotate(300deg) brightness(0.48) contrast(1.5);
+  box-shadow: inset 0 0 12px #230008, 0 0 8px rgba(255, 0, 38, 0.25);
+}
+
+body.level-1000-horror .fish-picture:not(.toaster-mode) .fish-body::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 22px;
+  height: 7px;
+  border: 1px solid #8d182c;
+  border-radius: 50%;
+  background: repeating-linear-gradient(90deg, #d7c3b9 0 3px, #170308 3px 6px);
+  transform: rotate(-8deg);
+}
+
+body.level-1000-horror .fish-tail {
+  filter: grayscale(0.75) sepia(0.5) hue-rotate(300deg) brightness(0.45) contrast(1.6);
+}
+
+body.level-1000-horror .fish-eye {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #ff9aa7;
+  background: #ff1738;
+  box-shadow: 0 0 9px #ff001e, 0 0 15px rgba(255, 0, 30, 0.75);
+  animation: drowned-eye-stare 1.9s ease-in-out infinite;
+}
+
+body.level-1000-horror .bread-tray {
+  border-color: #8d182c;
+  background: rgba(45, 1, 10, 0.74);
+  color: #dc8e98;
+}
+
+body.level-1000-horror .bread-slice {
+  border-color: #54101b;
+  background:
+    radial-gradient(circle at 30% 36%, #ff1738 0 3px, transparent 4px),
+    radial-gradient(circle at 70% 36%, #ff1738 0 3px, transparent 4px),
+    linear-gradient(145deg, #4a2524, #18090c 70%);
+  box-shadow: inset 0 0 0 3px #25080d, 0 0 13px rgba(255, 0, 38, 0.55);
+  animation: nightmare-bread-breathe 1.25s ease-in-out infinite;
+}
+
+body.level-1000-horror .bread-slice::before {
+  left: 8px;
+  top: 22px;
+  width: 18px;
+  height: 5px;
+  border-radius: 50%;
+  background: repeating-linear-gradient(90deg, #d8c2b5 0 3px, #26070d 3px 6px);
+  box-shadow: none;
+}
+
+body.level-1000-horror .bread-slice::after {
+  right: 4px;
+  top: -5px;
+  width: 7px;
+  height: 12px;
+  border-radius: 50% 50% 20% 20%;
+  background: #810e23;
+  box-shadow: 0 0 6px #ff1738;
+}
+
+body.level-1000-horror .fish-glitched-fish.toaster-mode .fish-body {
+  border-color: #8e1830;
+  background: linear-gradient(135deg, #16070b, #4b0a17 45%, #21040b 72%, #070104);
+  box-shadow: 0 0 17px #ff1738, inset 0 0 14px #000000;
+}
+
+body.level-1000-horror .fish-glitched-fish.toaster-mode .fish-body::before {
+  border-color: #b51d36;
+  background: repeating-linear-gradient(90deg, #d5c0b2 0 5px, #100206 5px 9px);
+  box-shadow: 0 17px 0 -1px #ff1738, 0 17px 9px rgba(255, 0, 38, 0.8);
+}
+
+body.level-1000-horror .fish-glitched-fish.toaster-mode .fish-body::after {
+  background: #7d1024;
+  box-shadow: 2px 4px 0 #16050a, 0 0 7px #ff1738;
+}
+
+body.level-1000-horror .fish-glitched-fish.toasting-bread::before,
+body.level-1000-horror .fish-glitched-fish.toast-popped::before {
+  border-color: #6e1420;
+  background:
+    radial-gradient(circle at 30% 35%, #ff1738 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 35%, #ff1738 0 2px, transparent 3px),
+    repeating-linear-gradient(90deg, transparent 0 6px, rgba(159, 17, 37, 0.35) 6px 8px),
+    #281012;
+  box-shadow: inset 0 0 0 2px #16070b, 0 0 15px #ff1738;
+}
+
+body.level-1000-horror .fish-glitched-fish.toast-popped::before {
+  background:
+    radial-gradient(circle at 30% 34%, #ff1738 0 3px, transparent 4px),
+    radial-gradient(circle at 70% 34%, #ff1738 0 3px, transparent 4px),
+    repeating-linear-gradient(90deg, #d4beb0 0 3px, #170308 3px 6px) 50% 75% / 21px 5px no-repeat,
+    #19070a;
+}
+
+@keyframes drowned-fish-drift {
+  0%, 100% { transform: translate(0, 0) rotate(-0.4deg); }
+  48% { transform: translate(0, -2px) rotate(0.5deg); }
+  50% { transform: translate(3px, 1px) rotate(-1deg); }
+  52% { transform: translate(-2px, -1px) rotate(1deg); }
+}
+
+@keyframes drowned-eye-stare {
+  0%, 84%, 100% { transform: scaleY(1); }
+  88% { transform: scaleY(0.08); }
+}
+
+@keyframes nightmare-bread-breathe {
+  0%, 100% { transform: scale(1) rotate(-1deg); }
+  50% { transform: scale(1.08, 0.94) rotate(1deg); }
+}
+
+@keyframes drowned-index-title {
+  0%, 92%, 100% { transform: translateX(0); }
+  93% { transform: translateX(-3px); }
+  95% { transform: translateX(4px); }
+  97% { transform: translateX(-1px); }
+}
+
+@keyframes bread-into-toaster {
+  0% { transform: translateY(-18px); opacity: 1; }
+  70% { transform: translateY(15px); opacity: 1; }
+  100% { transform: translateY(24px); opacity: 0; }
+}
+
+@keyframes toast-pop {
+  0% { transform: translateY(20px); }
+  100% { transform: translateY(-13px) rotate(-5deg); }
+}
+
+@keyframes toast-click-bounce {
+  0% { transform: translateY(-13px) rotate(-5deg) scale(1); }
+  50% { transform: translateY(-19px) rotate(7deg) scale(1.14); }
+  100% { transform: translateY(-13px) rotate(-5deg) scale(1); }
+}
+
+.fish-picture.locked-picture {
+  filter: grayscale(1) brightness(0.35);
+}
+.fish-index-card.locked { border-color: #52656c; background: rgba(31, 43, 49, 0.82); filter: grayscale(1); }
+.fish-index-card h3 { margin: 0 0 6px; color: var(--fish-color, #ffffff); }
+.fish-index-card p { margin: 0; color: #c9e7eb; font-size: 0.84rem; line-height: 1.4; }
+.fish-index-card .fish-count { display: block; margin-top: 9px; color: #ffe56b; font-weight: 900; }
+
+.save-selector {
+  position: absolute;
+  inset: 34px;
+  z-index: 20;
+  overflow-y: auto;
+  padding: 24px;
+  border: 3px solid #8ff9f5;
+  border-radius: 20px;
+  background: rgba(1, 18, 30, 0.985);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.75);
+  text-align: center;
+}
+
+.save-selector[hidden] { display: none; }
+.save-selector h2 { margin: 0; color: #8ff9f5; font-size: clamp(1.7rem, 5vw, 2.5rem); text-transform: uppercase; }
+.save-selector header p { margin: 7px 0 22px; color: #b9dfe5; font-weight: 700; }
+.save-slot-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.save-slot {
+  display: flex;
+  min-height: 330px;
+  padding: 20px 16px;
+  border: 2px solid #467e91;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #0b4660, #09293c);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.save-slot.creative { border-color: #d091ff; background: linear-gradient(180deg, #513179, #211f51); }
+.save-slot h3 { margin: 0; color: #ffffff; font-size: 1.35rem; text-transform: uppercase; }
+.save-slot .slot-mode { margin: 2px 0; color: #ffe56b; font-size: 1rem; font-weight: 900; text-transform: uppercase; }
+.save-slot .slot-detail { min-height: 48px; margin: 0 0 auto; color: #c4e4e9; font-size: 0.86rem; line-height: 1.45; }
+.save-slot button {
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: #8ff9f5;
+  color: #082533;
+  font-weight: 900;
+  cursor: pointer;
+}
+.save-slot button[data-mode="creative"] { background: #d091ff; color: #211336; }
+.save-slot button[data-action="retrieve-last"] { background: #ffd65c; color: #3d2800; }
+.save-slot button[data-action="delete-slot"] { background: #75384a; color: #ffffff; }
+
+.multiplayer-menu-button {
+  margin-top: 20px;
+  padding: 12px 30px;
+  border: 2px solid #ffe56b;
+  border-radius: 11px;
+  background: #5a3b86;
+  color: #ffffff;
+  font: 900 1rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.multiplayer-menu-button:hover { background: #7954aa; }
+
+.multiplayer-dialog[hidden] { display: none; }
+.multiplayer-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 31;
+  display: flex;
+  width: min(470px, calc(100% - 36px));
+  padding: 25px;
+  border: 3px solid #d091ff;
+  border-radius: 18px;
+  background: #101e3d;
+  color: #ffffff;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.82);
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+.multiplayer-dialog h2 { margin: 0; color: #d9a8ff; font-size: 2rem; text-transform: uppercase; }
+.multiplayer-dialog p { margin: 0; color: #cbe5ec; font-weight: 700; }
+.multiplayer-dialog .multiplayer-address-note { color: #ffe7a0; font-size: 0.8rem; line-height: 1.4; }
+.multiplayer-dialog label { color: #ffe56b; font-size: 0.82rem; font-weight: 900; text-transform: uppercase; }
+.multiplayer-dialog button {
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: #d091ff;
+  color: #25143b;
+  font-weight: 900;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.multiplayer-dialog > button:last-child { background: #66848c; color: #ffffff; }
+.room-code-display {
+  padding: 12px;
+  border: 2px dashed #8ff9f5;
+  border-radius: 12px;
+  background: #07172d;
+}
+.room-code-display[hidden] { display: none; }
+.room-code-display span, .room-code-display small { display: block; color: #bfe9ee; font-weight: 800; }
+.room-code-display strong { display: block; margin: 5px; color: #ffe56b; font-size: 2.2rem; letter-spacing: 0.18em; }
+.join-room-row { display: flex; gap: 8px; }
+.join-room-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 11px;
+  border: 2px solid #8ff9f5;
+  border-radius: 9px;
+  background: #07172d;
+  color: #ffffff;
+  font: 900 1.1rem "Trebuchet MS", system-ui, sans-serif;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.multiplayer-status { min-height: 20px; color: #8ff9f5 !important; }
+
+.naming-dialog[hidden] { display: none; }
+.naming-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 30;
+  display: flex;
+  width: min(440px, calc(100% - 36px));
+  padding: 24px;
+  border: 3px solid #ffe56b;
+  border-radius: 18px;
+  background: #082b3c;
+  color: #ffffff;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.82);
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  gap: 9px;
+}
+.naming-dialog h2 { margin: 0; color: #8ff9f5; text-transform: uppercase; }
+.naming-dialog p { margin: 0 0 8px; color: #c6e9ee; font-weight: 700; }
+.naming-dialog label { color: #ffe56b; font-size: 0.82rem; font-weight: 900; text-transform: uppercase; }
+.name-input-row { display: flex; gap: 8px; }
+.name-input-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 11px 12px;
+  border: 2px solid #73dfe7;
+  border-radius: 9px;
+  background: #041a27;
+  color: #ffffff;
+  font: 800 1rem "Trebuchet MS", system-ui, sans-serif;
+}
+.random-name-button {
+  width: 48px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #ffe56b;
+  border-radius: 9px;
+  background: #563e0d;
+  cursor: pointer;
+}
+.random-name-button:hover { background: #866719; transform: rotate(8deg); }
+.dice-icon {
+  position: relative;
+  display: block;
+  width: 25px;
+  height: 25px;
+  border: 2px solid #fff3bd;
+  border-radius: 6px;
+  background: #173b49;
+  box-shadow: 2px 2px 0 #071c25;
+}
+.dice-icon i {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffe56b;
+}
+.dice-icon i:nth-child(1) { left: 4px; top: 4px; }
+.dice-icon i:nth-child(2) { right: 4px; top: 4px; }
+.dice-icon i:nth-child(3) { left: 9px; top: 9px; }
+.dice-icon i:nth-child(4) { left: 4px; bottom: 4px; }
+.dice-icon i:nth-child(5) { right: 4px; bottom: 4px; }
+.naming-actions { display: flex; gap: 9px; margin-top: 10px; }
+.naming-actions button {
+  flex: 1;
+  padding: 11px;
+  border: 0;
+  border-radius: 9px;
+  background: #8ff9f5;
+  color: #082533;
+  font-weight: 900;
+  cursor: pointer;
+}
+.naming-actions button:last-child { background: #66848c; color: #ffffff; }
+
+.changelog-panel {
+  position: absolute;
+  inset: 70px 138px 34px 34px;
+  z-index: 7;
+  overflow-y: auto;
+  padding: 0 24px 24px;
+  border: 3px solid #ffe56b;
+  border-radius: 18px;
+  background: rgba(1, 18, 30, 0.98);
+  box-shadow: 0 22px 65px rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  scrollbar-color: #ffe56b #0a3346;
+  scrollbar-width: auto;
+  overscroll-behavior: contain;
+}
+
+.changelog-panel[hidden] {
+  display: none;
+}
+
+.changelog-panel header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -24px;
+  padding: 20px 24px 16px;
+  border-bottom: 2px solid rgba(143, 249, 245, 0.25);
+  background: #011724;
+}
+
+.changelog-panel h2 {
+  margin: 0;
+  color: #8ff9f5;
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  text-transform: uppercase;
+}
+
+.changelog-panel header p {
+  margin: 5px 0 0;
+  color: #a9dce3;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.changelog-panel ol {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.changelog-panel li {
+  padding: 14px 16px;
+  border: 1px solid rgba(143, 249, 245, 0.25);
+  border-left: 5px solid #51dce1;
+  border-radius: 10px;
+  background: rgba(8, 54, 72, 0.72);
+}
+
+.changelog-panel li:last-child {
+  border-color: rgba(255, 229, 107, 0.7);
+  border-left-color: #ffe56b;
+  background: rgba(86, 67, 18, 0.45);
+}
+
+.changelog-panel h3 {
+  margin: 0 0 5px;
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.changelog-panel li:last-child h3 {
+  color: #ffe56b;
+}
+
+.changelog-panel li p {
+  margin: 0;
+  color: #c3e4e9;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.shopkeeper-button {
+  position: absolute;
+  top: 140px;
+  left: 14px;
+  z-index: 4;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 2px solid #ffd45e;
+  border-radius: 10px;
+  background: rgba(73, 42, 16, 0.94);
+  color: #fff1ad;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.shopkeeper-button:hover {
+  background: #8a5724;
+}
+
+.shopkeeper-button[hidden] {
+  display: none;
+}
+
+.terrain-button {
+  position: absolute;
+  top: 190px;
+  left: 14px;
+  z-index: 4;
+  min-width: 132px;
+  padding: 9px 14px;
+  border: 2px solid #72f5ff;
+  border-radius: 10px;
+  background: rgba(18, 69, 83, 0.95);
+  color: #d9fdff;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.terrain-button:hover { background: #207f91; }
+.terrain-button[hidden] { display: none; }
+
+.time-warper-button {
+  position: absolute;
+  top: 240px;
+  left: 14px;
+  z-index: 4;
+  min-width: 132px;
+  padding: 9px 14px;
+  border: 2px solid #d28cff;
+  border-radius: 10px;
+  background: rgba(64, 22, 88, 0.96);
+  color: #f3dcff;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.time-warper-button:hover { background: #843fa5; }
+.time-warper-button[hidden] { display: none; }
+
+.crate-spawner-button {
+  position: absolute;
+  top: 290px;
+  left: 14px;
+  z-index: 4;
+  min-width: 132px;
+  padding: 9px 14px;
+  border: 2px solid #ff8ee8;
+  border-radius: 10px;
+  background: rgba(87, 24, 76, 0.96);
+  color: #ffe4fa;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.crate-spawner-button:hover { background: #a43b8f; }
+.crate-spawner-button[hidden] { display: none; }
+
+.deposit-button {
+  position: absolute;
+  top: 90px;
+  left: 14px;
+  z-index: 5;
+  min-width: 132px;
+  padding: 9px 14px;
+  border: 2px solid #ffd49a;
+  border-radius: 10px;
+  background: rgba(88, 50, 23, 0.96);
+  color: #fff4dc;
+  font: 800 0.78rem "Trebuchet MS", system-ui, sans-serif;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.deposit-button[hidden],
+.deposit-dialog[hidden] {
+  display: none;
+}
+
+.deposit-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 12;
+  display: flex;
+  width: min(390px, calc(100% - 32px));
+  padding: 22px;
+  border: 3px solid #ffd49a;
+  border-radius: 16px;
+  background: #132d3c;
+  color: #ffffff;
+  box-shadow: 0 22px 65px rgba(0, 0, 0, 0.65);
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  gap: 9px;
+}
+
+.deposit-dialog h2 { margin: 0 0 5px; color: #ffd49a; text-transform: uppercase; }
+.deposit-dialog label { color: #c9edf0; font-size: 0.82rem; font-weight: 800; }
+.deposit-dialog select,
+.deposit-dialog input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #73dfe7;
+  border-radius: 9px;
+  background: #071f2d;
+  color: #ffffff;
+  font: 800 1rem "Trebuchet MS", system-ui, sans-serif;
+}
+
+.deposit-actions { display: flex; gap: 9px; margin-top: 8px; }
+.deposit-actions button {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: #ffd45e;
+  color: #17232a;
+  font-weight: 900;
+  cursor: pointer;
+}
+.deposit-actions button:last-child { background: #66848c; color: #ffffff; }
+
+canvas { display: block; width: 100%; height: auto; outline: none; touch-action: none; }
+.instructions { margin: 12px 0 0; color: #b6e5ed; text-align: center; font-weight: 700; }
+
+.shopkeeper-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  width: min(620px, 100%);
+  margin: 18px auto 0;
+  padding: 16px 22px;
+  border: 3px solid #ffd45e;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(63, 35, 14, 0.96), rgba(21, 30, 44, 0.96));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  color: #fff6c7;
+}
+
+.shopkeeper-status-label {
+  color: #ffd45e;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shopkeeper-status strong {
+  font-size: clamp(1.15rem, 3vw, 1.65rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.touch-controls {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(2, 21, 34, 0.75);
+}
+
+.touch-controls span { display: grid; gap: 6px; }
+.touch-controls button {
+  width: 54px;
+  height: 44px;
+  border: 2px solid #8ff9f5;
+  border-radius: 10px;
+  background: #075878;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 900;
+  touch-action: none;
+}
+
+.touch-controls .craft-button {
+  width: auto;
+  padding: 0 14px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+@media (pointer: coarse), (max-width: 700px) {
+  .top-bar { grid-template-columns: 1fr auto; align-items: center; }
+  .top-bar p { display: none; }
+  .top-bar h1 { font-size: clamp(1.7rem, 8vw, 3rem); }
+  .touch-controls { display: flex; }
+  .instructions { font-size: 0.85rem; }
+  .shopkeeper-status { flex-direction: column; gap: 5px; padding: 12px 16px; }
+  .changelog-panel { inset: 64px 12px 18px; padding: 0 16px 18px; }
+  .changelog-panel header { margin: 0 -16px; padding: 16px; padding-right: 120px; }
+  .save-selector { inset: 12px; padding: 18px 12px; }
+  .save-slot-list { grid-template-columns: 1fr; }
+  .save-slot { min-height: 230px; }
+  .fish-index-panel { inset: 64px 12px 18px; padding: 0 16px 18px; }
+  .fish-index-panel header { margin: 0 -16px; padding: 16px; padding-right: 120px; }
+  .fish-index-panel ol { grid-template-columns: 1fr; }
+}

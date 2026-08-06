@@ -39,30 +39,23 @@ const games: Game[] = [
     id: "a-hard-easy-game",
     name: "A Hard Easy Game",
     menuLabel: 'A <span class="crossed-out-word">Hard</span> Easy Game',
-    path: "./games/a-hard-easy-game/",
+    path: "./games/a-hard-easy-game/index.html",
     genre: "Trap Course",
     blurb: "A dramatic obstacle run where most of the danger is just showing off.",
   },
   {
     id: "oscars-untitled-maze-game",
     name: "Oscar's Untitled Maze Game",
-    path: "./games/oscars-untitled-maze-game/",
+    path: "./games/oscars-untitled-maze-game/index.html",
     genre: "Maze Trollery",
     blurb: "Sneaky rules, twisted levels, and a maze that keeps changing the deal.",
   },
   {
     id: "tamagotchi-monster",
     name: "Tamagotchi Monster",
-    path: "./games/tamagotchi-monster/",
+    path: "./games/tamagotchi-monster/index.html",
     genre: "Pet Chaos",
     blurb: "Raise a weird little creature and keep its glitchy little life on track.",
-  },
-  {
-    id: "a-kids-life",
-    name: "A Kid's Life",
-    path: "./games/a-kids-life/",
-    genre: "Life Sim",
-    blurb: "Raise a sweet kid, grow a whole family tree, and keep each home cozy.",
   },
 ];
 
@@ -188,7 +181,7 @@ function attachOumgRestoreButton(): void {
 
 function applyRotationCurseStyling(root: HTMLElement): void {
   const cursed = localStorage.getItem(LINKED_ROTATION_CURSE_KEY) === "rotated";
-  const ahegCard = root.querySelector<HTMLAnchorElement>('a[href="./games/a-hard-easy-game/"]');
+  const ahegCard = root.querySelector<HTMLAnchorElement>('[data-game-id="a-hard-easy-game"]');
   if (!ahegCard) {
     return;
   }
@@ -204,7 +197,7 @@ function applyRotationCurseStyling(root: HTMLElement): void {
 
 function renderHubTrophy(): void {
   const shell = document.querySelector<HTMLElement>(".menu-shell");
-  const ahegCard = document.querySelector<HTMLElement>('a[href="./games/a-hard-easy-game/"]');
+  const ahegCard = document.querySelector<HTMLElement>('[data-game-id="a-hard-easy-game"]');
   if (!shell || !ahegCard) {
     return;
   }
