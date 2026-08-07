@@ -14,7 +14,7 @@ type GameKind = "survival" | "creative";
 // Hacker saves keep an effective GameKind so every existing creative/survival
 // check keeps working; isHacker just adds the owner-only toolkit on top.
 type SaveKind = GameKind | "hacker";
-type HackerTool = "none" | "copy" | "delete";
+type HackerTool = "none" | "copy" | "delete" | "gui";
 
 interface MaterialDrop {
   name: string;
@@ -156,6 +156,12 @@ interface SaveData {
   isHacker?: boolean;
   sharkDeleted?: boolean;
   homeRaftDeleted?: boolean;
+  shopkeeperDeleted?: boolean;
+  hudDeleted?: boolean;
+  oceanDeleted?: boolean;
+  playerDeleted?: boolean;
+  deletedIslands?: number[];
+  deletedGuiSelectors?: string[];
   elapsed: number;
   nextSupplyIn: number;
   nextRandomIn: number;
@@ -476,6 +482,14 @@ let gameKind: GameKind = "survival";
 let isHacker = false;
 let sharkDeleted = false;
 let homeRaftDeleted = false;
+let shopkeeperDeleted = false;
+let hudDeleted = false;
+let oceanDeleted = false;
+let playerDeleted = false;
+// Deliberately not saved: deleting the whole game lasts until a refresh.
+let gameDeleted = false;
+const deletedIslands = new Set<number>();
+const deletedGuiSelectors = new Set<string>();
 let hackerPanelOpen = false;
 let hackerTool: HackerTool = "none";
 let hackerClipboard: HackerClipboard | null = null;
@@ -799,7 +813,10 @@ document.querySelector<HTMLButtonElement>("[data-action='hacker-dupe-raft']")?.a
 document.querySelector<HTMLButtonElement>("[data-action='hacker-copy']")?.addEventListener("click", () => setHackerTool("copy"));
 document.querySelector<HTMLButtonElement>("[data-action='hacker-paste']")?.addEventListener("click", pasteHackerClipboard);
 document.querySelector<HTMLButtonElement>("[data-action='hacker-delete']")?.addEventListener("click", () => setHackerTool("delete"));
+document.querySelector<HTMLButtonElement>("[data-action='hacker-gui']")?.addEventListener("click", () => setHackerTool("gui"));
 document.querySelector<HTMLButtonElement>("[data-action='hacker-restore']")?.addEventListener("click", restoreDeletedAssets);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-delete-game']")?.addEventListener("click", deleteWholeGame);
+installGuiDeleteHandler();
 document.querySelector<HTMLButtonElement>("[data-action='cancel-deposit']")?.addEventListener("click", closeDepositDialog);
 document.getElementById("deposit-item")?.addEventListener("change", updateDepositAmountLimit);
 document.getElementById("deposit-dialog")?.addEventListener("submit", (event) => {
@@ -1408,6 +1425,15 @@ function startGame(): void {
   shark.biteCooldownUntil = 0;
   sharkDeleted = false;
   homeRaftDeleted = false;
+  shopkeeperDeleted = false;
+  hudDeleted = false;
+  oceanDeleted = false;
+  playerDeleted = false;
+  deletedIslands.clear();
+  for (const selector of deletedGuiSelectors) {
+    for (const element of document.querySelectorAll<HTMLElement>(selector)) element.style.removeProperty("display");
+  }
+  deletedGuiSelectors.clear();
   hasCraftingTable = gameKind === "creative";
   craftingTableLevel = gameKind === "creative" ? TECHNO_CRAFTING_LEVEL : 0;
   hasCargoDock = false;
@@ -1728,6 +1754,7 @@ function updateShopkeeper(): void {
 }
 
 function isShopkeeperHere(): boolean {
+  if (shopkeeperDeleted) return false;
   return gameKind === "creative" || shopkeeperUntil > elapsed;
 }
 
@@ -2700,7 +2727,9 @@ function updateHackerUi(): void {
         ? "Copying…"
         : hackerTool === "delete"
           ? "Deleting…"
-          : "Hacker";
+          : hackerTool === "gui"
+            ? "Deleting GUI…"
+            : "Hacker";
     button.classList.toggle("is-armed", hackerTool !== "none");
   }
 
@@ -2718,6 +2747,9 @@ function updateHackerUi(): void {
 
   const deleteButton = document.querySelector<HTMLButtonElement>("[data-action='hacker-delete']");
   if (deleteButton) deleteButton.textContent = hackerTool === "delete" ? "Delete Tool — TAP A THING" : "Delete Tool";
+
+  const guiButton = document.querySelector<HTMLButtonElement>("[data-action='hacker-gui']");
+  if (guiButton) guiButton.textContent = hackerTool === "gui" ? "Delete GUI — TAP A BUTTON" : "Delete GUI Tool";
 
   const clipboardNote = document.getElementById("hacker-clipboard-note");
   if (clipboardNote) clipboardNote.textContent = describeHackerClipboard();
@@ -2819,8 +2851,10 @@ function setHackerTool(tool: HackerTool): void {
     hackerTool === "none"
       ? "HACKER TOOL OFF."
       : hackerTool === "copy"
-        ? "COPY TOOL ON — TAP A CRATE, RAFT, OR SHARK."
-        : "DELETE TOOL ON — TAP A CRATE, RAFT, OR SHARK.",
+        ? "COPY TOOL ON — TAP ANYTHING."
+        : hackerTool === "gui"
+          ? "GUI TOOL ON — TAP ANY BUTTON OR THE HUD."
+          : "DELETE TOOL ON — TAP ANYTHING.",
     3
   );
   updateHackerUi();
@@ -2863,92 +2897,391 @@ function pasteHackerClipboard(): void {
   saveGame();
 }
 
+interface HackerTarget {
+  label: string;
+  x: number;
+  y: number;
+  hit: boolean;
+  clipboard?: HackerClipboard;
+  remove: () => void;
+}
+
+// Everything the delete/copy tools can grab, most specific first so a bot on
+// the raft wins over the raft underneath it.
+function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
+  const near = (x: number, y: number, radius: number): boolean => distance(worldX, worldY, x, y) < radius;
+  const inBox = (x: number, y: number, width: number, height: number): boolean =>
+    worldX >= x && worldX <= x + width && worldY >= y && worldY <= y + height;
+  const raft = getRaftBounds();
+  const targets: HackerTarget[] = [];
+
+  crates.forEach((crate, index) => {
+    targets.push({
+      label: `${crate.kind.toUpperCase()} CRATE`,
+      x: crate.x,
+      y: crate.y,
+      hit: near(crate.x, crate.y, 42),
+      clipboard: { kind: "crate", crate: { ...crate } },
+      remove: () => crates.splice(index, 1),
+    });
+  });
+
+  cargoShips.forEach((ship, index) => {
+    targets.push({
+      label: "CARGO SHIP",
+      x: ship.x,
+      y: ship.y,
+      hit: near(ship.x, ship.y, 46),
+      remove: () => cargoShips.splice(index, 1),
+    });
+  });
+
+  collectorBots.forEach((bot, index) => {
+    targets.push({
+      label: "COLLECTOR BOT",
+      x: bot.x,
+      y: bot.y,
+      hit: near(bot.x, bot.y, 26),
+      remove: () => {
+        collectorBots.splice(index, 1);
+        collectorBotCount = Math.max(0, collectorBotCount - 1);
+      },
+    });
+  });
+
+  if (hasScoldBot) {
+    const scold = getScoldBotPosition();
+    targets.push({
+      label: "SCOLD BOT",
+      x: scold.x,
+      y: scold.y,
+      hit: near(scold.x, scold.y, 34),
+      remove: () => {
+        hasScoldBot = false;
+        hasSuperScoldBot = false;
+        scoldTarget = null;
+      },
+    });
+  }
+
+  if (hasFisherBot) {
+    const fisher = getFisherBotPosition();
+    targets.push({
+      label: "FISHER BOT",
+      x: fisher.x,
+      y: fisher.y,
+      hit: near(fisher.x, fisher.y, 32),
+      remove: () => {
+        hasFisherBot = false;
+        fisherBotCatches = [];
+      },
+    });
+  }
+
+  if (hasTimeWarper) {
+    const warperX = raft.x + raft.width - 92;
+    const warperY = raft.y + raft.height - 48;
+    targets.push({
+      label: "TIME WARPER",
+      x: warperX,
+      y: warperY,
+      hit: near(warperX, warperY, 36),
+      remove: () => {
+        hasTimeWarper = false;
+        timeWarperOpen = false;
+      },
+    });
+  }
+
+  if (hasCraftingTable) {
+    targets.push({
+      label: "CRAFTING TABLE",
+      x: raft.x + 57,
+      y: raft.y + 57,
+      hit: inBox(raft.x + 24, raft.y + 29, 66, 56),
+      remove: () => {
+        hasCraftingTable = false;
+        craftingTableLevel = 0;
+        craftingOpen = false;
+      },
+    });
+  }
+
+  for (let index = 0; index < Math.min(chestCount, 4); index += 1) {
+    const chestX = raft.x + raft.width - 76 - (index % 2) * 50;
+    const chestY = raft.y + 30 + Math.floor(index / 2) * 44;
+    targets.push({
+      label: "CHEST",
+      x: chestX + 21,
+      y: chestY + 15,
+      hit: inBox(chestX, chestY, 42, 30),
+      remove: () => {
+        chestCount = Math.max(0, chestCount - 1);
+        if (chestCount === 0) storageOpen = false;
+      },
+    });
+  }
+
+  if (hasStorageCompartment) {
+    const mini = getStorageMiniRaftBounds();
+    targets.push({
+      label: "STORAGE COMPARTMENT",
+      x: mini.x + mini.width / 2,
+      y: mini.y + mini.height / 2,
+      hit: inBox(mini.x, mini.y, mini.width, mini.height),
+      remove: () => {
+        hasStorageCompartment = false;
+        storageOpen = false;
+      },
+    });
+  }
+
+  if (hasCargoDock) {
+    const dock = getCargoDockPosition();
+    targets.push({
+      label: "CARGO DOCK",
+      x: dock.x,
+      y: dock.y,
+      hit: near(dock.x, dock.y, 46),
+      remove: () => {
+        hasCargoDock = false;
+        cargoShips = [];
+        cargoShipCount = 0;
+      },
+    });
+  }
+
+  if (!shopkeeperDeleted && isShopkeeperHere()) {
+    targets.push({
+      label: "SHOPKEEPER",
+      x: 690,
+      y: 320,
+      hit: near(690, 320, 64),
+      remove: () => {
+        shopkeeperDeleted = true;
+        shopkeeperUntil = 0;
+        shopOpen = false;
+      },
+    });
+  }
+
+  sunkenRafts.forEach((wreck, index) => {
+    if (!wreck.bridgeBuilt || elapsed < wreck.raisedAt) return;
+    const segment = getSunkenRaftBridgeSegment(wreck);
+    const midX = (segment.start.x + segment.end.x) / 2;
+    const midY = (segment.start.y + segment.end.y) / 2;
+    targets.push({
+      label: "BRIDGE",
+      x: midX,
+      y: midY,
+      hit: near(midX, midY, 26),
+      remove: () => {
+        const target = sunkenRafts[index];
+        if (target) target.bridgeBuilt = false;
+      },
+    });
+  });
+
+  if (isIslandUnlocked()) {
+    ISLANDS.slice(0, bridgesBuilt).forEach((island, index) => {
+      if (!isIslandVisible(island) || deletedIslands.has(index)) return;
+      const segment = getBridgeSegment(island);
+      const midX = (segment.start.x + segment.end.x) / 2;
+      const midY = (segment.start.y + segment.end.y) / 2;
+      targets.push({
+        label: "ISLAND BRIDGE",
+        x: midX,
+        y: midY,
+        hit: near(midX, midY, 26),
+        remove: () => {
+          bridgesBuilt = Math.min(bridgesBuilt, index);
+        },
+      });
+    });
+  }
+
+  sunkenRafts.forEach((wreck, index) => {
+    targets.push({
+      label: "RAFT PLATFORM",
+      x: wreck.x,
+      y: wreck.y,
+      hit: Math.abs(worldX - wreck.x) < wreck.width / 2 + 12 && Math.abs(worldY - wreck.y) < wreck.height / 2 + 12,
+      clipboard: { kind: "raft", width: wreck.width, height: wreck.height },
+      remove: () => sunkenRafts.splice(index, 1),
+    });
+  });
+
+  ISLANDS.forEach((island, index) => {
+    if (deletedIslands.has(index) || !isIslandVisible(island)) return;
+    targets.push({
+      label: island.name.toUpperCase(),
+      x: island.x,
+      y: island.y,
+      hit: isInsideIsland(worldX, worldY, island),
+      remove: () => {
+        deletedIslands.add(index);
+        bridgesBuilt = Math.min(bridgesBuilt, index);
+      },
+    });
+  });
+
+  extraSharks.forEach((hunter, index) => {
+    targets.push({
+      label: "SHARK",
+      x: hunter.x,
+      y: hunter.y,
+      hit: near(hunter.x, hunter.y, 48),
+      clipboard: { kind: "shark" },
+      remove: () => extraSharks.splice(index, 1),
+    });
+  });
+
+  if (!sharkDeleted) {
+    targets.push({
+      label: "SHARK",
+      x: shark.x,
+      y: shark.y,
+      hit: near(shark.x, shark.y, 48),
+      clipboard: { kind: "shark" },
+      remove: () => {
+        sharkDeleted = true;
+        shark.x = DELETED_ASSET_X;
+        shark.y = DELETED_ASSET_Y;
+      },
+    });
+  }
+
+  if (!playerDeleted) {
+    targets.push({
+      label: "YOURSELF",
+      x: player.x,
+      y: player.y,
+      hit: near(player.x, player.y, 30),
+      remove: () => {
+        playerDeleted = true;
+      },
+    });
+  }
+
+  if (!homeRaftDeleted) {
+    targets.push({
+      label: "HOME RAFT",
+      x: raft.x + raft.width / 2,
+      y: raft.y + raft.height / 2,
+      hit: inBox(raft.x, raft.y, raft.width, raft.height),
+      clipboard: { kind: "raft", width: raft.width, height: raft.height },
+      remove: () => {
+        homeRaftDeleted = true;
+      },
+    });
+  }
+
+  // Last resort: open sea. Tapping nothing in particular deletes the water.
+  if (!oceanDeleted) {
+    targets.push({
+      label: "THE WATER",
+      x: worldX,
+      y: worldY,
+      hit: true,
+      remove: () => {
+        oceanDeleted = true;
+      },
+    });
+  }
+
+  return targets;
+}
+
 function useHackerToolAt(worldX: number, worldY: number): boolean {
-  if (!isHacker || hackerTool === "none") return false;
+  if (!isHacker || hackerTool === "none" || hackerTool === "gui") return false;
 
-  const crateIndex = crates.findIndex((crate) => distance(worldX, worldY, crate.x, crate.y) < 42);
-  if (crateIndex >= 0) {
-    const crate = crates[crateIndex]!;
-    if (hackerTool === "copy") {
-      hackerClipboard = { kind: "crate", crate: { ...crate } };
-      showMessage(`COPIED A ${crate.kind.toUpperCase()} CRATE.`, 3);
-    } else {
-      deleteHackerTarget(crate.x, crate.y, () => crates.splice(crateIndex, 1), `${crate.kind.toUpperCase()} CRATE`);
-    }
-    updateHackerUi();
+  const target = collectHackerTargets(worldX, worldY).find((candidate) => candidate.hit);
+  if (!target) {
+    showMessage("NOTHING THERE TO GRAB.", 2);
     return true;
   }
 
-  const raftIndex = sunkenRafts.findIndex(
-    (raft) => Math.abs(worldX - raft.x) < raft.width / 2 + 12 && Math.abs(worldY - raft.y) < raft.height / 2 + 12
-  );
-  if (raftIndex >= 0) {
-    const raft = sunkenRafts[raftIndex]!;
-    if (hackerTool === "copy") {
-      hackerClipboard = { kind: "raft", width: raft.width, height: raft.height };
-      showMessage("COPIED A RAFT PLATFORM.", 3);
+  if (hackerTool === "copy") {
+    if (!target.clipboard) {
+      showMessage(`${target.label} CANNOT BE COPIED.`, 3);
     } else {
-      deleteHackerTarget(raft.x, raft.y, () => sunkenRafts.splice(raftIndex, 1), "RAFT PLATFORM");
+      hackerClipboard = target.clipboard;
+      showMessage(`COPIED ${target.label}.`, 3);
     }
-    updateHackerUi();
-    return true;
+  } else {
+    deleteHackerTarget(target.x, target.y, target.remove, target.label);
   }
-
-  const sharkIndex = extraSharks.findIndex((entity) => distance(worldX, worldY, entity.x, entity.y) < 48);
-  if (sharkIndex >= 0) {
-    const target = extraSharks[sharkIndex]!;
-    if (hackerTool === "copy") {
-      hackerClipboard = { kind: "shark" };
-      showMessage("COPIED A SHARK.", 3);
-    } else {
-      deleteHackerTarget(target.x, target.y, () => extraSharks.splice(sharkIndex, 1), "SHARK");
-    }
-    updateHackerUi();
-    return true;
-  }
-
-  const home = getRaftBounds();
-  if (
-    !homeRaftDeleted
-    && worldX >= home.x && worldX <= home.x + home.width
-    && worldY >= home.y && worldY <= home.y + home.height
-  ) {
-    if (hackerTool === "copy") {
-      hackerClipboard = { kind: "raft", width: home.width, height: home.height };
-      showMessage("COPIED THE HOME RAFT.", 3);
-    } else {
-      burst(home.x + home.width / 2, home.y + home.height / 2, "#8ff9f5", 40);
-      homeRaftDeleted = true;
-      showMessage("HOME RAFT DELETED — YOU ARE SWIMMING NOW.", 4.5);
-      saveGame();
-    }
-    updateHackerUi();
-    return true;
-  }
-
-  if (!sharkDeleted && distance(worldX, worldY, shark.x, shark.y) < 48) {
-    if (hackerTool === "copy") {
-      hackerClipboard = { kind: "shark" };
-      showMessage("COPIED THE MAIN SHARK.", 3);
-    } else {
-      burst(shark.x, shark.y, "#8ff9f5", 30);
-      sharkDeleted = true;
-      shark.x = DELETED_ASSET_X;
-      shark.y = DELETED_ASSET_Y;
-      showMessage("SHARK DELETED — IT IS NEVER COMING BACK.", 4);
-      saveGame();
-    }
-    updateHackerUi();
-    return true;
-  }
-
-  showMessage("NOTHING THERE TO GRAB.", 2);
+  updateHackerUi();
   return true;
+}
+
+// The GUI tool eats the click before the button can act, hides whatever was
+// tapped, and remembers it so it stays gone across reloads.
+function installGuiDeleteHandler(): void {
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (!isHacker || hackerTool !== "gui") return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (target.closest("#hacker-panel") || target.closest("[data-action='hacker']")) return;
+
+      const canvas = target.closest("canvas");
+      if (canvas) {
+        hudDeleted = true;
+        showMessage("HUD DELETED.", 3);
+        saveGame();
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      const element = target.closest<HTMLElement>("button, section, p, div, header, h2, span");
+      if (!element || element.id === "hacker-panel") return;
+      const selector = describeGuiElement(element);
+      deletedGuiSelectors.add(selector);
+      element.style.display = "none";
+      showMessage(`GUI DELETED: ${selector.toUpperCase()}`, 3);
+      saveGame();
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    true
+  );
+}
+
+function describeGuiElement(element: HTMLElement): string {
+  if (element.id) return `#${element.id}`;
+  const action = element.dataset["action"];
+  if (action) return `[data-action='${action}']`;
+  const direction = element.dataset["direction"];
+  if (direction) return `[data-direction='${direction}']`;
+  const className = element.className.trim().split(/\s+/)[0];
+  return className ? `.${className}` : element.tagName.toLowerCase();
+}
+
+function applyDeletedGui(): void {
+  for (const selector of deletedGuiSelectors) {
+    for (const element of document.querySelectorAll<HTMLElement>(selector)) element.style.display = "none";
+  }
+}
+
+// Nukes the entire game out of the page. Never saved, so a refresh or a fresh
+// tab brings the whole thing back.
+function deleteWholeGame(): void {
+  if (!isHacker) return;
+  saveGame();
+  gameDeleted = true;
+  closeHackerPanel();
+  document.body.classList.add("game-deleted");
+  showMessage("", 0);
 }
 
 function restoreDeletedAssets(): void {
   if (!isHacker) return;
-  if (!sharkDeleted && !homeRaftDeleted) {
+  const hadDeletions = sharkDeleted || homeRaftDeleted || shopkeeperDeleted || hudDeleted
+    || oceanDeleted || playerDeleted || deletedIslands.size > 0 || deletedGuiSelectors.size > 0;
+  if (!hadDeletions) {
     showMessage("NOTHING TO BRING BACK.", 3);
     return;
   }
@@ -2959,7 +3292,16 @@ function restoreDeletedAssets(): void {
     shark.biteCooldownUntil = 0;
   }
   homeRaftDeleted = false;
-  showMessage("HACKER: RAFT AND SHARK BROUGHT BACK.", 3.5);
+  shopkeeperDeleted = false;
+  hudDeleted = false;
+  oceanDeleted = false;
+  playerDeleted = false;
+  deletedIslands.clear();
+  for (const selector of deletedGuiSelectors) {
+    for (const element of document.querySelectorAll<HTMLElement>(selector)) element.style.removeProperty("display");
+  }
+  deletedGuiSelectors.clear();
+  showMessage("HACKER: EVERYTHING BROUGHT BACK.", 3.5);
   saveGame();
 }
 
@@ -4419,6 +4761,12 @@ function drawFishingLine(): void {
 }
 
 function drawOcean(): void {
+  if (oceanDeleted) {
+    // No water left — just the empty void the ocean used to sit in.
+    ctx.fillStyle = "#04070a";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    return;
+  }
   const nightmare = isNightmareLevel();
   const gradient = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   gradient.addColorStop(0, nightmare ? "#5b090d" : "#0b7896");
@@ -5496,7 +5844,7 @@ function drawChests(): void {
 }
 
 function drawShopkeeper(): void {
-  if (!isShopkeeperHere()) return;
+  if (shopkeeperDeleted || !isShopkeeperHere()) return;
   const x = 690;
   const y = 320 + Math.sin(elapsed * 2) * 3;
   ctx.save();
@@ -5613,6 +5961,7 @@ function drawCrates(deliveredOnly: boolean): void {
 }
 
 function drawPlayer(): void {
+  if (playerDeleted) return;
   const flicker = elapsed < player.invincibleUntil && Math.floor(elapsed * 12) % 2 === 0;
   if (flicker) return;
   const swimming = !isInSafeZone(player.x, player.y);
@@ -5873,6 +6222,7 @@ function drawParticles(): void {
 }
 
 function drawHud(): void {
+  if (hudDeleted) return;
   const nightmare = isNightmareLevel();
   ctx.save();
   ctx.fillStyle = nightmare ? "rgba(25, 0, 5, 0.92)" : "rgba(2, 25, 40, 0.84)";
@@ -6677,6 +7027,8 @@ function isIslandUnlocked(): boolean {
 }
 
 function isIslandVisible(island: Island): boolean {
+  // A deleted island stops rendering and stops being solid ground.
+  if (deletedIslands.has(ISLANDS.indexOf(island))) return false;
   return endgameUnlocked && expansionCount >= island.requiredExpansions;
 }
 
@@ -6832,6 +7184,12 @@ function saveGame(): void {
     isHacker,
     sharkDeleted,
     homeRaftDeleted,
+    shopkeeperDeleted,
+    hudDeleted,
+    oceanDeleted,
+    playerDeleted,
+    deletedIslands: [...deletedIslands],
+    deletedGuiSelectors: [...deletedGuiSelectors],
     elapsed,
     nextSupplyIn: Math.max(0, nextSupplyAt - elapsed),
     nextRandomIn: Math.max(0, nextRandomAt - elapsed),
@@ -6919,6 +7277,15 @@ function restoreAutosave(): void {
     isHacker = data.isHacker === true;
     sharkDeleted = data.sharkDeleted === true;
     homeRaftDeleted = data.homeRaftDeleted === true;
+    shopkeeperDeleted = data.shopkeeperDeleted === true;
+    hudDeleted = data.hudDeleted === true;
+    oceanDeleted = data.oceanDeleted === true;
+    playerDeleted = data.playerDeleted === true;
+    deletedIslands.clear();
+    for (const index of data.deletedIslands ?? []) deletedIslands.add(index);
+    deletedGuiSelectors.clear();
+    for (const selector of data.deletedGuiSelectors ?? []) deletedGuiSelectors.add(selector);
+    applyDeletedGui();
     saveFileName = sanitizeName(data.saveFileName, `Save ${currentSaveSlot}`);
     raftName = sanitizeName(data.raftName, "Home Raft");
     elapsed = data.elapsed;
@@ -7157,6 +7524,12 @@ function syncNightmareTheme(): void {
 function frame(timestamp: number): void {
   const dt = Math.min(0.033, (timestamp - lastTimestamp) / 1000);
   lastTimestamp = timestamp;
+  if (gameDeleted) {
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    requestAnimationFrame(frame);
+    return;
+  }
   update(dt);
   syncNightmareTheme();
   draw();

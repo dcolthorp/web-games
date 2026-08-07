@@ -127,6 +127,40 @@ h1.is-glitching::after {
   }
 }
 
+.zero-bomb-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.zero-bomb-digit {
+  position: absolute;
+  color: #46e0f0;
+  font-family: Impact, Haettenschweiler, sans-serif;
+  text-shadow: 2px 0 var(--danger), -2px 0 #46e0f0;
+  animation-name: zero-bomb-flicker;
+  animation-iteration-count: infinite;
+  animation-timing-function: steps(2, end);
+}
+
+@keyframes zero-bomb-flicker {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  50% { transform: translate(-6px, 4px) scale(1.25); opacity: 0.55; }
+  100% { transform: translate(7px, -5px) scale(0.85); opacity: 1; }
+}
+
+.zero-bomb-active {
+  animation: zero-bomb-shake 0.12s steps(2, end) infinite;
+}
+
+@keyframes zero-bomb-shake {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-4px, 3px); }
+  100% { transform: translate(4px, -3px); }
+}
+
 .subtitle {
   max-width: 32rem;
   margin-top: 14px;

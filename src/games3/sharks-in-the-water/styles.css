@@ -1085,6 +1085,12 @@ body.level-1000-horror .fish-glitched-fish.toast-popped::before {
 }
 .hacker-button[hidden] { display: none; }
 .hacker-button.is-armed { background: #4dff9b; color: #05261a; }
+.hacker-panel button[data-action="hacker-delete-game"] { background: #7a1226; color: #ffd9df; }
+
+/* Deleting the whole game strips the page down to nothing until a reload. */
+.game-deleted { background: #000000; }
+.game-deleted *:not(canvas):not(html):not(body) { display: none !important; }
+.game-deleted canvas { background: #000000; }
 
 .hacker-panel[hidden] { display: none; }
 .hacker-panel {

@@ -146,7 +146,59 @@ function installHeroTitleGlitch(): void {
     showText(realTitle, false);
   });
 
+  installOscarZeroBomb(title, () => title.classList.contains("is-glitching"));
   scheduleNextBurst();
+}
+
+// Click the title while it reads dev.0 (or type "oscar" then) and the hub
+// drowns in zeros until it seizes up. Only a reload brings it back.
+function installOscarZeroBomb(title: HTMLElement, isGlitched: () => boolean): void {
+  const secret = "oscar";
+  let typed = "";
+  let detonated = false;
+
+  const detonate = (): void => {
+    if (detonated) return;
+    detonated = true;
+    detonateZeroBomb();
+  };
+
+  title.style.cursor = "pointer";
+  title.addEventListener("click", () => {
+    if (isGlitched()) detonate();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (detonated || event.key.length !== 1) return;
+    typed = (typed + event.key.toLowerCase()).slice(-secret.length);
+    if (typed === secret && isGlitched()) detonate();
+  });
+}
+
+function detonateZeroBomb(): void {
+  const layer = document.createElement("div");
+  layer.className = "zero-bomb-layer";
+  document.body.appendChild(layer);
+  document.body.classList.add("zero-bomb-active");
+
+  let perTick = 8;
+  const spawn = (): void => {
+    for (let index = 0; index < perTick; index += 1) {
+      const zero = document.createElement("span");
+      zero.className = "zero-bomb-digit";
+      zero.textContent = "0";
+      zero.style.left = `${Math.random() * 100}vw`;
+      zero.style.top = `${Math.random() * 100}vh`;
+      zero.style.fontSize = `${12 + Math.random() * 90}px`;
+      zero.style.animationDuration = `${0.25 + Math.random() * 0.7}s`;
+      layer.appendChild(zero);
+    }
+    // Each wave is bigger than the last, so the page slows down and then dies.
+    perTick = Math.ceil(perTick * 1.35);
+    requestAnimationFrame(spawn);
+    window.setTimeout(spawn, 60);
+  };
+  spawn();
 }
 
 function attachHubDropdownToggle(): void {
