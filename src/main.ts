@@ -122,14 +122,15 @@ function installHeroTitleGlitch(): void {
   function runGlitchBurst(): void {
     // A burst is a few quick flickers between the real title and dev.0,
     // ending on the real one so the hub never gets stuck renamed.
-    const flickers = 3 + Math.floor(Math.random() * 3);
+    const flickers = 5 + Math.floor(Math.random() * 4);
     let elapsed = 0;
 
     for (let i = 0; i < flickers; i += 1) {
       const glitched = i % 2 === 0;
       const at = elapsed;
       window.setTimeout(() => showText(glitched ? "dev.0" : realTitle, glitched), at);
-      elapsed += 50 + Math.floor(Math.random() * 110);
+      // Glitched frames hold longer than the snap-backs, so dev.0 is readable.
+      elapsed += glitched ? 180 + Math.floor(Math.random() * 220) : 60 + Math.floor(Math.random() * 90);
     }
 
     restoreTimeout = window.setTimeout(() => showText(realTitle, false), elapsed);
@@ -137,7 +138,7 @@ function installHeroTitleGlitch(): void {
   }
 
   function scheduleNextBurst(): void {
-    window.setTimeout(runGlitchBurst, 7000 + Math.random() * 13000);
+    window.setTimeout(runGlitchBurst, 2500 + Math.random() * 4000);
   }
 
   window.addEventListener("pagehide", () => {
