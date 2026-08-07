@@ -1067,7 +1067,57 @@ body.level-1000-horror .fish-glitched-fish.toast-popped::before {
 }
 .save-slot button[data-action="dev-lock"] { background: #204354; color: #8ff9f5; border: 2px solid #467e91; font-size: 1.05rem; }
 .save-slot button[data-action="dev-lock"]:hover { background: #2b586e; }
-.save-slot button[data-action="dev-secret"] { background: #0f1b2e; color: #8ff9f5; border: 2px dashed #8ff9f5; letter-spacing: 0.12em; }
+.save-slot button[data-mode="hacker"] { background: #4dff9b; color: #05261a; }
+.save-slot.hacker { border-color: #4dff9b; background: linear-gradient(180deg, #0d4a32, #06241d); }
+
+.hacker-button {
+  position: absolute;
+  left: 14px;
+  top: 340px;
+  z-index: 12;
+  padding: 10px 14px;
+  border: 2px solid #4dff9b;
+  border-radius: 10px;
+  background: #06301f;
+  color: #4dff9b;
+  font-weight: 900;
+  cursor: pointer;
+}
+.hacker-button[hidden] { display: none; }
+.hacker-button.is-armed { background: #4dff9b; color: #05261a; }
+
+.hacker-panel[hidden] { display: none; }
+.hacker-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 30;
+  display: flex;
+  width: min(360px, calc(100% - 36px));
+  max-height: calc(100% - 40px);
+  padding: 20px;
+  border: 3px solid #4dff9b;
+  border-radius: 18px;
+  background: #041c14;
+  color: #ffffff;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.85);
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+.hacker-panel h2 { margin: 0; color: #4dff9b; text-transform: uppercase; }
+.hacker-note { margin: 0; color: #9ff5c9; font-size: 0.82rem; font-weight: 800; }
+.hacker-panel button {
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: #4dff9b;
+  color: #05261a;
+  font-weight: 900;
+  cursor: pointer;
+}
+.hacker-panel button[data-action="close-hacker"] { background: #1d4536; color: #b9ffdd; }
 
 .dev-lock-dialog[hidden] { display: none; }
 .dev-lock-dialog {

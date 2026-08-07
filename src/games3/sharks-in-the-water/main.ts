@@ -9,8 +9,12 @@ installForceRefreshHotkey();
 
 type Direction = "up" | "down" | "left" | "right";
 type GameMode = "ready" | "playing" | "paused" | "gameOver";
-type CrateKind = "supply" | "wooden" | "technology" | "blood" | "rainbow" | "super";
+type CrateKind = "supply" | "wooden" | "technology" | "blood" | "rainbow" | "super" | "hacker";
 type GameKind = "survival" | "creative";
+// Hacker saves keep an effective GameKind so every existing creative/survival
+// check keeps working; isHacker just adds the owner-only toolkit on top.
+type SaveKind = GameKind | "hacker";
+type HackerTool = "none" | "copy" | "delete";
 
 interface MaterialDrop {
   name: string;
@@ -149,6 +153,9 @@ interface SaveData {
   saveFileName?: string;
   raftName?: string;
   gameKind: GameKind;
+  isHacker?: boolean;
+  sharkDeleted?: boolean;
+  homeRaftDeleted?: boolean;
   elapsed: number;
   nextSupplyIn: number;
   nextRandomIn: number;
@@ -210,9 +217,14 @@ interface ChangelogEntry {
 }
 
 type NamingAction =
-  | { kind: "create"; slot: number; gameKind: GameKind }
+  | { kind: "create"; slot: number; saveKind: SaveKind }
   | { kind: "stored"; slot: number }
   | { kind: "current" };
+
+type HackerClipboard =
+  | { kind: "crate"; crate: FloatingCrate }
+  | { kind: "raft"; width: number; height: number }
+  | { kind: "shark" };
 
 interface FishCatch {
   name: string;
@@ -461,6 +473,12 @@ let shopkeeperUntil = 0;
 let shopOpen = false;
 let currentSaveSlot = 1;
 let gameKind: GameKind = "survival";
+let isHacker = false;
+let sharkDeleted = false;
+let homeRaftDeleted = false;
+let hackerPanelOpen = false;
+let hackerTool: HackerTool = "none";
+let hackerClipboard: HackerClipboard | null = null;
 let saveSelected = false;
 let saveFileName = "Save 1";
 let raftName = "Home Raft";
@@ -544,6 +562,12 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (!saveSelected) return;
+  if (event.key === "Escape" && (hackerPanelOpen || hackerTool !== "none")) {
+    event.preventDefault();
+    hackerTool = "none";
+    closeHackerPanel();
+    return;
+  }
   if (timeWarperOpen && event.key === "Escape") {
     event.preventDefault();
     toggleTimeWarper();
@@ -706,6 +730,7 @@ canvas.addEventListener("pointerdown", (event) => {
     const camera = getCameraCenter();
     const worldX = camera.x + (x - WIDTH / 2) / zoom;
     const worldY = camera.y + (y - HEIGHT / 2) / zoom;
+    if (useHackerToolAt(worldX, worldY)) return;
     collectCollectorDrops(worldX, worldY, 30 / zoom);
   }
   else startGame();
@@ -765,6 +790,16 @@ document.querySelector<HTMLButtonElement>("[data-action='deposit']")?.addEventLi
 document.querySelector<HTMLButtonElement>("[data-action='terrain']")?.addEventListener("click", useTerrainGenerator);
 document.querySelector<HTMLButtonElement>("[data-action='time-warper']")?.addEventListener("click", toggleTimeWarper);
 document.querySelector<HTMLButtonElement>("[data-action='crate-spawner']")?.addEventListener("click", toggleCreativeCrateMenu);
+document.querySelector<HTMLButtonElement>("[data-action='hacker']")?.addEventListener("click", toggleHackerPanel);
+document.querySelector<HTMLButtonElement>("[data-action='close-hacker']")?.addEventListener("click", closeHackerPanel);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-swap-mode']")?.addEventListener("click", swapHackerMode);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-crate']")?.addEventListener("click", spawnHackerCrate);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-nuke-shop']")?.addEventListener("click", nukeShopkeeper);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-dupe-raft']")?.addEventListener("click", duplicateRaft);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-copy']")?.addEventListener("click", () => setHackerTool("copy"));
+document.querySelector<HTMLButtonElement>("[data-action='hacker-paste']")?.addEventListener("click", pasteHackerClipboard);
+document.querySelector<HTMLButtonElement>("[data-action='hacker-delete']")?.addEventListener("click", () => setHackerTool("delete"));
+document.querySelector<HTMLButtonElement>("[data-action='hacker-restore']")?.addEventListener("click", restoreDeletedAssets);
 document.querySelector<HTMLButtonElement>("[data-action='cancel-deposit']")?.addEventListener("click", closeDepositDialog);
 document.getElementById("deposit-item")?.addEventListener("change", updateDepositAmountLimit);
 document.getElementById("deposit-dialog")?.addEventListener("submit", (event) => {
@@ -1090,11 +1125,11 @@ function renderSaveSlots(): void {
     const title = document.createElement("h3");
     const modeLabel = document.createElement("p");
     const detail = document.createElement("p");
-    card.className = `save-slot${data?.gameKind === "creative" ? " creative" : ""}`;
+    card.className = `save-slot${data?.isHacker ? " hacker" : data?.gameKind === "creative" ? " creative" : ""}`;
     title.textContent = sanitizeName(data?.saveFileName, `Save ${slot}`);
     modeLabel.className = "slot-mode";
     modeLabel.textContent = data
-      ? data.gameKind === "creative" ? "Creative Mode" : "Survival Mode"
+      ? data.isHacker ? "Hacker Mode" : data.gameKind === "creative" ? "Creative Mode" : "Survival Mode"
       : backupData ? "Backup Available" : "Empty Slot";
     detail.className = "slot-detail";
     detail.textContent = data
@@ -1124,7 +1159,7 @@ function renderSaveSlots(): void {
       survivalButton.dataset["mode"] = "survival";
       const creativeButton = createSlotButton("New Creative", () => createSave(slot, "creative"));
       creativeButton.dataset["mode"] = "creative";
-      card.append(survivalButton, creativeButton, createDevLockButton());
+      card.append(survivalButton, creativeButton, createDevLockButton(slot));
     }
     list.append(card);
   }
@@ -1137,17 +1172,11 @@ function isDevLockUnlocked(): boolean {
   return localStorage.getItem(DEV_LOCK_KEY) === "true";
 }
 
-function createDevLockButton(): HTMLButtonElement {
+function createDevLockButton(slot: number): HTMLButtonElement {
   if (isDevLockUnlocked()) {
-    // The save selector has no canvas HUD, so this answers on the button itself.
-    const secretButton = createSlotButton("???", () => {
-      secretButton.textContent = "COMING SOON";
-      window.setTimeout(() => {
-        secretButton.textContent = "???";
-      }, 1600);
-    });
-    secretButton.dataset["action"] = "dev-secret";
-    return secretButton;
+    const hackerButton = createSlotButton("New Hacker", () => createSave(slot, "hacker"));
+    hackerButton.dataset["mode"] = "hacker";
+    return hackerButton;
   }
 
   const lockButton = createSlotButton("\u{1F512}", openDevLockDialog);
@@ -1198,8 +1227,8 @@ function createSlotButton(label: string, action: () => void): HTMLButtonElement 
   return button;
 }
 
-function createSave(slot: number, kind: GameKind): void {
-  openNamingDialog({ kind: "create", slot, gameKind: kind }, `Save ${slot}`, "Home Raft");
+function createSave(slot: number, kind: SaveKind): void {
+  openNamingDialog({ kind: "create", slot, saveKind: kind }, `Save ${slot}`, "Home Raft");
 }
 
 function sanitizeName(value: string | null | undefined, fallback: string): string {
@@ -1259,7 +1288,9 @@ function finishNamingVoyage(): void {
 
   if (action.kind === "create") {
     currentSaveSlot = action.slot;
-    gameKind = action.gameKind;
+    isHacker = action.saveKind === "hacker";
+    // Hacker voyages open in creative and can be flipped to survival any time.
+    gameKind = action.saveKind === "survival" ? "survival" : "creative";
     saveFileName = nextSaveName;
     raftName = nextRaftName;
     saveSelected = true;
@@ -1375,6 +1406,8 @@ function startGame(): void {
   shark.x = 110;
   shark.y = 120;
   shark.biteCooldownUntil = 0;
+  sharkDeleted = false;
+  homeRaftDeleted = false;
   hasCraftingTable = gameKind === "creative";
   craftingTableLevel = gameKind === "creative" ? TECHNO_CRAFTING_LEVEL : 0;
   hasCargoDock = false;
@@ -2392,6 +2425,13 @@ function updatePlayer(dt: number): void {
 }
 
 function updateShark(dt: number): void {
+  // A deleted shark stops thinking entirely and stays parked far outside the
+  // arena, so it can never swim back into view.
+  if (sharkDeleted) {
+    shark.x = DELETED_ASSET_X;
+    shark.y = DELETED_ASSET_Y;
+    return;
+  }
   let targetX: number;
   let targetY: number;
   const playerOnBridge = isOnBridge(player.x, player.y);
@@ -2559,6 +2599,7 @@ function toggleCreativeCrateMenu(): void {
 function updateCreativeCrateSpawnerButton(): void {
   const button = document.querySelector<HTMLButtonElement>("[data-action='crate-spawner']");
   if (!button) return;
+  updateHackerUi();
   button.hidden = mode !== "playing";
   button.textContent = creativeCrateMenuOpen ? "Close Crates" : gameKind === "creative" ? "Crate Spawner" : "Crate Shop";
   button.setAttribute("aria-label", creativeCrateMenuOpen ? "Close crate menu" : gameKind === "creative" ? "Open crate spawner" : "Open survival crate shop");
@@ -2621,6 +2662,314 @@ function getCreativeCrateChoiceAt(x: number, y: number): number {
   return 0;
 }
 
+const HACKER_STACK = 999999;
+// Far outside the arena and outside every clamp, so a deleted asset is gone for good.
+const DELETED_ASSET_X = -999999;
+const DELETED_ASSET_Y = -999999;
+
+function toggleHackerPanel(): void {
+  if (!isHacker || mode !== "playing") return;
+  hackerPanelOpen = !hackerPanelOpen;
+  craftingOpen = false;
+  storageOpen = false;
+  shopOpen = false;
+  timeWarperOpen = false;
+  creativeCrateMenuOpen = false;
+  keys.clear();
+  updateShopkeeperButton();
+  updateStorageControls();
+  updateTimeWarperButton();
+  updateCreativeCrateSpawnerButton();
+  updateHackerUi();
+}
+
+function closeHackerPanel(): void {
+  // An armed tool survives closing the panel — you have to close it to reach
+  // the world you are about to tap.
+  hackerPanelOpen = false;
+  updateHackerUi();
+}
+
+function updateHackerUi(): void {
+  const button = document.querySelector<HTMLButtonElement>("[data-action='hacker']");
+  if (button) {
+    button.hidden = !isHacker || mode !== "playing";
+    button.textContent = hackerPanelOpen
+      ? "Close Hacker"
+      : hackerTool === "copy"
+        ? "Copying…"
+        : hackerTool === "delete"
+          ? "Deleting…"
+          : "Hacker";
+    button.classList.toggle("is-armed", hackerTool !== "none");
+  }
+
+  const panel = document.getElementById("hacker-panel");
+  if (panel) panel.hidden = !hackerPanelOpen;
+
+  const modeNote = document.getElementById("hacker-mode-note");
+  if (modeNote) modeNote.textContent = `Currently: ${gameKind === "creative" ? "Creative" : "Survival"}`;
+
+  const swapButton = document.querySelector<HTMLButtonElement>("[data-action='hacker-swap-mode']");
+  if (swapButton) swapButton.textContent = gameKind === "creative" ? "Switch to Survival" : "Switch to Creative";
+
+  const copyButton = document.querySelector<HTMLButtonElement>("[data-action='hacker-copy']");
+  if (copyButton) copyButton.textContent = hackerTool === "copy" ? "Copy Tool — TAP A THING" : "Copy Tool";
+
+  const deleteButton = document.querySelector<HTMLButtonElement>("[data-action='hacker-delete']");
+  if (deleteButton) deleteButton.textContent = hackerTool === "delete" ? "Delete Tool — TAP A THING" : "Delete Tool";
+
+  const clipboardNote = document.getElementById("hacker-clipboard-note");
+  if (clipboardNote) clipboardNote.textContent = describeHackerClipboard();
+}
+
+function describeHackerClipboard(): string {
+  if (!hackerClipboard) return "Clipboard is empty.";
+  if (hackerClipboard.kind === "crate") return `Copied: ${hackerClipboard.crate.kind} crate.`;
+  if (hackerClipboard.kind === "raft") return "Copied: a raft platform.";
+  return "Copied: a shark.";
+}
+
+function swapHackerMode(): void {
+  if (!isHacker) return;
+  gameKind = gameKind === "creative" ? "survival" : "creative";
+  if (gameKind === "creative") {
+    maxHearts = MAX_HEARTS;
+    player.hearts = MAX_HEARTS;
+    endgameUnlocked = true;
+    hasCraftingTable = true;
+    craftingTableLevel = TECHNO_CRAFTING_LEVEL;
+  }
+  showMessage(`HACKER: SWITCHED TO ${gameKind.toUpperCase()} MODE!`, 3);
+  updateHackerUi();
+  updateTerrainButton();
+  updateShopkeeperButton();
+  updateCreativeCrateSpawnerButton();
+  saveGame();
+}
+
+function spawnHackerCrate(): void {
+  if (!isHacker) return;
+  const position = nearbyCreativeCratePosition();
+  crates.push({ x: position.x, y: position.y, kind: "hacker", landedAt: elapsed, bobOffset: Math.random() * 10 });
+  showMessage("HACKER CRATE SPAWNED — OWNER ONLY!", 3);
+  saveGame();
+}
+
+function grantHackerCrate(): void {
+  const materialNames = new Set(endlessMaterials.map((material) => material.name));
+  materialNames.add("Technology Shards");
+  for (const name of materialNames) inventory.set(name, HACKER_STACK);
+  // foodHealing is a real array, so the stack stays sane while FOOD still reads as endless.
+  while (foodHealing.length < 500) foodHealing.push(99);
+  inventory.set("Food", foodHealing.length);
+  terrainGenerators = HACKER_STACK;
+  maxHearts = MAX_HEARTS;
+  player.hearts = MAX_HEARTS;
+  hasCraftingTable = true;
+  craftingTableLevel = TECHNO_CRAFTING_LEVEL;
+  endgameUnlocked = true;
+}
+
+function nukeShopkeeper(): void {
+  if (!isHacker) return;
+  if (!isShopkeeperHere() && gameKind !== "creative") {
+    showMessage("NO SHOPKEEPER TO NUKE RIGHT NOW.", 3);
+    return;
+  }
+  shopkeeperUntil = 0;
+  nextShopkeeperAt = elapsed + SHOPKEEPER_INTERVAL;
+  shopOpen = false;
+  burst(WIDTH / 2, 70, "#ff5738", 90);
+  showMessage("HACKER: SHOPKEEPER NUKED!", 4);
+  updateShopkeeperButton();
+  saveGame();
+}
+
+function duplicateRaft(): void {
+  if (!isHacker) return;
+  if (sunkenRafts.length >= MAX_SUNKEN_RAFTS) {
+    showMessage("NO ROOM FOR ANOTHER RAFT COPY.", 3);
+    return;
+  }
+  pushHackerRaft(120 + Math.min(70, expansionCount * 14), 90 + Math.min(70, expansionCount * 14));
+  showMessage("HACKER: RAFT DUPLICATED!", 3);
+  saveGame();
+}
+
+function pushHackerRaft(width: number, height: number): void {
+  sunkenRafts.push({
+    x: clamp(player.x + 150, 90, WIDTH - 90),
+    y: clamp(player.y, 130, HEIGHT - 110),
+    width,
+    height,
+    raisedAt: elapsed,
+    bridgeBuilt: true,
+    bridgeSourceKind: "main",
+    bobOffset: Math.random() * 10,
+  });
+}
+
+function setHackerTool(tool: HackerTool): void {
+  if (!isHacker) return;
+  hackerTool = hackerTool === tool ? "none" : tool;
+  // Picking a tool gets the panel out of the way so the world is tappable.
+  if (hackerTool !== "none") hackerPanelOpen = false;
+  showMessage(
+    hackerTool === "none"
+      ? "HACKER TOOL OFF."
+      : hackerTool === "copy"
+        ? "COPY TOOL ON — TAP A CRATE, RAFT, OR SHARK."
+        : "DELETE TOOL ON — TAP A CRATE, RAFT, OR SHARK.",
+    3
+  );
+  updateHackerUi();
+}
+
+function pasteHackerClipboard(): void {
+  if (!isHacker) return;
+  if (!hackerClipboard) {
+    showMessage("CLIPBOARD IS EMPTY — COPY SOMETHING FIRST.", 3);
+    return;
+  }
+  if (hackerClipboard.kind === "crate") {
+    const position = nearbyCreativeCratePosition();
+    const source = hackerClipboard.crate;
+    crates.push({
+      x: position.x,
+      y: position.y,
+      kind: source.kind,
+      ...(source.material ? { material: source.material } : {}),
+      landedAt: elapsed,
+      bobOffset: Math.random() * 10,
+    });
+    showMessage(`PASTED A ${source.kind.toUpperCase()} CRATE!`, 3);
+  } else if (hackerClipboard.kind === "raft") {
+    if (sunkenRafts.length >= MAX_SUNKEN_RAFTS) {
+      showMessage("NO ROOM FOR ANOTHER RAFT COPY.", 3);
+      return;
+    }
+    pushHackerRaft(hackerClipboard.width, hackerClipboard.height);
+    showMessage("PASTED A RAFT PLATFORM!", 3);
+  } else {
+    extraSharks.push({
+      x: clamp(player.x + 170, 60, WIDTH - 60),
+      y: clamp(player.y - 60, 110, HEIGHT - 70),
+      angle: 0,
+      biteCooldownUntil: 0,
+    });
+    showMessage("PASTED A SHARK. GOOD LUCK.", 3);
+  }
+  saveGame();
+}
+
+function useHackerToolAt(worldX: number, worldY: number): boolean {
+  if (!isHacker || hackerTool === "none") return false;
+
+  const crateIndex = crates.findIndex((crate) => distance(worldX, worldY, crate.x, crate.y) < 42);
+  if (crateIndex >= 0) {
+    const crate = crates[crateIndex]!;
+    if (hackerTool === "copy") {
+      hackerClipboard = { kind: "crate", crate: { ...crate } };
+      showMessage(`COPIED A ${crate.kind.toUpperCase()} CRATE.`, 3);
+    } else {
+      deleteHackerTarget(crate.x, crate.y, () => crates.splice(crateIndex, 1), `${crate.kind.toUpperCase()} CRATE`);
+    }
+    updateHackerUi();
+    return true;
+  }
+
+  const raftIndex = sunkenRafts.findIndex(
+    (raft) => Math.abs(worldX - raft.x) < raft.width / 2 + 12 && Math.abs(worldY - raft.y) < raft.height / 2 + 12
+  );
+  if (raftIndex >= 0) {
+    const raft = sunkenRafts[raftIndex]!;
+    if (hackerTool === "copy") {
+      hackerClipboard = { kind: "raft", width: raft.width, height: raft.height };
+      showMessage("COPIED A RAFT PLATFORM.", 3);
+    } else {
+      deleteHackerTarget(raft.x, raft.y, () => sunkenRafts.splice(raftIndex, 1), "RAFT PLATFORM");
+    }
+    updateHackerUi();
+    return true;
+  }
+
+  const sharkIndex = extraSharks.findIndex((entity) => distance(worldX, worldY, entity.x, entity.y) < 48);
+  if (sharkIndex >= 0) {
+    const target = extraSharks[sharkIndex]!;
+    if (hackerTool === "copy") {
+      hackerClipboard = { kind: "shark" };
+      showMessage("COPIED A SHARK.", 3);
+    } else {
+      deleteHackerTarget(target.x, target.y, () => extraSharks.splice(sharkIndex, 1), "SHARK");
+    }
+    updateHackerUi();
+    return true;
+  }
+
+  const home = getRaftBounds();
+  if (
+    !homeRaftDeleted
+    && worldX >= home.x && worldX <= home.x + home.width
+    && worldY >= home.y && worldY <= home.y + home.height
+  ) {
+    if (hackerTool === "copy") {
+      hackerClipboard = { kind: "raft", width: home.width, height: home.height };
+      showMessage("COPIED THE HOME RAFT.", 3);
+    } else {
+      burst(home.x + home.width / 2, home.y + home.height / 2, "#8ff9f5", 40);
+      homeRaftDeleted = true;
+      showMessage("HOME RAFT DELETED — YOU ARE SWIMMING NOW.", 4.5);
+      saveGame();
+    }
+    updateHackerUi();
+    return true;
+  }
+
+  if (!sharkDeleted && distance(worldX, worldY, shark.x, shark.y) < 48) {
+    if (hackerTool === "copy") {
+      hackerClipboard = { kind: "shark" };
+      showMessage("COPIED THE MAIN SHARK.", 3);
+    } else {
+      burst(shark.x, shark.y, "#8ff9f5", 30);
+      sharkDeleted = true;
+      shark.x = DELETED_ASSET_X;
+      shark.y = DELETED_ASSET_Y;
+      showMessage("SHARK DELETED — IT IS NEVER COMING BACK.", 4);
+      saveGame();
+    }
+    updateHackerUi();
+    return true;
+  }
+
+  showMessage("NOTHING THERE TO GRAB.", 2);
+  return true;
+}
+
+function restoreDeletedAssets(): void {
+  if (!isHacker) return;
+  if (!sharkDeleted && !homeRaftDeleted) {
+    showMessage("NOTHING TO BRING BACK.", 3);
+    return;
+  }
+  if (sharkDeleted) {
+    sharkDeleted = false;
+    shark.x = 110;
+    shark.y = 120;
+    shark.biteCooldownUntil = 0;
+  }
+  homeRaftDeleted = false;
+  showMessage("HACKER: RAFT AND SHARK BROUGHT BACK.", 3.5);
+  saveGame();
+}
+
+function deleteHackerTarget(x: number, y: number, remove: () => void, label: string): void {
+  burst(x, y, "#8ff9f5", 26);
+  remove();
+  showMessage(`${label} DELETED — GONE FOR GOOD.`, 3.5);
+  saveGame();
+}
+
 function spawnBloodCrate(): void {
   const position = randomWaterPosition();
   crates.push({ x: position.x, y: position.y, kind: "blood", landedAt: elapsed, bobOffset: Math.random() * 10 });
@@ -2664,6 +3013,14 @@ function depositCarriedCrates(): void {
 }
 
 function openCrate(crate: FloatingCrate): void {
+  if (crate.kind === "hacker") {
+    grantHackerCrate();
+    burst(player.x, player.y, "#4dff9b", 120);
+    showMessage("HACKER CRATE! INFINITE EVERYTHING, MAX HEARTS, FULL CRAFTING!", 8);
+    updateTerrainButton();
+    updateHackerUi();
+    return;
+  }
   if (crate.kind === "rainbow" || crate.kind === "super") {
     const amount = crate.kind === "super" ? 100 : 50;
     grantOmniCrate(amount);
@@ -2772,6 +3129,7 @@ function loseCarriedCrates(): number {
 }
 
 function crateColor(crate: FloatingCrate): string {
+  if (crate.kind === "hacker") return "#4dff9b";
   if (crate.kind === "super") return "#fff7a8";
   if (crate.kind === "rainbow") return `hsl(${(elapsed * 120 + crate.bobOffset * 30) % 360} 95% 58%)`;
   if (crate.kind === "blood") return "#d71935";
@@ -4405,6 +4763,7 @@ function drawBubbles(): void {
 }
 
 function drawRaft(): void {
+  if (homeRaftDeleted) return;
   const growth = Math.min(70, expansionCount * 14);
   const raft = getRaftBounds();
   ctx.save();
@@ -5209,7 +5568,7 @@ function drawCrates(deliveredOnly: boolean): void {
       ctx.stroke();
       ctx.fillStyle = crate.kind === "super"
         ? "#ffffff"
-        : crate.kind === "rainbow" ? crateColor(crate) : crate.kind === "blood" ? "#4d000c" : crate.kind === "technology" ? "#7df5ff" : "#f5efe2";
+        : crate.kind === "hacker" ? "#4dff9b" : crate.kind === "rainbow" ? crateColor(crate) : crate.kind === "blood" ? "#4d000c" : crate.kind === "technology" ? "#7df5ff" : "#f5efe2";
       ctx.beginPath();
       ctx.arc(0, parachuteY, 38, Math.PI, 0);
       ctx.closePath();
@@ -5217,11 +5576,11 @@ function drawCrates(deliveredOnly: boolean): void {
     }
     const color = crate.kind === "super"
       ? "#fff7a8"
-      : crate.kind === "rainbow" ? crateColor(crate) : crate.kind === "blood" ? "#760014" : crate.kind === "technology" ? "#237b91" : crate.kind === "wooden" ? "#9b5e2e" : crate.material?.color ?? "#a96b34";
+      : crate.kind === "hacker" ? "#062e1f" : crate.kind === "rainbow" ? crateColor(crate) : crate.kind === "blood" ? "#760014" : crate.kind === "technology" ? "#237b91" : crate.kind === "wooden" ? "#9b5e2e" : crate.material?.color ?? "#a96b34";
     ctx.fillStyle = color;
-    ctx.strokeStyle = crate.kind === "super" ? "#ffffff" : crate.kind === "rainbow" ? `hsl(${(elapsed * 120 + 180) % 360} 100% 78%)` : crate.kind === "blood" ? "#ff2748" : "#3c2b21";
+    ctx.strokeStyle = crate.kind === "super" ? "#ffffff" : crate.kind === "hacker" ? "#4dff9b" : crate.kind === "rainbow" ? `hsl(${(elapsed * 120 + 180) % 360} 100% 78%)` : crate.kind === "blood" ? "#ff2748" : "#3c2b21";
     ctx.lineWidth = 4;
-    if (crate.kind === "blood" || crate.kind === "rainbow" || crate.kind === "super") {
+    if (crate.kind === "blood" || crate.kind === "rainbow" || crate.kind === "super" || crate.kind === "hacker") {
       ctx.shadowColor = crate.kind === "blood" ? "#ff001e" : crate.kind === "super" ? "#ffffff" : crateColor(crate);
       ctx.shadowBlur = 18 + Math.sin(elapsed * 5 + crate.bobOffset) * 5;
     }
@@ -5241,11 +5600,11 @@ function drawCrates(deliveredOnly: boolean): void {
       ctx.fill();
     }
     ctx.shadowBlur = 0;
-    ctx.fillStyle = crate.kind === "super" ? "#6d4800" : crate.kind === "blood" ? "#ffb4bf" : "#ffffff";
+    ctx.fillStyle = crate.kind === "super" ? "#6d4800" : crate.kind === "hacker" ? "#4dff9b" : crate.kind === "blood" ? "#ffb4bf" : "#ffffff";
     ctx.font = "900 12px Trebuchet MS";
     ctx.textAlign = "center";
     ctx.fillText(
-      crate.kind === "super" ? "SUPER" : crate.kind === "rainbow" ? "50×" : crate.kind === "blood" ? "BLOOD" : crate.kind === "technology" ? "TECH" : crate.kind === "wooden" ? "?" : "DROP",
+      crate.kind === "super" ? "SUPER" : crate.kind === "hacker" ? "HACK" : crate.kind === "rainbow" ? "50×" : crate.kind === "blood" ? "BLOOD" : crate.kind === "technology" ? "TECH" : crate.kind === "wooden" ? "?" : "DROP",
       0,
       5
     );
@@ -5359,7 +5718,7 @@ function drawRemoteMultiplayerPlayer(): void {
 }
 
 function drawShark(): void {
-  drawSharkEntity(shark, 1);
+  if (!sharkDeleted) drawSharkEntity(shark, 1);
   extraSharks.forEach((hunter, index) => drawSharkEntity(hunter, 0.82 + (index % 3) * 0.08));
 }
 
@@ -5521,7 +5880,8 @@ function drawHud(): void {
   ctx.fillStyle = nightmare ? "#ffb3b3" : "#ffffff";
   ctx.font = "900 22px Trebuchet MS";
   ctx.textAlign = "left";
-  ctx.fillText(`${raftName.toUpperCase()}  •  LV.${raftLevel}${nightmare ? "  NIGHTMARE" : gameKind === "creative" ? "  CREATIVE" : "  SURVIVAL"}`, 20, 31, 390);
+  const modeTag = nightmare ? "  NIGHTMARE" : gameKind === "creative" ? "  CREATIVE" : "  SURVIVAL";
+  ctx.fillText(`${raftName.toUpperCase()}  •  LV.${raftLevel}${modeTag}${isHacker ? "  [HACKER]" : ""}`, 20, 31, 390);
   ctx.font = "900 18px Trebuchet MS";
   for (let index = 0; index < maxHearts; index += 1) {
     const filled = index < player.hearts;
@@ -5688,7 +6048,7 @@ function drawCratePointers(): void {
     ctx.save();
     ctx.translate(player.x + Math.cos(angle) * 48, player.y + Math.sin(angle) * 48);
     ctx.rotate(angle);
-    ctx.fillStyle = crate.kind === "super" || crate.kind === "rainbow"
+    ctx.fillStyle = crate.kind === "super" || crate.kind === "rainbow" || crate.kind === "hacker"
       ? crateColor(crate)
       : crate.kind === "blood" ? "#ff2748" : crate.kind === "technology" ? "#72f5ff" : "#ffe36c";
     ctx.beginPath();
@@ -6262,6 +6622,7 @@ function getCargoShipDockSlot(index: number, total: number): { x: number; y: num
 }
 
 function isOnRaft(x: number, y: number): boolean {
+  if (homeRaftDeleted) return false;
   const raft = getRaftBounds();
   return x >= raft.x - 8 && x <= raft.x + raft.width + 8 && y >= raft.y - 8 && y <= raft.y + raft.height + 8;
 }
@@ -6468,6 +6829,9 @@ function saveGame(): void {
     saveFileName,
     raftName,
     gameKind,
+    isHacker,
+    sharkDeleted,
+    homeRaftDeleted,
     elapsed,
     nextSupplyIn: Math.max(0, nextSupplyAt - elapsed),
     nextRandomIn: Math.max(0, nextRandomAt - elapsed),
@@ -6552,6 +6916,9 @@ function restoreAutosave(): void {
     const data = JSON.parse(raw) as Partial<SaveData>;
     if (data.version !== 1 || typeof data.elapsed !== "number" || !Array.isArray(data.inventory)) return;
     gameKind = data.gameKind === "creative" ? "creative" : "survival";
+    isHacker = data.isHacker === true;
+    sharkDeleted = data.sharkDeleted === true;
+    homeRaftDeleted = data.homeRaftDeleted === true;
     saveFileName = sanitizeName(data.saveFileName, `Save ${currentSaveSlot}`);
     raftName = sanitizeName(data.raftName, "Home Raft");
     elapsed = data.elapsed;
@@ -6806,6 +7173,10 @@ function updateShopkeeperCounter(): void {
   }
   if (isNightmareLevel()) {
     counter.textContent = `Save ${currentSaveSlot} • It never leaves • It is waiting`;
+    return;
+  }
+  if (isHacker) {
+    counter.textContent = `Save ${currentSaveSlot} • Hacker Mode (${gameKind === "creative" ? "Creative" : "Survival"}) • Owner only`;
     return;
   }
   if (gameKind === "creative") {

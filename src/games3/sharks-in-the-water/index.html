@@ -98,6 +98,21 @@
         <button class="terrain-button" data-action="terrain" type="button" aria-label="Use terrain generator" hidden>Use Generator</button>
         <button class="time-warper-button" data-action="time-warper" type="button" aria-label="Use time warper" hidden>Time Warper</button>
         <button class="crate-spawner-button" data-action="crate-spawner" type="button" aria-label="Open crate menu" hidden>Crates</button>
+        <button class="hacker-button" data-action="hacker" type="button" aria-label="Open hacker tools" hidden>Hacker</button>
+        <section class="hacker-panel" id="hacker-panel" aria-label="Owner-only hacker tools" hidden>
+          <h2>Hacker Tools</h2>
+          <p class="hacker-note" id="hacker-mode-note">Currently: Creative</p>
+          <button type="button" data-action="hacker-swap-mode">Switch to Survival</button>
+          <button type="button" data-action="hacker-crate">Spawn Hacker Crate (&#8734; everything)</button>
+          <button type="button" data-action="hacker-nuke-shop">Nuke the Shopkeeper</button>
+          <button type="button" data-action="hacker-dupe-raft">Duplicate My Raft</button>
+          <button type="button" data-action="hacker-copy">Copy Tool</button>
+          <button type="button" data-action="hacker-paste">Paste Copy</button>
+          <button type="button" data-action="hacker-delete">Delete Tool</button>
+          <button type="button" data-action="hacker-restore">Bring Back Raft &amp; Shark</button>
+          <p class="hacker-note" id="hacker-clipboard-note">Clipboard is empty.</p>
+          <button type="button" data-action="close-hacker">Close</button>
+        </section>
         <button class="deposit-button" data-action="deposit" type="button" aria-label="Deposit selected items" hidden>Deposit Items</button>
         <form class="deposit-dialog" id="deposit-dialog" hidden>
           <h2>Deposit Items</h2>
