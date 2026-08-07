@@ -527,6 +527,14 @@ document.getElementById("fish-index-bread")?.addEventListener("dragstart", (even
 });
 
 window.addEventListener("keydown", (event) => {
+  const devLockDialog = document.getElementById("dev-lock-dialog");
+  if (devLockDialog && !devLockDialog.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeDevLockDialog();
+    }
+    return;
+  }
   const namingDialog = document.getElementById("naming-dialog");
   if (namingDialog && !namingDialog.hidden) {
     if (event.key === "Escape") {
@@ -736,6 +744,11 @@ document.getElementById("naming-dialog")?.addEventListener("submit", (event) => 
   event.preventDefault();
   finishNamingVoyage();
 });
+document.getElementById("dev-lock-dialog")?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitDevLockAnswer();
+});
+document.querySelector<HTMLButtonElement>("[data-action='cancel-dev-lock']")?.addEventListener("click", closeDevLockDialog);
 document.querySelector<HTMLButtonElement>("[data-action='multiplayer']")?.addEventListener("click", openMultiplayerDialog);
 document.querySelector<HTMLButtonElement>("[data-action='create-room']")?.addEventListener("click", createMultiplayerRoom);
 document.querySelector<HTMLButtonElement>("[data-action='join-room']")?.addEventListener("click", joinMultiplayerRoom);
@@ -1111,10 +1124,70 @@ function renderSaveSlots(): void {
       survivalButton.dataset["mode"] = "survival";
       const creativeButton = createSlotButton("New Creative", () => createSave(slot, "creative"));
       creativeButton.dataset["mode"] = "creative";
-      card.append(survivalButton, creativeButton);
+      card.append(survivalButton, creativeButton, createDevLockButton());
     }
     list.append(card);
   }
+}
+
+const DEV_LOCK_KEY = "sharks-in-the-water-dev-lock";
+const DEV_LOCK_ANSWER = "dev.0";
+
+function isDevLockUnlocked(): boolean {
+  return localStorage.getItem(DEV_LOCK_KEY) === "true";
+}
+
+function createDevLockButton(): HTMLButtonElement {
+  if (isDevLockUnlocked()) {
+    // The save selector has no canvas HUD, so this answers on the button itself.
+    const secretButton = createSlotButton("???", () => {
+      secretButton.textContent = "COMING SOON";
+      window.setTimeout(() => {
+        secretButton.textContent = "???";
+      }, 1600);
+    });
+    secretButton.dataset["action"] = "dev-secret";
+    return secretButton;
+  }
+
+  const lockButton = createSlotButton("\u{1F512}", openDevLockDialog);
+  lockButton.dataset["action"] = "dev-lock";
+  lockButton.setAttribute("aria-label", "Locked developer option");
+  return lockButton;
+}
+
+function openDevLockDialog(): void {
+  const dialog = document.getElementById("dev-lock-dialog");
+  const input = document.getElementById("dev-lock-input");
+  const error = document.getElementById("dev-lock-error");
+  if (!(dialog instanceof HTMLFormElement) || !(input instanceof HTMLInputElement)) return;
+  input.value = "";
+  if (error) error.hidden = true;
+  dialog.hidden = false;
+  window.setTimeout(() => input.focus(), 0);
+}
+
+function closeDevLockDialog(): void {
+  const dialog = document.getElementById("dev-lock-dialog");
+  if (dialog) dialog.hidden = true;
+}
+
+function submitDevLockAnswer(): void {
+  const input = document.getElementById("dev-lock-input");
+  const error = document.getElementById("dev-lock-error");
+  if (!(input instanceof HTMLInputElement)) return;
+
+  if (input.value.trim().toLowerCase() !== DEV_LOCK_ANSWER) {
+    // Every other name — including "Oscar" — is refused.
+    if (error) error.hidden = false;
+    input.value = "";
+    input.focus();
+    return;
+  }
+
+  localStorage.setItem(DEV_LOCK_KEY, "true");
+  closeDevLockDialog();
+  renderSaveSlots();
 }
 
 function createSlotButton(label: string, action: () => void): HTMLButtonElement {

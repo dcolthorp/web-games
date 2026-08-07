@@ -64,6 +64,16 @@
             <button type="button" data-action="cancel-naming">Cancel</button>
           </div>
         </form>
+        <form class="dev-lock-dialog" id="dev-lock-dialog" aria-label="Developer lock" hidden>
+          <h2>&#128274; Locked</h2>
+          <p>What is the developer's name?</p>
+          <input id="dev-lock-input" name="devName" type="text" maxlength="24" autocomplete="off" spellcheck="false" required />
+          <p class="dev-lock-error" id="dev-lock-error" role="alert" hidden>ACCESS DENIED</p>
+          <div class="dev-lock-actions">
+            <button type="submit">Unlock</button>
+            <button type="button" data-action="cancel-dev-lock">Cancel</button>
+          </div>
+        </form>
         <section class="changelog-panel" id="changelog-panel" aria-label="Complete game changelog" hidden>
           <header>
             <div>

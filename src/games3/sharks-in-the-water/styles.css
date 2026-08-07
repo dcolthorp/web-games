@@ -1065,6 +1065,53 @@ body.level-1000-horror .fish-glitched-fish.toast-popped::before {
   color: #ffffff;
   font: 800 1rem "Trebuchet MS", system-ui, sans-serif;
 }
+.save-slot button[data-action="dev-lock"] { background: #204354; color: #8ff9f5; border: 2px solid #467e91; font-size: 1.05rem; }
+.save-slot button[data-action="dev-lock"]:hover { background: #2b586e; }
+.save-slot button[data-action="dev-secret"] { background: #0f1b2e; color: #8ff9f5; border: 2px dashed #8ff9f5; letter-spacing: 0.12em; }
+
+.dev-lock-dialog[hidden] { display: none; }
+.dev-lock-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 30;
+  display: flex;
+  width: min(400px, calc(100% - 36px));
+  padding: 24px;
+  border: 3px solid #8ff9f5;
+  border-radius: 18px;
+  background: #082b3c;
+  color: #ffffff;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.82);
+  transform: translate(-50%, -50%);
+  flex-direction: column;
+  gap: 10px;
+}
+.dev-lock-dialog h2 { margin: 0; color: #8ff9f5; text-transform: uppercase; }
+.dev-lock-dialog p { margin: 0; color: #c6e9ee; font-weight: 700; }
+.dev-lock-dialog input {
+  padding: 11px 12px;
+  border: 2px solid #73dfe7;
+  border-radius: 9px;
+  background: #041a27;
+  color: #ffffff;
+  font: 800 1rem "Trebuchet MS", system-ui, sans-serif;
+}
+.dev-lock-error { color: #ff8a7a !important; text-transform: uppercase; letter-spacing: 0.1em; }
+.dev-lock-error[hidden] { display: none; }
+.dev-lock-actions { display: flex; gap: 8px; }
+.dev-lock-actions button {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: #8ff9f5;
+  color: #082533;
+  font-weight: 900;
+  cursor: pointer;
+}
+.dev-lock-actions button[data-action="cancel-dev-lock"] { background: #34566a; color: #ffffff; }
+
 .random-name-button {
   width: 48px;
   display: grid;
