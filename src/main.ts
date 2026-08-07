@@ -103,6 +103,50 @@ attachOumgRestoreButton();
 attachHubDropdownToggle();
 initEscapedAhegPlayer();
 installForceRefreshHotkey();
+installHeroTitleGlitch();
+
+function installHeroTitleGlitch(): void {
+  const title = document.querySelector<HTMLElement>('[data-asset-id="hero-title"]');
+  if (!title) return;
+
+  const realTitle = title.textContent ?? "";
+  let restoreTimeout = 0;
+
+  function showText(text: string, glitching: boolean): void {
+    if (!title) return;
+    title.textContent = text;
+    title.dataset["glitchText"] = text;
+    title.classList.toggle("is-glitching", glitching);
+  }
+
+  function runGlitchBurst(): void {
+    // A burst is a few quick flickers between the real title and dev.0,
+    // ending on the real one so the hub never gets stuck renamed.
+    const flickers = 3 + Math.floor(Math.random() * 3);
+    let elapsed = 0;
+
+    for (let i = 0; i < flickers; i += 1) {
+      const glitched = i % 2 === 0;
+      const at = elapsed;
+      window.setTimeout(() => showText(glitched ? "dev.0" : realTitle, glitched), at);
+      elapsed += 50 + Math.floor(Math.random() * 110);
+    }
+
+    restoreTimeout = window.setTimeout(() => showText(realTitle, false), elapsed);
+    window.setTimeout(scheduleNextBurst, elapsed + 100);
+  }
+
+  function scheduleNextBurst(): void {
+    window.setTimeout(runGlitchBurst, 7000 + Math.random() * 13000);
+  }
+
+  window.addEventListener("pagehide", () => {
+    window.clearTimeout(restoreTimeout);
+    showText(realTitle, false);
+  });
+
+  scheduleNextBurst();
+}
 
 function attachHubDropdownToggle(): void {
   const toggle = document.getElementById("hub-toggle");

@@ -70,6 +70,63 @@ h1 {
     0 14px 24px rgba(0, 0, 0, 0.42);
 }
 
+h1.is-glitching {
+  position: relative;
+  color: #d8fbff;
+  text-shadow:
+    0 4px 0 #000,
+    0 8px 0 #0b5b6b,
+    0 14px 24px rgba(0, 0, 0, 0.42);
+  animation: hero-title-jitter 0.16s steps(2, end) infinite;
+}
+
+h1.is-glitching::before,
+h1.is-glitching::after {
+  content: attr(data-glitch-text);
+  position: absolute;
+  inset: 0;
+  text-shadow: none;
+  pointer-events: none;
+}
+
+h1.is-glitching::before {
+  color: var(--danger);
+  clip-path: inset(8% 0 52% 0);
+  animation: hero-title-slice-a 0.22s steps(3, end) infinite;
+}
+
+h1.is-glitching::after {
+  color: #46e0f0;
+  clip-path: inset(58% 0 6% 0);
+  animation: hero-title-slice-b 0.19s steps(3, end) infinite reverse;
+}
+
+@keyframes hero-title-jitter {
+  0% { transform: translate(0, 0) skewX(0deg); }
+  50% { transform: translate(-2px, 1px) skewX(-2deg); }
+  100% { transform: translate(2px, -1px) skewX(1deg); }
+}
+
+@keyframes hero-title-slice-a {
+  0% { transform: translate(-6px, -2px); }
+  50% { transform: translate(5px, 2px); }
+  100% { transform: translate(-3px, 1px); }
+}
+
+@keyframes hero-title-slice-b {
+  0% { transform: translate(6px, 2px); }
+  50% { transform: translate(-5px, -2px); }
+  100% { transform: translate(4px, -1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  h1.is-glitching,
+  h1.is-glitching::before,
+  h1.is-glitching::after {
+    animation: none;
+  }
+}
+
 .subtitle {
   max-width: 32rem;
   margin-top: 14px;
