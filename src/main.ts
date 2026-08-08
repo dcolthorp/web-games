@@ -212,10 +212,29 @@ function installOscarZeroBomb(title: HTMLElement, isGlitched: () => boolean): vo
   });
 }
 
+// Browsers never let a page block Escape out of fullscreen — that guarantee
+// cannot be overridden. The most it can do is dive straight back in: once on
+// the fullscreenchange itself (usually refused without a gesture), and then on
+// the very next click or keypress, which does count as one.
+function holdFullscreen(): void {
+  const dive = (): void => {
+    if (document.fullscreenElement) return;
+    void document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+
+  document.addEventListener("fullscreenchange", () => {
+    if (document.fullscreenElement) return;
+    dive();
+    window.addEventListener("pointerdown", dive, { once: true });
+    window.addEventListener("keydown", dive, { once: true });
+  });
+}
+
 function detonateZeroBomb(): void {
   // Takes over the whole screen, and marks the crash so the next load is
   // locked out for ten seconds.
   void document.documentElement.requestFullscreen?.().catch(() => {});
+  holdFullscreen();
   localStorage.setItem(ZERO_BOMB_CRASH_KEY, "true");
 
   const layer = document.createElement("div");
