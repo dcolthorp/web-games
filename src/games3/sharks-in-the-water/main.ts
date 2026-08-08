@@ -1085,34 +1085,20 @@ function beginMultiplayerSession(): void {
   closeMultiplayerDialog();
   closeNamingDialog();
 
-  const slot = findEmptySaveSlot();
-  if (slot === null) {
-    // Every slot is taken, and silently overwriting someone's voyage would be
-    // worse than asking. Fall back to the save screen.
-    const selector = document.getElementById("save-selector");
-    if (selector) selector.hidden = false;
-    renderSaveSlots();
-    updateMultiplayerStatus("All three saves are full — free one or pick a save to play.");
-    return;
-  }
-
-  currentSaveSlot = slot;
+  currentSaveSlot = MULTIPLAYER_SLOT;
   isHacker = false;
   gameKind = "survival";
-  saveFileName = `Save ${slot}`;
-  raftName = "Home Raft";
+  saveFileName = "Co-op Voyage";
+  raftName = "Shared Raft";
   saveSelected = true;
   document.getElementById("save-selector")?.setAttribute("hidden", "");
   startGame();
   showMessage("BOTH PLAYERS ARE IN — NEW SURVIVAL, GO!", 4);
 }
 
-function findEmptySaveSlot(): number | null {
-  for (let slot = 1; slot <= 3; slot += 1) {
-    if (!localStorage.getItem(getSaveKey(slot))) return slot;
-  }
-  return null;
-}
+// Co-op gets its own slot so pressing Start can never be blocked by full save
+// files, and can never overwrite a single-player voyage.
+const MULTIPLAYER_SLOT = 4;
 
 function broadcastMultiplayerNotice(text: string): void {
   if (multiplayerConnected) sendMultiplayerMessage("notice", text);
@@ -1232,9 +1218,11 @@ function renderSaveSlots(): void {
   const list = document.getElementById("save-slot-list");
   if (!list) return;
   list.replaceChildren();
-  for (let slot = 1; slot <= 3; slot += 1) {
+  for (let slot = 1; slot <= MULTIPLAYER_SLOT; slot += 1) {
     const raw = localStorage.getItem(getSaveKey(slot));
     const data = parseSave(raw);
+    // The co-op slot only appears once a shared voyage actually exists.
+    if (slot === MULTIPLAYER_SLOT && !data) continue;
     const backupData = parseSave(localStorage.getItem(getBackupSaveKey(slot)));
     const card = document.createElement("article");
     const title = document.createElement("h3");
