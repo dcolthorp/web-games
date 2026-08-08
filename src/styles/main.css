@@ -127,6 +127,41 @@ h1.is-glitching::after {
   }
 }
 
+.crash-lockout {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  background: #000000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.crash-lockout-title {
+  color: #46e0f0;
+  font-family: Impact, Haettenschweiler, sans-serif;
+  font-size: clamp(3rem, 14vw, 8rem);
+  text-transform: uppercase;
+  text-shadow: 3px 0 var(--danger), -3px 0 #46e0f0;
+  animation: hero-title-jitter 0.16s steps(2, end) infinite;
+}
+
+.crash-lockout-detail {
+  color: var(--muted);
+  font-family: "Trebuchet MS", sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.24em;
+}
+
+.crash-lockout-countdown {
+  color: var(--warn);
+  font-family: Impact, Haettenschweiler, sans-serif;
+  font-size: clamp(2.5rem, 9vw, 5rem);
+}
+
 .zero-bomb-layer {
   position: fixed;
   inset: 0;

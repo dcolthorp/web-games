@@ -11,6 +11,43 @@ import { installOofShortcut } from "./shared/oofShortcut";
 
 installOofShortcut();
 
+const ZERO_BOMB_CRASH_KEY = "hub-zero-bomb-crash";
+const CRASH_LOCKOUT_SECONDS = 10;
+
+// Reloading after the zero bomb does not get you off that easily: the hub is
+// sealed for ten seconds first, however you come back to it.
+function installCrashLockout(): void {
+  if (!localStorage.getItem(ZERO_BOMB_CRASH_KEY)) return;
+
+  const lockout = document.createElement("div");
+  lockout.className = "crash-lockout";
+  const heading = document.createElement("p");
+  heading.className = "crash-lockout-title";
+  heading.textContent = "dev.0";
+  const detail = document.createElement("p");
+  detail.className = "crash-lockout-detail";
+  const countdown = document.createElement("p");
+  countdown.className = "crash-lockout-countdown";
+  detail.textContent = "REBUILDING OSCAR'S GAMES";
+  lockout.append(heading, detail, countdown);
+  document.documentElement.appendChild(lockout);
+
+  let remaining = CRASH_LOCKOUT_SECONDS;
+  const tick = (): void => {
+    countdown.textContent = String(remaining);
+    if (remaining <= 0) {
+      localStorage.removeItem(ZERO_BOMB_CRASH_KEY);
+      lockout.remove();
+      return;
+    }
+    remaining -= 1;
+    window.setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+installCrashLockout();
+
 interface Game {
   id: string;
   name: string;
@@ -176,6 +213,11 @@ function installOscarZeroBomb(title: HTMLElement, isGlitched: () => boolean): vo
 }
 
 function detonateZeroBomb(): void {
+  // Takes over the whole screen, and marks the crash so the next load is
+  // locked out for ten seconds.
+  void document.documentElement.requestFullscreen?.().catch(() => {});
+  localStorage.setItem(ZERO_BOMB_CRASH_KEY, "true");
+
   const layer = document.createElement("div");
   layer.className = "zero-bomb-layer";
   document.body.appendChild(layer);

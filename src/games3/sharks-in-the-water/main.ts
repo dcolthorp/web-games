@@ -486,6 +486,7 @@ let shopkeeperDeleted = false;
 let hudDeleted = false;
 let oceanDeleted = false;
 let playerDeleted = false;
+let sinkVelocity = 0;
 // Deliberately not saved: deleting the whole game lasts until a refresh.
 let gameDeleted = false;
 const deletedIslands = new Set<number>();
@@ -1429,6 +1430,7 @@ function startGame(): void {
   hudDeleted = false;
   oceanDeleted = false;
   playerDeleted = false;
+  sinkVelocity = 0;
   deletedIslands.clear();
   for (const selector of deletedGuiSelectors) {
     for (const element of document.querySelectorAll<HTMLElement>(selector)) element.style.removeProperty("display");
@@ -2448,7 +2450,41 @@ function updatePlayer(dt: number): void {
   const terrainMargin = terrainLevel > 0 ? Math.min(900, 500 + terrainLevel * 120) : 0;
   const rightBoundary = (isIslandUnlocked() ? WIDTH - 20 : 720) + terrainMargin;
   player.x = clamp(player.x + dx * speed * dt, 20 - terrainMargin, rightBoundary);
+
+  if (oceanDeleted && !isInSafeZone(player.x, player.y)) {
+    // With the water deleted there is nothing holding you up.
+    sinkVelocity += 950 * dt;
+    player.y += dy * speed * dt + sinkVelocity * dt;
+    if (player.y > HEIGHT + 160) fallIntoTheVoid();
+    return;
+  }
+
+  sinkVelocity = 0;
   player.y = clamp(player.y + dy * speed * dt, 78 - terrainMargin, HEIGHT - 20 + terrainMargin);
+}
+
+function fallIntoTheVoid(): void {
+  sinkVelocity = 0;
+  const lostCrates = loseCarriedCrates();
+  player.x = WIDTH / 2;
+  player.y = HEIGHT / 2;
+  player.invincibleUntil = elapsed + 1.5;
+  burst(player.x, player.y, "#8ff9f5", 34);
+  if (gameKind === "creative") {
+    showMessage("YOU FELL THROUGH THE MISSING WATER!", 3.8);
+    return;
+  }
+  player.hearts -= 1;
+  showMessage(
+    lostCrates > 0
+      ? `YOU FELL THROUGH THE MISSING WATER! LOST ${lostCrates} CRATE${lostCrates === 1 ? "" : "S"}!`
+      : "YOU FELL THROUGH THE MISSING WATER!",
+    3.8
+  );
+  if (player.hearts <= 0) {
+    mode = "gameOver";
+    saveGame();
+  }
 }
 
 function updateShark(dt: number): void {
@@ -3296,6 +3332,7 @@ function restoreDeletedAssets(): void {
   hudDeleted = false;
   oceanDeleted = false;
   playerDeleted = false;
+  sinkVelocity = 0;
   deletedIslands.clear();
   for (const selector of deletedGuiSelectors) {
     for (const element of document.querySelectorAll<HTMLElement>(selector)) element.style.removeProperty("display");
