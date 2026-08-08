@@ -2845,14 +2845,18 @@ function grantHackerCrate(): void {
 
 function nukeShopkeeper(): void {
   if (!isHacker) return;
-  if (!isShopkeeperHere() && gameKind !== "creative") {
-    showMessage("NO SHOPKEEPER TO NUKE RIGHT NOW.", 3);
+  if (shopkeeperDeleted) {
+    showMessage("THE SHOPKEEPER IS ALREADY GONE.", 3);
     return;
   }
+  // Zeroing the visit timer alone does nothing in Creative, where the shop is
+  // always open — the nuke has to take the shopkeeper out for good.
+  shopkeeperDeleted = true;
   shopkeeperUntil = 0;
   nextShopkeeperAt = elapsed + SHOPKEEPER_INTERVAL;
   shopOpen = false;
-  burst(WIDTH / 2, 70, "#ff5738", 90);
+  burst(690, 320, "#ff5738", 90);
+  burst(690, 300, "#ffd65c", 60);
   showMessage("HACKER: SHOPKEEPER NUKED!", 4);
   updateShopkeeperButton();
   saveGame();
