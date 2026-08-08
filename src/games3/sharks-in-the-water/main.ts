@@ -227,10 +227,13 @@ type NamingAction =
   | { kind: "stored"; slot: number }
   | { kind: "current" };
 
+type HackerBuild = "chest" | "crafting-table" | "storage" | "cargo-dock" | "cargo-ship" | "collector-bot" | "scold-bot" | "fisher-bot" | "time-warper";
+
 type HackerClipboard =
   | { kind: "crate"; crate: FloatingCrate }
   | { kind: "raft"; width: number; height: number }
-  | { kind: "shark" };
+  | { kind: "shark" }
+  | { kind: "build"; build: HackerBuild; label: string };
 
 interface FishCatch {
   name: string;
@@ -2795,6 +2798,7 @@ function describeHackerClipboard(): string {
   if (!hackerClipboard) return "Clipboard is empty.";
   if (hackerClipboard.kind === "crate") return `Copied: ${hackerClipboard.crate.kind} crate.`;
   if (hackerClipboard.kind === "raft") return "Copied: a raft platform.";
+  if (hackerClipboard.kind === "build") return `Copied: ${hackerClipboard.label.toLowerCase()}.`;
   return "Copied: a shark.";
 }
 
@@ -2921,7 +2925,7 @@ function pasteHackerClipboard(): void {
     }
     pushHackerRaft(hackerClipboard.width, hackerClipboard.height);
     showMessage("PASTED A RAFT PLATFORM!", 3);
-  } else {
+  } else if (hackerClipboard.kind === "shark") {
     extraSharks.push({
       x: clamp(player.x + 170, 60, WIDTH - 60),
       y: clamp(player.y - 60, 110, HEIGHT - 70),
@@ -2929,8 +2933,49 @@ function pasteHackerClipboard(): void {
       biteCooldownUntil: 0,
     });
     showMessage("PASTED A SHARK. GOOD LUCK.", 3);
+  } else {
+    pasteHackerBuild(hackerClipboard.build);
+    showMessage(`PASTED A ${hackerClipboard.label}!`, 3);
   }
   saveGame();
+}
+
+function pasteHackerBuild(build: HackerBuild): void {
+  if (build === "chest") chestCount += 1;
+  else if (build === "crafting-table") {
+    hasCraftingTable = true;
+    craftingTableLevel = Math.max(1, craftingTableLevel);
+  } else if (build === "storage") hasStorageCompartment = true;
+  else if (build === "cargo-dock") hasCargoDock = true;
+  else if (build === "cargo-ship") {
+    hasCargoDock = true;
+    if (cargoShipCount < MAX_CARGO_SHIPS) {
+      cargoShipCount += 1;
+      const dock = getCargoDockPosition();
+      cargoShips.push({ x: dock.x, y: dock.y, state: "docked", target: null, cargo: null, bobOffset: Math.random() * 10 });
+    }
+  } else if (build === "collector-bot") {
+    if (collectorBotCount < MAX_COLLECTOR_BOTS) {
+      collectorBotCount += 1;
+      const home = getCollectorBotHome(collectorBotCount - 1, collectorBotCount);
+      collectorBots.push({
+        x: home.x,
+        y: home.y,
+        state: "idle",
+        targetIslandIndex: -1,
+        waypoints: [],
+        waypointIndex: 0,
+        cargo: null,
+        harvestUntil: 0,
+        stepOffset: Math.random() * 10,
+      });
+    }
+  } else if (build === "scold-bot") hasScoldBot = true;
+  else if (build === "fisher-bot") hasFisherBot = true;
+  else hasTimeWarper = true;
+
+  updateStorageControls();
+  updateTimeWarperButton();
 }
 
 interface HackerTarget {
@@ -2938,6 +2983,7 @@ interface HackerTarget {
   x: number;
   y: number;
   hit: boolean;
+  isFallback?: boolean;
   clipboard?: HackerClipboard;
   remove: () => void;
 }
@@ -2968,6 +3014,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: ship.x,
       y: ship.y,
       hit: near(ship.x, ship.y, 46),
+      clipboard: { kind: "build", build: "cargo-ship", label: "CARGO SHIP" },
       remove: () => cargoShips.splice(index, 1),
     });
   });
@@ -2978,6 +3025,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: bot.x,
       y: bot.y,
       hit: near(bot.x, bot.y, 26),
+      clipboard: { kind: "build", build: "collector-bot", label: "COLLECTOR BOT" },
       remove: () => {
         collectorBots.splice(index, 1);
         collectorBotCount = Math.max(0, collectorBotCount - 1);
@@ -2992,6 +3040,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: scold.x,
       y: scold.y,
       hit: near(scold.x, scold.y, 34),
+      clipboard: { kind: "build", build: "scold-bot", label: "SCOLD BOT" },
       remove: () => {
         hasScoldBot = false;
         hasSuperScoldBot = false;
@@ -3007,6 +3056,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: fisher.x,
       y: fisher.y,
       hit: near(fisher.x, fisher.y, 32),
+      clipboard: { kind: "build", build: "fisher-bot", label: "FISHER BOT" },
       remove: () => {
         hasFisherBot = false;
         fisherBotCatches = [];
@@ -3022,6 +3072,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: warperX,
       y: warperY,
       hit: near(warperX, warperY, 36),
+      clipboard: { kind: "build", build: "time-warper", label: "TIME WARPER" },
       remove: () => {
         hasTimeWarper = false;
         timeWarperOpen = false;
@@ -3035,6 +3086,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: raft.x + 57,
       y: raft.y + 57,
       hit: inBox(raft.x + 24, raft.y + 29, 66, 56),
+      clipboard: { kind: "build", build: "crafting-table", label: "CRAFTING TABLE" },
       remove: () => {
         hasCraftingTable = false;
         craftingTableLevel = 0;
@@ -3051,6 +3103,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: chestX + 21,
       y: chestY + 15,
       hit: inBox(chestX, chestY, 42, 30),
+      clipboard: { kind: "build", build: "chest", label: "CHEST" },
       remove: () => {
         chestCount = Math.max(0, chestCount - 1);
         if (chestCount === 0) storageOpen = false;
@@ -3065,6 +3118,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: mini.x + mini.width / 2,
       y: mini.y + mini.height / 2,
       hit: inBox(mini.x, mini.y, mini.width, mini.height),
+      clipboard: { kind: "build", build: "storage", label: "STORAGE COMPARTMENT" },
       remove: () => {
         hasStorageCompartment = false;
         storageOpen = false;
@@ -3079,6 +3133,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       x: dock.x,
       y: dock.y,
       hit: near(dock.x, dock.y, 46),
+      clipboard: { kind: "build", build: "cargo-dock", label: "CARGO DOCK" },
       remove: () => {
         hasCargoDock = false;
         cargoShips = [];
@@ -3213,12 +3268,14 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
   }
 
   // Last resort: open sea. Tapping nothing in particular deletes the water.
+  // Flagged so it never steals a near-miss away from a real target.
   if (!oceanDeleted) {
     targets.push({
       label: "THE WATER",
       x: worldX,
       y: worldY,
       hit: true,
+      isFallback: true,
       remove: () => {
         oceanDeleted = true;
       },
@@ -3231,9 +3288,19 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
 function useHackerToolAt(worldX: number, worldY: number): boolean {
   if (!isHacker || hackerTool === "none" || hackerTool === "gui") return false;
 
-  const target = collectHackerTargets(worldX, worldY).find((candidate) => candidate.hit);
+  const hits = collectHackerTargets(worldX, worldY).filter((candidate) => candidate.hit);
+  // Real targets always beat the open-water fallback, and the closest one wins
+  // so a tap between two things grabs the one you actually aimed at. Copying
+  // ignores the water entirely — it has nothing to put on the clipboard.
+  const real = hits.filter((candidate) => !candidate.isFallback);
+  const usable = hackerTool === "copy" ? real.filter((candidate) => candidate.clipboard) : real;
+  const ranked = usable.length > 0 ? usable : hackerTool === "copy" ? [] : hits;
+  const target = ranked
+    .slice()
+    .sort((a, b) => distance(worldX, worldY, a.x, a.y) - distance(worldX, worldY, b.x, b.y))[0];
+
   if (!target) {
-    showMessage("NOTHING THERE TO GRAB.", 2);
+    showMessage(hackerTool === "copy" ? "NOTHING THERE TO COPY." : "NOTHING THERE TO GRAB.", 2);
     return true;
   }
 
