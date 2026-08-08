@@ -140,6 +140,20 @@ h1.is-glitching::after {
   text-align: center;
 }
 
+.crash-lockout-static {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.34;
+  image-rendering: pixelated;
+}
+
+.crash-lockout > :not(.crash-lockout-static) {
+  position: relative;
+  z-index: 1;
+}
+
 .crash-lockout-title {
   color: #46e0f0;
   font-family: Impact, Haettenschweiler, sans-serif;

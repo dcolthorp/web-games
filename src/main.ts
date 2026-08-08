@@ -21,6 +21,10 @@ function installCrashLockout(): void {
 
   const lockout = document.createElement("div");
   lockout.className = "crash-lockout";
+  const staticCanvas = document.createElement("canvas");
+  staticCanvas.className = "crash-lockout-static";
+  lockout.appendChild(staticCanvas);
+  const stopStatic = playStatic(staticCanvas);
   const heading = document.createElement("p");
   heading.className = "crash-lockout-title";
   heading.textContent = "dev.0";
@@ -37,6 +41,7 @@ function installCrashLockout(): void {
     countdown.textContent = String(remaining);
     if (remaining <= 0) {
       localStorage.removeItem(ZERO_BOMB_CRASH_KEY);
+      stopStatic();
       lockout.remove();
       return;
     }
@@ -44,6 +49,70 @@ function installCrashLockout(): void {
     window.setTimeout(tick, 1000);
   };
   tick();
+}
+
+// Dead-channel static behind the lockout: rolling picture noise, plus a hiss
+// if the browser will let it through.
+function playStatic(canvas: HTMLCanvasElement): () => void {
+  const context = canvas.getContext("2d");
+  // Rendered small and stretched, so the grain reads chunky and stays cheap.
+  canvas.width = 180;
+  canvas.height = 110;
+  let frameId = 0;
+
+  const drawNoise = (): void => {
+    if (context) {
+      const frame = context.createImageData(canvas.width, canvas.height);
+      const pixels = frame.data;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const shade = Math.random() * 255;
+        pixels[index] = shade;
+        pixels[index + 1] = shade;
+        pixels[index + 2] = shade;
+        pixels[index + 3] = 255;
+      }
+      context.putImageData(frame, 0, 0);
+    }
+    frameId = requestAnimationFrame(drawNoise);
+  };
+  drawNoise();
+
+  const stopHiss = playStaticHiss();
+  return () => {
+    cancelAnimationFrame(frameId);
+    stopHiss();
+  };
+}
+
+function playStaticHiss(): () => void {
+  const AudioContextClass = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return () => {};
+
+  const audio = new AudioContextClass();
+  const seconds = 2;
+  const buffer = audio.createBuffer(1, audio.sampleRate * seconds, audio.sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let index = 0; index < channel.length; index += 1) channel[index] = Math.random() * 2 - 1;
+
+  const source = audio.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  const gain = audio.createGain();
+  gain.gain.value = 0.06;
+  source.connect(gain).connect(audio.destination);
+  source.start();
+
+  // A reload is not a user gesture, so the context starts suspended. Resume it
+  // now in case the browser allows it, and again on the first interaction.
+  const resume = (): void => void audio.resume().catch(() => {});
+  resume();
+  window.addEventListener("pointerdown", resume, { once: true });
+  window.addEventListener("keydown", resume, { once: true });
+
+  return () => {
+    source.stop();
+    void audio.close().catch(() => {});
+  };
 }
 
 installCrashLockout();
