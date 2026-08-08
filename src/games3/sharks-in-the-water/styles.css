@@ -1008,6 +1008,13 @@ body.level-1000-horror .fish-glitched-fish.toast-popped::before {
   cursor: pointer;
 }
 .multiplayer-dialog > button:last-child { background: #66848c; color: #ffffff; }
+.multiplayer-start-button {
+  background: #6bffa8 !important;
+  color: #05261a !important;
+  font-size: 1.1rem;
+  box-shadow: 0 0 18px rgba(107, 255, 168, 0.5);
+}
+.multiplayer-start-button[hidden] { display: none; }
 .room-code-display {
   padding: 12px;
   border: 2px dashed #8ff9f5;

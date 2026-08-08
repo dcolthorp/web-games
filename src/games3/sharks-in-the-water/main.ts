@@ -110,7 +110,7 @@ interface MultiplayerMessage {
   room: string;
   sender: string;
   player: 1 | 2;
-  type: "join" | "welcome" | "position" | "state" | "notice";
+  type: "join" | "welcome" | "position" | "state" | "notice" | "start";
   payload?: unknown;
 }
 
@@ -795,6 +795,7 @@ document.querySelector<HTMLButtonElement>("[data-action='cancel-dev-lock']")?.ad
 document.querySelector<HTMLButtonElement>("[data-action='multiplayer']")?.addEventListener("click", openMultiplayerDialog);
 document.querySelector<HTMLButtonElement>("[data-action='create-room']")?.addEventListener("click", createMultiplayerRoom);
 document.querySelector<HTMLButtonElement>("[data-action='join-room']")?.addEventListener("click", joinMultiplayerRoom);
+document.querySelector<HTMLButtonElement>("[data-action='start-multiplayer']")?.addEventListener("click", startMultiplayerGame);
 document.querySelector<HTMLButtonElement>("[data-action='close-multiplayer']")?.addEventListener("click", closeMultiplayerDialog);
 document.querySelector<HTMLButtonElement>("[data-action='harvest']")?.addEventListener("click", harvestCoconuts);
 document.querySelector<HTMLButtonElement>("[data-action='changelog']")?.addEventListener("click", toggleChangelog);
@@ -972,7 +973,7 @@ function isMultiplayerMessage(value: unknown): value is MultiplayerMessage {
   return typeof message.room === "string"
     && typeof message.sender === "string"
     && (message.player === 1 || message.player === 2)
-    && ["join", "welcome", "position", "state", "notice"].includes(message.type ?? "");
+    && ["join", "welcome", "position", "state", "notice", "start"].includes(message.type ?? "");
 }
 
 function handleMultiplayerMessage(value: unknown): void {
@@ -1011,6 +1012,11 @@ function handleMultiplayerMessage(value: unknown): void {
     }
     return;
   }
+  if (value.type === "start") {
+    multiplayerConnected = true;
+    beginMultiplayerSession();
+    return;
+  }
   if (value.type === "notice" && typeof value.payload === "string") {
     showMessage(`PLAYER ${value.player}: ${value.payload}`, 5);
   }
@@ -1022,6 +1028,37 @@ function updateMultiplayerStatus(text?: string): void {
   status.textContent = text ?? (multiplayerRoomCode
     ? multiplayerConnected ? `Connected as Player ${multiplayerPlayerNumber} in ${multiplayerRoomCode}` : `Room ${multiplayerRoomCode} is waiting…`
     : "Not connected");
+  updateMultiplayerStartButton();
+}
+
+// The Start button only exists once both players are actually linked.
+function updateMultiplayerStartButton(): void {
+  const button = document.querySelector<HTMLButtonElement>("[data-action='start-multiplayer']");
+  if (!button) return;
+  button.hidden = !multiplayerConnected;
+  button.textContent = saveSelected ? "Start Game" : "Start — Pick a Save";
+}
+
+// Either player can press Start; both are taken in together.
+function startMultiplayerGame(): void {
+  if (!multiplayerConnected) return;
+  sendMultiplayerMessage("start");
+  beginMultiplayerSession();
+}
+
+function beginMultiplayerSession(): void {
+  closeMultiplayerDialog();
+  if (saveSelected) {
+    // Go through the normal resume/start paths so the HUD buttons follow.
+    if (mode === "paused") togglePause();
+    else if (mode === "ready") startGame();
+    showMessage("BOTH PLAYERS ARE IN — GO!", 4);
+    return;
+  }
+  // No save chosen yet, so land on the save screen instead of a dead canvas.
+  const selector = document.getElementById("save-selector");
+  if (selector) selector.hidden = false;
+  renderSaveSlots();
 }
 
 function broadcastMultiplayerNotice(text: string): void {
