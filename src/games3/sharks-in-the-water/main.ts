@@ -597,6 +597,13 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (!saveSelected) return;
+  if (isHacker && hackerPanelOpen && /^[0-9]$/.test(event.key)) {
+    event.preventDefault();
+    const index = event.key === "0" ? 9 : Number(event.key) - 1;
+    const action = HACKER_SHORTCUT_ACTIONS[index];
+    if (action) document.querySelector<HTMLButtonElement>(`[data-action='${action}']`)?.click();
+    return;
+  }
   if (event.key === "Escape" && (hackerPanelOpen || hackerTool !== "none")) {
     event.preventDefault();
     hackerTool = "none";
@@ -2862,6 +2869,34 @@ function getCreativeCrateChoiceAt(x: number, y: number): number {
   return 0;
 }
 
+// Panel order, so the number keys line up with what you see: 1-9 then 0.
+const HACKER_SHORTCUT_ACTIONS = [
+  "hacker-swap-mode",
+  "hacker-crate",
+  "hacker-nuke-shop",
+  "hacker-dupe-raft",
+  "hacker-copy",
+  "hacker-paste",
+  "hacker-delete",
+  "hacker-gui",
+  "hacker-restore",
+  "hacker-delete-game",
+];
+
+function hackerShortcutKey(index: number): string {
+  return index === 9 ? "0" : String(index + 1);
+}
+
+// Labels carry their own key, so the shortcuts are discoverable in the panel.
+function applyHackerShortcutLabels(): void {
+  HACKER_SHORTCUT_ACTIONS.forEach((action, index) => {
+    const button = document.querySelector<HTMLButtonElement>(`[data-action='${action}']`);
+    if (!button) return;
+    const label = (button.textContent ?? "").replace(/^[0-9] /, "");
+    button.textContent = `${hackerShortcutKey(index)} ${label}`;
+  });
+}
+
 const HACKER_STACK = 999999;
 // Far outside the arena and outside every clamp, so a deleted asset is gone for good.
 const DELETED_ASSET_X = -999999;
@@ -2926,6 +2961,8 @@ function updateHackerUi(): void {
 
   const clipboardNote = document.getElementById("hacker-clipboard-note");
   if (clipboardNote) clipboardNote.textContent = describeHackerClipboard();
+
+  applyHackerShortcutLabels();
 }
 
 function describeHackerClipboard(): string {
