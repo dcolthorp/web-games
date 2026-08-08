@@ -110,7 +110,7 @@ interface MultiplayerMessage {
   room: string;
   sender: string;
   player: 1 | 2;
-  type: "join" | "welcome" | "position" | "state" | "notice" | "start";
+  type: "join" | "welcome" | "position" | "state" | "notice" | "start" | "world" | "take";
   payload?: unknown;
 }
 
@@ -531,6 +531,23 @@ let multiplayerConnected = false;
 let remotePlayerState: RemotePlayerState | null = null;
 let pendingMultiplayerState: Partial<SaveData> | null = null;
 let lastMultiplayerPositionAt = 0;
+let lastWorldSyncAt = 0;
+// Last shark pose the host sent, with the speed it was travelling at, so the
+// guest can keep animating between updates instead of teleporting.
+let sharkNetPose: { x: number; y: number; angle: number; speed: number; at: number } | null = null;
+
+interface WorldSyncPayload {
+  shark: { x: number; y: number; angle: number; speed: number };
+  extraSharks: Array<{ x: number; y: number; angle: number }>;
+  crates: FloatingCrate[];
+  sharkDeleted: boolean;
+}
+
+// The host owns the world: it spawns crates and runs shark AI. Guests render
+// what they are told, so the two sides can never fight over the same entities.
+function isWorldAuthority(): boolean {
+  return !multiplayerConnected || multiplayerIsHost;
+}
 let multiplayerBroadcastChannel: BroadcastChannel | null = null;
 let multiplayerPeer: Peer | null = null;
 let multiplayerConnection: DataConnection | null = null;
@@ -973,7 +990,7 @@ function isMultiplayerMessage(value: unknown): value is MultiplayerMessage {
   return typeof message.room === "string"
     && typeof message.sender === "string"
     && (message.player === 1 || message.player === 2)
-    && ["join", "welcome", "position", "state", "notice", "start"].includes(message.type ?? "");
+    && ["join", "welcome", "position", "state", "notice", "start", "world", "take"].includes(message.type ?? "");
 }
 
 function handleMultiplayerMessage(value: unknown): void {
@@ -1010,6 +1027,22 @@ function handleMultiplayerMessage(value: unknown): void {
       pendingMultiplayerState = state;
       if (saveSelected) applyMultiplayerState(state);
     }
+    return;
+  }
+  if (value.type === "world") {
+    if (multiplayerIsHost) return;
+    multiplayerConnected = true;
+    const payload = value.payload as WorldSyncPayload | undefined;
+    if (payload && Array.isArray(payload.crates) && payload.shark) applyWorldSync(payload);
+    return;
+  }
+  if (value.type === "take") {
+    // A guest grabbed a crate; the host is the one that owns the list.
+    if (!multiplayerIsHost) return;
+    const spot = value.payload as { x?: number; y?: number } | undefined;
+    if (typeof spot?.x !== "number" || typeof spot.y !== "number") return;
+    const index = crates.findIndex((crate) => distance(crate.x, crate.y, spot.x as number, spot.y as number) < 40);
+    if (index >= 0) crates.splice(index, 1);
     return;
   }
   if (value.type === "start") {
@@ -1095,7 +1128,11 @@ function applyMultiplayerState(data: Partial<SaveData>): void {
     inventory.set("Food", foodHealing.length);
   }
   if (Array.isArray(data.crates)) crates = data.crates.map((crate) => ({ ...crate }));
-  if (Array.isArray(data.carriedCrates)) carriedCrates = data.carriedCrates.map((crate) => ({ ...crate }));
+  // Carried crates are personal cargo, not shared world state — copying the
+  // other player's would hand you their crates and lose your own.
+  if (!multiplayerConnected && Array.isArray(data.carriedCrates)) {
+    carriedCrates = data.carriedCrates.map((crate) => ({ ...crate }));
+  }
   if (Array.isArray(data.chestInventory)) {
     chestInventory.clear();
     for (const [name, amount] of data.chestInventory) chestInventory.set(name, Math.max(0, Math.floor(amount)));
@@ -2342,15 +2379,19 @@ function update(dt: number): void {
   depositCarriedCrates();
   updateScoldBot();
   updateFisherBot();
-  updateShark(dt);
-  updateExtraSharks(dt);
-
-  if (elapsed >= nextSupplyAt) {
-    spawnSupplyCrate();
-  }
-  if (elapsed >= nextRandomAt) {
-    spawnRandomCrate();
-    nextRandomAt = elapsed + 32 + Math.random() * 28;
+  if (isWorldAuthority()) {
+    updateShark(dt);
+    updateExtraSharks(dt);
+    if (elapsed >= nextSupplyAt) {
+      spawnSupplyCrate();
+    }
+    if (elapsed >= nextRandomAt) {
+      spawnRandomCrate();
+      nextRandomAt = elapsed + 32 + Math.random() * 28;
+    }
+    broadcastWorldSync();
+  } else {
+    followSyncedShark(dt);
   }
 
   updateCargoShips(dt);
@@ -2545,6 +2586,54 @@ function fallIntoTheVoid(): void {
     mode = "gameOver";
     saveGame();
   }
+}
+
+const WORLD_SYNC_INTERVAL = 0.12;
+
+// Small, frequent packets: just the shark poses and the crate list. The heavy
+// full-save snapshot still goes out on saves, but rarely.
+function broadcastWorldSync(): void {
+  if (!multiplayerConnected || elapsed < lastWorldSyncAt + WORLD_SYNC_INTERVAL) return;
+  lastWorldSyncAt = elapsed;
+  const payload: WorldSyncPayload = {
+    shark: { x: shark.x, y: shark.y, angle: shark.angle, speed: getSharkSpeed() },
+    extraSharks: extraSharks.map((hunter) => ({ x: hunter.x, y: hunter.y, angle: hunter.angle })),
+    crates: crates.map((crate) => ({ ...crate })),
+    sharkDeleted,
+  };
+  sendMultiplayerMessage("world", payload);
+}
+
+function applyWorldSync(payload: WorldSyncPayload): void {
+  sharkDeleted = payload.sharkDeleted;
+  sharkNetPose = { ...payload.shark, at: elapsed };
+
+  // Extra sharks are cheap and rarely numerous, so they just snap into place.
+  extraSharks = payload.extraSharks.map((hunter) => ({ ...hunter, biteCooldownUntil: 0 }));
+
+  // Crates are host-owned. Anything this player is already carrying stays
+  // carried — it is no longer in the world list.
+  crates = payload.crates.map((crate) => ({ ...crate }));
+}
+
+// Guest-side shark motion: keep swimming along the last known heading, and
+// ease toward where the host says it should be. No teleporting, no stutter.
+function followSyncedShark(dt: number): void {
+  if (sharkDeleted || !sharkNetPose) return;
+  // Only ever predict a short way ahead. Without this cap a delayed or dropped
+  // update makes the guess run away and the shark shoots off the map.
+  const since = clamp(elapsed - sharkNetPose.at, 0, WORLD_SYNC_INTERVAL * 3);
+  const predictedX = sharkNetPose.x + Math.cos(sharkNetPose.angle) * sharkNetPose.speed * since;
+  const predictedY = sharkNetPose.y + Math.sin(sharkNetPose.angle) * sharkNetPose.speed * since;
+  const blend = Math.min(1, dt * 9);
+  shark.x += (predictedX - shark.x) * blend;
+  shark.y += (predictedY - shark.y) * blend;
+  shark.angle += normalizeAngle(sharkNetPose.angle - shark.angle) * blend;
+}
+
+function getSharkSpeed(): number {
+  const playerInWater = !isInSafeZone(player.x, player.y);
+  return elapsed < sharkFleeUntil ? 145 : playerInWater && elapsed >= sharkDecoyUntil ? 84 + progressionIndex * 2 : 54;
 }
 
 function updateShark(dt: number): void {
@@ -3499,6 +3588,9 @@ function collectCrates(): void {
     carriedCrates.push(crate);
     collectedAny = true;
     burst(crate.x, crate.y, crateColor(crate), 14);
+    // Tell the host to drop it from the world list, otherwise the next world
+    // sync would put the crate straight back.
+    if (multiplayerConnected && !multiplayerIsHost) sendMultiplayerMessage("take", { x: crate.x, y: crate.y });
     showMessage(
       `CRATE SECURED! REACH ANY RAFT PLATFORM${carriedCrates.length > 1 ? ` (${carriedCrates.length} CARRIED)` : ""}.`,
       3.2
@@ -7418,7 +7510,10 @@ function saveGame(): void {
     }
     localStorage.setItem(saveKey, nextRaw);
     savingIndicatorUntil = performance.now() + 1300;
-    if (multiplayerConnected) sendMultiplayerMessage("state", data);
+    // Only the host broadcasts full snapshots. When both sides did it, each
+    // player's autosave overwrote the other's crates — which is why freshly
+    // spawned crates vanished a moment later.
+    if (multiplayerConnected && multiplayerIsHost) sendMultiplayerMessage("state", data);
   } catch {
     showMessage("Autosave could not be written.", 3);
   }
