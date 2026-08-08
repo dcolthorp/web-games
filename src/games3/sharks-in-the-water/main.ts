@@ -1036,7 +1036,7 @@ function updateMultiplayerStartButton(): void {
   const button = document.querySelector<HTMLButtonElement>("[data-action='start-multiplayer']");
   if (!button) return;
   button.hidden = !multiplayerConnected;
-  button.textContent = saveSelected ? "Start Game" : "Start — Pick a Save";
+  button.textContent = "Start Game";
 }
 
 // Either player can press Start; both are taken in together.
@@ -1046,19 +1046,39 @@ function startMultiplayerGame(): void {
   beginMultiplayerSession();
 }
 
+// Start drops both players straight into a brand new survival voyage — no save
+// picking, no naming dialog.
 function beginMultiplayerSession(): void {
   closeMultiplayerDialog();
-  if (saveSelected) {
-    // Go through the normal resume/start paths so the HUD buttons follow.
-    if (mode === "paused") togglePause();
-    else if (mode === "ready") startGame();
-    showMessage("BOTH PLAYERS ARE IN — GO!", 4);
+  closeNamingDialog();
+
+  const slot = findEmptySaveSlot();
+  if (slot === null) {
+    // Every slot is taken, and silently overwriting someone's voyage would be
+    // worse than asking. Fall back to the save screen.
+    const selector = document.getElementById("save-selector");
+    if (selector) selector.hidden = false;
+    renderSaveSlots();
+    updateMultiplayerStatus("All three saves are full — free one or pick a save to play.");
     return;
   }
-  // No save chosen yet, so land on the save screen instead of a dead canvas.
-  const selector = document.getElementById("save-selector");
-  if (selector) selector.hidden = false;
-  renderSaveSlots();
+
+  currentSaveSlot = slot;
+  isHacker = false;
+  gameKind = "survival";
+  saveFileName = `Save ${slot}`;
+  raftName = "Home Raft";
+  saveSelected = true;
+  document.getElementById("save-selector")?.setAttribute("hidden", "");
+  startGame();
+  showMessage("BOTH PLAYERS ARE IN — NEW SURVIVAL, GO!", 4);
+}
+
+function findEmptySaveSlot(): number | null {
+  for (let slot = 1; slot <= 3; slot += 1) {
+    if (!localStorage.getItem(getSaveKey(slot))) return slot;
+  }
+  return null;
 }
 
 function broadcastMultiplayerNotice(text: string): void {
