@@ -495,6 +495,52 @@ h1.is-glitching::after {
   background: linear-gradient(180deg, #7ff4ed, #2baebc);
 }
 
+.mods-hub {
+  --bg: #150a2e;
+  --bg-accent: #2a1350;
+  --panel: #1d0f3c;
+  --panel-2: #2f1a5c;
+  --ink: #f5ecff;
+  --muted: #c3aae8;
+  --danger: #8b3dff;
+  --danger-dark: #47107d;
+  --warn: #ff5cd6;
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 92, 214, 0.24), transparent 25%),
+    radial-gradient(circle at 86% 72%, rgba(139, 61, 255, 0.24), transparent 22%),
+    linear-gradient(180deg, #4a1f8f, #24114a 70%, #120726);
+}
+
+.mods-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(255, 92, 214, 0.2), transparent 20%),
+    linear-gradient(135deg, #5a2599, #1e0f3d 68%);
+}
+
+.mods-stripes {
+  background: repeating-linear-gradient(-45deg, #ff5cd6 0 22px, #24114a 22px 44px);
+}
+
+/* The mod/dlc buttons hardcode their own dark background further down, and the
+   ON state re-declares it, so each needs to be outranked on its own terms. */
+.mods-hub .mod-card,
+.mods-hub .dlc-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(255, 92, 214, 0.14), transparent 25%),
+    linear-gradient(180deg, #3a1d74, #1d0f3c);
+}
+
+.mods-hub .mod-card[aria-pressed="true"] {
+  background:
+    linear-gradient(180deg, rgba(255, 92, 214, 0.24), transparent 50%),
+    linear-gradient(180deg, #3a1d74, #1d0f3c);
+}
+
+.mods-hub .mod-toggle,
+.mods-hub .dlc-state-tag {
+  background: #1d0f3c;
+}
+
 .corrupted-hub {
   --bg: #250705;
   --bg-accent: #4a1007;
