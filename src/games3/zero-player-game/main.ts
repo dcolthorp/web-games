@@ -42,8 +42,37 @@ interface Level {
   cols?: number;
   rows?: number;
   openZone?: boolean;
+  // Levels loaded from a save drop their cells straight in instead.
+  cells?: SavedCell[];
   inventory: Partial<Record<BrushKind, number>>;
 }
+
+// [gridIndex, kind, facing, gluedFlag] — kept as a tuple so saves stay small.
+type SavedCell = [number, CellKind, Dir, number];
+
+interface SavedLevel {
+  name: string;
+  cols: number;
+  rows: number;
+  cells: SavedCell[];
+}
+
+const SAVE_KEY = "zero-player-game-saves";
+
+const UNLIMITED: Partial<Record<BrushKind, number>> = {
+  mover: Infinity,
+  push: Infinity,
+  slide: Infinity,
+  wall: Infinity,
+  rotcw: Infinity,
+  rotccw: Infinity,
+  gen: Infinity,
+  bomb: Infinity,
+  multibomb: Infinity,
+  enemy: Infinity,
+  trash: Infinity,
+  glue: Infinity,
+};
 
 const DX = [1, 0, -1, 0];
 const DY = [0, 1, 0, -1];
@@ -225,20 +254,7 @@ const LEVELS: Level[] = [
     cols: 64,
     rows: 40,
     openZone: true,
-    inventory: {
-      mover: Infinity,
-      push: Infinity,
-      slide: Infinity,
-      wall: Infinity,
-      rotcw: Infinity,
-      rotccw: Infinity,
-      gen: Infinity,
-      glue: Infinity,
-      bomb: Infinity,
-      multibomb: Infinity,
-      enemy: Infinity,
-      trash: Infinity,
-    },
+    inventory: UNLIMITED,
   },
 ];
 
@@ -288,6 +304,9 @@ const winOverlay = document.getElementById("win-overlay");
 const winNote = document.getElementById("win-note");
 const speedInput = document.getElementById("speed");
 const playButton = document.querySelector<HTMLButtonElement>('[data-action="play"]');
+const nameInput = document.getElementById("level-name-input");
+const saveSelect = document.getElementById("saved-levels");
+const saveNote = document.getElementById("save-note");
 
 // The grid is drawn through a simple camera so big levels can be zoomed out and
 // dragged around. `tile` is always BASE_TILE * scale.
@@ -296,6 +315,8 @@ const MIN_SCALE = 0.16;
 const MAX_SCALE = 2.4;
 
 let levelIndex = 0;
+// Whatever is loaded right now — a built-in level or one of your own saves.
+let currentLevel: Level = LEVELS[0] ?? { name: "", hint: "", inventory: {} };
 let cols = 0;
 let rows = 0;
 let scale = 1;
@@ -328,10 +349,14 @@ function cellAt(x: number, y: number): Cell | null {
 }
 
 function loadLevel(next: number): void {
-  stopRunning();
   levelIndex = (next + LEVELS.length) % LEVELS.length;
   const level = LEVELS[levelIndex];
-  if (!level) return;
+  if (level) applyLevel(level);
+}
+
+function applyLevel(level: Level): void {
+  stopRunning();
+  currentLevel = level;
 
   rows = level.layout?.length ?? level.rows ?? 6;
   cols = level.layout?.[0]?.length ?? level.cols ?? 14;
@@ -346,6 +371,10 @@ function loadLevel(next: number): void {
       if (template) grid[index(x, y)] = { ...template };
       if (level.zone) zone[index(x, y)] = zoneRow[x] === "x";
     }
+  }
+
+  for (const [idx, kind, dir, glued] of level.cells ?? []) {
+    if (idx >= 0 && idx < grid.length) grid[idx] = { kind, dir, glued: glued === 1 };
   }
 
   inventory = new Map(Object.entries(level.inventory) as [BrushKind, number][]);
@@ -376,6 +405,21 @@ function setScale(next: number): void {
   tile = BASE_TILE * scale;
 }
 
+// Keeps the grid from being dragged off into nowhere: a level bigger than the
+// canvas can be scrolled to its edges, a smaller one stays fully on screen.
+function clampCamera(): void {
+  const gridWidth = cols * tile;
+  const gridHeight = rows * tile;
+  originX =
+    gridWidth <= canvas.width
+      ? Math.min(Math.max(originX, 0), canvas.width - gridWidth)
+      : Math.min(Math.max(originX, canvas.width - gridWidth), 0);
+  originY =
+    gridHeight <= canvas.height
+      ? Math.min(Math.max(originY, 0), canvas.height - gridHeight)
+      : Math.min(Math.max(originY, canvas.height - gridHeight), 0);
+}
+
 // Zooms around a point on the canvas so whatever is under the cursor stays put.
 function zoomAt(canvasX: number, canvasY: number, factor: number): void {
   const worldX = (canvasX - originX) / tile;
@@ -383,6 +427,7 @@ function zoomAt(canvasX: number, canvasY: number, factor: number): void {
   setScale(scale * factor);
   originX = canvasX - worldX * tile;
   originY = canvasY - worldY * tile;
+  clampCamera();
   draw();
 }
 
@@ -631,7 +676,10 @@ function step(): void {
   runMovers();
   draw();
 
-  if (!grid.some((cell) => cell?.kind === "enemy")) declareWin();
+  // A level you built with no enemies in it has nothing to win, so don't pop
+  // the banner the instant a bare sandbox starts running.
+  const startedWithEnemies = buildSnapshot.some((cell) => cell?.kind === "enemy");
+  if (startedWithEnemies && !grid.some((cell) => cell?.kind === "enemy")) declareWin();
 }
 
 function declareWin(): void {
@@ -678,6 +726,97 @@ function stopRunning(): void {
   if (playButton) playButton.textContent = "▶ Play";
 }
 
+/* --------------------------------------------------------------- your levels */
+
+function readSaves(): SavedLevel[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? (parsed as SavedLevel[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSaves(list: SavedLevel[]): void {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(list));
+  } catch {
+    flashSaveNote("Could not save — storage is full.");
+  }
+}
+
+function refreshSaveList(selected?: string): void {
+  if (!(saveSelect instanceof HTMLSelectElement)) return;
+  const saves = readSaves();
+  saveSelect.innerHTML = "";
+
+  if (saves.length === 0) {
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "No saved levels yet";
+    saveSelect.appendChild(empty);
+    return;
+  }
+
+  for (const save of saves) {
+    const option = document.createElement("option");
+    option.value = save.name;
+    option.textContent = save.name;
+    saveSelect.appendChild(option);
+  }
+  if (selected) saveSelect.value = selected;
+}
+
+// Saves the built machine, never a half-run one, so reopening gives you back
+// exactly what you drew.
+function saveCurrentLevel(): void {
+  const typed = nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "";
+  const name = typed || `My Level ${readSaves().length + 1}`;
+
+  const cells: SavedCell[] = [];
+  buildSnapshot.forEach((cell, idx) => {
+    if (cell) cells.push([idx, cell.kind, cell.dir, cell.glued === true ? 1 : 0]);
+  });
+
+  const saves = readSaves().filter((save) => save.name !== name);
+  saves.push({ name, cols, rows, cells });
+  writeSaves(saves);
+  refreshSaveList(name);
+  if (nameInput instanceof HTMLInputElement) nameInput.value = name;
+  flashSaveNote(`Saved "${name}" — ${cells.length} cells.`);
+}
+
+function openSelectedLevel(): void {
+  if (!(saveSelect instanceof HTMLSelectElement) || !saveSelect.value) return;
+  const save = readSaves().find((entry) => entry.name === saveSelect.value);
+  if (!save) return;
+
+  applyLevel({
+    name: save.name,
+    hint: "One of your own levels. Everything is unlimited — rebuild it and save again whenever.",
+    cols: save.cols,
+    rows: save.rows,
+    openZone: true,
+    cells: save.cells,
+    inventory: UNLIMITED,
+  });
+  if (nameInput instanceof HTMLInputElement) nameInput.value = save.name;
+  flashSaveNote(`Opened "${save.name}".`);
+}
+
+function deleteSelectedLevel(): void {
+  if (!(saveSelect instanceof HTMLSelectElement) || !saveSelect.value) return;
+  const name = saveSelect.value;
+  writeSaves(readSaves().filter((save) => save.name !== name));
+  refreshSaveList();
+  flashSaveNote(`Deleted "${name}".`);
+}
+
+function flashSaveNote(message: string): void {
+  if (!saveNote) return;
+  saveNote.textContent = message;
+}
+
 function paletteCount(kind: BrushKind): number {
   return inventory.get(kind) ?? 0;
 }
@@ -686,13 +825,13 @@ function renderPalette(): void {
   if (!paletteEl) return;
   paletteEl.innerHTML = "";
 
-  const kinds = PALETTE_ORDER.filter((kind) => (LEVELS[levelIndex]?.inventory[kind] ?? 0) > 0);
+  const kinds = PALETTE_ORDER.filter((kind) => (currentLevel.inventory[kind] ?? 0) > 0);
   for (const kind of kinds) paletteEl.appendChild(buildBrushButton(kind));
 
   paletteEl.appendChild(buildEraserButton());
 
   // Glue sits after the eraser: it is a paint bucket, not one of the cells.
-  if ((LEVELS[levelIndex]?.inventory["glue"] ?? 0) > 0) {
+  if ((currentLevel.inventory["glue"] ?? 0) > 0) {
     paletteEl.appendChild(buildBrushButton("glue"));
   }
 }
@@ -1154,6 +1293,7 @@ canvas.addEventListener("pointermove", (event) => {
   originY += (event.clientY - panLastY) * ratio;
   panLastX = event.clientX;
   panLastY = event.clientY;
+  clampCamera();
   draw();
 });
 
@@ -1188,6 +1328,42 @@ canvas.addEventListener("contextmenu", (event) => {
 });
 
 window.addEventListener("keydown", (event) => {
+  // Never steal keys from the level-name box.
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+
+  const panStep = Math.max(48, tile);
+  let panned = true;
+  switch (event.key) {
+    case "ArrowLeft":
+    case "a":
+    case "A":
+      originX += panStep;
+      break;
+    case "ArrowRight":
+    case "d":
+    case "D":
+      originX -= panStep;
+      break;
+    case "ArrowUp":
+    case "w":
+    case "W":
+      originY += panStep;
+      break;
+    case "ArrowDown":
+    case "s":
+    case "S":
+      originY -= panStep;
+      break;
+    default:
+      panned = false;
+  }
+  if (panned) {
+    event.preventDefault();
+    clampCamera();
+    draw();
+    return;
+  }
+
   if (event.key === "r" || event.key === "R") {
     brushDir = ((brushDir + 1) % 4) as Dir;
     renderPalette();
@@ -1217,6 +1393,9 @@ document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) => {
     }
     if (action === "next-level") loadLevel(levelIndex + 1);
     if (action === "prev-level") loadLevel(levelIndex - 1);
+    if (action === "save-level") saveCurrentLevel();
+    if (action === "load-level") openSelectedLevel();
+    if (action === "delete-level") deleteSelectedLevel();
     if (action === "zoom-in") zoomCenter(1.25);
     if (action === "zoom-out") zoomCenter(1 / 1.25);
     if (action === "fit") {
@@ -1230,4 +1409,5 @@ speedInput?.addEventListener("input", () => {
   if (running) scheduleTick();
 });
 
+refreshSaveList();
 loadLevel(0);

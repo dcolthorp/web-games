@@ -49,12 +49,30 @@
         </label>
       </section>
 
+      <section class="saves" aria-label="Your own levels">
+        <input
+          id="level-name-input"
+          type="text"
+          maxlength="24"
+          placeholder="Name your level"
+          autocomplete="off"
+          aria-label="Level name"
+        />
+        <button type="button" data-action="save-level">Save</button>
+        <select id="saved-levels" aria-label="Your saved levels"></select>
+        <button type="button" data-action="load-level">Open</button>
+        <button type="button" data-action="delete-level">Delete</button>
+        <span class="save-note" id="save-note" role="status"></span>
+      </section>
+
       <p class="instructions">
         Click the pink zone to place cells · <strong>R</strong> rotates the brush · click a matching cell to
         spin it · right-click erases · press Play and don't touch anything.
         <br />
-        Scroll to zoom · drag with the middle button or hold <strong>Shift</strong> to move around · <strong>Fit</strong>
-        puts the whole level back on screen.
+        Scroll to zoom · <strong>WASD</strong> or the arrow keys move around · drag with the middle button or hold
+        <strong>Shift</strong> · <strong>Fit</strong> puts the whole level back on screen.
+        <br />
+        Build anything in the Sandbox, type a name, and hit <strong>Save</strong> to keep it.
       </p>
     </main>
 
