@@ -495,6 +495,39 @@ h1.is-glitching::after {
   background: linear-gradient(180deg, #7ff4ed, #2baebc);
 }
 
+.corrupted-hub {
+  --bg: #250705;
+  --bg-accent: #4a1007;
+  --panel: #380c06;
+  --panel-2: #55160a;
+  --ink: #ffeede;
+  --muted: #f7b58e;
+  --danger: #ff3b1f;
+  --danger-dark: #7d1a08;
+  --warn: #ff9d1c;
+  background:
+    radial-gradient(circle at 15% 9%, rgba(255, 157, 28, 0.26), transparent 25%),
+    radial-gradient(circle at 85% 74%, rgba(255, 59, 31, 0.22), transparent 22%),
+    linear-gradient(180deg, #8c1f09, #3d0d06 70%, #1d0503);
+}
+
+.corrupted-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(255, 157, 28, 0.24), transparent 20%),
+    linear-gradient(135deg, #96280c, #350b05 68%);
+}
+
+.corrupted-stripes {
+  background: repeating-linear-gradient(-45deg, #ff9d1c 0 22px, #3d0d06 22px 44px);
+}
+
+/* Scoped to the hub so it outranks the plain .game-card background below. */
+.corrupted-hub .corrupted-game-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(255, 157, 28, 0.16), transparent 25%),
+    linear-gradient(180deg, #7a1e0a, #380c06);
+}
+
 .games2-hub {
   --bg: #12240a;
   --bg-accent: #24471a;

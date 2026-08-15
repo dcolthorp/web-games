@@ -34,7 +34,7 @@ function renderGameList(): void {
     .map(
       (game) => `
       <li>
-        <a class="game-card" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
+        <a class="game-card corrupted-game-card" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
           <span class="game-card-top">
             <span class="game-tag">${game.genre}</span>
             <span class="game-arrow" aria-hidden="true">→</span>
