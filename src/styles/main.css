@@ -495,6 +495,39 @@ h1.is-glitching::after {
   background: linear-gradient(180deg, #7ff4ed, #2baebc);
 }
 
+.games2-hub {
+  --bg: #12240a;
+  --bg-accent: #24471a;
+  --panel: #1b3312;
+  --panel-2: #2a4e1c;
+  --ink: #f3ffe0;
+  --muted: #bde39a;
+  --danger: #ff8a1f;
+  --danger-dark: #8a3d06;
+  --warn: #b6ff3d;
+  background:
+    radial-gradient(circle at 16% 10%, rgba(182, 255, 61, 0.24), transparent 25%),
+    radial-gradient(circle at 84% 76%, rgba(255, 138, 31, 0.18), transparent 22%),
+    linear-gradient(180deg, #3c6b21, #1c3a10 70%, #0e1f07);
+}
+
+.games2-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(255, 138, 31, 0.22), transparent 20%),
+    linear-gradient(135deg, #47791f, #16300d 68%);
+}
+
+.games2-stripes {
+  background: repeating-linear-gradient(-45deg, #b6ff3d 0 22px, #1c3a10 22px 44px);
+}
+
+/* Scoped to the hub so it outranks the plain .game-card background below. */
+.games2-hub .games2-game-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(182, 255, 61, 0.14), transparent 25%),
+    linear-gradient(180deg, #2f5a1b, #17300f);
+}
+
 .games3-hub {
   --bg: #031a2b;
   --bg-accent: #063b55;
@@ -524,6 +557,10 @@ h1.is-glitching::after {
   background:
     radial-gradient(circle at 90% 15%, rgba(121, 242, 234, 0.13), transparent 25%),
     linear-gradient(180deg, #0b5a73, #06354f);
+}
+
+.floor-warning-copy {
+  text-decoration: underline;
 }
 
 .hero-stripes {
