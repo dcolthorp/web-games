@@ -24,7 +24,12 @@
       </section>
 
       <section class="game-frame" aria-label="Zero Player Game play area">
-        <canvas id="game" width="952" height="410" tabindex="0" aria-label="Cell machine grid"></canvas>
+        <canvas id="game" width="952" height="480" tabindex="0" aria-label="Cell machine grid"></canvas>
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-out" aria-label="Zoom out">−</button>
+          <button type="button" data-action="fit" aria-label="Fit level on screen">Fit</button>
+          <button type="button" data-action="zoom-in" aria-label="Zoom in">+</button>
+        </div>
         <div class="win-overlay" id="win-overlay" hidden>
           <p class="win-title">MACHINE WINS</p>
           <p class="win-note" id="win-note">Every enemy cell is gone. You never touched it.</p>
@@ -47,6 +52,9 @@
       <p class="instructions">
         Click the pink zone to place cells · <strong>R</strong> rotates the brush · click a matching cell to
         spin it · right-click erases · press Play and don't touch anything.
+        <br />
+        Scroll to zoom · drag with the middle button or hold <strong>Shift</strong> to move around · <strong>Fit</strong>
+        puts the whole level back on screen.
       </p>
     </main>
 

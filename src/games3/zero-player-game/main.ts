@@ -17,20 +17,32 @@ type CellKind =
   | "rotcw"
   | "rotccw"
   | "gen"
+  | "bomb"
+  | "multibomb"
   | "enemy"
   | "trash";
+
+// Glue is painted onto a cell rather than placed as its own cell, so it is a
+// brush but never a kind.
+type BrushKind = CellKind | "glue";
 
 interface Cell {
   kind: CellKind;
   dir: Dir;
+  glued?: boolean;
 }
 
 interface Level {
   name: string;
   hint: string;
-  layout: string[];
-  zone: string[];
-  inventory: Partial<Record<CellKind, number>>;
+  // Hand-drawn levels use the string maps; open playgrounds just give a size
+  // and let the whole thing be buildable.
+  layout?: string[];
+  zone?: string[];
+  cols?: number;
+  rows?: number;
+  openZone?: boolean;
+  inventory: Partial<Record<BrushKind, number>>;
 }
 
 const DX = [1, 0, -1, 0];
@@ -53,6 +65,8 @@ const LEGEND: Record<string, Cell> = {
   D: { kind: "gen", dir: 1 },
   L: { kind: "gen", dir: 2 },
   U: { kind: "gen", dir: 3 },
+  b: { kind: "bomb", dir: 0 },
+  m: { kind: "multibomb", dir: 0 },
   e: { kind: "enemy", dir: 0 },
   t: { kind: "trash", dir: 0 },
 };
@@ -144,44 +158,73 @@ const LEVELS: Level[] = [
   },
   {
     name: "5. Trash Day",
-    hint: "Two lanes, two enemies. Trash eats whatever the machine keeps spitting out.",
+    hint: "Two lanes. Send a mover down one and a copy machine down the other. Trash eats the leftovers.",
     layout: [
       "..............",
-      ".....c........",
+      ".............e",
       "..............",
-      "....e.........",
+      "........e.e.t.",
       "..............",
-      ".........e..t.",
+      "..............",
     ],
     zone: [
       "..............",
       ".xxx..........",
       "..............",
-      "..............",
-      "..............",
       ".xxx..........",
+      "..............",
+      "..............",
     ],
     inventory: { mover: 1, push: 1, gen: 1 },
   },
   {
-    name: "6. Sandbox",
-    hint: "Everything is unlimited and the whole grid is yours. Build something silly.",
+    name: "6. Sticky Tower",
+    hint: "Glue is a bucket, not a block: paint it on cells and everything touching moves as one piece.",
     layout: [
       "..............",
-      "..............",
-      "..............",
-      "..............",
+      "..........e...",
+      "..........e...",
+      "..........e...",
       "..............",
       "..............",
     ],
     zone: [
-      "xxxxxxxxxxxxxx",
-      "xxxxxxxxxxxxxx",
-      "xxxxxxxxxxxxxx",
-      "xxxxxxxxxxxxxx",
-      "xxxxxxxxxxxxxx",
-      "xxxxxxxxxxxxxx",
+      "..............",
+      ".xxx..........",
+      ".xxx..........",
+      ".xxx..........",
+      "..............",
+      "..............",
     ],
+    inventory: { mover: 1, push: 3, glue: Infinity },
+  },
+  {
+    name: "7. Boom",
+    hint: "A bomb blows up every enemy around it. A multi bomb does it over and over without dying.",
+    layout: [
+      "..............",
+      ".........eee..",
+      ".........eee..",
+      ".........eee..",
+      "..............",
+      "..............",
+    ],
+    zone: [
+      "..............",
+      "..............",
+      ".xxx..........",
+      "..............",
+      "..............",
+      "..............",
+    ],
+    inventory: { mover: 1, multibomb: 1 },
+  },
+  {
+    name: "8. Sandbox",
+    hint: "A giant open grid, everything unlimited. Scroll to zoom, drag with the middle button or Shift to move around.",
+    cols: 64,
+    rows: 40,
+    openZone: true,
     inventory: {
       mover: Infinity,
       push: Infinity,
@@ -190,13 +233,16 @@ const LEVELS: Level[] = [
       rotcw: Infinity,
       rotccw: Infinity,
       gen: Infinity,
+      glue: Infinity,
+      bomb: Infinity,
+      multibomb: Infinity,
       enemy: Infinity,
       trash: Infinity,
     },
   },
 ];
 
-const PALETTE_ORDER: CellKind[] = [
+const PALETTE_ORDER: BrushKind[] = [
   "mover",
   "push",
   "slide",
@@ -204,11 +250,13 @@ const PALETTE_ORDER: CellKind[] = [
   "rotcw",
   "rotccw",
   "gen",
+  "bomb",
+  "multibomb",
   "enemy",
   "trash",
 ];
 
-const KIND_LABEL: Record<CellKind, string> = {
+const KIND_LABEL: Record<BrushKind, string> = {
   mover: "Mover",
   push: "Push",
   slide: "Slide",
@@ -216,12 +264,15 @@ const KIND_LABEL: Record<CellKind, string> = {
   rotcw: "Rot CW",
   rotccw: "Rot CCW",
   gen: "Gen",
+  glue: "Glue",
+  bomb: "Bomb",
+  multibomb: "Multi Bomb",
   enemy: "Enemy",
   trash: "Trash",
 };
 
 // Only these care which way they face, so only these respond to the R key.
-const DIRECTIONAL: ReadonlySet<CellKind> = new Set<CellKind>(["mover", "gen", "slide"]);
+const DIRECTIONAL: ReadonlySet<BrushKind> = new Set<BrushKind>(["mover", "gen", "slide"]);
 
 const canvasElement = document.getElementById("game");
 if (!(canvasElement instanceof HTMLCanvasElement)) throw new Error("missing canvas");
@@ -238,20 +289,27 @@ const winNote = document.getElementById("win-note");
 const speedInput = document.getElementById("speed");
 const playButton = document.querySelector<HTMLButtonElement>('[data-action="play"]');
 
+// The grid is drawn through a simple camera so big levels can be zoomed out and
+// dragged around. `tile` is always BASE_TILE * scale.
+const BASE_TILE = 68;
+const MIN_SCALE = 0.16;
+const MAX_SCALE = 2.4;
+
 let levelIndex = 0;
 let cols = 0;
 let rows = 0;
-let tile = 0;
+let scale = 1;
+let tile = BASE_TILE;
 let originX = 0;
 let originY = 0;
 
 let grid: (Cell | null)[] = [];
 let zone: boolean[] = [];
 let buildSnapshot: (Cell | null)[] = [];
-let inventory = new Map<CellKind, number>();
-let buildInventory = new Map<CellKind, number>();
+let inventory = new Map<BrushKind, number>();
+let buildInventory = new Map<BrushKind, number>();
 
-let brush: CellKind | "eraser" = "mover";
+let brush: BrushKind | "eraser" = "mover";
 let brushDir: Dir = 0;
 let running = false;
 let won = false;
@@ -275,28 +333,28 @@ function loadLevel(next: number): void {
   const level = LEVELS[levelIndex];
   if (!level) return;
 
-  rows = level.layout.length;
-  cols = level.layout[0]?.length ?? 0;
+  rows = level.layout?.length ?? level.rows ?? 6;
+  cols = level.layout?.[0]?.length ?? level.cols ?? 14;
   grid = new Array<Cell | null>(cols * rows).fill(null);
-  zone = new Array<boolean>(cols * rows).fill(false);
+  zone = new Array<boolean>(cols * rows).fill(level.openZone === true);
 
   for (let y = 0; y < rows; y += 1) {
-    const layoutRow = level.layout[y] ?? "";
-    const zoneRow = level.zone[y] ?? "";
+    const layoutRow = level.layout?.[y] ?? "";
+    const zoneRow = level.zone?.[y] ?? "";
     for (let x = 0; x < cols; x += 1) {
       const template = LEGEND[layoutRow[x] ?? "."];
       if (template) grid[index(x, y)] = { ...template };
-      zone[index(x, y)] = zoneRow[x] === "x";
+      if (level.zone) zone[index(x, y)] = zoneRow[x] === "x";
     }
   }
 
-  inventory = new Map(Object.entries(level.inventory) as [CellKind, number][]);
+  inventory = new Map(Object.entries(level.inventory) as [BrushKind, number][]);
   const firstKind = PALETTE_ORDER.find((kind) => (inventory.get(kind) ?? 0) > 0);
   brush = firstKind ?? "eraser";
   brushDir = 0;
   won = false;
 
-  layoutGrid();
+  fitView();
   saveBuildState();
   if (levelNameEl) levelNameEl.textContent = level.name;
   if (levelHintEl) levelHintEl.textContent = level.hint;
@@ -305,12 +363,31 @@ function loadLevel(next: number): void {
   draw();
 }
 
-// The canvas is a fixed size, so the tiles are sized to fit whatever grid the
-// level asks for and then centered inside it.
-function layoutGrid(): void {
-  tile = Math.floor(Math.min(canvas.width / cols, canvas.height / rows));
-  originX = Math.floor((canvas.width - tile * cols) / 2);
-  originY = Math.floor((canvas.height - tile * rows) / 2);
+// Pulls the camera back until the whole level is on screen, then centers it.
+function fitView(): void {
+  const raw = Math.min(canvas.width / (cols * BASE_TILE), canvas.height / (rows * BASE_TILE));
+  setScale(raw);
+  originX = (canvas.width - tile * cols) / 2;
+  originY = (canvas.height - tile * rows) / 2;
+}
+
+function setScale(next: number): void {
+  scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+  tile = BASE_TILE * scale;
+}
+
+// Zooms around a point on the canvas so whatever is under the cursor stays put.
+function zoomAt(canvasX: number, canvasY: number, factor: number): void {
+  const worldX = (canvasX - originX) / tile;
+  const worldY = (canvasY - originY) / tile;
+  setScale(scale * factor);
+  originX = canvasX - worldX * tile;
+  originY = canvasY - worldY * tile;
+  draw();
+}
+
+function zoomCenter(factor: number): void {
+  zoomAt(canvas.width / 2, canvas.height / 2, factor);
 }
 
 function saveBuildState(): void {
@@ -329,64 +406,148 @@ function restoreBuildState(): void {
 
 /* ---------------------------------------------------------------- simulation */
 
-// Walks the chain of cells ahead of (x, y) and shifts it one step if it can.
-// Returns whether anything actually moved.
-function tryPush(x: number, y: number, dir: Dir): boolean {
+// Everything touching through glue is one rigid body: collect the whole blob.
+function glueGroup(start: number, out: Set<number>): void {
+  const cell = grid[start];
+  if (!cell || out.has(start)) return;
+  out.add(start);
+  if (!cell.glued) return;
+
+  const stack = [start];
+  while (stack.length > 0) {
+    const idx = stack.pop();
+    if (idx === undefined) continue;
+    const x = idx % cols;
+    const y = Math.floor(idx / cols);
+    for (let dir = 0; dir < 4; dir += 1) {
+      const nx = x + (DX[dir] ?? 0);
+      const ny = y + (DY[dir] ?? 0);
+      if (!inBounds(nx, ny)) continue;
+      const neighbor = index(nx, ny);
+      if (out.has(neighbor) || !grid[neighbor]?.glued) continue;
+      out.add(neighbor);
+      stack.push(neighbor);
+    }
+  }
+}
+
+interface Contact {
+  member: number;
+  target: number;
+  kind: "enemy" | "trash";
+}
+
+// Works out everything that has to shift one step in `dir` — the cell itself,
+// anything glued to it, and anything it shoves — then commits the move. If any
+// part of it is blocked, nothing happens at all.
+function tryMove(start: number, dir: Dir): boolean {
   const dx = DX[dir] ?? 0;
   const dy = DY[dir] ?? 0;
-  const chain: number[] = [];
-  let cx = x;
-  let cy = y;
+  const moving = new Set<number>();
+  const contacts: Contact[] = [];
+  const queue: number[] = [start];
 
-  for (;;) {
-    if (!inBounds(cx, cy)) return false;
-    const cell = grid[index(cx, cy)];
+  while (queue.length > 0) {
+    const seed = queue.pop();
+    if (seed === undefined || moving.has(seed)) continue;
 
-    if (!cell) break; // found the gap the chain slides into
-    if (cell.kind === "wall") return false;
-    // A slide only budges along its own axis: dir 0/2 is horizontal, 1/3 vertical.
-    if (cell.kind === "slide") {
-      const slideHorizontal = cell.dir === 0 || cell.dir === 2;
-      const pushHorizontal = dir === 0 || dir === 2;
-      if (slideHorizontal !== pushHorizontal) return false;
+    const group = new Set<number>();
+    glueGroup(seed, group);
+
+    for (const member of group) {
+      const cell = grid[member];
+      if (!cell) continue;
+      if (cell.kind === "wall") return false;
+      // A slide only budges along its own axis: dir 0/2 is horizontal.
+      if (cell.kind === "slide") {
+        const slideHorizontal = cell.dir === 0 || cell.dir === 2;
+        const pushHorizontal = dir === 0 || dir === 2;
+        if (slideHorizontal !== pushHorizontal) return false;
+      }
+      moving.add(member);
     }
 
-    if (cell.kind === "trash" && chain.length > 0) {
-      // The cell that would enter the trash is eaten; the trash stays put.
-      const eaten = chain.pop();
-      if (eaten !== undefined) grid[eaten] = null;
-      shiftChain(chain, dx, dy);
-      return true;
-    }
+    for (const member of group) {
+      const tx = (member % cols) + dx;
+      const ty = Math.floor(member / cols) + dy;
+      if (!inBounds(tx, ty)) return false;
 
-    if (cell.kind === "enemy" && chain.length > 0) {
-      // Enemies take their attacker down with them.
-      grid[index(cx, cy)] = null;
-      const attacker = chain.pop();
-      if (attacker !== undefined) grid[attacker] = null;
-      shiftChain(chain, dx, dy);
-      return true;
+      const target = index(tx, ty);
+      if (moving.has(target)) continue;
+      const occupant = grid[target];
+      if (!occupant) continue;
+      if (occupant.kind === "wall") return false;
+      if (occupant.kind === "enemy") {
+        contacts.push({ member, target, kind: "enemy" });
+        continue;
+      }
+      if (occupant.kind === "trash") {
+        contacts.push({ member, target, kind: "trash" });
+        continue;
+      }
+      queue.push(target);
     }
-
-    chain.push(index(cx, cy));
-    cx += dx;
-    cy += dy;
   }
 
-  if (chain.length === 0) return false;
-  shiftChain(chain, dx, dy);
+  if (moving.size === 0) return false;
+
+  // Nothing is blocked, so resolve what gets destroyed on contact first.
+  const destroyed = new Set<number>();
+  for (const contact of contacts) {
+    const member = grid[contact.member];
+    if (!member) continue;
+
+    if (contact.kind === "trash") {
+      destroyed.add(contact.member);
+      continue;
+    }
+
+    if (member.kind === "bomb" || member.kind === "multibomb") {
+      explodeAt(contact.target);
+      // A multi bomb walks into the hole it just made and keeps going.
+      if (member.kind === "bomb") destroyed.add(contact.member);
+      continue;
+    }
+
+    grid[contact.target] = null; // the enemy...
+    destroyed.add(contact.member); // ...takes its attacker with it
+  }
+
+  for (const idx of destroyed) {
+    grid[idx] = null;
+    moving.delete(idx);
+  }
+
+  // Shift the survivors leading edge first so nothing overwrites itself.
+  const order = [...moving].sort(
+    (a, b) => progressAlong(b, dx, dy) - progressAlong(a, dx, dy)
+  );
+  for (const idx of order) {
+    const x = idx % cols;
+    const y = Math.floor(idx / cols);
+    grid[index(x + dx, y + dy)] = grid[idx] ?? null;
+    grid[idx] = null;
+  }
+
   return true;
 }
 
-// Moves the chain forward from the far end back, so nothing overwrites itself.
-function shiftChain(chain: number[], dx: number, dy: number): void {
-  for (let i = chain.length - 1; i >= 0; i -= 1) {
-    const from = chain[i];
-    if (from === undefined) continue;
-    const fx = from % cols;
-    const fy = Math.floor(from / cols);
-    grid[index(fx + dx, fy + dy)] = grid[from] ?? null;
-    grid[from] = null;
+function progressAlong(idx: number, dx: number, dy: number): number {
+  return (idx % cols) * dx + Math.floor(idx / cols) * dy;
+}
+
+// Bombs clear every enemy in the 3x3 around the blast but leave your own
+// machine standing, so a glued tower can drive straight through.
+function explodeAt(center: number): void {
+  const cx = center % cols;
+  const cy = Math.floor(center / cols);
+  for (let oy = -1; oy <= 1; oy += 1) {
+    for (let ox = -1; ox <= 1; ox += 1) {
+      const x = cx + ox;
+      const y = cy + oy;
+      if (!inBounds(x, y)) continue;
+      if (grid[index(x, y)]?.kind === "enemy") grid[index(x, y)] = null;
+    }
   }
 }
 
@@ -425,7 +586,7 @@ function runGenerators(): void {
       if (!inBounds(tx, ty)) continue;
 
       // Shove the target square clear first; if it will not budge, no copy.
-      if (grid[index(tx, ty)] && !tryPush(tx, ty, dir)) continue;
+      if (grid[index(tx, ty)] && !tryMove(index(tx, ty), dir)) continue;
       if (grid[index(tx, ty)]) continue;
       grid[index(tx, ty)] = { ...source };
     }
@@ -458,7 +619,7 @@ function runMovers(): void {
     for (const idx of scanOrder(dir)) {
       const cell = grid[idx];
       if (!cell || cell.kind !== "mover" || cell.dir !== dir) continue;
-      tryPush(idx % cols, Math.floor(idx / cols), dir);
+      tryMove(idx, dir);
     }
   }
 }
@@ -517,7 +678,7 @@ function stopRunning(): void {
   if (playButton) playButton.textContent = "▶ Play";
 }
 
-function paletteCount(kind: CellKind): number {
+function paletteCount(kind: BrushKind): number {
   return inventory.get(kind) ?? 0;
 }
 
@@ -526,57 +687,69 @@ function renderPalette(): void {
   paletteEl.innerHTML = "";
 
   const kinds = PALETTE_ORDER.filter((kind) => (LEVELS[levelIndex]?.inventory[kind] ?? 0) > 0);
-  for (const kind of kinds) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `palette-item${brush === kind ? " is-active" : ""}`;
-    const remaining = paletteCount(kind);
-    button.disabled = remaining <= 0;
+  for (const kind of kinds) paletteEl.appendChild(buildBrushButton(kind));
 
-    const icon = document.createElement("canvas");
-    icon.width = 44;
-    icon.height = 44;
-    const iconCtx = icon.getContext("2d");
-    if (iconCtx) {
-      drawCell(iconCtx, { kind, dir: DIRECTIONAL.has(kind) ? brushDir : 0 }, 0, 0, 44);
-    }
+  paletteEl.appendChild(buildEraserButton());
 
-    const label = document.createElement("span");
-    label.textContent = KIND_LABEL[kind];
+  // Glue sits after the eraser: it is a paint bucket, not one of the cells.
+  if ((LEVELS[levelIndex]?.inventory["glue"] ?? 0) > 0) {
+    paletteEl.appendChild(buildBrushButton("glue"));
+  }
+}
 
-    button.append(icon, label);
-    if (Number.isFinite(remaining)) {
-      const count = document.createElement("span");
-      count.className = "palette-count";
-      count.textContent = String(remaining);
-      button.appendChild(count);
-    }
+function buildBrushButton(kind: BrushKind): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `palette-item${brush === kind ? " is-active" : ""}`;
+  const remaining = paletteCount(kind);
+  button.disabled = remaining <= 0;
 
-    button.addEventListener("click", () => {
-      brush = kind;
-      renderPalette();
-      draw();
-    });
-    paletteEl.appendChild(button);
+  const icon = document.createElement("canvas");
+  icon.width = 44;
+  icon.height = 44;
+  const iconCtx = icon.getContext("2d");
+  if (iconCtx) {
+    if (kind === "glue") drawGlueBucket(iconCtx, 44);
+    else drawCell(iconCtx, { kind, dir: DIRECTIONAL.has(kind) ? brushDir : 0 }, 0, 0, 44);
   }
 
+  const label = document.createElement("span");
+  label.textContent = KIND_LABEL[kind];
+
+  button.append(icon, label);
+  if (Number.isFinite(remaining)) {
+    const count = document.createElement("span");
+    count.className = "palette-count";
+    count.textContent = String(remaining);
+    button.appendChild(count);
+  }
+
+  button.addEventListener("click", () => {
+    brush = kind;
+    renderPalette();
+    draw();
+  });
+  return button;
+}
+
+function buildEraserButton(): HTMLButtonElement {
   const eraser = document.createElement("button");
   eraser.type = "button";
   eraser.className = `palette-item${brush === "eraser" ? " is-active" : ""}`;
-  const eraserIcon = document.createElement("canvas");
-  eraserIcon.width = 44;
-  eraserIcon.height = 44;
-  const eraserCtx = eraserIcon.getContext("2d");
-  if (eraserCtx) drawEraserIcon(eraserCtx, 44);
-  const eraserLabel = document.createElement("span");
-  eraserLabel.textContent = "Erase";
-  eraser.append(eraserIcon, eraserLabel);
+  const icon = document.createElement("canvas");
+  icon.width = 44;
+  icon.height = 44;
+  const iconCtx = icon.getContext("2d");
+  if (iconCtx) drawEraserIcon(iconCtx, 44);
+  const label = document.createElement("span");
+  label.textContent = "Erase";
+  eraser.append(icon, label);
   eraser.addEventListener("click", () => {
     brush = "eraser";
     renderPalette();
     draw();
   });
-  paletteEl.appendChild(eraser);
+  return eraser;
 }
 
 function pointerCell(event: PointerEvent | MouseEvent): { x: number; y: number } | null {
@@ -599,13 +772,22 @@ function placeAt(x: number, y: number, erase: boolean): void {
     if (!existing) return;
     refund(existing.kind);
     grid[index(x, y)] = null;
+  } else if (brush === "glue") {
+    // The bucket paints stickiness onto whatever is already there; painting the
+    // same cell again wipes it off.
+    if (!existing) return;
+    existing.glued = !existing.glued;
   } else if (existing && existing.kind === brush) {
     // Clicking a cell you already placed spins it, which beats erase-and-replace.
     if (DIRECTIONAL.has(existing.kind)) existing.dir = ((existing.dir + 1) % 4) as Dir;
   } else {
     if (paletteCount(brush) <= 0) return;
     if (existing) refund(existing.kind);
-    grid[index(x, y)] = { kind: brush, dir: DIRECTIONAL.has(brush) ? brushDir : 0 };
+    grid[index(x, y)] = {
+      kind: brush,
+      dir: DIRECTIONAL.has(brush) ? brushDir : 0,
+      glued: existing?.glued === true,
+    };
     spend(brush);
   }
 
@@ -614,13 +796,13 @@ function placeAt(x: number, y: number, erase: boolean): void {
   draw();
 }
 
-function spend(kind: CellKind): void {
+function spend(kind: BrushKind): void {
   const remaining = inventory.get(kind);
   if (remaining === undefined || !Number.isFinite(remaining)) return;
   inventory.set(kind, remaining - 1);
 }
 
-function refund(kind: CellKind): void {
+function refund(kind: BrushKind): void {
   const remaining = inventory.get(kind);
   if (remaining === undefined || !Number.isFinite(remaining)) return;
   inventory.set(kind, remaining + 1);
@@ -636,9 +818,13 @@ const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   rotcw: { face: "#b06bff", edge: "#4a1d80", mark: "#f4e6ff" },
   rotccw: { face: "#ff6bd6", edge: "#7c1a5d", mark: "#ffe9f8" },
   gen: { face: "#3ed07d", edge: "#12613a", mark: "#e9fff2" },
+  bomb: { face: "#3b3f52", edge: "#15171f", mark: "#ffb648" },
+  multibomb: { face: "#5a3f9c", edge: "#241546", mark: "#ffd166" },
   enemy: { face: "#ff4d5e", edge: "#7d1620", mark: "#ffe4e6" },
   trash: { face: "#2c3140", edge: "#12141c", mark: "#c9d2e0" },
 };
+
+const GLUE = "#ffd15c";
 
 function draw(): void {
   if (!ctx) return;
@@ -646,8 +832,14 @@ function draw(): void {
   ctx.fillStyle = "#041f2e";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  for (let y = 0; y < rows; y += 1) {
-    for (let x = 0; x < cols; x += 1) {
+  // Only the tiles inside the viewport are worth drawing once the grid is big.
+  const firstX = Math.max(0, Math.floor(-originX / tile));
+  const lastX = Math.min(cols - 1, Math.ceil((canvas.width - originX) / tile));
+  const firstY = Math.max(0, Math.floor(-originY / tile));
+  const lastY = Math.min(rows - 1, Math.ceil((canvas.height - originY) / tile));
+
+  for (let y = firstY; y <= lastY; y += 1) {
+    for (let x = firstX; x <= lastX; x += 1) {
       const px = originX + x * tile;
       const py = originY + y * tile;
       const buildable = zone[index(x, y)];
@@ -660,6 +852,7 @@ function draw(): void {
 
       const cell = grid[index(x, y)];
       if (cell) drawCell(ctx, cell, px, py, tile);
+      if (cell?.glued) drawGlueSeams(x, y, px, py);
     }
   }
 
@@ -670,6 +863,26 @@ function draw(): void {
     ctx.font = "bold 20px Impact, sans-serif";
     ctx.textAlign = "left";
     ctx.fillText("RUNNING — HANDS OFF", 14, 28);
+  }
+}
+
+// Glued cells get a sticky rim, plus a fat blob across any seam they share with
+// another glued cell so a bonded tower reads as one object.
+function drawGlueSeams(x: number, y: number, px: number, py: number): void {
+  ctx.strokeStyle = GLUE;
+  ctx.lineWidth = Math.max(1.5, tile * 0.055);
+  const inset = tile * 0.09;
+  ctx.strokeRect(px + inset, py + inset, tile - inset * 2, tile - inset * 2);
+
+  ctx.fillStyle = GLUE;
+  const thick = Math.max(2, tile * 0.16);
+  const long = tile * 0.42;
+  // Only look right and down so each seam is painted once.
+  if (grid[index(x + 1, y)]?.glued && x + 1 < cols) {
+    ctx.fillRect(px + tile - thick / 2, py + (tile - long) / 2, thick, long);
+  }
+  if (y + 1 < rows && grid[index(x, y + 1)]?.glued) {
+    ctx.fillRect(px + (tile - long) / 2, py + tile - thick / 2, long, thick);
   }
 }
 
@@ -708,6 +921,10 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
       break;
     case "gen":
       drawGenerator(target, cx, cy, s, cell.dir, colors.mark);
+      break;
+    case "bomb":
+    case "multibomb":
+      drawBomb(target, cx, cy, s, colors.mark, cell.kind === "multibomb");
       break;
     case "enemy":
       drawCross(target, cx, cy, s * 0.28, colors.mark, Math.max(3, s * 0.12));
@@ -830,6 +1047,60 @@ function drawCross(target: CanvasRenderingContext2D, cx: number, cy: number, r: 
   target.lineCap = "butt";
 }
 
+// A fused ball. The multi bomb gets a second ring to say "this one survives".
+function drawBomb(
+  target: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  s: number,
+  color: string,
+  multi: boolean
+): void {
+  target.fillStyle = color;
+  target.beginPath();
+  target.arc(cx, cy + s * 0.04, s * 0.24, 0, Math.PI * 2);
+  target.fill();
+
+  target.strokeStyle = color;
+  target.lineWidth = Math.max(2, s * 0.07);
+  target.beginPath();
+  target.moveTo(cx + s * 0.1, cy - s * 0.16);
+  target.quadraticCurveTo(cx + s * 0.28, cy - s * 0.3, cx + s * 0.2, cy - s * 0.36);
+  target.stroke();
+
+  if (multi) {
+    target.beginPath();
+    target.arc(cx, cy + s * 0.04, s * 0.36, 0, Math.PI * 2);
+    target.stroke();
+  }
+}
+
+// The glue bucket: a tub with a drip coming off the lip.
+function drawGlueBucket(target: CanvasRenderingContext2D, size: number): void {
+  const cx = size / 2;
+  target.fillStyle = "#0a3346";
+  target.fillRect(2, 2, size - 4, size - 4);
+
+  target.fillStyle = GLUE;
+  target.beginPath();
+  target.moveTo(cx - size * 0.24, size * 0.34);
+  target.lineTo(cx + size * 0.24, size * 0.34);
+  target.lineTo(cx + size * 0.16, size * 0.78);
+  target.lineTo(cx - size * 0.16, size * 0.78);
+  target.closePath();
+  target.fill();
+
+  target.strokeStyle = GLUE;
+  target.lineWidth = 3;
+  target.beginPath();
+  target.arc(cx, size * 0.34, size * 0.24, Math.PI, 0);
+  target.stroke();
+
+  target.beginPath();
+  target.arc(cx + size * 0.3, size * 0.52, size * 0.07, 0, Math.PI * 2);
+  target.fill();
+}
+
 function drawTrash(target: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string): void {
   target.fillStyle = "#080a10";
   target.beginPath();
@@ -853,13 +1124,62 @@ function drawEraserIcon(target: CanvasRenderingContext2D, size: number): void {
 
 /* -------------------------------------------------------------------- wiring */
 
+// Middle-drag or shift-drag slides the camera; plain clicks build.
+let panPointer: number | null = null;
+let panLastX = 0;
+let panLastY = 0;
+
 canvas.addEventListener("pointerdown", (event) => {
-  const spot = pointerCell(event);
-  if (!spot) return;
   event.preventDefault();
   canvas.focus();
+
+  if (event.button === 1 || event.shiftKey) {
+    panPointer = event.pointerId;
+    panLastX = event.clientX;
+    panLastY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+    return;
+  }
+
+  const spot = pointerCell(event);
+  if (!spot) return;
   placeAt(spot.x, spot.y, event.button === 2);
 });
+
+canvas.addEventListener("pointermove", (event) => {
+  if (event.pointerId !== panPointer) return;
+  const rect = canvas.getBoundingClientRect();
+  const ratio = canvas.width / rect.width;
+  originX += (event.clientX - panLastX) * ratio;
+  originY += (event.clientY - panLastY) * ratio;
+  panLastX = event.clientX;
+  panLastY = event.clientY;
+  draw();
+});
+
+function endPan(event: PointerEvent): void {
+  if (event.pointerId !== panPointer) return;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  panPointer = null;
+}
+
+canvas.addEventListener("pointerup", endPan);
+canvas.addEventListener("pointercancel", endPan);
+
+canvas.addEventListener(
+  "wheel",
+  (event) => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const ratio = canvas.width / rect.width;
+    zoomAt(
+      (event.clientX - rect.left) * ratio,
+      (event.clientY - rect.top) * ratio,
+      event.deltaY < 0 ? 1.12 : 1 / 1.12
+    );
+  },
+  { passive: false }
+);
 
 canvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
@@ -897,6 +1217,12 @@ document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) => {
     }
     if (action === "next-level") loadLevel(levelIndex + 1);
     if (action === "prev-level") loadLevel(levelIndex - 1);
+    if (action === "zoom-in") zoomCenter(1.25);
+    if (action === "zoom-out") zoomCenter(1 / 1.25);
+    if (action === "fit") {
+      fitView();
+      draw();
+    }
   });
 });
 
