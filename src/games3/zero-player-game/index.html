@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zero Player Game</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Games 3</a>
+      <header class="hero">
+        <p class="eyebrow">Build the machine. Then let go.</p>
+        <h1>Zero Player Game</h1>
+      </header>
+
+      <section class="level-bar">
+        <button class="level-nav" type="button" data-action="prev-level" aria-label="Previous level">◀</button>
+        <div class="level-info">
+          <h2 id="level-name">Level</h2>
+          <p id="level-hint">Hint</p>
+        </div>
+        <button class="level-nav" type="button" data-action="next-level" aria-label="Next level">▶</button>
+      </section>
+
+      <section class="game-frame" aria-label="Zero Player Game play area">
+        <canvas id="game" width="952" height="410" tabindex="0" aria-label="Cell machine grid"></canvas>
+        <div class="win-overlay" id="win-overlay" hidden>
+          <p class="win-title">MACHINE WINS</p>
+          <p class="win-note" id="win-note">Every enemy cell is gone. You never touched it.</p>
+          <button type="button" data-action="next-level">Next Level</button>
+        </div>
+      </section>
+
+      <section class="palette" id="palette" aria-label="Cell palette"></section>
+
+      <section class="controls">
+        <button class="play-button" type="button" data-action="play">▶ Play</button>
+        <button type="button" data-action="step">⏭ Step</button>
+        <button type="button" data-action="stop">■ Reset</button>
+        <label class="speed">
+          Speed
+          <input id="speed" type="range" min="1" max="10" value="5" />
+        </label>
+      </section>
+
+      <p class="instructions">
+        Click the pink zone to place cells · <strong>R</strong> rotates the brush · click a matching cell to
+        spin it · right-click erases · press Play and don't touch anything.
+      </p>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

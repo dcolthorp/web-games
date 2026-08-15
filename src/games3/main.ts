@@ -18,6 +18,16 @@ if (list) {
         <span class="game-blurb">Leave your raft for supply drops, gather rare materials, and watch the water for fins.</span>
       </a>
     </li>
+    <li>
+      <a class="game-card games3-game-card" href="./zero-player-game/index.html" aria-label="Zero Player Game">
+        <span class="game-card-top">
+          <span class="game-tag">Cell Machine</span>
+          <span class="game-arrow" aria-hidden="true">→</span>
+        </span>
+        <span class="game-title">Zero Player Game</span>
+        <span class="game-blurb">Build a machine out of movers, rotators, and generators, then press play and watch it fight for you.</span>
+      </a>
+    </li>
   `;
 }
 

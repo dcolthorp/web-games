@@ -43,6 +43,7 @@ export default defineConfig({
         theSettingsGame: resolve(__dirname, "src/games/the-settings-game/index.html"),
         feedYourFire: resolve(__dirname, "src/games2/feed-your-fire/index.html"),
         sharksInTheWater: resolve(__dirname, "src/games3/sharks-in-the-water/index.html"),
+        zeroPlayerGame: resolve(__dirname, "src/games3/zero-player-game/index.html"),
       },
     },
   },
