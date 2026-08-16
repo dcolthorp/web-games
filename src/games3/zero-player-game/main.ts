@@ -287,6 +287,30 @@ const KIND_LABEL: Record<BrushKind, string> = {
   trash: "Trash",
 };
 
+// What a generator is allowed to do with each kind of block.
+//   generatorPushable — can a generator shove this out of the square in front of it?
+//   generatorCopyable — can a generator duplicate this when it sits behind one?
+// A generator that cannot clear its own output square jams after a single copy,
+// so these two flags are what decide whether a machine keeps running.
+interface GeneratorRules {
+  generatorPushable: boolean;
+  generatorCopyable: boolean;
+}
+
+const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
+  mover: { generatorPushable: false, generatorCopyable: false },
+  push: { generatorPushable: true, generatorCopyable: true },
+  slide: { generatorPushable: true, generatorCopyable: true },
+  wall: { generatorPushable: false, generatorCopyable: false },
+  rotcw: { generatorPushable: true, generatorCopyable: true },
+  rotccw: { generatorPushable: true, generatorCopyable: true },
+  gen: { generatorPushable: false, generatorCopyable: true },
+  bomb: { generatorPushable: true, generatorCopyable: true },
+  multibomb: { generatorPushable: true, generatorCopyable: true },
+  enemy: { generatorPushable: true, generatorCopyable: false },
+  trash: { generatorPushable: false, generatorCopyable: false },
+};
+
 // Only these care which way they face, so only these respond to the R key.
 const DIRECTIONAL: ReadonlySet<BrushKind> = new Set<BrushKind>(["mover", "gen", "slide"]);
 
@@ -624,15 +648,20 @@ function runGenerators(): void {
       const x = idx % cols;
       const y = Math.floor(idx / cols);
       const source = cellAt(x - (DX[dir] ?? 0), y - (DY[dir] ?? 0));
-      if (!source) continue;
+      if (!source || !GENERATOR_RULES[source.kind].generatorCopyable) continue;
 
       const tx = x + (DX[dir] ?? 0);
       const ty = y + (DY[dir] ?? 0);
       if (!inBounds(tx, ty)) continue;
 
-      // Shove the target square clear first; if it will not budge, no copy.
-      if (grid[index(tx, ty)] && !tryMove(index(tx, ty), dir)) continue;
-      if (grid[index(tx, ty)]) continue;
+      // Shove the output square clear first; if whatever is sitting there is not
+      // generator-pushable, or simply will not budge, no copy happens.
+      const occupant = grid[index(tx, ty)];
+      if (occupant) {
+        if (!GENERATOR_RULES[occupant.kind].generatorPushable) continue;
+        if (!tryMove(index(tx, ty), dir)) continue;
+        if (grid[index(tx, ty)]) continue;
+      }
       grid[index(tx, ty)] = { ...source };
     }
   }
