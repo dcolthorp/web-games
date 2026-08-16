@@ -21,7 +21,8 @@ type CellKind =
   | "multibomb"
   | "life"
   | "enemy"
-  | "trash";
+  | "trash"
+  | "portal";
 
 // Glue is painted onto a cell rather than placed as its own cell, so it is a
 // brush but never a kind.
@@ -31,6 +32,9 @@ interface Cell {
   kind: CellKind;
   dir: Dir;
   glued?: boolean;
+  // Portals only. Both ends of a pair carry the same link number, which is also
+  // what picks their shared colour.
+  link?: number;
 }
 
 interface Level {
@@ -48,8 +52,9 @@ interface Level {
   inventory: Partial<Record<BrushKind, number>>;
 }
 
-// [gridIndex, kind, facing, gluedFlag] — kept as a tuple so saves stay small.
-type SavedCell = [number, CellKind, Dir, number];
+// [gridIndex, kind, facing, gluedFlag, portalLink] — kept as a tuple so saves
+// stay small. The link is optional so saves written before portals still load.
+type SavedCell = [number, CellKind, Dir, number, number?];
 
 interface SavedLevel {
   name: string;
@@ -74,6 +79,7 @@ const UNLIMITED: Partial<Record<BrushKind, number>> = {
   life: Infinity,
   enemy: Infinity,
   trash: Infinity,
+  portal: Infinity,
   glue: Infinity,
 };
 
@@ -102,6 +108,11 @@ const LEGEND: Record<string, Cell> = {
   o: { kind: "life", dir: 0 },
   e: { kind: "enemy", dir: 0 },
   t: { kind: "trash", dir: 0 },
+  // Portals come in pairs: the two ends written with the same digit are linked.
+  "1": { kind: "portal", dir: 0, link: 1 },
+  "2": { kind: "portal", dir: 0, link: 2 },
+  "3": { kind: "portal", dir: 0, link: 3 },
+  "4": { kind: "portal", dir: 0, link: 4 },
 };
 
 const LEVELS: Level[] = [
@@ -253,7 +264,28 @@ const LEVELS: Level[] = [
     inventory: { mover: 1, multibomb: 1 },
   },
   {
-    name: "8. Sandbox",
+    name: "8. Through The Door",
+    hint: "Portals come in pairs. Drive into one ring and you pop out of the other one still travelling the same way.",
+    layout: [
+      "..............",
+      "..............",
+      "......1.......",
+      "..............",
+      "...1.......e..",
+      "..............",
+    ],
+    zone: [
+      "..............",
+      "..............",
+      ".xxx..........",
+      "..............",
+      "..............",
+      "..............",
+    ],
+    inventory: { mover: 1 },
+  },
+  {
+    name: "9. Sandbox",
     hint: "A giant open grid, everything unlimited. Scroll to zoom, drag with the middle button or Shift to move around.",
     cols: 64,
     rows: 40,
@@ -275,6 +307,7 @@ const PALETTE_ORDER: BrushKind[] = [
   "life",
   "enemy",
   "trash",
+  "portal",
 ];
 
 const KIND_LABEL: Record<BrushKind, string> = {
@@ -291,6 +324,7 @@ const KIND_LABEL: Record<BrushKind, string> = {
   life: "Life",
   enemy: "Enemy",
   trash: "Trash",
+  portal: "Portal",
 };
 
 // What a generator is allowed to do with each kind of block.
@@ -316,6 +350,9 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   life: { generatorPushable: true, generatorCopyable: true },
   enemy: { generatorPushable: true, generatorCopyable: false },
   trash: { generatorPushable: false, generatorCopyable: false },
+  // A portal is a fixture: shoving one would drag its partner out of alignment,
+  // and copying one would leave a third end with nowhere to go.
+  portal: { generatorPushable: false, generatorCopyable: false },
 };
 
 // Only these care which way they face, so only these respond to the R key.
@@ -364,6 +401,9 @@ let buildInventory = new Map<BrushKind, number>();
 
 let brush: BrushKind | "eraser" = "mover";
 let brushDir: Dir = 0;
+// Where the first end of a half-finished portal pair is sitting, if any. The
+// next click on the grid becomes its partner.
+let pendingPortal: number | null = null;
 let running = false;
 let won = false;
 let tickHandle = 0;
@@ -388,6 +428,7 @@ function loadLevel(next: number): void {
 
 function applyLevel(level: Level): void {
   stopRunning();
+  pendingPortal = null;
   currentLevel = level;
 
   rows = level.layout?.length ?? level.rows ?? 6;
@@ -405,10 +446,15 @@ function applyLevel(level: Level): void {
     }
   }
 
-  for (const [idx, kind, dir, glued] of level.cells ?? []) {
+  for (const [idx, kind, dir, glued, link] of level.cells ?? []) {
     // Levels saved before the rename still say "conway".
     const migrated: CellKind = (kind as string) === "conway" ? "life" : kind;
-    if (idx >= 0 && idx < grid.length) grid[idx] = { kind: migrated, dir, glued: glued === 1 };
+    if (idx < 0 || idx >= grid.length) continue;
+    // A missing or zero link means "not a portal", which is what saves written
+    // before portals existed give us.
+    const restored: Cell = { kind: migrated, dir, glued: glued === 1 };
+    if (link) restored.link = link;
+    grid[idx] = restored;
   }
 
   inventory = new Map(Object.entries(level.inventory) as [BrushKind, number][]);
@@ -516,6 +562,53 @@ interface Contact {
   kind: "enemy" | "trash";
 }
 
+// Glue is forever. Anything with glue on it can never be deleted — trash cannot
+// swallow it, an enemy cannot take it down with them, a blast cannot clear it —
+// and it never comes unstuck from what it is bonded to.
+function isPermanent(cell: Cell | null | undefined): boolean {
+  return cell?.glued === true;
+}
+
+// The far end of a portal pair, or null if this one was left without a partner.
+function portalPartner(idx: number): number | null {
+  const cell = grid[idx];
+  if (cell?.kind !== "portal" || !cell.link) return null;
+  for (let other = 0; other < grid.length; other += 1) {
+    if (other === idx) continue;
+    const candidate = grid[other];
+    if (candidate?.kind === "portal" && candidate.link === cell.link) return other;
+  }
+  return null;
+}
+
+// Portals chained mouth-to-mouth are legal, but a ring of them would loop for
+// ever, so a trip only gets so many hops before the move is refused.
+const MAX_PORTAL_HOPS = 8;
+
+// Where a cell standing on `from` actually lands after one step in `dir`.
+// Normally that is just the next square along, but stepping into a portal drops
+// it out past the far end instead, still travelling the same way. Returns null
+// when there is nowhere to land — off the edge, or an unpaired portal, which
+// behaves like a bricked-up door.
+function stepTarget(from: number, dir: Dir): number | null {
+  const dx = DX[dir] ?? 0;
+  const dy = DY[dir] ?? 0;
+  let x = (from % cols) + dx;
+  let y = Math.floor(from / cols) + dy;
+
+  for (let hop = 0; hop <= MAX_PORTAL_HOPS; hop += 1) {
+    if (!inBounds(x, y)) return null;
+    const landing = index(x, y);
+    if (grid[landing]?.kind !== "portal") return landing;
+
+    const partner = portalPartner(landing);
+    if (partner === null) return null;
+    x = (partner % cols) + dx;
+    y = Math.floor(partner / cols) + dy;
+  }
+  return null;
+}
+
 // Works out everything that has to shift one step in `dir` — the cell itself,
 // anything glued to it, and anything it shoves — then commits the move. If any
 // part of it is blocked, nothing happens at all.
@@ -523,6 +616,10 @@ function tryMove(start: number, dir: Dir): boolean {
   const dx = DX[dir] ?? 0;
   const dy = DY[dir] ?? 0;
   const moving = new Set<number>();
+  // Portals mean a step is no longer "one square that way", so every mover
+  // carries its own landing square around.
+  const landings = new Map<number, number>();
+  const claimed = new Set<number>();
   const contacts: Contact[] = [];
   const queue: number[] = [start];
 
@@ -536,7 +633,7 @@ function tryMove(start: number, dir: Dir): boolean {
     for (const member of group) {
       const cell = grid[member];
       if (!cell) continue;
-      if (cell.kind === "wall") return false;
+      if (cell.kind === "wall" || cell.kind === "portal") return false;
       // A slide only budges along its own axis: dir 0/2 is horizontal.
       if (cell.kind === "slide") {
         const slideHorizontal = cell.dir === 0 || cell.dir === 2;
@@ -547,20 +644,35 @@ function tryMove(start: number, dir: Dir): boolean {
     }
 
     for (const member of group) {
-      const tx = (member % cols) + dx;
-      const ty = Math.floor(member / cols) + dy;
-      if (!inBounds(tx, ty)) return false;
+      // A doorway is one square wide and glue never comes apart, so a bonded
+      // blob of two or more jams against a portal instead of squeezing through
+      // a cell at a time. Loose cells in a push chain each go through fine.
+      const ax = (member % cols) + dx;
+      const ay = Math.floor(member / cols) + dy;
+      if (!inBounds(ax, ay)) return false;
+      if (group.size > 1 && grid[index(ax, ay)]?.kind === "portal") return false;
 
-      const target = index(tx, ty);
+      const target = stepTarget(member, dir);
+      if (target === null) return false;
+      // Two squares can fold onto one when a portal is in the way. Rather than
+      // pick a winner, the whole move jams.
+      if (claimed.has(target)) return false;
+      claimed.add(target);
+      landings.set(member, target);
+
       if (moving.has(target)) continue;
       const occupant = grid[target];
       if (!occupant) continue;
       if (occupant.kind === "wall") return false;
       if (occupant.kind === "enemy") {
+        // A glued enemy cannot be killed and will not budge, so it is a wall.
+        if (isPermanent(occupant)) return false;
         contacts.push({ member, target, kind: "enemy" });
         continue;
       }
       if (occupant.kind === "trash") {
+        // Trash cannot swallow glue, so glued cells simply pile up against it.
+        if (isPermanent(grid[member])) return false;
         contacts.push({ member, target, kind: "trash" });
         continue;
       }
@@ -583,13 +695,15 @@ function tryMove(start: number, dir: Dir): boolean {
 
     if (member.kind === "bomb" || member.kind === "multibomb") {
       explodeAt(contact.target);
-      // A multi bomb walks into the hole it just made and keeps going.
-      if (member.kind === "bomb") destroyed.add(contact.member);
+      // A multi bomb walks into the hole it just made and keeps going, and so
+      // does a glued one — glue outlasts its own blast.
+      if (member.kind === "bomb" && !isPermanent(member)) destroyed.add(contact.member);
       continue;
     }
 
     grid[contact.target] = null; // the enemy...
-    destroyed.add(contact.member); // ...takes its attacker with it
+    // ...takes its attacker with it, unless the attacker is glued down.
+    if (!isPermanent(member)) destroyed.add(contact.member);
   }
 
   for (const idx of destroyed) {
@@ -597,26 +711,26 @@ function tryMove(start: number, dir: Dir): boolean {
     moving.delete(idx);
   }
 
-  // Shift the survivors leading edge first so nothing overwrites itself.
-  const order = [...moving].sort(
-    (a, b) => progressAlong(b, dx, dy) - progressAlong(a, dx, dy)
-  );
-  for (const idx of order) {
-    const x = idx % cols;
-    const y = Math.floor(idx / cols);
-    grid[index(x + dx, y + dy)] = grid[idx] ?? null;
+  // Lift everything off the board before setting it down again. With portals in
+  // play a cell can land behind one that has not moved yet, so there is no
+  // ordering that makes an in-place shuffle safe.
+  const carried = new Map<number, Cell>();
+  for (const idx of moving) {
+    const cell = grid[idx];
+    if (cell) carried.set(idx, cell);
     grid[idx] = null;
+  }
+  for (const [idx, cell] of carried) {
+    const landing = landings.get(idx);
+    if (landing !== undefined) grid[landing] = cell;
   }
 
   return true;
 }
 
-function progressAlong(idx: number, dx: number, dy: number): number {
-  return (idx % cols) * dx + Math.floor(idx / cols) * dy;
-}
-
 // Bombs clear every enemy in the 3x3 around the blast but leave your own
-// machine standing, so a glued tower can drive straight through.
+// machine standing, so a glued tower can drive straight through. Glued enemies
+// ride it out too — nothing deletes glue.
 function explodeAt(center: number): void {
   const cx = center % cols;
   const cy = Math.floor(center / cols);
@@ -625,7 +739,8 @@ function explodeAt(center: number): void {
       const x = cx + ox;
       const y = cy + oy;
       if (!inBounds(x, y)) continue;
-      if (grid[index(x, y)]?.kind === "enemy") grid[index(x, y)] = null;
+      const hit = grid[index(x, y)];
+      if (hit?.kind === "enemy" && !isPermanent(hit)) grid[index(x, y)] = null;
     }
   }
 }
@@ -699,19 +814,25 @@ function runRotators(): void {
 }
 
 function runMovers(): void {
+  // A mover that comes out of a portal can land on a square the scan has not
+  // reached yet, which would give it a second step in the same tick. Remember
+  // the cells themselves, not their squares, so each one only ever walks once.
+  const acted = new Set<Cell>();
   for (const dir of [0, 1, 2, 3] as Dir[]) {
     for (const idx of scanOrder(dir)) {
       const cell = grid[idx];
       if (!cell || cell.kind !== "mover" || cell.dir !== dir) continue;
+      if (acted.has(cell)) continue;
+      acted.add(cell);
       tryMove(idx, dir);
     }
   }
 }
 
-// Game of Life rules, played on the same grid: a live cell with 2 or 3 live
-// neighbours survives, and an empty square with exactly 3 is born into. Every
-// square is judged against the same snapshot so the whole generation flips at
-// once, which is what makes gliders glide.
+// Half of Game of Life, played on the same grid: an empty square touching
+// exactly three live ones is born into. The dying half is switched off, so life
+// only ever spreads — nothing you place gets deleted out from under you. Every
+// square is judged against the same snapshot so a whole generation lands at once.
 function runLife(): void {
   const alive = new Set<number>();
   for (let idx = 0; idx < grid.length; idx += 1) {
@@ -719,29 +840,24 @@ function runLife(): void {
   }
   if (alive.size === 0) return;
 
-  // Only live cells and the squares around them can possibly change.
-  const candidates = new Set<number>(alive);
+  // Only the squares around a live cell can possibly change.
+  const candidates = new Set<number>();
   for (const idx of alive) {
     for (const neighbor of neighbors8(idx)) candidates.add(neighbor);
   }
 
-  const dying: number[] = [];
   const born: number[] = [];
   for (const idx of candidates) {
+    // Births only land on genuinely empty squares — never on top of a wall, a
+    // mover, or anything else the machine is using.
+    if (alive.has(idx) || grid[idx]) continue;
     let count = 0;
     for (const neighbor of neighbors8(idx)) {
       if (alive.has(neighbor)) count += 1;
     }
-    if (alive.has(idx)) {
-      if (count < 2 || count > 3) dying.push(idx);
-    } else if (count === 3 && !grid[idx]) {
-      // Births only land on genuinely empty squares — never on top of a wall,
-      // a mover, or anything else the machine is using.
-      born.push(idx);
-    }
+    if (count === 3) born.push(idx);
   }
 
-  for (const idx of dying) grid[idx] = null;
   for (const idx of born) grid[idx] = { kind: "life", dir: 0 };
 }
 
@@ -793,6 +909,7 @@ function declareWin(): void {
 // re-bank it here or Reset would restore a half-simulated grid.
 function startRunning(): void {
   if (running || won) return;
+  cancelPendingPortal();
   running = true;
   playButton?.classList.add("is-running");
   if (playButton) playButton.textContent = "⏸ Pause";
@@ -832,6 +949,7 @@ function requestClearGrid(): void {
 
 function clearGrid(): void {
   if (clearDialog) clearDialog.hidden = true;
+  cancelPendingPortal();
 
   for (let idx = 0; idx < grid.length; idx += 1) {
     const cell = grid[idx];
@@ -911,7 +1029,7 @@ function saveCurrentLevel(): void {
 
   const cells: SavedCell[] = [];
   buildSnapshot.forEach((cell, idx) => {
-    if (cell) cells.push([idx, cell.kind, cell.dir, cell.glued === true ? 1 : 0]);
+    if (cell) cells.push([idx, cell.kind, cell.dir, cell.glued === true ? 1 : 0, cell.link ?? 0]);
   });
 
   const saves = readSaves().filter((save) => save.name !== name);
@@ -1001,6 +1119,8 @@ function buildBrushButton(kind: BrushKind): HTMLButtonElement {
   }
 
   button.addEventListener("click", () => {
+    // Walking away from a half-placed pair abandons it.
+    if (kind !== "portal") cancelPendingPortal();
     brush = kind;
     renderPalette();
     draw();
@@ -1021,6 +1141,7 @@ function buildEraserButton(): HTMLButtonElement {
   label.textContent = "Erase";
   eraser.append(icon, label);
   eraser.addEventListener("click", () => {
+    cancelPendingPortal();
     brush = "eraser";
     renderPalette();
     draw();
@@ -1055,6 +1176,48 @@ function pointerCell(event: PointerEvent | MouseEvent): { x: number; y: number }
   return inBounds(x, y) ? { x, y } : null;
 }
 
+// Portals are placed two at a time: the first click drops one end and arms the
+// next click, which drops its partner. Both ends share a link number.
+function nextPortalLink(): number {
+  let highest = 0;
+  for (const cell of grid) {
+    if (cell?.kind === "portal" && cell.link) highest = Math.max(highest, cell.link);
+  }
+  return highest + 1;
+}
+
+function placePortalEnd(idx: number, link: number): void {
+  const existing = grid[idx];
+  if (existing) refund(existing.kind);
+  grid[idx] = { kind: "portal", dir: 0, glued: existing?.glued === true, link };
+  spend("portal");
+}
+
+// One end of a pair on its own is a door to nowhere, so erasing either end
+// takes the other with it.
+function erasePortalPair(idx: number): void {
+  const partner = portalPartner(idx);
+  refund("portal");
+  grid[idx] = null;
+  if (partner !== null) {
+    refund("portal");
+    grid[partner] = null;
+  }
+  if (pendingPortal === idx || pendingPortal === partner) pendingPortal = null;
+}
+
+// Switching tools, hitting Play, or pressing Escape mid-pair throws the lonely
+// first end away rather than leaving a dead door on the board.
+function cancelPendingPortal(): void {
+  if (pendingPortal === null) return;
+  const orphan = pendingPortal;
+  pendingPortal = null;
+  if (grid[orphan]?.kind !== "portal") return;
+  refund("portal");
+  grid[orphan] = null;
+  saveBuildState();
+}
+
 function placeAt(x: number, y: number, erase: boolean): void {
   if (running || won) return;
   if (!zone[index(x, y)]) return;
@@ -1063,8 +1226,24 @@ function placeAt(x: number, y: number, erase: boolean): void {
 
   if (erase || brush === "eraser") {
     if (!existing) return;
-    refund(existing.kind);
-    grid[index(x, y)] = null;
+    if (existing.kind === "portal") {
+      erasePortalPair(index(x, y));
+    } else {
+      refund(existing.kind);
+      grid[index(x, y)] = null;
+    }
+  } else if (brush === "portal") {
+    // Never stack an end on another end; that would orphan somebody's partner.
+    if (existing?.kind === "portal") return;
+    if (pendingPortal !== null) {
+      placePortalEnd(index(x, y), grid[pendingPortal]?.link ?? nextPortalLink());
+      pendingPortal = null;
+    } else {
+      // A pair costs two portals, so do not start one you cannot finish.
+      if (paletteCount("portal") < 2) return;
+      placePortalEnd(index(x, y), nextPortalLink());
+      pendingPortal = index(x, y);
+    }
   } else if (brush === "glue") {
     // The bucket paints stickiness onto whatever is already there; painting the
     // same cell again wipes it off.
@@ -1075,7 +1254,9 @@ function placeAt(x: number, y: number, erase: boolean): void {
     if (DIRECTIONAL.has(existing.kind)) existing.dir = ((existing.dir + 1) % 4) as Dir;
   } else {
     if (paletteCount(brush) <= 0) return;
-    if (existing) refund(existing.kind);
+    // Building over one end of a portal closes the whole door.
+    if (existing?.kind === "portal") erasePortalPair(index(x, y));
+    else if (existing) refund(existing.kind);
     grid[index(x, y)] = {
       kind: brush,
       dir: DIRECTIONAL.has(brush) ? brushDir : 0,
@@ -1116,9 +1297,19 @@ const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   life: { face: "#8ed14f", edge: "#2f5b1a", mark: "#f6ffe8" },
   enemy: { face: "#ff4d5e", edge: "#7d1620", mark: "#ffe4e6" },
   trash: { face: "#2c3140", edge: "#12141c", mark: "#c9d2e0" },
+  portal: { face: "#120b2e", edge: "#3d2a72", mark: "#ffffff" },
 };
 
 const GLUE = "#ffd15c";
+
+// Every portal pair gets its own colour so you can see at a glance which ring
+// leads to which, even with several doors on the board.
+const PORTAL_COLORS = ["#ff9c3d", "#5cf2b0", "#ff6bd6", "#5cc8ff", "#ffe45c", "#b06bff"];
+
+function portalColor(link: number | undefined): string {
+  const slot = ((link ?? 1) - 1) % PORTAL_COLORS.length;
+  return PORTAL_COLORS[slot] ?? "#ff9c3d";
+}
 
 function draw(): void {
   if (!ctx) return;
@@ -1147,6 +1338,7 @@ function draw(): void {
       const cell = grid[index(x, y)];
       if (cell) drawCell(ctx, cell, px, py, tile);
       if (cell?.glued) drawGlueSeams(x, y, px, py);
+      if (index(x, y) === pendingPortal) drawPendingRing(px, py);
     }
   }
 
@@ -1157,7 +1349,21 @@ function draw(): void {
     ctx.font = "bold 20px Impact, sans-serif";
     ctx.textAlign = "left";
     ctx.fillText("RUNNING — HANDS OFF", 14, 28);
+  } else if (pendingPortal !== null) {
+    ctx.fillStyle = portalColor(grid[pendingPortal]?.link);
+    ctx.font = "bold 20px Impact, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("NOW CLICK WHERE THE OTHER END GOES — ESC CANCELS", 14, 28);
   }
+}
+
+// Marks the lonely first end of a pair while it waits for its partner.
+function drawPendingRing(px: number, py: number): void {
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(2, tile * 0.06);
+  ctx.setLineDash([tile * 0.14, tile * 0.1]);
+  ctx.strokeRect(px + tile * 0.06, py + tile * 0.06, tile * 0.88, tile * 0.88);
+  ctx.setLineDash([]);
 }
 
 // Glued cells get a sticky rim, plus a fat blob across any seam they share with
@@ -1232,6 +1438,31 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
     case "trash":
       drawTrash(target, cx, cy, s, colors.mark);
       break;
+    case "portal":
+      drawPortal(target, cx, cy, s, portalColor(cell.link));
+      break;
+  }
+}
+
+// Nested rings in the pair's colour, so the two ends of one door match and read
+// as a hole rather than a block.
+function drawPortal(
+  target: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  s: number,
+  color: string
+): void {
+  target.strokeStyle = color;
+  for (const [radius, width] of [
+    [0.34, 0.1],
+    [0.22, 0.07],
+    [0.11, 0.05],
+  ]) {
+    target.lineWidth = Math.max(1.5, s * (width ?? 0.06));
+    target.beginPath();
+    target.arc(cx, cy, s * (radius ?? 0.3), 0, Math.PI * 2);
+    target.stroke();
   }
 }
 
@@ -1546,6 +1777,11 @@ window.addEventListener("keydown", (event) => {
     running ? stopRunning() : startRunning();
     draw();
   }
+  if (event.key === "Escape" && pendingPortal !== null) {
+    cancelPendingPortal();
+    renderPalette();
+    draw();
+  }
 });
 
 document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) => {
@@ -1557,6 +1793,7 @@ document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) => {
     }
     if (action === "step") {
       if (running) stopRunning();
+      cancelPendingPortal();
       step();
     }
     if (action === "stop") {
