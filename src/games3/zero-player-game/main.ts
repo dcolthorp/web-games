@@ -304,7 +304,7 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   wall: { generatorPushable: false, generatorCopyable: false },
   rotcw: { generatorPushable: true, generatorCopyable: true },
   rotccw: { generatorPushable: true, generatorCopyable: true },
-  gen: { generatorPushable: false, generatorCopyable: true },
+  gen: { generatorPushable: true, generatorCopyable: true },
   bomb: { generatorPushable: true, generatorCopyable: true },
   multibomb: { generatorPushable: true, generatorCopyable: true },
   enemy: { generatorPushable: true, generatorCopyable: false },
