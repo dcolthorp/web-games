@@ -711,7 +711,7 @@ function tryMove(start: number, dir: Dir): boolean {
     for (const member of group) {
       const cell = grid[member];
       if (!cell) continue;
-      if (cell.kind === "wall" || cell.kind === "portal" || cell.kind === "arrow") return false;
+      if (cell.kind === "wall" || cell.kind === "portal") return false;
       // A slide only budges along its own axis: dir 0/2 is horizontal.
       if (cell.kind === "slide") {
         const slideHorizontal = cell.dir === 0 || cell.dir === 2;
@@ -741,8 +741,12 @@ function tryMove(start: number, dir: Dir): boolean {
       if (moving.has(target)) continue;
       const occupant = grid[target];
       if (!occupant) continue;
-      // Walls and signposts are both bolted down; nothing shoves them aside.
-      if (occupant.kind === "wall" || occupant.kind === "arrow") return false;
+      if (occupant.kind === "wall") return false;
+      // A signpost is bolted down against anything coming at it sideways, so it
+      // stays where it was aimed. Come at it going the very way it points and it
+      // is not redirecting anybody — it is just furniture in your lane, so it
+      // shoves along ahead of you rather than stopping you dead.
+      if (occupant.kind === "arrow" && occupant.dir !== dir) return false;
       if (isEnemyKind(occupant.kind)) {
         // A glued enemy cannot be killed and will not budge, so it is a wall.
         if (isPermanent(occupant)) return false;
@@ -1041,28 +1045,55 @@ function breedBrains(): void {
   }
 }
 
-// Things a train of pushed blocks cannot simply shove out of the way.
+// A signpost reaches out to the four squares beside it — edges only, never the
+// corners. A mover that so much as passes alongside one is sent its way, so you
+// can line a lane with signs instead of having to crash a machine into them.
+// With two signs touching the same mover, the first one round from the right
+// wins, which keeps a tick reproducible.
+// Things that end a lane: a train of pushed blocks cannot shove any of them out
+// of the way. A portal counts, because it is a doorway rather than more lane —
+// whatever stands beyond it is not something this mover is about to shove into,
+// and a sign over there must not reach back through and turn it away from the
+// door.
 const LANE_BLOCKERS: ReadonlySet<CellKind> = new Set<CellKind>([
   "wall",
+  "portal",
   "enemy",
   "smart",
   "trash",
 ]);
 
-// Looks down the lane a mover is walking. A signpost still counts when the
-// mover is shoving a train of blocks into it, so a machine that runs into one
-// takes the turn instead of grinding to a halt against its own cargo. A gap in
-// the lane means the train still has room, so the mover keeps pushing and
-// ignores the sign until the slack is used up.
+// The other way a mover meets a sign: not alongside it, but shoving a train of
+// blocks that is packed solid all the way up to one. The machine cannot go
+// another step, so it takes the turn rather than grinding to a halt against its
+// own cargo. A gap in the lane means the train still has room, so it keeps
+// pushing and ignores the sign until the slack is used up.
 function signAhead(start: number, dir: Dir): Cell | null {
-  let square = stepTarget(start, dir);
+  const dx = DX[dir] ?? 0;
+  const dy = DY[dir] ?? 0;
+  let x = (start % cols) + dx;
+  let y = Math.floor(start / cols) + dy;
   for (let step = 0; step < grid.length; step += 1) {
-    if (square === null) return null;
-    const cell = grid[square];
+    if (!inBounds(x, y)) return null;
+    const cell = grid[index(x, y)];
     if (!cell) return null;
     if (cell.kind === "arrow") return cell;
     if (LANE_BLOCKERS.has(cell.kind)) return null;
-    square = stepTarget(square, dir);
+    x += dx;
+    y += dy;
+  }
+  return null;
+}
+
+function signBeside(idx: number): Cell | null {
+  const x = idx % cols;
+  const y = Math.floor(idx / cols);
+  for (let dir = 0; dir < 4; dir += 1) {
+    const nx = x + (DX[dir] ?? 0);
+    const ny = y + (DY[dir] ?? 0);
+    if (!inBounds(nx, ny)) continue;
+    const neighbor = grid[index(nx, ny)];
+    if (neighbor?.kind === "arrow") return neighbor;
   }
   return null;
 }
@@ -1079,15 +1110,14 @@ function runMovers(): void {
       if (acted.has(cell)) continue;
       acted.add(cell);
 
-      // Running into a signpost turns you: the mover takes the arrow's heading
-      // and sets off that way on the next tick.
-      const sign = signAhead(idx, dir);
-      if (sign) {
-        cell.dir = sign.dir;
-        continue;
-      }
+      // A sign beside the mover redirects it there and then — it takes the
+      // heading and travels on the same tick, rather than pausing at the sign.
+      // Failing that, a sign at the end of a lane the mover has packed solid
+      // with its own cargo turns it too.
+      const sign = signBeside(idx) ?? signAhead(idx, dir);
+      if (sign) cell.dir = sign.dir;
 
-      tryMove(idx, dir);
+      tryMove(idx, cell.dir);
     }
   }
 }
