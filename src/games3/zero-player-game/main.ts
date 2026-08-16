@@ -48,6 +48,9 @@ interface Level {
   // and let the whole thing be buildable.
   layout?: string[];
   zone?: string[];
+  // Another overlay in the same shape: 'g' paints glue onto whatever the layout
+  // put on that square, so a hand-drawn level can ship a bonded machine.
+  glue?: string[];
   cols?: number;
   rows?: number;
   openZone?: boolean;
@@ -365,6 +368,30 @@ const LEVELS: Level[] = [
       "........................",
       "........................",
     ],
+    // The whole machine is bonded, so it hauls itself along as one piece — and
+    // the copies its generators make come out glued too, joining the body.
+    glue: [
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "..........g.g.g.........",
+      "..........g.g.g.........",
+      "..........ggggg.........",
+      "..........g.g.g.........",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+      "........................",
+    ],
     openZone: true,
     inventory: UNLIMITED,
   },
@@ -541,9 +568,10 @@ function applyLevel(level: Level): void {
   for (let y = 0; y < rows; y += 1) {
     const layoutRow = level.layout?.[y] ?? "";
     const zoneRow = level.zone?.[y] ?? "";
+    const glueRow = level.glue?.[y] ?? "";
     for (let x = 0; x < cols; x += 1) {
       const template = LEGEND[layoutRow[x] ?? "."];
-      if (template) grid[index(x, y)] = { ...template };
+      if (template) grid[index(x, y)] = { ...template, glued: glueRow[x] === "g" };
       if (level.zone) zone[index(x, y)] = zoneRow[x] === "x";
     }
   }
