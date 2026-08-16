@@ -21,6 +21,7 @@ type CellKind =
   | "multibomb"
   | "life"
   | "enemy"
+  | "smart"
   | "trash"
   | "portal";
 
@@ -35,6 +36,8 @@ interface Cell {
   // Portals only. Both ends of a pair carry the same link number, which is also
   // what picks their shared colour.
   link?: number;
+  // Smart enemies only: ticks left until this one copies itself.
+  fuse?: number;
 }
 
 interface Level {
@@ -78,6 +81,7 @@ const UNLIMITED: Partial<Record<BrushKind, number>> = {
   multibomb: Infinity,
   life: Infinity,
   enemy: Infinity,
+  smart: Infinity,
   trash: Infinity,
   portal: Infinity,
   glue: Infinity,
@@ -107,6 +111,7 @@ const LEGEND: Record<string, Cell> = {
   m: { kind: "multibomb", dir: 0 },
   o: { kind: "life", dir: 0 },
   e: { kind: "enemy", dir: 0 },
+  E: { kind: "smart", dir: 0 },
   t: { kind: "trash", dir: 0 },
   // Portals come in pairs: the two ends written with the same digit are linked.
   "1": { kind: "portal", dir: 0, link: 1 },
@@ -285,7 +290,28 @@ const LEVELS: Level[] = [
     inventory: { mover: 1 },
   },
   {
-    name: "9. Sandbox",
+    name: "9. It Thinks",
+    hint: "This enemy has a brain. It runs from your machine and copies itself while it runs — so bring something that does not stop.",
+    layout: [
+      "..............",
+      "..............",
+      ".....########.",
+      "...........E#.",
+      ".....########.",
+      "..............",
+    ],
+    zone: [
+      "..............",
+      "..............",
+      "..............",
+      ".xxx..........",
+      "..............",
+      "..............",
+    ],
+    inventory: { mover: 1, multibomb: 1 },
+  },
+  {
+    name: "10. Sandbox",
     hint: "A giant open grid, everything unlimited. Scroll to zoom, drag with the middle button or Shift to move around.",
     cols: 64,
     rows: 40,
@@ -306,6 +332,7 @@ const PALETTE_ORDER: BrushKind[] = [
   "multibomb",
   "life",
   "enemy",
+  "smart",
   "trash",
   "portal",
 ];
@@ -323,6 +350,7 @@ const KIND_LABEL: Record<BrushKind, string> = {
   multibomb: "Multi Bomb",
   life: "Life",
   enemy: "Enemy",
+  smart: "Smart Enemy",
   trash: "Trash",
   portal: "Portal",
 };
@@ -349,6 +377,7 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   multibomb: { generatorPushable: true, generatorCopyable: true },
   life: { generatorPushable: true, generatorCopyable: true },
   enemy: { generatorPushable: true, generatorCopyable: false },
+  smart: { generatorPushable: true, generatorCopyable: false },
   trash: { generatorPushable: false, generatorCopyable: false },
   // A portal is a fixture: shoving one would drag its partner out of alignment,
   // and copying one would leave a third end with nowhere to go.
@@ -562,6 +591,12 @@ interface Contact {
   kind: "enemy" | "trash";
 }
 
+// Smart enemies are enemies in every way that matters: they die the same, they
+// blow up the same, and the level is not won until they are gone too.
+function isEnemyKind(kind: CellKind): boolean {
+  return kind === "enemy" || kind === "smart";
+}
+
 // Glue is forever. Anything with glue on it can never be deleted — trash cannot
 // swallow it, an enemy cannot take it down with them, a blast cannot clear it —
 // and it never comes unstuck from what it is bonded to.
@@ -664,7 +699,7 @@ function tryMove(start: number, dir: Dir): boolean {
       const occupant = grid[target];
       if (!occupant) continue;
       if (occupant.kind === "wall") return false;
-      if (occupant.kind === "enemy") {
+      if (isEnemyKind(occupant.kind)) {
         // A glued enemy cannot be killed and will not budge, so it is a wall.
         if (isPermanent(occupant)) return false;
         contacts.push({ member, target, kind: "enemy" });
@@ -740,7 +775,7 @@ function explodeAt(center: number): void {
       const y = cy + oy;
       if (!inBounds(x, y)) continue;
       const hit = grid[index(x, y)];
-      if (hit?.kind === "enemy" && !isPermanent(hit)) grid[index(x, y)] = null;
+      if (hit && isEnemyKind(hit.kind) && !isPermanent(hit)) grid[index(x, y)] = null;
     }
   }
 }
@@ -813,6 +848,106 @@ function runRotators(): void {
   }
 }
 
+// A smart enemy is a plain enemy with a brain. It edges away from anything that
+// looks like it is coming to kill it, and every so often it makes a copy of
+// itself. It never attacks — running and breeding is the whole personality.
+const SMART_SIGHT = 4; // how many squares away it starts worrying
+const SMART_BREED_TICKS = 6; // ticks between copies
+const SMART_CROWD_LIMIT = 3; // it will not breed into a crowd this thick
+
+// What a brain is scared of: the things that come looking for it.
+const THREATS: ReadonlySet<CellKind> = new Set<CellKind>(["mover", "bomb", "multibomb"]);
+
+// How nasty a square feels, counting every threat close enough to see. Nearer
+// threats weigh more, so a brain squeezed between two movers picks the gap.
+function dangerAt(square: number, threats: number[]): number {
+  const x = square % cols;
+  const y = Math.floor(square / cols);
+  let danger = 0;
+  for (const threat of threats) {
+    const gap = Math.abs((threat % cols) - x) + Math.abs(Math.floor(threat / cols) - y);
+    if (gap < SMART_SIGHT) danger += SMART_SIGHT - gap;
+  }
+  return danger;
+}
+
+function runSmartEnemies(): void {
+  const brains: number[] = [];
+  const threats: number[] = [];
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    const cell = grid[idx];
+    if (!cell) continue;
+    if (cell.kind === "smart") brains.push(idx);
+    else if (THREATS.has(cell.kind)) threats.push(idx);
+  }
+  if (brains.length === 0) return;
+
+  fleeThreats(brains, threats);
+  breedBrains();
+}
+
+// Each brain slips one square towards safety. It only ever moves into an empty
+// square — it cannot shove anything — so walls, corners and its own swarm are
+// what pin it down. Portals count as a way out.
+function fleeThreats(brains: number[], threats: number[]): void {
+  if (threats.length === 0) return;
+
+  for (const idx of brains) {
+    const cell = grid[idx];
+    // Glue nails it down: coming unstuck is exactly what glue forbids.
+    if (cell?.kind !== "smart" || isPermanent(cell)) continue;
+
+    let safest = dangerAt(idx, threats);
+    if (safest === 0) continue; // nothing close enough to run from
+    let escape: number | null = null;
+    for (let dir = 0; dir < 4; dir += 1) {
+      const landing = stepTarget(idx, dir as Dir);
+      if (landing === null || grid[landing]) continue;
+      const danger = dangerAt(landing, threats);
+      if (danger < safest) {
+        safest = danger;
+        escape = landing;
+      }
+    }
+
+    if (escape === null) continue; // cornered, and that is how you kill one
+    grid[escape] = cell;
+    grid[idx] = null;
+  }
+}
+
+// Every few ticks a brain buds a copy into an open square beside it. Copies made
+// this tick do not breed until their own fuse runs down, and a brain hemmed in
+// by its own kind stops breeding so a swarm cannot tile the whole board.
+function breedBrains(): void {
+  const parents: number[] = [];
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    if (grid[idx]?.kind === "smart") parents.push(idx);
+  }
+
+  for (const idx of parents) {
+    const cell = grid[idx];
+    if (cell?.kind !== "smart") continue;
+
+    const fuse = (cell.fuse ?? SMART_BREED_TICKS) - 1;
+    cell.fuse = fuse > 0 ? fuse : SMART_BREED_TICKS;
+    if (fuse > 0) continue;
+
+    let crowd = 0;
+    for (const neighbor of neighbors8(idx)) {
+      if (grid[neighbor]?.kind === "smart") crowd += 1;
+    }
+    if (crowd >= SMART_CROWD_LIMIT) continue;
+
+    for (let dir = 0; dir < 4; dir += 1) {
+      const landing = stepTarget(idx, dir as Dir);
+      if (landing === null || grid[landing]) continue;
+      grid[landing] = { kind: "smart", dir: 0, fuse: SMART_BREED_TICKS };
+      break;
+    }
+  }
+}
+
 function runMovers(): void {
   // A mover that comes out of a portal can land on a square the scan has not
   // reached yet, which would give it a second step in the same tick. Remember
@@ -880,14 +1015,16 @@ function step(): void {
   if (won) return;
   runGenerators();
   runRotators();
+  // Brains dodge before the machine moves, so a straight chase never lands.
+  runSmartEnemies();
   runMovers();
   runLife();
   draw();
 
   // A level you built with no enemies in it has nothing to win, so don't pop
   // the banner the instant a bare sandbox starts running.
-  const startedWithEnemies = buildSnapshot.some((cell) => cell?.kind === "enemy");
-  if (startedWithEnemies && !grid.some((cell) => cell?.kind === "enemy")) declareWin();
+  const startedWithEnemies = buildSnapshot.some((cell) => cell && isEnemyKind(cell.kind));
+  if (startedWithEnemies && !grid.some((cell) => cell && isEnemyKind(cell.kind))) declareWin();
 }
 
 function declareWin(): void {
@@ -1296,6 +1433,7 @@ const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   multibomb: { face: "#5a3f9c", edge: "#241546", mark: "#ffd166" },
   life: { face: "#8ed14f", edge: "#2f5b1a", mark: "#f6ffe8" },
   enemy: { face: "#ff4d5e", edge: "#7d1620", mark: "#ffe4e6" },
+  smart: { face: "#ff4d5e", edge: "#7d1620", mark: "#ffe4e6" },
   trash: { face: "#2c3140", edge: "#12141c", mark: "#c9d2e0" },
   portal: { face: "#120b2e", edge: "#3d2a72", mark: "#ffffff" },
 };
@@ -1435,6 +1573,9 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
     case "enemy":
       drawCross(target, cx, cy, s * 0.28, colors.mark, Math.max(3, s * 0.12));
       break;
+    case "smart":
+      drawThinkingCross(target, cx, cy, s, colors.mark);
+      break;
     case "trash":
       drawTrash(target, cx, cy, s, colors.mark);
       break;
@@ -1563,6 +1704,25 @@ function drawGenerator(target: CanvasRenderingContext2D, cx: number, cy: number,
   target.closePath();
   target.fill();
   target.restore();
+}
+
+// Same red block and same cross as a plain enemy — the halo is the only hint
+// that this one is watching where your movers are.
+function drawThinkingCross(
+  target: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  s: number,
+  color: string
+): void {
+  drawCross(target, cx, cy, s * 0.2, color, Math.max(2.5, s * 0.1));
+  target.strokeStyle = color;
+  target.lineWidth = Math.max(1, s * 0.045);
+  target.setLineDash([s * 0.11, s * 0.09]);
+  target.beginPath();
+  target.arc(cx, cy, s * 0.36, 0, Math.PI * 2);
+  target.stroke();
+  target.setLineDash([]);
 }
 
 function drawCross(target: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string, width: number): void {
