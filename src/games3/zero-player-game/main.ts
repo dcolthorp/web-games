@@ -402,7 +402,9 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   wall: { generatorPushable: false, generatorCopyable: false },
   rotcw: { generatorPushable: true, generatorCopyable: true },
   rotccw: { generatorPushable: true, generatorCopyable: true },
-  arrow: { generatorPushable: true, generatorCopyable: true },
+  // A signpost is bolted down. Shoving one would move the turn somewhere the
+  // builder never put it, and copying one would litter the lane with junctions.
+  arrow: { generatorPushable: false, generatorCopyable: false },
   gen: { generatorPushable: true, generatorCopyable: true },
   bomb: { generatorPushable: true, generatorCopyable: true },
   multibomb: { generatorPushable: true, generatorCopyable: true },
@@ -415,14 +417,18 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   portal: { generatorPushable: false, generatorCopyable: false },
 };
 
-// Only these care which way they face, so only these respond to the R key —
-// and only these get spun by a rotator.
+// Only these care which way they face, so only these respond to the R key and
+// to clicking a placed cell to spin it.
 const DIRECTIONAL: ReadonlySet<BrushKind> = new Set<BrushKind>([
   "mover",
   "gen",
   "slide",
   "arrow",
 ]);
+
+// What a rotator grabs hold of. A signpost is bolted down like a road sign, so
+// it keeps pointing wherever the builder aimed it.
+const ROTATABLE: ReadonlySet<CellKind> = new Set<CellKind>(["mover", "gen", "slide"]);
 
 const canvasElement = document.getElementById("game");
 if (!(canvasElement instanceof HTMLCanvasElement)) throw new Error("missing canvas");
@@ -705,7 +711,7 @@ function tryMove(start: number, dir: Dir): boolean {
     for (const member of group) {
       const cell = grid[member];
       if (!cell) continue;
-      if (cell.kind === "wall" || cell.kind === "portal") return false;
+      if (cell.kind === "wall" || cell.kind === "portal" || cell.kind === "arrow") return false;
       // A slide only budges along its own axis: dir 0/2 is horizontal.
       if (cell.kind === "slide") {
         const slideHorizontal = cell.dir === 0 || cell.dir === 2;
@@ -735,7 +741,8 @@ function tryMove(start: number, dir: Dir): boolean {
       if (moving.has(target)) continue;
       const occupant = grid[target];
       if (!occupant) continue;
-      if (occupant.kind === "wall") return false;
+      // Walls and signposts are both bolted down; nothing shoves them aside.
+      if (occupant.kind === "wall" || occupant.kind === "arrow") return false;
       if (isEnemyKind(occupant.kind)) {
         // A glued enemy cannot be killed and will not budge, so it is a wall.
         if (isPermanent(occupant)) return false;
@@ -879,7 +886,7 @@ function runRotators(): void {
     const y = Math.floor(idx / cols);
     for (let dir = 0; dir < 4; dir += 1) {
       const neighbor = cellAt(x + (DX[dir] ?? 0), y + (DY[dir] ?? 0));
-      if (!neighbor || !DIRECTIONAL.has(neighbor.kind)) continue;
+      if (!neighbor || !ROTATABLE.has(neighbor.kind)) continue;
       neighbor.dir = (((neighbor.dir + (clockwise ? 1 : 3)) % 4) as Dir);
     }
   }
@@ -1034,6 +1041,32 @@ function breedBrains(): void {
   }
 }
 
+// Things a train of pushed blocks cannot simply shove out of the way.
+const LANE_BLOCKERS: ReadonlySet<CellKind> = new Set<CellKind>([
+  "wall",
+  "enemy",
+  "smart",
+  "trash",
+]);
+
+// Looks down the lane a mover is walking. A signpost still counts when the
+// mover is shoving a train of blocks into it, so a machine that runs into one
+// takes the turn instead of grinding to a halt against its own cargo. A gap in
+// the lane means the train still has room, so the mover keeps pushing and
+// ignores the sign until the slack is used up.
+function signAhead(start: number, dir: Dir): Cell | null {
+  let square = stepTarget(start, dir);
+  for (let step = 0; step < grid.length; step += 1) {
+    if (square === null) return null;
+    const cell = grid[square];
+    if (!cell) return null;
+    if (cell.kind === "arrow") return cell;
+    if (LANE_BLOCKERS.has(cell.kind)) return null;
+    square = stepTarget(square, dir);
+  }
+  return null;
+}
+
 function runMovers(): void {
   // A mover that comes out of a portal can land on a square the scan has not
   // reached yet, which would give it a second step in the same tick. Remember
@@ -1046,12 +1079,10 @@ function runMovers(): void {
       if (acted.has(cell)) continue;
       acted.add(cell);
 
-      // Walking into a signpost turns you instead of shoving it: the mover takes
-      // the arrow's heading and sets off that way on the next tick. An arrow
-      // already pointing your way has nothing to tell you, so you shove it.
-      const ahead = stepTarget(idx, dir);
-      const sign = ahead === null ? null : grid[ahead];
-      if (sign?.kind === "arrow" && sign.dir !== dir) {
+      // Running into a signpost turns you: the mover takes the arrow's heading
+      // and sets off that way on the next tick.
+      const sign = signAhead(idx, dir);
+      if (sign) {
         cell.dir = sign.dir;
         continue;
       }
