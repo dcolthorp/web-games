@@ -184,6 +184,76 @@ canvas:focus {
   color: var(--muted);
 }
 
+.confirm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  justify-items: center;
+  padding: 20px;
+  background: rgba(2, 21, 33, 0.9);
+  text-align: center;
+}
+
+.confirm-overlay[hidden] {
+  display: none;
+}
+
+.confirm-title {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(1.6rem, 5vw, 2.6rem);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c98bff;
+  text-shadow: 0 3px 0 #000;
+}
+
+.confirm-note {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--muted);
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-overlay button {
+  padding: 11px 18px;
+  border: 3px solid var(--edge);
+  background: linear-gradient(180deg, #7b45cc, #43207a);
+  color: #f7ecff;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.confirm-overlay button:hover {
+  border-color: #c98bff;
+}
+
+.confirm-never {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.palette-clear {
+  border-color: #7b45cc;
+}
+
+.palette-clear:hover {
+  border-color: #c98bff;
+}
+
 .palette {
   display: flex;
   flex-wrap: wrap;

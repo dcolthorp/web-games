@@ -25,6 +25,17 @@
 
       <section class="game-frame" aria-label="Zero Player Game play area">
         <canvas id="game" width="952" height="480" tabindex="0" aria-label="Cell machine grid"></canvas>
+        <div class="confirm-overlay" id="clear-confirm" hidden>
+          <p class="confirm-title">Erase everything?</p>
+          <p class="confirm-note">This wipes every cell you placed off the grid. There is no undo.</p>
+          <div class="confirm-actions">
+            <button type="button" data-action="clear-yes">Yes, erase it all</button>
+            <button type="button" data-action="clear-cancel">Cancel</button>
+          </div>
+          <button class="confirm-never" type="button" data-action="clear-never">
+            Erase it and don't ask me again
+          </button>
+        </div>
         <div class="zoom-controls">
           <button type="button" data-action="zoom-out" aria-label="Zoom out">−</button>
           <button type="button" data-action="fit" aria-label="Fit level on screen">Fit</button>

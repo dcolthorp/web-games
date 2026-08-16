@@ -19,6 +19,7 @@ type CellKind =
   | "gen"
   | "bomb"
   | "multibomb"
+  | "conway"
   | "enemy"
   | "trash";
 
@@ -58,6 +59,7 @@ interface SavedLevel {
 }
 
 const SAVE_KEY = "zero-player-game-saves";
+const SKIP_CLEAR_CONFIRM_KEY = "zero-player-game-skip-clear-confirm";
 
 const UNLIMITED: Partial<Record<BrushKind, number>> = {
   mover: Infinity,
@@ -69,6 +71,7 @@ const UNLIMITED: Partial<Record<BrushKind, number>> = {
   gen: Infinity,
   bomb: Infinity,
   multibomb: Infinity,
+  conway: Infinity,
   enemy: Infinity,
   trash: Infinity,
   glue: Infinity,
@@ -96,6 +99,7 @@ const LEGEND: Record<string, Cell> = {
   U: { kind: "gen", dir: 3 },
   b: { kind: "bomb", dir: 0 },
   m: { kind: "multibomb", dir: 0 },
+  o: { kind: "conway", dir: 0 },
   e: { kind: "enemy", dir: 0 },
   t: { kind: "trash", dir: 0 },
 };
@@ -268,6 +272,7 @@ const PALETTE_ORDER: BrushKind[] = [
   "gen",
   "bomb",
   "multibomb",
+  "conway",
   "enemy",
   "trash",
 ];
@@ -283,6 +288,7 @@ const KIND_LABEL: Record<BrushKind, string> = {
   glue: "Glue",
   bomb: "Bomb",
   multibomb: "Multi Bomb",
+  conway: "Conway",
   enemy: "Enemy",
   trash: "Trash",
 };
@@ -307,6 +313,7 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   gen: { generatorPushable: true, generatorCopyable: true },
   bomb: { generatorPushable: true, generatorCopyable: true },
   multibomb: { generatorPushable: true, generatorCopyable: true },
+  conway: { generatorPushable: true, generatorCopyable: true },
   enemy: { generatorPushable: true, generatorCopyable: false },
   trash: { generatorPushable: false, generatorCopyable: false },
 };
@@ -331,6 +338,7 @@ const playButton = document.querySelector<HTMLButtonElement>('[data-action="play
 const nameInput = document.getElementById("level-name-input");
 const saveSelect = document.getElementById("saved-levels");
 const saveNote = document.getElementById("save-note");
+const clearDialog = document.getElementById("clear-confirm");
 
 // The grid is drawn through a simple camera so big levels can be zoomed out and
 // dragged around. `tile` is always BASE_TILE * scale.
@@ -698,11 +706,64 @@ function runMovers(): void {
   }
 }
 
+// Conway's Game of Life, played on the same grid: a live cell with 2 or 3 live
+// neighbours survives, and an empty square with exactly 3 is born into. Every
+// square is judged against the same snapshot so the whole generation flips at
+// once, which is what makes gliders glide.
+function runConway(): void {
+  const alive = new Set<number>();
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    if (grid[idx]?.kind === "conway") alive.add(idx);
+  }
+  if (alive.size === 0) return;
+
+  // Only live cells and the squares around them can possibly change.
+  const candidates = new Set<number>(alive);
+  for (const idx of alive) {
+    for (const neighbor of neighbors8(idx)) candidates.add(neighbor);
+  }
+
+  const dying: number[] = [];
+  const born: number[] = [];
+  for (const idx of candidates) {
+    let count = 0;
+    for (const neighbor of neighbors8(idx)) {
+      if (alive.has(neighbor)) count += 1;
+    }
+    if (alive.has(idx)) {
+      if (count < 2 || count > 3) dying.push(idx);
+    } else if (count === 3 && !grid[idx]) {
+      // Births only land on genuinely empty squares — never on top of a wall,
+      // a mover, or anything else the machine is using.
+      born.push(idx);
+    }
+  }
+
+  for (const idx of dying) grid[idx] = null;
+  for (const idx of born) grid[idx] = { kind: "conway", dir: 0 };
+}
+
+function neighbors8(idx: number): number[] {
+  const x = idx % cols;
+  const y = Math.floor(idx / cols);
+  const out: number[] = [];
+  for (let oy = -1; oy <= 1; oy += 1) {
+    for (let ox = -1; ox <= 1; ox += 1) {
+      if (ox === 0 && oy === 0) continue;
+      const nx = x + ox;
+      const ny = y + oy;
+      if (inBounds(nx, ny)) out.push(index(nx, ny));
+    }
+  }
+  return out;
+}
+
 function step(): void {
   if (won) return;
   runGenerators();
   runRotators();
   runMovers();
+  runConway();
   draw();
 
   // A level you built with no enemies in it has nothing to win, so don't pop
@@ -753,6 +814,50 @@ function stopRunning(): void {
   window.clearTimeout(tickHandle);
   playButton?.classList.remove("is-running");
   if (playButton) playButton.textContent = "▶ Play";
+}
+
+/* ---------------------------------------------------------------- clear all */
+
+// Asks first, unless you have told it not to bother.
+function requestClearGrid(): void {
+  if (running || won) return;
+  if (readSkipClearConfirm()) {
+    clearGrid();
+    return;
+  }
+  if (clearDialog) clearDialog.hidden = false;
+}
+
+function clearGrid(): void {
+  if (clearDialog) clearDialog.hidden = true;
+
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    const cell = grid[idx];
+    // Only your own squares get wiped, so a puzzle keeps its walls and enemies.
+    if (!cell || !zone[idx]) continue;
+    refund(cell.kind);
+    grid[idx] = null;
+  }
+
+  saveBuildState();
+  renderPalette();
+  draw();
+}
+
+function readSkipClearConfirm(): boolean {
+  try {
+    return localStorage.getItem(SKIP_CLEAR_CONFIRM_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function setSkipClearConfirm(): void {
+  try {
+    localStorage.setItem(SKIP_CLEAR_CONFIRM_KEY, "true");
+  } catch {
+    /* asking again is a fine fallback */
+  }
 }
 
 /* --------------------------------------------------------------- your levels */
@@ -858,6 +963,7 @@ function renderPalette(): void {
   for (const kind of kinds) paletteEl.appendChild(buildBrushButton(kind));
 
   paletteEl.appendChild(buildEraserButton());
+  paletteEl.appendChild(buildClearButton());
 
   // Glue sits after the eraser: it is a paint bucket, not one of the cells.
   if ((currentLevel.inventory["glue"] ?? 0) > 0) {
@@ -918,6 +1024,23 @@ function buildEraserButton(): HTMLButtonElement {
     draw();
   });
   return eraser;
+}
+
+// Not a brush — one press wipes the board, so it never becomes the active tool.
+function buildClearButton(): HTMLButtonElement {
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "palette-item palette-clear";
+  const icon = document.createElement("canvas");
+  icon.width = 44;
+  icon.height = 44;
+  const iconCtx = icon.getContext("2d");
+  if (iconCtx) drawClearIcon(iconCtx, 44);
+  const label = document.createElement("span");
+  label.textContent = "Clear All";
+  clear.append(icon, label);
+  clear.addEventListener("click", requestClearGrid);
+  return clear;
 }
 
 function pointerCell(event: PointerEvent | MouseEvent): { x: number; y: number } | null {
@@ -988,6 +1111,7 @@ const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   gen: { face: "#3ed07d", edge: "#12613a", mark: "#e9fff2" },
   bomb: { face: "#3b3f52", edge: "#15171f", mark: "#ffb648" },
   multibomb: { face: "#5a3f9c", edge: "#241546", mark: "#ffd166" },
+  conway: { face: "#8ed14f", edge: "#2f5b1a", mark: "#f6ffe8" },
   enemy: { face: "#ff4d5e", edge: "#7d1620", mark: "#ffe4e6" },
   trash: { face: "#2c3140", edge: "#12141c", mark: "#c9d2e0" },
 };
@@ -1093,6 +1217,12 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
     case "bomb":
     case "multibomb":
       drawBomb(target, cx, cy, s, colors.mark, cell.kind === "multibomb");
+      break;
+    case "conway":
+      target.fillStyle = colors.mark;
+      target.beginPath();
+      target.arc(cx, cy, s * 0.26, 0, Math.PI * 2);
+      target.fill();
       break;
     case "enemy":
       drawCross(target, cx, cy, s * 0.28, colors.mark, Math.max(3, s * 0.12));
@@ -1290,6 +1420,17 @@ function drawEraserIcon(target: CanvasRenderingContext2D, size: number): void {
   drawCross(target, size / 2, size / 2, size * 0.2, "#ff8ec9", 4);
 }
 
+// Same shape as the eraser but purple, so "wipe one cell" and "wipe the board"
+// read as relatives without looking identical.
+function drawClearIcon(target: CanvasRenderingContext2D, size: number): void {
+  target.fillStyle = "#1d0f3c";
+  target.fillRect(2, 2, size - 4, size - 4);
+  target.strokeStyle = "#b06bff";
+  target.lineWidth = 3;
+  target.strokeRect(3.5, 3.5, size - 7, size - 7);
+  drawCross(target, size / 2, size / 2, size * 0.24, "#c98bff", 5);
+}
+
 /* -------------------------------------------------------------------- wiring */
 
 // Middle-drag or shift-drag slides the camera; plain clicks build.
@@ -1422,6 +1563,12 @@ document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) => {
     }
     if (action === "next-level") loadLevel(levelIndex + 1);
     if (action === "prev-level") loadLevel(levelIndex - 1);
+    if (action === "clear-yes") clearGrid();
+    if (action === "clear-cancel" && clearDialog) clearDialog.hidden = true;
+    if (action === "clear-never") {
+      setSkipClearConfirm();
+      clearGrid();
+    }
     if (action === "save-level") saveCurrentLevel();
     if (action === "load-level") openSelectedLevel();
     if (action === "delete-level") deleteSelectedLevel();
