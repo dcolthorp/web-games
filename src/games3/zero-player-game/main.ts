@@ -19,7 +19,7 @@ type CellKind =
   | "gen"
   | "bomb"
   | "multibomb"
-  | "conway"
+  | "life"
   | "enemy"
   | "trash";
 
@@ -71,7 +71,7 @@ const UNLIMITED: Partial<Record<BrushKind, number>> = {
   gen: Infinity,
   bomb: Infinity,
   multibomb: Infinity,
-  conway: Infinity,
+  life: Infinity,
   enemy: Infinity,
   trash: Infinity,
   glue: Infinity,
@@ -99,7 +99,7 @@ const LEGEND: Record<string, Cell> = {
   U: { kind: "gen", dir: 3 },
   b: { kind: "bomb", dir: 0 },
   m: { kind: "multibomb", dir: 0 },
-  o: { kind: "conway", dir: 0 },
+  o: { kind: "life", dir: 0 },
   e: { kind: "enemy", dir: 0 },
   t: { kind: "trash", dir: 0 },
 };
@@ -272,7 +272,7 @@ const PALETTE_ORDER: BrushKind[] = [
   "gen",
   "bomb",
   "multibomb",
-  "conway",
+  "life",
   "enemy",
   "trash",
 ];
@@ -288,7 +288,7 @@ const KIND_LABEL: Record<BrushKind, string> = {
   glue: "Glue",
   bomb: "Bomb",
   multibomb: "Multi Bomb",
-  conway: "Conway",
+  life: "Life",
   enemy: "Enemy",
   trash: "Trash",
 };
@@ -313,7 +313,7 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   gen: { generatorPushable: true, generatorCopyable: true },
   bomb: { generatorPushable: true, generatorCopyable: true },
   multibomb: { generatorPushable: true, generatorCopyable: true },
-  conway: { generatorPushable: true, generatorCopyable: true },
+  life: { generatorPushable: true, generatorCopyable: true },
   enemy: { generatorPushable: true, generatorCopyable: false },
   trash: { generatorPushable: false, generatorCopyable: false },
 };
@@ -406,7 +406,9 @@ function applyLevel(level: Level): void {
   }
 
   for (const [idx, kind, dir, glued] of level.cells ?? []) {
-    if (idx >= 0 && idx < grid.length) grid[idx] = { kind, dir, glued: glued === 1 };
+    // Levels saved before the rename still say "conway".
+    const migrated: CellKind = (kind as string) === "conway" ? "life" : kind;
+    if (idx >= 0 && idx < grid.length) grid[idx] = { kind: migrated, dir, glued: glued === 1 };
   }
 
   inventory = new Map(Object.entries(level.inventory) as [BrushKind, number][]);
@@ -706,14 +708,14 @@ function runMovers(): void {
   }
 }
 
-// Conway's Game of Life, played on the same grid: a live cell with 2 or 3 live
+// Game of Life rules, played on the same grid: a live cell with 2 or 3 live
 // neighbours survives, and an empty square with exactly 3 is born into. Every
 // square is judged against the same snapshot so the whole generation flips at
 // once, which is what makes gliders glide.
-function runConway(): void {
+function runLife(): void {
   const alive = new Set<number>();
   for (let idx = 0; idx < grid.length; idx += 1) {
-    if (grid[idx]?.kind === "conway") alive.add(idx);
+    if (grid[idx]?.kind === "life") alive.add(idx);
   }
   if (alive.size === 0) return;
 
@@ -740,7 +742,7 @@ function runConway(): void {
   }
 
   for (const idx of dying) grid[idx] = null;
-  for (const idx of born) grid[idx] = { kind: "conway", dir: 0 };
+  for (const idx of born) grid[idx] = { kind: "life", dir: 0 };
 }
 
 function neighbors8(idx: number): number[] {
@@ -763,7 +765,7 @@ function step(): void {
   runGenerators();
   runRotators();
   runMovers();
-  runConway();
+  runLife();
   draw();
 
   // A level you built with no enemies in it has nothing to win, so don't pop
@@ -1111,7 +1113,7 @@ const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   gen: { face: "#3ed07d", edge: "#12613a", mark: "#e9fff2" },
   bomb: { face: "#3b3f52", edge: "#15171f", mark: "#ffb648" },
   multibomb: { face: "#5a3f9c", edge: "#241546", mark: "#ffd166" },
-  conway: { face: "#8ed14f", edge: "#2f5b1a", mark: "#f6ffe8" },
+  life: { face: "#8ed14f", edge: "#2f5b1a", mark: "#f6ffe8" },
   enemy: { face: "#ff4d5e", edge: "#7d1620", mark: "#ffe4e6" },
   trash: { face: "#2c3140", edge: "#12141c", mark: "#c9d2e0" },
 };
@@ -1218,7 +1220,7 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
     case "multibomb":
       drawBomb(target, cx, cy, s, colors.mark, cell.kind === "multibomb");
       break;
-    case "conway":
+    case "life":
       target.fillStyle = colors.mark;
       target.beginPath();
       target.arc(cx, cy, s * 0.26, 0, Math.PI * 2);
