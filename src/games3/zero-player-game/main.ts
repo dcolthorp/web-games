@@ -1248,25 +1248,33 @@ function runHunters(): void {
     const cell = grid[idx];
     if (cell?.kind !== "hunter") continue;
 
-    // Downhill towards the nearest enemy. Ties go to the first way round from
-    // the right, so a tick always plays out the same way twice.
-    let closest = scent.get(idx) ?? Number.POSITIVE_INFINITY;
-    let chase: Dir | null = null;
+    // Every way that gets it closer, best first. Ties go to the first way round
+    // from the right, so a tick always plays out the same way twice.
+    const here = scent.get(idx) ?? Number.POSITIVE_INFINITY;
+    const routes: { dir: Dir; reach: number }[] = [];
     for (let dir = 0; dir < 4; dir += 1) {
       const landing = stepTarget(idx, dir as Dir);
       if (landing === null) continue;
       const reach = scent.get(landing);
-      if (reach !== undefined && reach < closest) {
-        closest = reach;
-        chase = dir as Dir;
-      }
+      if (reach === undefined || reach >= here) continue;
+      routes.push({ dir: dir as Dir, reach });
     }
-    if (chase === null) continue;
+    if (routes.length === 0) continue;
+    routes.sort((a, b) => a.reach - b.reach || a.dir - b.dir);
 
-    // Face the way it is going, then move like any other mover — so it shoves
-    // blocks, takes signposts, and trades itself for the enemy on contact.
-    cell.dir = chase;
-    tryMove(idx, chase);
+    // The scent counts a square of blocks as passable, because blocks usually
+    // are — but the shove can still jam against something immovable. So try the
+    // routes in turn rather than giving up the tick on the first refusal, which
+    // is what used to strand a hunter in a level packed with blocks.
+    let travelled = false;
+    for (const route of routes) {
+      if (!tryMove(idx, route.dir)) continue;
+      cell.dir = route.dir;
+      travelled = true;
+      break;
+    }
+    // Boxed in for now: still turn to face the way it wants to go.
+    if (!travelled) cell.dir = routes[0]?.dir ?? cell.dir;
   }
 }
 
