@@ -16,6 +16,7 @@ type CellKind =
   | "wall"
   | "rotcw"
   | "rotccw"
+  | "arrow"
   | "gen"
   | "bomb"
   | "multibomb"
@@ -76,6 +77,7 @@ const UNLIMITED: Partial<Record<BrushKind, number>> = {
   wall: Infinity,
   rotcw: Infinity,
   rotccw: Infinity,
+  arrow: Infinity,
   gen: Infinity,
   bomb: Infinity,
   multibomb: Infinity,
@@ -103,6 +105,11 @@ const LEGEND: Record<string, Cell> = {
   "#": { kind: "wall", dir: 0 },
   c: { kind: "rotcw", dir: 0 },
   a: { kind: "rotccw", dir: 0 },
+  // Signposts, one character per way they point.
+  r: { kind: "arrow", dir: 0 },
+  d: { kind: "arrow", dir: 1 },
+  l: { kind: "arrow", dir: 2 },
+  u: { kind: "arrow", dir: 3 },
   R: { kind: "gen", dir: 0 },
   D: { kind: "gen", dir: 1 },
   L: { kind: "gen", dir: 2 },
@@ -311,7 +318,28 @@ const LEVELS: Level[] = [
     inventory: { mover: 1, multibomb: 1 },
   },
   {
-    name: "10. Sandbox",
+    name: "10. Turn Here",
+    hint: "An arrow is a signpost. A mover that walks into one takes its heading — press R to point the arrow before you place it.",
+    layout: [
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "..........e...",
+      "..............",
+    ],
+    zone: [
+      "..............",
+      ".xx........x..",
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+    ],
+    inventory: { mover: 1, arrow: 1 },
+  },
+  {
+    name: "11. Sandbox",
     hint: "A giant open grid, everything unlimited. Scroll to zoom, drag with the middle button or Shift to move around.",
     cols: 64,
     rows: 40,
@@ -327,6 +355,7 @@ const PALETTE_ORDER: BrushKind[] = [
   "wall",
   "rotcw",
   "rotccw",
+  "arrow",
   "gen",
   "bomb",
   "multibomb",
@@ -344,6 +373,7 @@ const KIND_LABEL: Record<BrushKind, string> = {
   wall: "Wall",
   rotcw: "Rot CW",
   rotccw: "Rot CCW",
+  arrow: "Arrow",
   gen: "Gen",
   glue: "Glue",
   bomb: "Bomb",
@@ -372,6 +402,7 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   wall: { generatorPushable: false, generatorCopyable: false },
   rotcw: { generatorPushable: true, generatorCopyable: true },
   rotccw: { generatorPushable: true, generatorCopyable: true },
+  arrow: { generatorPushable: true, generatorCopyable: true },
   gen: { generatorPushable: true, generatorCopyable: true },
   bomb: { generatorPushable: true, generatorCopyable: true },
   multibomb: { generatorPushable: true, generatorCopyable: true },
@@ -384,8 +415,14 @@ const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   portal: { generatorPushable: false, generatorCopyable: false },
 };
 
-// Only these care which way they face, so only these respond to the R key.
-const DIRECTIONAL: ReadonlySet<BrushKind> = new Set<BrushKind>(["mover", "gen", "slide"]);
+// Only these care which way they face, so only these respond to the R key —
+// and only these get spun by a rotator.
+const DIRECTIONAL: ReadonlySet<BrushKind> = new Set<BrushKind>([
+  "mover",
+  "gen",
+  "slide",
+  "arrow",
+]);
 
 const canvasElement = document.getElementById("game");
 if (!(canvasElement instanceof HTMLCanvasElement)) throw new Error("missing canvas");
@@ -857,18 +894,64 @@ const SMART_CROWD_LIMIT = 3; // it will not breed into a crowd this thick
 
 // What a brain is scared of: the things that come looking for it.
 const THREATS: ReadonlySet<CellKind> = new Set<CellKind>(["mover", "bomb", "multibomb"]);
+// These do not have to touch you to kill you.
+const BLAST_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(["bomb", "multibomb"]);
+// Standing anywhere a bomb can reach outweighs any amount of ordinary crowding.
+const BLAST_DREAD = 100;
 
-// How nasty a square feels, counting every threat close enough to see. Nearer
-// threats weigh more, so a brain squeezed between two movers picks the gap.
-function dangerAt(square: number, threats: number[]): number {
-  const x = square % cols;
-  const y = Math.floor(square / cols);
-  let danger = 0;
+// How nasty every square feels this tick, totalled over every threat on the
+// board. Distance is counted the way a machine actually travels — a wall blocks
+// the way and a portal is a single step — so a brain sees a mover about to come
+// out of a ring beside it, and stops panicking about one stuck behind a wall.
+function mapDanger(threats: number[]): Map<number, number> {
+  const danger = new Map<number, number>();
+  const add = (square: number, amount: number) =>
+    danger.set(square, (danger.get(square) ?? 0) + amount);
+
   for (const threat of threats) {
-    const gap = Math.abs((threat % cols) - x) + Math.abs(Math.floor(threat / cols) - y);
-    if (gap < SMART_SIGHT) danger += SMART_SIGHT - gap;
+    const kind = grid[threat]?.kind;
+    if (!kind) continue;
+
+    add(threat, SMART_SIGHT + 1);
+    const seen = new Set<number>([threat]);
+    let frontier = [threat];
+    for (let step = 1; step <= SMART_SIGHT; step += 1) {
+      const next: number[] = [];
+      for (const square of frontier) {
+        for (let dir = 0; dir < 4; dir += 1) {
+          const landing = stepTarget(square, dir as Dir);
+          // A wall is the one thing a machine cannot come through.
+          if (landing === null || seen.has(landing)) continue;
+          if (grid[landing]?.kind === "wall") continue;
+          seen.add(landing);
+          add(landing, SMART_SIGHT + 1 - step);
+          next.push(landing);
+        }
+      }
+      frontier = next;
+    }
+
+    if (BLAST_KINDS.has(kind)) markBlast(threat, add);
   }
   return danger;
+}
+
+// A bomb wipes out the whole 3x3 it goes off in, so a brain reads that
+// footprint — diagonals included — as certain death, and the ring outside it as
+// nearly as bad, because the bomb only has to take one step to get there.
+function markBlast(bomb: number, add: (square: number, amount: number) => void): void {
+  const bx = bomb % cols;
+  const by = Math.floor(bomb / cols);
+  for (let oy = -2; oy <= 2; oy += 1) {
+    for (let ox = -2; ox <= 2; ox += 1) {
+      const x = bx + ox;
+      const y = by + oy;
+      if (!inBounds(x, y)) continue;
+      // Chebyshev, not Manhattan: a blast reaches the corners too.
+      const reach = Math.max(Math.abs(ox), Math.abs(oy));
+      add(index(x, y), BLAST_DREAD * (3 - reach));
+    }
+  }
 }
 
 function runSmartEnemies(): void {
@@ -891,21 +974,24 @@ function runSmartEnemies(): void {
 // what pin it down. Portals count as a way out.
 function fleeThreats(brains: number[], threats: number[]): void {
   if (threats.length === 0) return;
+  // One reading of the board for the whole swarm, so they all react to the same
+  // moment rather than to each other shuffling about.
+  const danger = mapDanger(threats);
 
   for (const idx of brains) {
     const cell = grid[idx];
     // Glue nails it down: coming unstuck is exactly what glue forbids.
     if (cell?.kind !== "smart" || isPermanent(cell)) continue;
 
-    let safest = dangerAt(idx, threats);
+    let safest = danger.get(idx) ?? 0;
     if (safest === 0) continue; // nothing close enough to run from
     let escape: number | null = null;
     for (let dir = 0; dir < 4; dir += 1) {
       const landing = stepTarget(idx, dir as Dir);
       if (landing === null || grid[landing]) continue;
-      const danger = dangerAt(landing, threats);
-      if (danger < safest) {
-        safest = danger;
+      const here = danger.get(landing) ?? 0;
+      if (here < safest) {
+        safest = here;
         escape = landing;
       }
     }
@@ -959,6 +1045,17 @@ function runMovers(): void {
       if (!cell || cell.kind !== "mover" || cell.dir !== dir) continue;
       if (acted.has(cell)) continue;
       acted.add(cell);
+
+      // Walking into a signpost turns you instead of shoving it: the mover takes
+      // the arrow's heading and sets off that way on the next tick. An arrow
+      // already pointing your way has nothing to tell you, so you shove it.
+      const ahead = stepTarget(idx, dir);
+      const sign = ahead === null ? null : grid[ahead];
+      if (sign?.kind === "arrow" && sign.dir !== dir) {
+        cell.dir = sign.dir;
+        continue;
+      }
+
       tryMove(idx, dir);
     }
   }
@@ -1426,6 +1523,7 @@ const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   push: { face: "#c9924f", edge: "#5e3d16", mark: "#3a2409" },
   slide: { face: "#d9b263", edge: "#6b4c15", mark: "#3a2409" },
   wall: { face: "#57606f", edge: "#232833", mark: "#8b95a5" },
+  arrow: { face: "#1fa8a0", edge: "#083d3a", mark: "#e6fffc" },
   rotcw: { face: "#b06bff", edge: "#4a1d80", mark: "#f4e6ff" },
   rotccw: { face: "#ff6bd6", edge: "#7c1a5d", mark: "#ffe9f8" },
   gen: { face: "#3ed07d", edge: "#12613a", mark: "#e9fff2" },
@@ -1557,6 +1655,9 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
     case "rotccw":
       drawSpin(target, cx, cy, s, cell.kind === "rotcw", colors.mark);
       break;
+    case "arrow":
+      drawSignpost(target, cx, cy, s, cell.dir, colors.mark);
+      break;
     case "gen":
       drawGenerator(target, cx, cy, s, cell.dir, colors.mark);
       break;
@@ -1620,6 +1721,36 @@ function drawArrow(target: CanvasRenderingContext2D, cx: number, cy: number, s: 
   target.lineTo(-r * 0.7, r * 0.85);
   target.closePath();
   target.fill();
+  target.restore();
+}
+
+// A drawn-on signpost: a shaft with an open head, so it never reads as the
+// mover's solid triangle even at a glance.
+function drawSignpost(
+  target: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  s: number,
+  dir: Dir,
+  color: string
+): void {
+  const r = s * 0.3;
+  target.save();
+  target.translate(cx, cy);
+  target.rotate((dir * Math.PI) / 2);
+  target.strokeStyle = color;
+  target.lineWidth = Math.max(2.5, s * 0.11);
+  target.lineCap = "round";
+  target.lineJoin = "round";
+  target.beginPath();
+  target.moveTo(-r, 0);
+  target.lineTo(r * 0.55, 0);
+  target.moveTo(r * 0.02, -r * 0.55);
+  target.lineTo(r * 0.6, 0);
+  target.lineTo(r * 0.02, r * 0.55);
+  target.stroke();
+  target.lineCap = "butt";
+  target.lineJoin = "miter";
   target.restore();
 }
 
