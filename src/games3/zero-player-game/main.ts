@@ -11,6 +11,7 @@ type Dir = 0 | 1 | 2 | 3; // right, down, left, up
 
 type CellKind =
   | "mover"
+  | "hunter"
   | "push"
   | "slide"
   | "wall"
@@ -75,6 +76,7 @@ const SKIP_CLEAR_CONFIRM_KEY = "zero-player-game-skip-clear-confirm";
 
 const UNLIMITED: Partial<Record<BrushKind, number>> = {
   mover: Infinity,
+  hunter: Infinity,
   push: Infinity,
   slide: Infinity,
   wall: Infinity,
@@ -102,6 +104,7 @@ const LEGEND: Record<string, Cell> = {
   v: { kind: "mover", dir: 1 },
   "<": { kind: "mover", dir: 2 },
   "^": { kind: "mover", dir: 3 },
+  h: { kind: "hunter", dir: 0 },
   p: { kind: "push", dir: 0 },
   s: { kind: "slide", dir: 0 }, // slides horizontally
   S: { kind: "slide", dir: 1 }, // slides vertically
@@ -451,7 +454,32 @@ const LEVELS: Level[] = [
     inventory: { mover: 1 },
   },
   {
-    name: "13. Sandbox",
+    name: "13. The Hunter",
+    hint: "A smart mover picks its own heading: every tick it works out which way the nearest enemy lies and goes that way. No aiming, no rotating — just put it down and let it find the way through.",
+    layout: [
+      "##############",
+      "#...#........#",
+      "#...#.#####..#",
+      "#.###.#...#..#",
+      "#.....#.e.#..#",
+      "#.#####...#..#",
+      "#............#",
+      "##############",
+    ],
+    zone: [
+      "..............",
+      ".xxx..........",
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+      "..............",
+    ],
+    inventory: { hunter: 1 },
+  },
+  {
+    name: "14. Sandbox",
     hint: "A giant open grid, everything unlimited. Scroll to zoom, drag with the middle button or Shift to move around.",
     cols: 64,
     rows: 40,
@@ -462,6 +490,7 @@ const LEVELS: Level[] = [
 
 const PALETTE_ORDER: BrushKind[] = [
   "mover",
+  "hunter",
   "push",
   "slide",
   "wall",
@@ -480,6 +509,7 @@ const PALETTE_ORDER: BrushKind[] = [
 
 const KIND_LABEL: Record<BrushKind, string> = {
   mover: "Mover",
+  hunter: "Smart Mover",
   push: "Push",
   slide: "Slide",
   wall: "Wall",
@@ -509,6 +539,7 @@ interface GeneratorRules {
 
 const GENERATOR_RULES: Record<CellKind, GeneratorRules> = {
   mover: { generatorPushable: false, generatorCopyable: false },
+  hunter: { generatorPushable: false, generatorCopyable: false },
   push: { generatorPushable: true, generatorCopyable: true },
   slide: { generatorPushable: true, generatorCopyable: true },
   wall: { generatorPushable: false, generatorCopyable: false },
@@ -1017,7 +1048,12 @@ const SMART_BREED_TICKS = 6; // ticks between copies
 const SMART_CROWD_LIMIT = 3; // it will not breed into a crowd this thick
 
 // What a brain is scared of: the things that come looking for it.
-const THREATS: ReadonlySet<CellKind> = new Set<CellKind>(["mover", "bomb", "multibomb"]);
+const THREATS: ReadonlySet<CellKind> = new Set<CellKind>([
+  "mover",
+  "hunter",
+  "bomb",
+  "multibomb",
+]);
 // These do not have to touch you to kill you.
 const BLAST_KINDS: ReadonlySet<CellKind> = new Set<CellKind>(["bomb", "multibomb"]);
 // Standing anywhere a bomb can reach outweighs any amount of ordinary crowding.
@@ -1163,6 +1199,77 @@ function breedBrains(): void {
 // can line a lane with signs instead of having to crash a machine into them.
 // With two signs touching the same mover, the first one round from the right
 // wins, which keeps a tick reproducible.
+// The smart mover is a mover that picks its own heading. Every tick it works
+// out which way the nearest enemy lies and takes a step that way — so it goes
+// all four ways rather than the one you aimed it, and it hunts rather than
+// walks. With nothing left to chase it simply stands still.
+
+// How far every square is from the nearest enemy, counted in real steps: walls
+// block the way and a portal is a single step. Measuring it this way means a
+// hunter walks around an obstacle instead of grinding into the near side of it.
+function mapScent(): Map<number, number> {
+  const scent = new Map<number, number>();
+  let frontier: number[] = [];
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    const cell = grid[idx];
+    if (cell && isEnemyKind(cell.kind)) {
+      scent.set(idx, 0);
+      frontier.push(idx);
+    }
+  }
+
+  for (let step = 1; frontier.length > 0 && step <= grid.length; step += 1) {
+    const next: number[] = [];
+    for (const square of frontier) {
+      for (let dir = 0; dir < 4; dir += 1) {
+        const landing = stepTarget(square, dir as Dir);
+        if (landing === null || scent.has(landing)) continue;
+        if (grid[landing]?.kind === "wall") continue;
+        scent.set(landing, step);
+        next.push(landing);
+      }
+    }
+    frontier = next;
+  }
+  return scent;
+}
+
+function runHunters(): void {
+  const hunters: number[] = [];
+  for (let idx = 0; idx < grid.length; idx += 1) {
+    if (grid[idx]?.kind === "hunter") hunters.push(idx);
+  }
+  if (hunters.length === 0) return;
+
+  const scent = mapScent();
+  if (scent.size === 0) return; // nothing left to hunt
+
+  for (const idx of hunters) {
+    const cell = grid[idx];
+    if (cell?.kind !== "hunter") continue;
+
+    // Downhill towards the nearest enemy. Ties go to the first way round from
+    // the right, so a tick always plays out the same way twice.
+    let closest = scent.get(idx) ?? Number.POSITIVE_INFINITY;
+    let chase: Dir | null = null;
+    for (let dir = 0; dir < 4; dir += 1) {
+      const landing = stepTarget(idx, dir as Dir);
+      if (landing === null) continue;
+      const reach = scent.get(landing);
+      if (reach !== undefined && reach < closest) {
+        closest = reach;
+        chase = dir as Dir;
+      }
+    }
+    if (chase === null) continue;
+
+    // Face the way it is going, then move like any other mover — so it shoves
+    // blocks, takes signposts, and trades itself for the enemy on contact.
+    cell.dir = chase;
+    tryMove(idx, chase);
+  }
+}
+
 // Things that end a lane: a train of pushed blocks cannot shove any of them out
 // of the way. A portal counts, because it is a doorway rather than more lane —
 // whatever stands beyond it is not something this mover is about to shove into,
@@ -1289,6 +1396,9 @@ function step(): void {
   // Brains dodge before the machine moves, so a straight chase never lands.
   runSmartEnemies();
   runMovers();
+  // Hunters move after the ordinary machine, so they chase where things have
+  // actually ended up this tick rather than where they started.
+  runHunters();
   runLife();
   draw();
 
@@ -1694,6 +1804,7 @@ function refund(kind: BrushKind): void {
 
 const COLORS: Record<CellKind, { face: string; edge: string; mark: string }> = {
   mover: { face: "#3fb6ff", edge: "#0a4a74", mark: "#eaffff" },
+  hunter: { face: "#57d9ff", edge: "#07506e", mark: "#f4ffff" },
   push: { face: "#c9924f", edge: "#5e3d16", mark: "#3a2409" },
   slide: { face: "#d9b263", edge: "#6b4c15", mark: "#3a2409" },
   wall: { face: "#57606f", edge: "#232833", mark: "#8b95a5" },
@@ -1816,6 +1927,9 @@ function drawCell(target: CanvasRenderingContext2D, cell: Cell, px: number, py: 
     case "mover":
       drawArrow(target, cx, cy, s, cell.dir, colors.mark);
       break;
+    case "hunter":
+      drawCompass(target, cx, cy, s, cell.dir, colors.mark);
+      break;
     case "push":
       drawDots(target, cx, cy, s, colors.mark);
       break;
@@ -1926,6 +2040,44 @@ function drawSignpost(
   target.lineCap = "butt";
   target.lineJoin = "miter";
   target.restore();
+}
+
+// Four arrowheads round a core instead of one: the way it is currently chasing
+// is filled in, the other three are left hollow, so a smart mover reads at a
+// glance as a mover that can go whichever way it likes.
+function drawCompass(
+  target: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  s: number,
+  dir: Dir,
+  color: string
+): void {
+  const r = s * 0.36;
+  for (let point = 0; point < 4; point += 1) {
+    target.save();
+    target.translate(cx, cy);
+    target.rotate((point * Math.PI) / 2);
+    target.beginPath();
+    target.moveTo(r, 0);
+    target.lineTo(r * 0.5, -r * 0.34);
+    target.lineTo(r * 0.5, r * 0.34);
+    target.closePath();
+    if (point === dir) {
+      target.fillStyle = color;
+      target.fill();
+    } else {
+      target.strokeStyle = color;
+      target.lineWidth = Math.max(1, s * 0.04);
+      target.stroke();
+    }
+    target.restore();
+  }
+
+  target.fillStyle = color;
+  target.beginPath();
+  target.arc(cx, cy, Math.max(1.5, s * 0.1), 0, Math.PI * 2);
+  target.fill();
 }
 
 function drawDots(target: CanvasRenderingContext2D, cx: number, cy: number, s: number, color: string): void {
