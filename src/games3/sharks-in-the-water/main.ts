@@ -3,6 +3,31 @@ import { installOofShortcut } from "../../shared/oofShortcut";
 import { NIGHTMARE_TOAST_KEY, TOAST_ON_GAMES3_KEY } from "../../shared/glitchedToast";
 import { Peer, type DataConnection } from "peerjs";
 import recoveredSaveOne from "./recovered-save-1.json";
+import {
+  MAX_MULTIPLAYER_COLLECTION_ITEMS,
+  MAX_MULTIPLAYER_CRATES,
+  MULTIPLAYER_PROTOCOL_VERSION,
+  createCommandResultCache,
+  decideSnapshotAcceptance,
+  decideWorldFrameAcceptance,
+  findCachedCommandResult,
+  hasHostPacketTimedOut,
+  parseMultiplayerMessage,
+  recordCommandResult,
+  shouldAcceptSequence,
+  type MultiplayerEnvelope,
+  type MultiplayerMessageKind,
+  type ReplicatedPlayerFrame,
+  type SnapshotPayload,
+  type WorldFramePayload,
+} from "./multiplayerProtocol";
+import {
+  createInitialState,
+  createReducerRuntime,
+  reduceCommand,
+  type MultiplayerState,
+  type PlayerId,
+} from "./multiplayerState";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -23,6 +48,8 @@ interface MaterialDrop {
 }
 
 interface FloatingCrate {
+  /** Stable in-room identity. Older saves are migrated on load. */
+  id?: string;
   x: number;
   y: number;
   kind: CrateKind;
@@ -30,6 +57,16 @@ interface FloatingCrate {
   landedAt: number;
   bobOffset: number;
   deliveredByCargoShip?: boolean;
+  /** Rolled once by the co-op host, then saved with the stable crate ID. */
+  multiplayerReward?: MultiplayerCrateReward;
+}
+
+interface MultiplayerCrateReward {
+  inventory: Record<string, number>;
+  foodHealing: Array<1 | 99>;
+  unlockCraftingTable?: boolean;
+  unlockEndgame?: boolean;
+  terrainGenerators?: number;
 }
 
 interface CargoShip {
@@ -106,18 +143,8 @@ interface PastSelfEcho {
   expiresAt: number;
 }
 
-interface MultiplayerMessage {
-  room: string;
-  sender: string;
-  player: 1 | 2;
-  type: "join" | "welcome" | "position" | "state" | "notice" | "start" | "world" | "take";
-  payload?: unknown;
-}
-
 interface RemotePlayerState {
-  x: number;
-  y: number;
-  player: 1 | 2;
+  frame: ReplicatedPlayerFrame;
   updatedAt: number;
 }
 
@@ -168,6 +195,8 @@ interface SaveData {
   progressionIndex: number;
   crates: FloatingCrate[];
   carriedCrates: FloatingCrate[];
+  multiplayerCarriedCrateIds?: Record<PlayerId, string[]>;
+  multiplayerCrateCatalog?: FloatingCrate[];
   inventory: [string, number][];
   foodHealing: number[];
   hearts: number;
@@ -529,17 +558,49 @@ let multiplayerPlayerNumber: 1 | 2 = 1;
 let multiplayerIsHost = false;
 let multiplayerConnected = false;
 let remotePlayerState: RemotePlayerState | null = null;
-let pendingMultiplayerState: Partial<SaveData> | null = null;
 let lastMultiplayerPositionAt = 0;
 let lastWorldSyncAt = 0;
+let multiplayerSessionEpoch = "";
+let multiplayerHostSenderId = "";
+let multiplayerGuestSenderId = "";
+let multiplayerResumeToken = "";
+let multiplayerOutgoingSequence = 0;
+let multiplayerIncomingSequences = new Map<string, number>();
+let multiplayerSeenMessageIds = new Set<string>();
+let multiplayerAuthorityCursor: { sessionEpoch: string; revision: number } | null = null;
+let multiplayerHostRevision = 0;
+let multiplayerFrameSeq = 0;
+let multiplayerLastSnapshot: SnapshotPayload<Partial<SaveData>> | null = null;
+let multiplayerReducerState: MultiplayerState = createInitialState();
+let multiplayerReducerRuntime = createReducerRuntime("p1", 0, {
+  canDepositCrate: (state, actor) => isOnRaftNetwork(state.players[actor].x, state.players[actor].y),
+});
+let multiplayerCommandCache = createCommandResultCache();
+let multiplayerPendingCommands = new Map<string, { type: string; payload: unknown }>();
+let multiplayerCarriedCrateIds: Record<PlayerId, string[]> = { p1: [], p2: [] };
+// In co-op a shield is a replicated one-hit charge. Do not use shieldUntil
+// there: Infinity is a single-player presentation detail and leaks on actor
+// swaps.
+let multiplayerShieldCharges: Record<PlayerId, 0 | 1> = { p1: 0, p2: 0 };
+let multiplayerGuestInput = { inputSeq: -1, dx: 0 as -1 | 0 | 1, dy: 0 as -1 | 0 | 1, sprint: false };
+let multiplayerGuestInputSequence = -1;
+let multiplayerHostPaused = false;
+let multiplayerLastAcceptedFrameSeq = -1;
+let multiplayerSuppressSaveBroadcast = false;
+let multiplayerLastAcceptedHostPacketAtMs = -1;
+let multiplayerLastGuestInputAtMs = -1;
+let multiplayerHostGamePaused = false;
+let multiplayerVoyageStarted = false;
+let multiplayerConnectionGeneration = 0;
+let multiplayerCandidateConnection: DataConnection | null = null;
+let multiplayerReconnectTimer: number | null = null;
 // Last shark pose the host sent, with the speed it was travelling at, so the
 // guest can keep animating between updates instead of teleporting.
 let sharkNetPose: { x: number; y: number; angle: number; speed: number; at: number } | null = null;
 
-interface WorldSyncPayload {
+interface MultiplayerWorldData {
   shark: { x: number; y: number; angle: number; speed: number };
   extraSharks: Array<{ x: number; y: number; angle: number }>;
-  crates: FloatingCrate[];
   sharkDeleted: boolean;
 }
 
@@ -547,6 +608,18 @@ interface WorldSyncPayload {
 // what they are told, so the two sides can never fight over the same entities.
 function isWorldAuthority(): boolean {
   return !multiplayerConnected || multiplayerIsHost;
+}
+
+function hasMultiplayerIdentity(): boolean {
+  return multiplayerRoomCode.length > 0;
+}
+
+function hasActiveMultiplayerSession(): boolean {
+  return hasMultiplayerIdentity() && multiplayerSessionEpoch.length > 0;
+}
+
+function hasActiveMultiplayerVoyage(): boolean {
+  return hasActiveMultiplayerSession() && multiplayerVoyageStarted;
 }
 let multiplayerBroadcastChannel: BroadcastChannel | null = null;
 let multiplayerPeer: Peer | null = null;
@@ -855,6 +928,14 @@ document.getElementById("deposit-dialog")?.addEventListener("submit", (event) =>
 
 multiplayerHotChannel?.on("sharks:room-message", (data) => handleMultiplayerMessage(data));
 
+window.setInterval(() => {
+  if (multiplayerIsHost && multiplayerConnected && hasActiveMultiplayerSession()) {
+    sendMultiplayerMessage("notice", { text: "__heartbeat__" });
+  } else if (isGuestMultiplayer() && multiplayerConnected && hasActiveMultiplayerSession()) {
+    sendMultiplayerInput();
+  }
+}, 1000);
+
 const changelogList = document.getElementById("changelog-list");
 if (changelogList) {
   for (const entry of changelogEntries) {
@@ -879,6 +960,30 @@ function closeMultiplayerDialog(): void {
   if (dialog) dialog.hidden = true;
 }
 
+function leaveMultiplayerSession(): void {
+  if (!hasMultiplayerIdentity()) return;
+  if (multiplayerIsHost && hasActiveMultiplayerVoyage() && saveSelected) saveGame();
+  if (multiplayerConnected && multiplayerSessionEpoch) {
+    sendMultiplayerMessage("disconnect", { reason: "normal" });
+  }
+  if (multiplayerReconnectTimer !== null) window.clearTimeout(multiplayerReconnectTimer);
+  multiplayerReconnectTimer = null;
+  resetInternetRoomConnection();
+  multiplayerBroadcastChannel?.close();
+  multiplayerBroadcastChannel = null;
+  multiplayerRoomCode = "";
+  multiplayerPlayerNumber = 1;
+  multiplayerIsHost = false;
+  multiplayerConnected = false;
+  multiplayerSessionEpoch = "";
+  multiplayerHostSenderId = "";
+  multiplayerGuestSenderId = "";
+  multiplayerResumeToken = "";
+  remotePlayerState = null;
+  resetMultiplayerProtocolState();
+  updateMultiplayerStatus("Not connected");
+}
+
 function createMultiplayerRoom(): void {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   multiplayerRoomCode = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)] ?? "X").join("");
@@ -886,6 +991,11 @@ function createMultiplayerRoom(): void {
   multiplayerIsHost = true;
   multiplayerConnected = false;
   remotePlayerState = null;
+  multiplayerSessionEpoch = crypto.randomUUID();
+  multiplayerHostSenderId = multiplayerSenderId;
+  multiplayerGuestSenderId = "";
+  multiplayerResumeToken = crypto.randomUUID();
+  resetMultiplayerProtocolState();
   initializeMultiplayerTransport();
   startInternetRoomHost();
   const codeDisplay = document.getElementById("room-code-display");
@@ -908,6 +1018,11 @@ function joinMultiplayerRoom(): void {
   multiplayerIsHost = false;
   multiplayerConnected = false;
   remotePlayerState = null;
+  multiplayerSessionEpoch = "";
+  multiplayerHostSenderId = "";
+  multiplayerGuestSenderId = "";
+  multiplayerResumeToken = sessionStorage.getItem(getMultiplayerResumeKey(code)) ?? "";
+  resetMultiplayerProtocolState();
   initializeMultiplayerTransport();
   const codeDisplay = document.getElementById("room-code-display");
   const codeValue = document.getElementById("room-code-value");
@@ -924,10 +1039,17 @@ function initializeMultiplayerTransport(): void {
 }
 
 function resetInternetRoomConnection(): void {
+  multiplayerConnectionGeneration += 1;
+  multiplayerCandidateConnection?.close();
   multiplayerConnection?.close();
   multiplayerPeer?.destroy();
+  multiplayerCandidateConnection = null;
   multiplayerConnection = null;
   multiplayerPeer = null;
+}
+
+function getMultiplayerResumeKey(code: string): string {
+  return `sharks-in-the-water-resume-${code}`;
 }
 
 function getInternetPeerId(code: string): string {
@@ -939,9 +1061,15 @@ function startInternetRoomHost(): void {
   updateMultiplayerStatus("Opening an internet room…");
   const peer = new Peer(getInternetPeerId(multiplayerRoomCode));
   multiplayerPeer = peer;
-  peer.on("open", () => updateMultiplayerStatus("Room is online. Waiting for Player 2…"));
-  peer.on("connection", (connection) => wireInternetConnection(connection));
+  peer.on("open", () => {
+    if (peer === multiplayerPeer) updateMultiplayerStatus("Room is online. Waiting for Player 2…");
+  });
+  peer.on("connection", (connection) => {
+    if (peer === multiplayerPeer) wireInternetConnection(connection, true);
+    else connection.close();
+  });
   peer.on("error", (error) => {
+    if (peer !== multiplayerPeer) return;
     const message = error.type === "unavailable-id"
       ? "That code is already being used. Create another room."
       : "Could not reach the internet room service. Check the connection and try again.";
@@ -954,112 +1082,387 @@ function connectInternetRoomGuest(): void {
   const peer = new Peer();
   multiplayerPeer = peer;
   peer.on("open", () => {
+    if (peer !== multiplayerPeer) return;
     const connection = peer.connect(getInternetPeerId(multiplayerRoomCode), { reliable: true, serialization: "json" });
-    wireInternetConnection(connection);
+    wireInternetConnection(connection, false);
   });
-  peer.on("error", () => updateMultiplayerStatus("Room not found yet. Check the code and make sure Player 1 is online."));
+  peer.on("error", () => {
+    if (peer === multiplayerPeer) {
+      updateMultiplayerStatus("Room not found yet. Check the code and make sure Player 1 is online.");
+      scheduleGuestReconnect();
+    }
+  });
 }
 
-function wireInternetConnection(connection: DataConnection): void {
-  multiplayerConnection?.close();
-  multiplayerConnection = connection;
-  connection.on("data", (data) => handleMultiplayerMessage(data));
+function wireInternetConnection(connection: DataConnection, candidateForHost: boolean): void {
+  const generation = multiplayerConnectionGeneration;
+  if (candidateForHost) {
+    multiplayerCandidateConnection?.close();
+    multiplayerCandidateConnection = connection;
+  } else {
+    multiplayerConnection?.close();
+    multiplayerConnection = connection;
+  }
+  connection.on("data", (data) => handleMultiplayerMessage(data, connection));
   connection.on("open", () => {
-    multiplayerConnected = true;
-    updateMultiplayerStatus(`Connected as Player ${multiplayerPlayerNumber} in ${multiplayerRoomCode}`);
-    if (multiplayerPlayerNumber === 2) sendMultiplayerMessage("join");
+    if (generation !== multiplayerConnectionGeneration) return;
+    if (!multiplayerIsHost) {
+      if (multiplayerReconnectTimer !== null) window.clearTimeout(multiplayerReconnectTimer);
+      multiplayerReconnectTimer = null;
+      multiplayerConnected = true;
+      // A fresh transport is a fresh liveness signal. Without this, the stale
+      // pre-drop timestamp re-trips the host watchdog on the very next frame.
+      multiplayerLastAcceptedHostPacketAtMs = performance.now();
+      updateMultiplayerStatus(`Connected as Player ${multiplayerPlayerNumber} in ${multiplayerRoomCode}`);
+      sendMultiplayerMessage("hello", {
+        protocol: MULTIPLAYER_PROTOCOL_VERSION,
+        clientInstanceId: multiplayerSenderId,
+        ...(multiplayerResumeToken ? { resumeToken: multiplayerResumeToken } : {}),
+      });
+    }
   });
   connection.on("close", () => {
-    multiplayerConnected = false;
-    remotePlayerState = null;
-    updateMultiplayerStatus("The other player disconnected. The room can be joined again.");
+    if (generation !== multiplayerConnectionGeneration) return;
+    if (connection === multiplayerCandidateConnection) {
+      multiplayerCandidateConnection = null;
+      return;
+    }
+    if (connection !== multiplayerConnection) return;
+    handleMultiplayerTransportLoss("connection closed");
   });
-  connection.on("error", () => updateMultiplayerStatus("The player-to-player connection failed. Try joining again."));
+  connection.on("error", () => {
+    if (generation !== multiplayerConnectionGeneration) return;
+    if (connection === multiplayerCandidateConnection) {
+      multiplayerCandidateConnection = null;
+      return;
+    }
+    if (connection === multiplayerConnection) handleMultiplayerTransportLoss("connection error");
+  });
 }
 
-function sendMultiplayerMessage(type: MultiplayerMessage["type"], payload?: unknown): void {
+function resetMultiplayerProtocolState(): void {
+  // These throttles compare against elapsed, which restarts at 0 for every
+  // voyage. Stale values from a previous session would silence world frames
+  // and 10 Hz guest input for however long the old voyage had run.
+  lastWorldSyncAt = 0;
+  lastMultiplayerPositionAt = 0;
+  sharkNetPose = null;
+  multiplayerOutgoingSequence = 0;
+  multiplayerIncomingSequences = new Map<string, number>();
+  multiplayerSeenMessageIds = new Set<string>();
+  multiplayerAuthorityCursor = null;
+  multiplayerHostRevision = 0;
+  multiplayerFrameSeq = 0;
+  multiplayerLastSnapshot = null;
+  multiplayerReducerState = createInitialState();
+  multiplayerReducerRuntime = createReducerRuntime("p1", 0, {
+    canDepositCrate: (state, actor) => isOnRaftNetwork(state.players[actor].x, state.players[actor].y),
+  });
+  multiplayerCommandCache = createCommandResultCache();
+  multiplayerPendingCommands = new Map<string, { type: string; payload: unknown }>();
+  multiplayerCarriedCrateIds = { p1: [], p2: [] };
+  multiplayerShieldCharges = { p1: 0, p2: 0 };
+  multiplayerGuestInput = { inputSeq: -1, dx: 0, dy: 0, sprint: false };
+  multiplayerGuestInputSequence = -1;
+  multiplayerHostPaused = false;
+  multiplayerLastAcceptedFrameSeq = -1;
+  multiplayerLastAcceptedHostPacketAtMs = -1;
+  multiplayerLastGuestInputAtMs = -1;
+  multiplayerHostGamePaused = false;
+  multiplayerVoyageStarted = false;
+  multiplayerCrateCatalog.clear();
+}
+
+function pauseGuestForHostLoss(reason: string): void {
+  if (multiplayerIsHost) return;
+  if (multiplayerHostPaused) {
+    scheduleGuestReconnect();
+    return;
+  }
+  // Set this before anything else. update() checks it before elapsed can move.
+  multiplayerHostPaused = true;
+  multiplayerConnected = false;
+  // In-flight commands will never get results now. Leaving them pending would
+  // permanently block re-collecting or re-depositing those exact crates after
+  // a reconnect; the post-reconnect snapshot is the source of truth anyway.
+  multiplayerPendingCommands = new Map<string, { type: string; payload: unknown }>();
+  showMessage(`HOST ${reason.toUpperCase()}. SHARED PLAY IS PAUSED; YOUR LAST SNAPSHOT IS SAFE.`, 6);
+  updateMultiplayerStatus("Host lost. Shared play is paused; wait for the host.");
+  scheduleGuestReconnect();
+}
+
+function scheduleGuestReconnect(): void {
+  if (multiplayerIsHost || !hasMultiplayerIdentity() || multiplayerConnected || multiplayerReconnectTimer !== null) return;
+  multiplayerReconnectTimer = window.setTimeout(() => {
+    multiplayerReconnectTimer = null;
+    if (multiplayerIsHost || !hasMultiplayerIdentity() || multiplayerConnected) return;
+    updateMultiplayerStatus("Trying to reconnect to the host…");
+    connectInternetRoomGuest();
+  }, 1500);
+}
+
+function handleMultiplayerTransportLoss(reason: string): void {
+  if (!multiplayerIsHost) {
+    pauseGuestForHostLoss(reason);
+    return;
+  }
+  multiplayerConnected = false;
+  if (remotePlayerState) {
+    remotePlayerState = {
+      frame: { ...remotePlayerState.frame, connected: false },
+      updatedAt: performance.now(),
+    };
+  }
+  multiplayerGuestInput = { inputSeq: multiplayerGuestInput.inputSeq, dx: 0, dy: 0, sprint: false };
+  updateMultiplayerStatus("The other player disconnected. The room can be joined again.");
+}
+
+function getMultiplayerPlayerId(player = multiplayerPlayerNumber): PlayerId {
+  return player === 1 ? "p1" : "p2";
+}
+
+function sendMultiplayerMessage<K extends MultiplayerMessageKind>(
+  kind: K,
+  payload: unknown,
+): void {
   if (!multiplayerRoomCode) return;
-  const message: MultiplayerMessage = {
+  if (kind !== "hello" && !multiplayerSessionEpoch) return;
+  const message: MultiplayerEnvelope = {
+    protocol: MULTIPLAYER_PROTOCOL_VERSION,
     room: multiplayerRoomCode,
-    sender: multiplayerSenderId,
-    player: multiplayerPlayerNumber,
-    type,
+    ...(kind === "hello" ? {} : { sessionEpoch: multiplayerSessionEpoch }),
+    senderSessionId: multiplayerSenderId,
+    messageId: crypto.randomUUID(),
+    sequence: multiplayerOutgoingSequence++,
+    kind,
     payload,
-  };
+  } as MultiplayerEnvelope;
   if (multiplayerConnection?.open) multiplayerConnection.send(message);
   else if (multiplayerHotChannel) multiplayerHotChannel.send("sharks:room-message", message);
   else multiplayerBroadcastChannel?.postMessage(message);
 }
 
-function isMultiplayerMessage(value: unknown): value is MultiplayerMessage {
-  if (!value || typeof value !== "object") return false;
-  const message = value as Partial<MultiplayerMessage>;
-  return typeof message.room === "string"
-    && typeof message.sender === "string"
-    && (message.player === 1 || message.player === 2)
-    && ["join", "welcome", "position", "state", "notice", "start", "world", "take"].includes(message.type ?? "");
+function handleMultiplayerMessage(value: unknown, sourceConnection?: DataConnection): void {
+  const parsed = parseMultiplayerMessage<Partial<SaveData>, MultiplayerWorldData>(value, {
+    validateSnapshotState: isValidMultiplayerSaveData,
+  });
+  if (!parsed.ok) return;
+  const message = parsed.message;
+  if (message.room !== multiplayerRoomCode || message.senderSessionId === multiplayerSenderId) return;
+  if (message.kind === "hello" && multiplayerIsHost) {
+    const hello = message.payload as { resumeToken?: string };
+    const hasPriorGuest = multiplayerGuestSenderId.length > 0;
+    const replacingTransport = Boolean(sourceConnection && sourceConnection !== multiplayerConnection);
+    if (hasPriorGuest && hello.resumeToken !== multiplayerResumeToken) {
+      if (sourceConnection === multiplayerCandidateConnection) {
+        multiplayerCandidateConnection = null;
+        sourceConnection.close();
+      }
+      return;
+    }
+    const previousSender = multiplayerGuestSenderId;
+    if (sourceConnection && sourceConnection !== multiplayerConnection) {
+      const previousConnection = multiplayerConnection;
+      multiplayerConnection = sourceConnection;
+      if (sourceConnection === multiplayerCandidateConnection) multiplayerCandidateConnection = null;
+      if (previousConnection && previousConnection !== sourceConnection) previousConnection.close();
+    }
+    if (previousSender && previousSender !== message.senderSessionId) {
+      multiplayerIncomingSequences.delete(previousSender);
+      multiplayerCommandCache = createCommandResultCache();
+    }
+    multiplayerGuestSenderId = message.senderSessionId;
+    if (previousSender !== message.senderSessionId || replacingTransport || !multiplayerConnected) {
+      multiplayerIncomingSequences.delete(message.senderSessionId);
+      multiplayerGuestInputSequence = -1;
+      multiplayerGuestInput = { inputSeq: -1, dx: 0, dy: 0, sprint: false };
+    }
+  }
+  // A disconnected guest must also treat a welcome from a *new* host epoch as
+  // a bootstrap: a restarted host mints a fresh epoch, and rejecting it would
+  // leave the guest stuck in the reconnect loop forever.
+  const isWelcomeBootstrap = message.kind === "welcome" && !multiplayerIsHost
+    && (!multiplayerHostSenderId || (!multiplayerConnected && message.sessionEpoch !== multiplayerSessionEpoch));
+  if (message.kind !== "hello" && !isWelcomeBootstrap && message.sessionEpoch !== multiplayerSessionEpoch) return;
+  if (multiplayerIsHost) {
+    if (message.kind !== "hello" && message.senderSessionId !== multiplayerGuestSenderId) return;
+    if (message.kind === "hello" && message.senderSessionId !== multiplayerGuestSenderId) return;
+  } else if (message.kind !== "welcome" && message.senderSessionId !== multiplayerHostSenderId) {
+    return;
+  }
+  if (multiplayerSeenMessageIds.has(message.messageId)) return;
+  const lastSequence = multiplayerIncomingSequences.get(message.senderSessionId);
+  if (!shouldAcceptSequence(lastSequence, message.sequence)) return;
+  multiplayerSeenMessageIds.add(message.messageId);
+  if (multiplayerSeenMessageIds.size > 2048) {
+    const oldest = multiplayerSeenMessageIds.values().next().value;
+    if (oldest) multiplayerSeenMessageIds.delete(oldest);
+  }
+  multiplayerIncomingSequences.set(message.senderSessionId, message.sequence);
+  if (!multiplayerIsHost && message.senderSessionId === multiplayerHostSenderId) {
+    multiplayerLastAcceptedHostPacketAtMs = performance.now();
+  }
+
+  if (message.kind === "hello" && multiplayerIsHost) {
+    multiplayerConnected = true;
+    multiplayerLastGuestInputAtMs = performance.now();
+    if (!remotePlayerState) {
+      remotePlayerState = {
+        frame: {
+          id: "p2", connected: true, x: WIDTH / 2, y: HEIGHT / 2, hearts: 3,
+          shieldCharges: 0, invincibleUntilMs: 0, carriedCrateCount: 0,
+        },
+        updatedAt: performance.now(),
+      };
+    }
+    remotePlayerState.frame.connected = true;
+    updateMultiplayerStatus("Player 2 joined. The host controls shared state.");
+    sendMultiplayerMessage("welcome", {
+      assignedPlayerId: "p2",
+      resumeToken: multiplayerResumeToken || (multiplayerResumeToken = crypto.randomUUID()),
+      snapshot: createMultiplayerSnapshot(),
+    });
+    // A guest that reconnects while the host is paused would otherwise keep
+    // simulating: pause is transient state the snapshot does not carry.
+    if (mode === "paused" && hasActiveMultiplayerVoyage()) {
+      sendMultiplayerMessage("notice", { text: "__host_pause__" });
+    }
+    return;
+  }
+  if (message.kind === "welcome" && !multiplayerIsHost) {
+    const payload = message.payload as { resumeToken: string; snapshot: SnapshotPayload<Partial<SaveData>> };
+    const hostRestarted = multiplayerSessionEpoch.length > 0 && message.sessionEpoch !== multiplayerSessionEpoch;
+    if (hostRestarted) {
+      // New epoch means the old world is gone. Drop every cursor, revision,
+      // and cache from the dead session before adopting the new one.
+      resetMultiplayerProtocolState();
+      multiplayerSeenMessageIds.add(message.messageId);
+      multiplayerIncomingSequences.set(message.senderSessionId, message.sequence);
+    }
+    multiplayerHostSenderId = message.senderSessionId;
+    multiplayerSessionEpoch = message.sessionEpoch ?? "";
+    multiplayerConnected = true;
+    multiplayerLastAcceptedHostPacketAtMs = performance.now();
+    // The snapshot cannot carry a live pause. If the host is still paused it
+    // re-sends __host_pause__ right after this welcome.
+    multiplayerHostGamePaused = false;
+    multiplayerResumeToken = payload.resumeToken;
+    sessionStorage.setItem(getMultiplayerResumeKey(multiplayerRoomCode), multiplayerResumeToken);
+    acceptMultiplayerSnapshot(payload.snapshot);
+    sendMultiplayerMessage("ready", { appliedRevision: payload.snapshot.revision });
+    updateMultiplayerStatus("Connected as Player 2. Waiting for the host.");
+    return;
+  }
+  if (message.kind === "ready" && multiplayerIsHost) {
+    multiplayerConnected = true;
+    updateMultiplayerStatus("Player 2 is ready. The host can start the voyage.");
+    return;
+  }
+  if (message.kind === "snapshot" && !multiplayerIsHost) {
+    acceptMultiplayerSnapshot(message.payload as unknown as SnapshotPayload<Partial<SaveData>>);
+    return;
+  }
+  if (message.kind === "world-frame" && !multiplayerIsHost) {
+    acceptMultiplayerWorldFrame(message.payload as unknown as WorldFramePayload<MultiplayerWorldData>);
+    return;
+  }
+  if (message.kind === "input" && multiplayerIsHost) {
+    const input = message.payload as { inputSeq: number; dx: -1 | 0 | 1; dy: -1 | 0 | 1; sprint: boolean };
+    if (input.inputSeq <= multiplayerGuestInputSequence) return;
+    multiplayerGuestInputSequence = input.inputSeq;
+    multiplayerGuestInput = { ...input };
+    multiplayerLastGuestInputAtMs = performance.now();
+    if (remotePlayerState) remotePlayerState.frame.connected = true;
+    if (!remotePlayerState) {
+      remotePlayerState = {
+        frame: {
+          id: "p2", connected: true, x: WIDTH / 2, y: HEIGHT / 2, hearts: 3,
+          shieldCharges: 0, invincibleUntilMs: 0, carriedCrateCount: 0,
+        },
+        updatedAt: performance.now(),
+      };
+    }
+    return;
+  }
+  if (message.kind === "command" && multiplayerIsHost) {
+    handleHostCommand(message);
+    return;
+  }
+  if (message.kind === "command-result" && !multiplayerIsHost) {
+    handleGuestCommandResult(message.payload as { commandId: string; status: "accepted" | "rejected"; revision: number; notice?: string; reason?: string });
+    return;
+  }
+  if (message.kind === "resync-request" && multiplayerIsHost) {
+    sendMultiplayerMessage("snapshot", createMultiplayerSnapshot());
+    return;
+  }
+  if (message.kind === "notice") {
+    const text = (message.payload as { text: string }).text;
+    if (!multiplayerIsHost && message.senderSessionId === multiplayerHostSenderId && text === "__heartbeat__") return;
+    if (!multiplayerIsHost && message.senderSessionId === multiplayerHostSenderId && text === "__host_pause__") {
+      multiplayerHostGamePaused = true;
+      keys.clear();
+      showMessage("HOST PAUSED THE SHARED VOYAGE.", 3);
+      return;
+    }
+    if (!multiplayerIsHost && message.senderSessionId === multiplayerHostSenderId && text === "__host_resume__") {
+      multiplayerHostGamePaused = false;
+      showMessage("HOST RESUMED THE SHARED VOYAGE.", 3);
+      return;
+    }
+    if (!multiplayerIsHost && message.senderSessionId === multiplayerHostSenderId && text === "__session_start__") {
+      beginMultiplayerSession();
+      if (multiplayerLastSnapshot) acceptMultiplayerSnapshot(multiplayerLastSnapshot);
+      return;
+    }
+    showMessage(`PLAYER ${message.senderSessionId === multiplayerHostSenderId ? 1 : 2}: ${text}`, 5);
+    return;
+  }
+  if (message.kind === "disconnect") {
+    const reason = (message.payload as { reason: string }).reason;
+    if (multiplayerIsHost && reason === "normal" && message.senderSessionId === multiplayerGuestSenderId) {
+      // An authenticated, intentional leave ends this guest's resume claim.
+      // A transport failure keeps the claim so only that guest can resume.
+      multiplayerIncomingSequences.delete(multiplayerGuestSenderId);
+      multiplayerGuestSenderId = "";
+      multiplayerResumeToken = crypto.randomUUID();
+      multiplayerCommandCache = createCommandResultCache();
+    }
+    handleMultiplayerTransportLoss(reason === "host-lost" ? "disconnected" : "ended the connection");
+  }
 }
 
-function handleMultiplayerMessage(value: unknown): void {
-  if (!isMultiplayerMessage(value) || value.room !== multiplayerRoomCode || value.sender === multiplayerSenderId) return;
-  if (value.type === "join" && multiplayerIsHost) {
-    multiplayerConnected = true;
-    updateMultiplayerStatus("Player 2 joined! Choose or continue a save to play.");
-    if (saveSelected) saveGame();
-    const raw = saveSelected ? localStorage.getItem(getSaveKey(currentSaveSlot)) : null;
-    sendMultiplayerMessage("welcome", parseSave(raw));
-    return;
-  }
-  if (value.type === "welcome" && !multiplayerIsHost) {
-    multiplayerConnected = true;
-    updateMultiplayerStatus("Connected as Player 2! Choose a save to enter the shared raft.");
-    const state = value.payload && typeof value.payload === "object" ? value.payload as Partial<SaveData> : null;
-    if (state) {
-      pendingMultiplayerState = state;
-      if (saveSelected) applyMultiplayerState(state);
-    }
-    return;
-  }
-  if (value.type === "position") {
-    const position = value.payload as Partial<RemotePlayerState> | undefined;
-    if (typeof position?.x === "number" && typeof position.y === "number") {
-      multiplayerConnected = true;
-      remotePlayerState = { x: position.x, y: position.y, player: value.player, updatedAt: performance.now() };
-    }
-    return;
-  }
-  if (value.type === "state") {
-    const state = value.payload && typeof value.payload === "object" ? value.payload as Partial<SaveData> : null;
-    if (state) {
-      pendingMultiplayerState = state;
-      if (saveSelected) applyMultiplayerState(state);
-    }
-    return;
-  }
-  if (value.type === "world") {
-    if (multiplayerIsHost) return;
-    multiplayerConnected = true;
-    const payload = value.payload as WorldSyncPayload | undefined;
-    if (payload && Array.isArray(payload.crates) && payload.shark) applyWorldSync(payload);
-    return;
-  }
-  if (value.type === "take") {
-    // A guest grabbed a crate; the host is the one that owns the list.
-    if (!multiplayerIsHost) return;
-    const spot = value.payload as { x?: number; y?: number } | undefined;
-    if (typeof spot?.x !== "number" || typeof spot.y !== "number") return;
-    const index = crates.findIndex((crate) => distance(crate.x, crate.y, spot.x as number, spot.y as number) < 40);
-    if (index >= 0) crates.splice(index, 1);
-    return;
-  }
-  if (value.type === "start") {
-    multiplayerConnected = true;
-    beginMultiplayerSession();
-    return;
-  }
-  if (value.type === "notice" && typeof value.payload === "string") {
-    showMessage(`PLAYER ${value.player}: ${value.payload}`, 5);
-  }
+function isValidMultiplayerSaveData(value: unknown): value is Partial<SaveData> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Partial<SaveData>;
+  if (data.version !== 1 || typeof data.elapsed !== "number" || !Number.isFinite(data.elapsed) || data.elapsed < 0) return false;
+  if (!Array.isArray(data.inventory) || data.inventory.length > 256) return false;
+  if (!data.inventory.every((entry) => Array.isArray(entry)
+    && entry.length === 2
+    && typeof entry[0] === "string"
+    && entry[0].length > 0
+    && entry[0].length <= 80
+    && typeof entry[1] === "number"
+    && Number.isFinite(entry[1])
+    && entry[1] >= 0)) return false;
+  if (!Array.isArray(data.crates) || data.crates.length > MAX_MULTIPLAYER_CRATES) return false;
+  if (!data.crates.every((crate) => crate !== null
+    && typeof crate === "object"
+    && typeof crate.id === "string"
+    && crate.id.length > 0
+    && typeof crate.x === "number"
+    && Number.isFinite(crate.x)
+    && typeof crate.y === "number"
+    && Number.isFinite(crate.y)
+    && ["supply", "wooden", "technology", "blood", "rainbow", "super", "hacker"].includes(crate.kind))) return false;
+  // Food is easy to hoard (super crates add 100 at a time). A cap that real
+  // sessions can reach would silently reject every snapshot, including the
+  // welcome, and permanently break joining. Match the protocol's bounded-data
+  // ceiling instead.
+  if (!Array.isArray(data.foodHealing) || data.foodHealing.length > MAX_MULTIPLAYER_COLLECTION_ITEMS || !data.foodHealing.every((value) => value === 1 || value === 99)) return false;
+  if (typeof data.raftLevel !== "number" || !Number.isSafeInteger(data.raftLevel) || data.raftLevel < 1) return false;
+  if (typeof data.expansionCount !== "number" || !Number.isSafeInteger(data.expansionCount) || data.expansionCount < 0) return false;
+  return true;
 }
 
 function updateMultiplayerStatus(text?: string): void {
@@ -1075,15 +1478,20 @@ function updateMultiplayerStatus(text?: string): void {
 function updateMultiplayerStartButton(): void {
   const button = document.querySelector<HTMLButtonElement>("[data-action='start-multiplayer']");
   if (!button) return;
-  button.hidden = !multiplayerConnected;
+  button.hidden = !multiplayerConnected || multiplayerVoyageStarted;
   button.textContent = "Start Game";
 }
 
 // Either player can press Start; both are taken in together.
 function startMultiplayerGame(): void {
   if (!multiplayerConnected) return;
-  sendMultiplayerMessage("start");
-  beginMultiplayerSession();
+  if (multiplayerIsHost) {
+    beginMultiplayerSession();
+    sendMultiplayerMessage("notice", { text: "__session_start__" });
+    publishMultiplayerSnapshot();
+    return;
+  }
+  queueMultiplayerCommand("session.start", {});
 }
 
 // Start drops both players straight into a brand new survival voyage — no save
@@ -1091,6 +1499,9 @@ function startMultiplayerGame(): void {
 function beginMultiplayerSession(): void {
   closeMultiplayerDialog();
   closeNamingDialog();
+
+  if (multiplayerVoyageStarted) return;
+  multiplayerVoyageStarted = true;
 
   currentSaveSlot = MULTIPLAYER_SLOT;
   isHacker = false;
@@ -1107,11 +1518,487 @@ function beginMultiplayerSession(): void {
 // files, and can never overwrite a single-player voyage.
 const MULTIPLAYER_SLOT = 4;
 
+function ensureCrateId(crate: FloatingCrate): string {
+  if (!crate.id) crate.id = crypto.randomUUID();
+  if (multiplayerIsHost && hasActiveMultiplayerVoyage() && !crate.multiplayerReward) {
+    crate.multiplayerReward = createMultiplayerCrateReward(crate);
+  }
+  if (crate.id && multiplayerIsHost && hasActiveMultiplayerVoyage()) {
+    multiplayerCrateCatalog.set(crate.id, { ...crate });
+  }
+  return crate.id;
+}
+
+function createMultiplayerCrateReward(crate: FloatingCrate): MultiplayerCrateReward {
+  const reward: MultiplayerCrateReward = { inventory: {}, foodHealing: [] };
+  const add = (name: string, amount: number): void => {
+    reward.inventory[name] = (reward.inventory[name] ?? 0) + amount;
+  };
+  if (crate.kind === "rainbow" || crate.kind === "super") {
+    const amount = crate.kind === "super" ? 100 : 50;
+    for (const name of new Set([...endlessMaterials.map((material) => material.name), "Technology Shards"])) add(name, amount);
+    reward.foodHealing = Array.from({ length: amount }, () => 99 as const);
+    reward.terrainGenerators = amount;
+    return reward;
+  }
+  if (crate.kind === "supply" && crate.material) {
+    add(crate.material.name, crate.material.amount);
+    const previous = getPreviousMaterial(crate.material.name);
+    if (previous && Math.random() < 0.75) add(previous.name, Math.max(1, Math.ceil(previous.amount / 2)));
+    reward.unlockEndgame = crate.material.name === "God Material";
+  } else if (crate.kind === "blood") {
+    const options: Array<[string, number]> = [["Gold", 12], ["Diamond", 8], ["Plasma", 7], ["Star Material", 5], ["God Material", 3], ["Infernal Material", 6], ["Technology Shards", 12]];
+    const selected = options[Math.floor(Math.random() * options.length)] ?? options[0]!;
+    add(selected[0], selected[1]);
+    if (Math.random() < 0.55) add("Infernal Material", 4 + Math.floor(Math.random() * 5));
+  } else if (crate.kind === "wooden") {
+    if (!hasCraftingTable) {
+      reward.unlockCraftingTable = true;
+      add("Wood", 3);
+    } else {
+      add("Wood", 5 + Math.floor(Math.random() * 5));
+      add("Stone", 1 + Math.floor(Math.random() * 3));
+    }
+  } else if (crate.kind === "technology") {
+    add("Technology Shards", 3 + Math.floor(Math.random() * 5));
+  }
+  reward.foodHealing.push(Math.random() < 0.24 ? 99 : 1);
+  return reward;
+}
+
+function applyMultiplayerCrateRewardEffects(crate: FloatingCrate): void {
+  const reward = crate.multiplayerReward;
+  if (!reward) return;
+  if (reward.unlockCraftingTable && !hasCraftingTable) {
+    hasCraftingTable = true;
+    craftingTableLevel = Math.max(1, craftingTableLevel);
+  }
+  if (reward.unlockEndgame) endgameUnlocked = true;
+  if (reward.terrainGenerators) terrainGenerators += reward.terrainGenerators;
+  updateTerrainButton();
+  showMessage("HOST OPENED THE SHARED CRATE. ITS REWARD IS NOW IN SHARED INVENTORY.", 4);
+}
+
+function ensureAllCrateIds(): void {
+  crates.forEach(ensureCrateId);
+  carriedCrates.forEach(ensureCrateId);
+  cargoShips.forEach((ship) => {
+    if (ship.target) ensureCrateId(ship.target);
+    if (ship.cargo) ensureCrateId(ship.cargo);
+  });
+}
+
+function multiplayerShieldIsActive(playerId = getMultiplayerPlayerId()): boolean {
+  return hasActiveMultiplayerVoyage()
+    ? multiplayerShieldCharges[playerId] > 0
+    : elapsed < shieldUntil;
+}
+
+function setMultiplayerShieldCharge(playerId: PlayerId, charge: 0 | 1): void {
+  multiplayerShieldCharges[playerId] = charge;
+  // Keep the old timer only for an offline, single-player voyage.
+  if (!hasActiveMultiplayerVoyage()) {
+    shieldUntil = charge > 0 ? Number.POSITIVE_INFINITY : 0;
+  }
+}
+
+function createReplicatedPlayerFrames(): ReplicatedPlayerFrame[] {
+  const selfId = getMultiplayerPlayerId();
+  const ownFrame: ReplicatedPlayerFrame = {
+    id: selfId,
+    connected: true,
+    x: player.x,
+    y: player.y,
+    hearts: Math.max(0, Math.floor(player.hearts)),
+    shieldCharges: multiplayerShieldIsActive(selfId) ? 1 : 0,
+    invincibleUntilMs: Math.max(0, player.invincibleUntil * 1000),
+    carriedCrateCount: multiplayerCarriedCrateIds[selfId].length,
+  };
+  const remoteFrame = remotePlayerState?.frame;
+  const otherId = selfId === "p1" ? "p2" : "p1";
+  const other: ReplicatedPlayerFrame = remoteFrame && remoteFrame.id === otherId
+    ? { ...remoteFrame }
+    : {
+        id: otherId,
+        connected: false,
+        x: WIDTH / 2,
+        y: HEIGHT / 2,
+        hearts: 3,
+        shieldCharges: 0,
+        invincibleUntilMs: 0,
+        carriedCrateCount: 0,
+      };
+  return [ownFrame, other];
+}
+
+function createMultiplayerSnapshot(): SnapshotPayload<Partial<SaveData>> {
+  ensureAllCrateIds();
+  const state = createSaveData();
+  return {
+    revision: multiplayerHostRevision,
+    hostTimeMs: Math.max(0, Math.floor(elapsed * 1000)),
+    started: multiplayerVoyageStarted,
+    state,
+    players: createReplicatedPlayerFrames(),
+  };
+}
+
+function publishMultiplayerSnapshot(): void {
+  if (!multiplayerConnected || !multiplayerIsHost || !multiplayerSessionEpoch) return;
+  multiplayerReducerState = createMultiplayerStateFromGlobals(multiplayerHostRevision);
+  const snapshot = createMultiplayerSnapshot();
+  multiplayerLastSnapshot = snapshot;
+  multiplayerAuthorityCursor = { sessionEpoch: multiplayerSessionEpoch, revision: snapshot.revision };
+  sendMultiplayerMessage("snapshot", snapshot);
+}
+
+/** Persist an already-versioned host mutation without creating a second revision. */
+function persistCurrentHostMultiplayerState(): void {
+  multiplayerSuppressSaveBroadcast = true;
+  try {
+    saveGame();
+  } finally {
+    multiplayerSuppressSaveBroadcast = false;
+  }
+  publishMultiplayerSnapshot();
+}
+
+function acceptMultiplayerSnapshot(snapshot: SnapshotPayload<Partial<SaveData>>): void {
+  const decision = decideSnapshotAcceptance(multiplayerAuthorityCursor, multiplayerSessionEpoch, snapshot.revision);
+  if (decision.action === "ignore" || decision.action === "reject") return;
+  if (decision.action === "resync") {
+    sendMultiplayerMessage("resync-request", { knownRevision: multiplayerHostRevision, reason: "invalid-local-state" });
+    return;
+  }
+  multiplayerAuthorityCursor = { sessionEpoch: multiplayerSessionEpoch, revision: snapshot.revision };
+  multiplayerHostRevision = snapshot.revision;
+  multiplayerLastSnapshot = snapshot;
+  multiplayerHostPaused = false;
+  if (snapshot.started && !multiplayerVoyageStarted) beginMultiplayerSession();
+  applyMultiplayerState(snapshot.state);
+  applyReplicatedPlayerFrames(snapshot.players);
+  try {
+    localStorage.setItem(`${SAVE_KEY_PREFIX}${MULTIPLAYER_SLOT}-recovery`, JSON.stringify(snapshot));
+  } catch {}
+}
+
+function acceptMultiplayerWorldFrame(payload: WorldFramePayload<MultiplayerWorldData>): void {
+  const decision = decideMultiplayerWorldFrame(payload);
+  if (decision === "ignore") return;
+  if (decision === "resync") {
+    sendMultiplayerMessage("resync-request", { knownRevision: multiplayerHostRevision, reason: "revision-gap" });
+    return;
+  }
+  if (payload.frameSeq <= multiplayerLastAcceptedFrameSeq) return;
+  multiplayerLastAcceptedFrameSeq = payload.frameSeq;
+  multiplayerFrameSeq = payload.frameSeq;
+  applyMultiplayerWorldFrame(payload);
+  applyReplicatedPlayerFrames(payload.players);
+}
+
+function decideMultiplayerWorldFrame(payload: WorldFramePayload<MultiplayerWorldData>): "accept" | "ignore" | "resync" {
+  const decision = decideWorldFrameAcceptance(multiplayerAuthorityCursor, multiplayerSessionEpoch, payload.revision);
+  if (decision.action === "accept") return "accept";
+  if (decision.action === "ignore") return "ignore";
+  return "resync";
+}
+
+function applyReplicatedPlayerFrames(frames: ReplicatedPlayerFrame[]): void {
+  const selfId = getMultiplayerPlayerId();
+  const own = frames.find((frame) => frame.id === selfId);
+  const other = frames.find((frame) => frame.id !== selfId);
+  if (own) {
+    player.x = own.x;
+    player.y = own.y;
+    player.hearts = own.hearts;
+    setMultiplayerShieldCharge(selfId, own.shieldCharges);
+    player.invincibleUntil = own.invincibleUntilMs / 1000;
+    if (own.carriedCrateCount === 0) {
+      carriedCrates = [];
+      multiplayerCarriedCrateIds[selfId] = [];
+    }
+    if (own.hearts <= 0 && mode === "playing") {
+      mode = "gameOver";
+      keys.clear();
+      showMessage("YOU WERE LOST AT SEA. THE HOST KEPT THE SHARED WORLD SAFE.", 5);
+    }
+  }
+  if (other) remotePlayerState = { frame: { ...other }, updatedAt: performance.now() };
+}
+
+function createMultiplayerStateFromGlobals(revision: number): MultiplayerState {
+  ensureAllCrateIds();
+  const inventoryRecord: Record<string, number> = {};
+  for (const [name, amount] of inventory) if (name !== "Food") inventoryRecord[name] = amount;
+  const replicatedCrates = crates.map((crate) => ({
+    id: ensureCrateId(crate),
+    x: crate.x,
+    y: crate.y,
+    kind: crate.kind,
+    reward: crate.multiplayerReward
+      ? { inventory: { ...crate.multiplayerReward.inventory }, foodHealing: [...crate.multiplayerReward.foodHealing] }
+      : {},
+  }));
+  for (const crate of crates) multiplayerCrateCatalog.set(ensureCrateId(crate), { ...crate });
+  const otherId = getMultiplayerPlayerId() === "p1" ? "p2" : "p1";
+  const remote = remotePlayerState?.frame;
+  const p1 = getMultiplayerPlayerId() === "p1"
+    ? { x: player.x, y: player.y, hearts: player.hearts, maxHearts, shieldCharges: multiplayerShieldIsActive("p1") ? 1 as const : 0 as const, invincibleUntil: player.invincibleUntil, carriedCrateIds: multiplayerCarriedCrateIds.p1, online: true }
+    : { x: remote?.x ?? WIDTH / 2, y: remote?.y ?? HEIGHT / 2, hearts: remote?.hearts ?? 3, maxHearts: 3, shieldCharges: remote?.shieldCharges ?? 0, invincibleUntil: (remote?.invincibleUntilMs ?? 0) / 1000, carriedCrateIds: multiplayerCarriedCrateIds.p1, online: remote?.connected === true };
+  const p2 = otherId === "p2"
+    ? getMultiplayerPlayerId() === "p2"
+      ? { x: player.x, y: player.y, hearts: player.hearts, maxHearts, shieldCharges: multiplayerShieldIsActive("p2") ? 1 as const : 0 as const, invincibleUntil: player.invincibleUntil, carriedCrateIds: multiplayerCarriedCrateIds.p2, online: true }
+      : { x: remote?.x ?? WIDTH / 2, y: remote?.y ?? HEIGHT / 2, hearts: remote?.hearts ?? 3, maxHearts: 3, shieldCharges: remote?.shieldCharges ?? 0, invincibleUntil: (remote?.invincibleUntilMs ?? 0) / 1000, carriedCrateIds: multiplayerCarriedCrateIds.p2, online: remote?.connected === true }
+    : p1;
+  return createInitialState({
+    revision,
+    serverTime: elapsed,
+    shared: {
+      raftLevel,
+      expansionCount,
+      inventory: inventoryRecord,
+      foodHealing: foodHealing.filter((value): value is 1 | 99 => value === 1 || value === 99),
+      crates: replicatedCrates as never,
+      crateCatalog: Object.fromEntries([...multiplayerCrateCatalog.entries()].map(([id, crate]) => [id, {
+        id,
+        x: crate.x,
+        y: crate.y,
+        kind: crate.kind,
+        reward: crate.multiplayerReward
+          ? { inventory: { ...crate.multiplayerReward.inventory }, foodHealing: [...crate.multiplayerReward.foodHealing] }
+          : {},
+      }])) as never,
+    },
+    players: { p1, p2 },
+  });
+}
+
+function queueMultiplayerCommand(type: string, payload: unknown): boolean {
+  if (!multiplayerConnected || multiplayerIsHost || multiplayerHostPaused) return false;
+  if (![
+    "session.start", "raft.expand", "shield.craft", "crate.collect", "crate.deposit", "food.eat",
+  ].includes(type)) {
+    showMessage("THAT ACTION IS HOST-ONLY UNTIL IT HAS A SAFE CO-OP RULE.", 4);
+    return false;
+  }
+  if (type !== "session.start" && !hasActiveMultiplayerVoyage()) return false;
+  const commandId = crypto.randomUUID();
+  multiplayerPendingCommands.set(commandId, { type, payload });
+  sendMultiplayerMessage("command", {
+    commandId,
+    baseRevision: multiplayerHostRevision,
+    type,
+    payload,
+  });
+  showMessage("SENT TO HOST — WAITING FOR CONFIRMATION…", 3);
+  return true;
+}
+
+function isGuestMultiplayer(): boolean {
+  // Keep this true after a host loss. A disconnected guest must remain paused
+  // and must never resume local simulation or write the shared save.
+  return !multiplayerIsHost && multiplayerRoomCode.length > 0;
+}
+
+function blockGuestMultiplayerAction(label: string): boolean {
+  if (!isGuestMultiplayer()) return false;
+  showMessage(`${label} IS HOST-ONLY IN MULTIPLAYER.`, 3);
+  return true;
+}
+
+function handleGuestCommandResult(result: { commandId: string; status: "accepted" | "rejected"; revision: number; notice?: string; reason?: string }): void {
+  const pending = multiplayerPendingCommands.get(result.commandId);
+  if (!pending) return;
+  multiplayerPendingCommands.delete(result.commandId);
+  if (result.status === "rejected") {
+    showMessage(`HOST REJECTED ACTION: ${result.reason ?? "invalid command"}.`, 4);
+    if (result.reason === "stale-revision") sendMultiplayerMessage("resync-request", { knownRevision: multiplayerHostRevision, reason: "revision-gap" });
+    return;
+  }
+  if (pending.type === "session.start") {
+    beginMultiplayerSession();
+    if (multiplayerLastSnapshot) acceptMultiplayerSnapshot(multiplayerLastSnapshot);
+  }
+  if (pending.type === "crate.collect") {
+    const payload = pending.payload as { crateId?: string; crate?: FloatingCrate };
+    if (payload.crate && payload.crateId && !carriedCrates.some((crate) => crate.id === payload.crateId)) {
+      carriedCrates.push({ ...payload.crate, id: payload.crateId });
+      multiplayerCarriedCrateIds.p2 = [...multiplayerCarriedCrateIds.p2, payload.crateId];
+    }
+  }
+  if (pending.type === "crate.deposit") {
+    const payload = pending.payload as { crateId?: string };
+    if (payload.crateId) {
+      carriedCrates = carriedCrates.filter((crate) => crate.id !== payload.crateId);
+      multiplayerCarriedCrateIds.p2 = multiplayerCarriedCrateIds.p2.filter((id) => id !== payload.crateId);
+    }
+  }
+  showMessage(result.notice ?? "HOST ACCEPTED THE ACTION.", 3);
+}
+
+function handleHostCommand(message: MultiplayerEnvelope<"command", Partial<SaveData>, MultiplayerWorldData>): void {
+  const command = message.payload;
+  if (message.senderSessionId !== multiplayerGuestSenderId) return;
+  const cached = findCachedCommandResult(multiplayerCommandCache, message.senderSessionId, command.commandId);
+  if (cached) {
+    sendMultiplayerMessage("command-result", cached);
+    return;
+  }
+  const actor = "p2" as const;
+  const result = dispatchHostCommand(command.type, command.payload, actor, command.baseRevision, command.commandId);
+  const wireResult = result.status === "accepted"
+    ? { commandId: command.commandId, status: "accepted" as const, revision: result.revision, notice: result.notice }
+    : { commandId: command.commandId, status: "rejected" as const, revision: result.revision, reason: result.reason ?? "rejected" };
+  multiplayerCommandCache = recordCommandResult(multiplayerCommandCache, message.senderSessionId, wireResult);
+  sendMultiplayerMessage("command-result", wireResult);
+}
+
+function dispatchHostCommand(
+  type: string,
+  payload: unknown,
+  actor: PlayerId,
+  baseRevision: number,
+  requestId: string,
+): { status: "accepted" | "rejected"; revision: number; notice?: string; reason?: string } {
+  if (baseRevision !== multiplayerHostRevision) return { status: "rejected", revision: multiplayerHostRevision, reason: "stale-revision" };
+  if (["time.warp", "creative.crate", "hacker.action"].includes(type)) return { status: "rejected", revision: multiplayerHostRevision, reason: "host-only action" };
+  // Before the shared voyage starts, the host's globals are whatever save-menu
+  // leftovers happen to be loaded. Guests must not mutate that state.
+  if (type !== "session.start" && !hasActiveMultiplayerVoyage()) {
+    return { status: "rejected", revision: multiplayerHostRevision, reason: "voyage-not-started" };
+  }
+  const payloadRecord = payload !== null && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : null;
+  if (type !== "session.start" && !payloadRecord) {
+    return { status: "rejected", revision: multiplayerHostRevision, reason: "invalid-command" };
+  }
+  if (type !== "session.start") {
+    multiplayerReducerState = createMultiplayerStateFromGlobals(multiplayerHostRevision);
+  }
+
+  const reducerType = type === "craft.recipe" && Number(payloadRecord?.["recipe"]) === 3
+    ? "raft.expand"
+    : type === "craft.recipe" && Number(payloadRecord?.["recipe"]) === 2
+      ? "shield.craft"
+      : type;
+  if (["crate.collect", "crate.deposit"].includes(reducerType) && typeof payloadRecord?.["crateId"] !== "string") {
+    return { status: "rejected", revision: multiplayerHostRevision, reason: "invalid-command" };
+  }
+  if (reducerType === "crate.deposit") {
+    const actorState = multiplayerReducerState.players[actor];
+    if (!isOnRaftNetwork(actorState.x, actorState.y)) {
+      return { status: "rejected", revision: multiplayerHostRevision, reason: "actor-not-on-raft" };
+    }
+  }
+  if (["raft.expand", "shield.craft", "crate.collect", "crate.deposit", "food.eat"].includes(reducerType)) {
+    const command = reducerType === "crate.collect" || reducerType === "crate.deposit"
+      ? { kind: reducerType, requestId, actor, crateId: String(payloadRecord?.["crateId"] ?? ""), baseRevision }
+      : { kind: reducerType, requestId, actor, baseRevision };
+    const depositedCrate = reducerType === "crate.deposit"
+      ? multiplayerCrateCatalog.get(String(payloadRecord?.["crateId"] ?? ""))
+      : undefined;
+    const result = reduceCommand(multiplayerReducerState, command, multiplayerReducerRuntime);
+    if (!result.accepted) return { status: "rejected", revision: result.revision, reason: result.reason };
+    multiplayerReducerState = result.state;
+    multiplayerHostRevision = result.revision;
+    multiplayerCarriedCrateIds[actor] = [...result.state.players[actor].carriedCrateIds];
+    applyReducerStateToGlobals(result.state, actor);
+    if (depositedCrate) {
+      applyMultiplayerCrateRewardEffects(depositedCrate);
+      multiplayerCrateCatalog.delete(depositedCrate.id ?? "");
+    }
+    persistCurrentHostMultiplayerState();
+    return { status: "accepted", revision: result.revision, notice: "HOST ACCEPTED THE ACTION." };
+  }
+
+  if (type === "session.start") {
+    beginMultiplayerSession();
+    multiplayerHostRevision += 1;
+    multiplayerReducerState = createMultiplayerStateFromGlobals(multiplayerHostRevision);
+    persistCurrentHostMultiplayerState();
+    return { status: "accepted", revision: multiplayerHostRevision, notice: "HOST STARTED THE VOYAGE." };
+  }
+  // These actions currently depend on local UI state, timers, random rolls,
+  // or a temporary swap of the host player object. Do not run them as Player
+  // 2 until each has a dedicated authoritative reducer command.
+  return { status: "rejected", revision: multiplayerHostRevision, reason: "host-only action" };
+}
+
+function applyReducerStateToGlobals(state: MultiplayerState, actor: PlayerId): void {
+  inventory.clear();
+  for (const [name, amount] of Object.entries(state.shared.inventory)) inventory.set(name, Math.max(0, Math.floor(amount)));
+  foodHealing.splice(0, foodHealing.length, ...state.shared.foodHealing);
+  inventory.set("Food", foodHealing.length);
+  raftLevel = state.shared.raftLevel;
+  expansionCount = state.shared.expansionCount;
+  crates = state.shared.crates.map((crate) => {
+    const existing = multiplayerCrateCatalog.get(crate.id);
+    const next = existing
+      ? { ...existing, id: crate.id, x: crate.x, y: crate.y, kind: crate.kind as CrateKind }
+      : { id: crate.id, x: crate.x, y: crate.y, kind: crate.kind as CrateKind, landedAt: elapsed, bobOffset: 0 };
+    multiplayerCrateCatalog.set(crate.id, next);
+    return next;
+  });
+  const localId = getMultiplayerPlayerId();
+  const local = state.players[localId];
+  const remoteId: PlayerId = localId === "p1" ? "p2" : "p1";
+  const remote = state.players[remoteId];
+  multiplayerCarriedCrateIds = {
+    p1: [...state.players.p1.carriedCrateIds],
+    p2: [...state.players.p2.carriedCrateIds],
+  };
+  carriedCrates = multiplayerCarriedCrateIds[localId]
+    .map((id) => multiplayerCrateCatalog.get(id))
+    .filter((crate): crate is FloatingCrate => crate !== undefined)
+    .map((crate) => ({ ...crate }));
+  player.x = local.x;
+  player.y = local.y;
+  player.hearts = local.hearts;
+  player.invincibleUntil = local.invincibleUntil;
+  setMultiplayerShieldCharge(localId, local.shieldCharges);
+  remotePlayerState = {
+    frame: {
+      id: remoteId,
+      connected: remote.online,
+      x: remote.x,
+      y: remote.y,
+      hearts: remote.hearts,
+      shieldCharges: remote.shieldCharges,
+      invincibleUntilMs: Math.max(0, remote.invincibleUntil * 1000),
+      carriedCrateCount: remote.carriedCrateIds.length,
+    },
+    updatedAt: performance.now(),
+  };
+}
+
+const multiplayerCrateCatalog = new Map<string, FloatingCrate>();
+
+function applyMultiplayerWorldFrame(payload: WorldFramePayload<MultiplayerWorldData>): void {
+  sharkDeleted = payload.world.sharkDeleted;
+  sharkNetPose = { ...payload.world.shark, at: elapsed };
+  extraSharks = payload.world.extraSharks.map((hunter) => ({ ...hunter, biteCooldownUntil: 0 }));
+  crates = payload.crates.map((crate) => {
+    const existing = multiplayerCrateCatalog.get(crate.id);
+    const material = crate.material ? { material: { ...crate.material } } : {};
+    const next = existing
+      ? { ...existing, x: crate.x, y: crate.y, kind: crate.kind as CrateKind, ...material }
+      : { id: crate.id, x: crate.x, y: crate.y, kind: crate.kind as CrateKind, ...material, landedAt: elapsed, bobOffset: 0 };
+    multiplayerCrateCatalog.set(crate.id, next);
+    return next;
+  });
+}
+
 function broadcastMultiplayerNotice(text: string): void {
-  if (multiplayerConnected) sendMultiplayerMessage("notice", text);
+  if (multiplayerConnected) sendMultiplayerMessage("notice", { text });
 }
 
 function applyMultiplayerState(data: Partial<SaveData>): void {
+  if (typeof data.elapsed === "number" && Number.isFinite(data.elapsed)) {
+    elapsed = Math.max(0, data.elapsed);
+    nextSupplyAt = elapsed + Math.max(0, data.nextSupplyIn ?? SUPPLY_INTERVAL);
+    nextRandomAt = elapsed + Math.max(0, data.nextRandomIn ?? 35);
+  }
   if (Array.isArray(data.inventory)) {
     inventory.clear();
     for (const [name, amount] of data.inventory) inventory.set(name, Math.max(0, Math.floor(amount)));
@@ -1120,7 +2007,27 @@ function applyMultiplayerState(data: Partial<SaveData>): void {
     foodHealing.splice(0, foodHealing.length, ...data.foodHealing.filter((value) => value === 1 || value === 99));
     inventory.set("Food", foodHealing.length);
   }
-  if (Array.isArray(data.crates)) crates = data.crates.map((crate) => ({ ...crate }));
+  if (Array.isArray(data.crates)) {
+    crates = data.crates.map((crate) => ({ ...crate }));
+    ensureAllCrateIds();
+  }
+  if (Array.isArray(data.multiplayerCrateCatalog)) {
+    multiplayerCrateCatalog.clear();
+    for (const crate of data.multiplayerCrateCatalog) {
+      if (crate.id) multiplayerCrateCatalog.set(crate.id, { ...crate });
+    }
+  }
+  if (data.multiplayerCarriedCrateIds) {
+    multiplayerCarriedCrateIds = {
+      p1: [...(data.multiplayerCarriedCrateIds.p1 ?? [])],
+      p2: [...(data.multiplayerCarriedCrateIds.p2 ?? [])],
+    };
+    const ownIds = new Set(multiplayerCarriedCrateIds[getMultiplayerPlayerId()]);
+    carriedCrates = [...ownIds]
+      .map((id) => multiplayerCrateCatalog.get(id))
+      .filter((crate): crate is FloatingCrate => crate !== undefined)
+      .map((crate) => ({ ...crate }));
+  }
   // Carried crates are personal cargo, not shared world state — copying the
   // other player's would hand you their crates and lose your own.
   if (!multiplayerConnected && Array.isArray(data.carriedCrates)) {
@@ -1155,6 +2062,7 @@ function applyMultiplayerState(data: Partial<SaveData>): void {
   if (Array.isArray(data.fisherBotCatches)) fisherBotCatches = [...data.fisherBotCatches];
   if (typeof data.hasTimeWarper === "boolean") hasTimeWarper = data.hasTimeWarper;
   if (typeof data.cosmicTimeYears === "number") cosmicTimeYears = data.cosmicTimeYears;
+  if (typeof data.sharkFleeIn === "number") sharkFleeUntil = elapsed + Math.max(0, data.sharkFleeIn);
   if (typeof data.nextShopkeeperIn === "number") nextShopkeeperAt = elapsed + Math.max(0, data.nextShopkeeperIn);
   if (typeof data.shopkeeperRemaining === "number") shopkeeperUntil = elapsed + Math.max(0, data.shopkeeperRemaining);
   if (typeof data.terrainGenerators === "number") terrainGenerators = data.terrainGenerators;
@@ -1180,7 +2088,6 @@ function applyMultiplayerState(data: Partial<SaveData>): void {
   updateShopkeeperButton();
   updateTimeWarperButton();
   updateCreativeCrateSpawnerButton();
-  pendingMultiplayerState = null;
 }
 
 function getSaveKey(slot: number): string {
@@ -1338,6 +2245,7 @@ function createSlotButton(label: string, action: () => void): HTMLButtonElement 
 }
 
 function createSave(slot: number, kind: SaveKind): void {
+  leaveMultiplayerSession();
   openNamingDialog({ kind: "create", slot, saveKind: kind }, `Save ${slot}`, "Home Raft");
 }
 
@@ -1437,6 +2345,7 @@ function renameCurrentVoyage(): void {
 }
 
 function continueSave(slot: number): void {
+  leaveMultiplayerSession();
   currentSaveSlot = slot;
   saveSelected = true;
   document.getElementById("save-selector")?.setAttribute("hidden", "");
@@ -1462,7 +2371,8 @@ function retrieveLastSave(slot: number): void {
 
 function openSaveSelector(): void {
   if (!saveSelected) return;
-  saveGame();
+  if (hasMultiplayerIdentity()) leaveMultiplayerSession();
+  else saveGame();
   mode = "paused";
   saveSelected = false;
   changelogOpen = false;
@@ -1502,6 +2412,8 @@ function startGame(): void {
   progressionIndex = 0;
   crates = [];
   carriedCrates = [];
+  multiplayerCarriedCrateIds = { p1: [], p2: [] };
+  multiplayerShieldCharges = { p1: 0, p2: 0 };
   particles = [];
   speedBoostHeld = false;
   inventory.clear();
@@ -1587,7 +2499,6 @@ function startGame(): void {
   shopOpen = false;
   showMessage("WOOD SUPPLY DROP! Swim out and get it.", 4);
   spawnSupplyCrate();
-  if (pendingMultiplayerState) applyMultiplayerState(pendingMultiplayerState);
   updatePauseButton();
   updateShopkeeperButton();
   updateTerrainButton();
@@ -1622,6 +2533,9 @@ function togglePause(): void {
   updateTerrainButton();
   updateTimeWarperButton();
   updateCreativeCrateSpawnerButton();
+  if (multiplayerIsHost && multiplayerConnected && hasActiveMultiplayerVoyage()) {
+    sendMultiplayerMessage("notice", { text: mode === "paused" ? "__host_pause__" : "__host_resume__" });
+  }
 }
 
 function updatePauseButton(): void {
@@ -1830,6 +2744,7 @@ function renderFishIndexProgress(): void {
 }
 
 function updateShopkeeper(): void {
+  if (isGuestMultiplayer()) return;
   if (gameKind === "creative") return;
   if (shopkeeperUntil > 0 && elapsed >= shopkeeperUntil) {
     shopkeeperUntil = 0;
@@ -1912,6 +2827,12 @@ function buyGoldenHeart(): void {
 
 function buyShopOffer(offer: number): void {
   if (!shopOpen || !isShopkeeperHere()) return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("shop.offer", { offer });
+    shopOpen = false;
+    updateShopkeeperButton();
+    return;
+  }
   const beforePurchase = JSON.stringify({
     food: getTotalFoodCount(),
     inventory: [...inventory],
@@ -1972,6 +2893,10 @@ function buyTerrainGenerator(): void {
 
 function useTerrainGenerator(): void {
   if (mode !== "playing" || craftingOpen || storageOpen || shopOpen || timeWarperOpen || creativeCrateMenuOpen) return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("terrain.generate", {});
+    return;
+  }
   if (gameKind !== "creative" && terrainGenerators <= 0) {
     showMessage("Buy a Terrain Generator from the traveling shop first.", 3);
     return;
@@ -2010,6 +2935,7 @@ function createSunkenRaft(index: number, raisedAt: number): SunkenRaft {
 
 function toggleTimeWarper(): void {
   if (mode !== "playing" || !hasTimeWarper) return;
+  if (blockGuestMultiplayerAction("TIME WARPER")) return;
   if (!timeWarperOpen && !isOnRaft(player.x, player.y)) {
     showMessage("Stand on your main raft to use the Time Warper machine.", 3);
     return;
@@ -2034,6 +2960,7 @@ function updateTimeWarperButton(): void {
 
 function useTimeWarper(choice: number): void {
   if (!timeWarperOpen || choice < 1 || choice > 9) return;
+  if (blockGuestMultiplayerAction("TIME WARPER")) return;
   if (!spendItem("Technology Shards", TIME_WARPER_ACTIVATION_COST)) {
     showMessage("A time trip costs 10 Technology Shards.", 3);
     return;
@@ -2259,6 +3186,10 @@ function consumeFoodPieces(amount: number): void {
 
 function startFishing(): void {
   if (mode !== "playing") return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("fishing.cast", {});
+    return;
+  }
   if (craftingOpen || storageOpen || shopOpen || timeWarperOpen || creativeCrateMenuOpen) {
     showMessage("Close the current screen before fishing.", 2.5);
     return;
@@ -2356,7 +3287,18 @@ function getTotalFishCaught(): number {
 }
 
 function update(dt: number): void {
+  if (
+    mode === "playing"
+    && !multiplayerIsHost
+    && multiplayerConnected
+    && multiplayerLastAcceptedHostPacketAtMs >= 0
+    && hasHostPacketTimedOut(multiplayerLastAcceptedHostPacketAtMs, performance.now())
+  ) {
+    pauseGuestForHostLoss("stopped responding");
+  }
   if (mode === "paused") return;
+  if (multiplayerHostPaused && multiplayerPlayerNumber === 2 && !multiplayerIsHost) return;
+  if (multiplayerHostGamePaused && !multiplayerIsHost) return;
   updateWater(dt);
   updateParticles(dt);
   if (mode !== "playing") return;
@@ -2366,13 +3308,19 @@ function update(dt: number): void {
   if (gameKind === "creative") player.hearts = maxHearts;
   updateShopkeeper();
   if (fishingUntil > 0 && elapsed >= fishingUntil) finishFishing();
-  if (!craftingOpen && !storageOpen && !shopOpen && !timeWarperOpen && !creativeCrateMenuOpen && fishingUntil <= elapsed) updatePlayer(dt);
+  if (!craftingOpen && !storageOpen && !shopOpen && !timeWarperOpen && !creativeCrateMenuOpen && fishingUntil <= elapsed) {
+    updatePlayer(dt);
+  }
+  // The menu gate above is host-local UI. The guest's replicated movement must
+  // keep running while the host crafts, shops, or fishes, or the guest freezes
+  // in open water and can be bitten while unable to move.
+  if (multiplayerIsHost && multiplayerConnected) updateHostGuestPlayer(dt);
   if (multiplayerRoomCode && elapsed >= lastMultiplayerPositionAt + 0.1) {
     lastMultiplayerPositionAt = elapsed;
-    sendMultiplayerMessage("position", { x: player.x, y: player.y });
+    if (isGuestMultiplayer()) sendMultiplayerInput();
   }
   depositCarriedCrates();
-  updateScoldBot();
+  if (isWorldAuthority()) updateScoldBot();
   updateFisherBot();
   if (isWorldAuthority()) {
     updateShark(dt);
@@ -2392,7 +3340,7 @@ function update(dt: number): void {
   updateCargoShips(dt);
   updateCollectorBots(dt);
   collectCrates();
-  collectCollectorDrops();
+  if (isWorldAuthority()) collectCollectorDrops();
 }
 
 function updateScoldBot(): void {
@@ -2439,6 +3387,7 @@ function syncCargoShips(): void {
 }
 
 function updateCargoShips(dt: number): void {
+  if (isGuestMultiplayer()) return;
   if (!hasCargoDock || cargoShipCount === 0) return;
   syncCargoShips();
   const claimed = new Set(cargoShips.map((ship) => ship.target).filter((crate): crate is FloatingCrate => crate !== null));
@@ -2534,15 +3483,41 @@ function updateParticles(dt: number): void {
   });
 }
 
+function getLocalMovementInput(): { dx: -1 | 0 | 1; dy: -1 | 0 | 1; sprint: boolean } {
+  return {
+    dx: (Number(keys.has("right")) - Number(keys.has("left"))) as -1 | 0 | 1,
+    dy: (Number(keys.has("down")) - Number(keys.has("up"))) as -1 | 0 | 1,
+    sprint: speedBoostHeld,
+  };
+}
+
+function movePlayerWithInput(target: { x: number; y: number }, input: { dx: number; dy: number; sprint: boolean }, dt: number): void {
+  let { dx, dy } = input;
+  if (dx !== 0 && dy !== 0) {
+    dx *= Math.SQRT1_2;
+    dy *= Math.SQRT1_2;
+  }
+  const normalSpeed = isInSafeZone(target.x, target.y) ? 190 : 128;
+  const speed = normalSpeed * (input.sprint ? 1.75 : 1);
+  const terrainMargin = terrainLevel > 0 ? Math.min(900, 500 + terrainLevel * 120) : 0;
+  const rightBoundary = (isIslandUnlocked() ? WIDTH - 20 : 720) + terrainMargin;
+  target.x = clamp(target.x + dx * speed * dt, 20 - terrainMargin, rightBoundary);
+
+  // Remote players do not use the local falling animation. The host still
+  // validates their movement and shark damage, while avoiding a shared
+  // sinkVelocity or a global game-over leak.
+  target.y = clamp(target.y + dy * speed * dt, 78 - terrainMargin, HEIGHT - 20 + terrainMargin);
+}
+
 function updatePlayer(dt: number): void {
-  let dx = Number(keys.has("right")) - Number(keys.has("left"));
-  let dy = Number(keys.has("down")) - Number(keys.has("up"));
+  const input = getLocalMovementInput();
+  let { dx, dy } = input;
   if (dx !== 0 && dy !== 0) {
     dx *= Math.SQRT1_2;
     dy *= Math.SQRT1_2;
   }
   const normalSpeed = isInSafeZone(player.x, player.y) ? 190 : 128;
-  const speed = normalSpeed * (speedBoostHeld ? 1.75 : 1);
+  const speed = normalSpeed * (input.sprint ? 1.75 : 1);
   const terrainMargin = terrainLevel > 0 ? Math.min(900, 500 + terrainLevel * 120) : 0;
   const rightBoundary = (isIslandUnlocked() ? WIDTH - 20 : 720) + terrainMargin;
   player.x = clamp(player.x + dx * speed * dt, 20 - terrainMargin, rightBoundary);
@@ -2557,6 +3532,23 @@ function updatePlayer(dt: number): void {
 
   sinkVelocity = 0;
   player.y = clamp(player.y + dy * speed * dt, 78 - terrainMargin, HEIGHT - 20 + terrainMargin);
+}
+
+function updateHostGuestPlayer(dt: number): void {
+  const frame = remotePlayerState?.frame;
+  if (!frame?.connected || frame.hearts <= 0) return;
+  const inputAge = multiplayerLastGuestInputAtMs < 0 ? Number.POSITIVE_INFINITY : performance.now() - multiplayerLastGuestInputAtMs;
+  if (inputAge > 5000) {
+    frame.connected = false;
+    multiplayerGuestInput = { inputSeq: multiplayerGuestInput.inputSeq, dx: 0, dy: 0, sprint: false };
+    remotePlayerState = { frame: { ...frame }, updatedAt: performance.now() };
+    return;
+  }
+  if (inputAge > 500) {
+    multiplayerGuestInput = { inputSeq: multiplayerGuestInput.inputSeq, dx: 0, dy: 0, sprint: false };
+  }
+  movePlayerWithInput(frame, multiplayerGuestInput, dt);
+  remotePlayerState = { frame: { ...frame }, updatedAt: performance.now() };
 }
 
 function fallIntoTheVoid(): void {
@@ -2588,27 +3580,34 @@ const WORLD_SYNC_INTERVAL = 0.12;
 // Small, frequent packets: just the shark poses and the crate list. The heavy
 // full-save snapshot still goes out on saves, but rarely.
 function broadcastWorldSync(): void {
-  if (!multiplayerConnected || elapsed < lastWorldSyncAt + WORLD_SYNC_INTERVAL) return;
+  if (!multiplayerConnected || !multiplayerIsHost || elapsed < lastWorldSyncAt + WORLD_SYNC_INTERVAL) return;
   lastWorldSyncAt = elapsed;
-  const payload: WorldSyncPayload = {
+  ensureAllCrateIds();
+  const payload: WorldFramePayload<MultiplayerWorldData> = {
+    revision: multiplayerHostRevision,
+    frameSeq: multiplayerFrameSeq++,
+    hostTimeMs: Math.max(0, Math.floor(elapsed * 1000)),
+    players: createReplicatedPlayerFrames(),
+    crates: crates.map((crate) => ({
+      id: ensureCrateId(crate),
+      x: crate.x,
+      y: crate.y,
+      kind: crate.kind,
+      ...(crate.material ? { material: { name: crate.material.name, amount: crate.material.amount, color: crate.material.color } } : {}),
+    })),
+    world: {
     shark: { x: shark.x, y: shark.y, angle: shark.angle, speed: getSharkSpeed() },
     extraSharks: extraSharks.map((hunter) => ({ x: hunter.x, y: hunter.y, angle: hunter.angle })),
-    crates: crates.map((crate) => ({ ...crate })),
     sharkDeleted,
+    },
   };
-  sendMultiplayerMessage("world", payload);
+  sendMultiplayerMessage("world-frame", payload);
 }
 
-function applyWorldSync(payload: WorldSyncPayload): void {
-  sharkDeleted = payload.sharkDeleted;
-  sharkNetPose = { ...payload.shark, at: elapsed };
-
-  // Extra sharks are cheap and rarely numerous, so they just snap into place.
-  extraSharks = payload.extraSharks.map((hunter) => ({ ...hunter, biteCooldownUntil: 0 }));
-
-  // Crates are host-owned. Anything this player is already carrying stays
-  // carried — it is no longer in the world list.
-  crates = payload.crates.map((crate) => ({ ...crate }));
+function sendMultiplayerInput(): void {
+  if (!isGuestMultiplayer()) return;
+  const input = getLocalMovementInput();
+  sendMultiplayerMessage("input", { inputSeq: ++multiplayerGuestInputSequence, ...input });
 }
 
 // Guest-side shark motion: keep swimming along the last known heading, and
@@ -2627,8 +3626,24 @@ function followSyncedShark(dt: number): void {
 }
 
 function getSharkSpeed(): number {
-  const playerInWater = !isInSafeZone(player.x, player.y);
+  const target = getClosestHostSharkTarget(shark.x, shark.y);
+  const playerInWater = target ? !isInSafeZone(target.x, target.y) : !isInSafeZone(player.x, player.y);
   return elapsed < sharkFleeUntil ? 145 : playerInWater && elapsed >= sharkDecoyUntil ? 84 + progressionIndex * 2 : 54;
+}
+
+function getHostSharkTargets(): Array<{ id: PlayerId; x: number; y: number; hearts: number; invincibleUntil: number }> {
+  const targets = [{ id: getMultiplayerPlayerId(), x: player.x, y: player.y, hearts: player.hearts, invincibleUntil: player.invincibleUntil }];
+  if (multiplayerConnected && multiplayerIsHost && remotePlayerState?.frame.connected) {
+    const frame = remotePlayerState.frame;
+    targets.push({ id: frame.id, x: frame.x, y: frame.y, hearts: frame.hearts, invincibleUntil: frame.invincibleUntilMs / 1000 });
+  }
+  return targets;
+}
+
+function getClosestHostSharkTarget(x: number, y: number): { id: PlayerId; x: number; y: number; hearts: number; invincibleUntil: number } | undefined {
+  return getHostSharkTargets()
+    .filter((target) => target.hearts > 0 && !isInSafeZone(target.x, target.y) && !isOnBridge(target.x, target.y))
+    .sort((a, b) => distance(x, y, a.x, a.y) - distance(x, y, b.x, b.y))[0];
 }
 
 function updateShark(dt: number): void {
@@ -2641,18 +3656,20 @@ function updateShark(dt: number): void {
   }
   let targetX: number;
   let targetY: number;
-  const playerOnBridge = isOnBridge(player.x, player.y);
-  const playerInWater = !isInSafeZone(player.x, player.y);
+  const target = getClosestHostSharkTarget(shark.x, shark.y);
+  const playerOnBridge = target ? isOnBridge(target.x, target.y) : false;
+  const playerInWater = target !== undefined;
 
   if (elapsed < sharkFleeUntil) {
-    targetX = shark.x < player.x ? 22 : WIDTH - 22;
-    targetY = shark.y < player.y ? 88 : HEIGHT - 22;
+    const fleeFrom = target ?? { x: player.x, y: player.y };
+    targetX = shark.x < fleeFrom.x ? 22 : WIDTH - 22;
+    targetY = shark.y < fleeFrom.y ? 88 : HEIGHT - 22;
   } else if (elapsed < sharkDecoyUntil) {
     targetX = 75;
     targetY = HEIGHT - 75;
   } else if (playerInWater) {
-    targetX = player.x;
-    targetY = player.y;
+    targetX = target!.x;
+    targetY = target!.y;
   } else {
     const orbit = elapsed * 0.55;
     targetX = WIDTH / 2 + Math.cos(orbit) * 300;
@@ -2671,28 +3688,29 @@ function updateShark(dt: number): void {
   keepSharkOutOfIsland();
 
   if (
-    playerInWater &&
+    target && playerInWater &&
     !playerOnBridge &&
-    distance(player.x, player.y, shark.x, shark.y) < 38 &&
+    distance(target.x, target.y, shark.x, shark.y) < 38 &&
     elapsed >= shark.biteCooldownUntil &&
-    elapsed >= player.invincibleUntil &&
+    elapsed >= target.invincibleUntil &&
     elapsed >= sharkFleeUntil
   ) {
-    handleSharkBite(shark);
+    handleSharkBite(shark, target.id, "shark-main");
   }
 }
 
 function updateExtraSharks(dt: number): void {
-  const playerInWater = !isInSafeZone(player.x, player.y);
+  const playerInWater = getClosestHostSharkTarget(shark.x, shark.y) !== undefined;
   extraSharks.forEach((hunter, index) => {
+    const target = getClosestHostSharkTarget(hunter.x, hunter.y);
     const orbit = elapsed * (0.35 + index * 0.015) + index * 1.7;
     const fleeing = elapsed < sharkFleeUntil;
     const targetX = fleeing
-      ? (hunter.x < player.x ? 20 : WIDTH - 20)
-      : playerInWater ? player.x : WIDTH / 2 + Math.cos(orbit) * (260 + (index % 3) * 34);
+      ? (hunter.x < (target?.x ?? player.x) ? 20 : WIDTH - 20)
+      : target ? target.x : WIDTH / 2 + Math.cos(orbit) * (260 + (index % 3) * 34);
     const targetY = fleeing
-      ? (hunter.y < player.y ? 90 : HEIGHT - 20)
-      : playerInWater ? player.y : HEIGHT / 2 + Math.sin(orbit) * (175 + (index % 2) * 24);
+      ? (hunter.y < (target?.y ?? player.y) ? 90 : HEIGHT - 20)
+      : target ? target.y : HEIGHT / 2 + Math.sin(orbit) * (175 + (index % 2) * 24);
     const targetAngle = Math.atan2(targetY - hunter.y, targetX - hunter.x);
     hunter.angle += clamp(normalizeAngle(targetAngle - hunter.angle), -2.5 * dt, 2.5 * dt);
     const speed = fleeing ? 140 : playerInWater ? 70 + terrainLevel * 5 : 48 + (index % 3) * 4;
@@ -2701,16 +3719,61 @@ function updateExtraSharks(dt: number): void {
     keepSharkOutOfRaft(hunter);
     keepSharkOutOfIsland(hunter);
     if (
-      playerInWater
-      && distance(player.x, player.y, hunter.x, hunter.y) < 38
+      target && playerInWater
+      && distance(target.x, target.y, hunter.x, hunter.y) < 38
       && elapsed >= hunter.biteCooldownUntil
-      && elapsed >= player.invincibleUntil
+      && elapsed >= target.invincibleUntil
       && elapsed >= sharkFleeUntil
-    ) handleSharkBite(hunter);
+    ) handleSharkBite(hunter, target.id, `extra-${index}`);
   });
 }
 
-function handleSharkBite(attacker: SharkEntity): void {
+function handleSharkBite(attacker: SharkEntity, targetId = getMultiplayerPlayerId(), attackerId = "shark-main"): void {
+  if (multiplayerIsHost && hasActiveMultiplayerVoyage()) {
+    multiplayerReducerState = createMultiplayerStateFromGlobals(multiplayerHostRevision);
+    const carriedBeforeHit = [...multiplayerReducerState.players[targetId].carriedCrateIds];
+    multiplayerReducerRuntime.now = elapsed;
+    const result = reduceCommand(multiplayerReducerState, {
+      kind: "shark.hit", requestId: crypto.randomUUID(), actor: "p1", target: targetId,
+      attackerId, attackId: `${attackerId}-${Math.floor(elapsed * 1000)}`,
+    }, multiplayerReducerRuntime);
+    attacker.biteCooldownUntil = elapsed + 2.2;
+    if (!result.accepted) return;
+    const target = result.state.players[targetId];
+    if (result.effect === "damage") {
+      for (const crateId of carriedBeforeHit) {
+        const crate = multiplayerCrateCatalog.get(crateId);
+        if (!crate || crates.some((candidate) => candidate.id === crateId)) continue;
+        const position = randomWaterPosition();
+        const returned = { ...crate, id: crateId, x: position.x, y: position.y, landedAt: elapsed, bobOffset: Math.random() * 10 };
+        multiplayerCrateCatalog.set(crateId, returned);
+        result.state.shared.crates.push({
+          id: crateId,
+          x: position.x,
+          y: position.y,
+          kind: crate.kind,
+          reward: crate.multiplayerReward
+            ? { inventory: { ...crate.multiplayerReward.inventory }, foodHealing: [...crate.multiplayerReward.foodHealing] }
+            : {},
+        });
+      }
+      target.x = WIDTH / 2;
+      target.y = HEIGHT / 2;
+      target.carriedCrateIds = [];
+      multiplayerCarriedCrateIds[targetId] = [];
+      if (targetId === getMultiplayerPlayerId()) carriedCrates = [];
+      if (targetId === getMultiplayerPlayerId() && target.hearts <= 0) {
+        mode = "gameOver";
+        keys.clear();
+      }
+    }
+    multiplayerReducerState = result.state;
+    multiplayerHostRevision = result.revision;
+    applyReducerStateToGlobals(result.state, targetId);
+    burst(attacker.x, attacker.y, result.effect === "shield-blocked" ? "#6ffaff" : "#ff7890", 20);
+    persistCurrentHostMultiplayerState();
+    return;
+  }
   attacker.biteCooldownUntil = elapsed + 2.2;
   if (gameKind === "creative") {
     player.hearts = maxHearts;
@@ -2791,6 +3854,7 @@ function spawnRandomCrate(): void {
 
 function toggleCreativeCrateMenu(): void {
   if (mode !== "playing") return;
+  if (blockGuestMultiplayerAction("CRATE SPAWNER")) return;
   creativeCrateMenuOpen = !creativeCrateMenuOpen;
   craftingOpen = false;
   storageOpen = false;
@@ -2814,6 +3878,7 @@ function updateCreativeCrateSpawnerButton(): void {
 
 function spawnCreativeCrate(choice: number): void {
   if (!creativeCrateMenuOpen) return;
+  if (blockGuestMultiplayerAction("CRATE SPAWNER")) return;
   const kinds: CrateKind[] = ["supply", "wooden", "technology", "blood", "rainbow", "super"];
   const survivalCosts = [5, 10, 20, 35, 50, 100];
   const kind = kinds[choice - 1];
@@ -2904,6 +3969,7 @@ const DELETED_ASSET_Y = -999999;
 
 function toggleHackerPanel(): void {
   if (!isHacker || mode !== "playing") return;
+  if (blockGuestMultiplayerAction("HACKER MODE")) return;
   hackerPanelOpen = !hackerPanelOpen;
   craftingOpen = false;
   storageOpen = false;
@@ -2975,6 +4041,7 @@ function describeHackerClipboard(): string {
 
 function swapHackerMode(): void {
   if (!isHacker) return;
+  if (blockGuestMultiplayerAction("HACKER MODE")) return;
   gameKind = gameKind === "creative" ? "survival" : "creative";
   if (gameKind === "creative") {
     maxHearts = MAX_HEARTS;
@@ -2993,6 +4060,7 @@ function swapHackerMode(): void {
 
 function spawnHackerCrate(): void {
   if (!isHacker) return;
+  if (blockGuestMultiplayerAction("HACKER MODE")) return;
   const position = nearbyCreativeCratePosition();
   crates.push({ x: position.x, y: position.y, kind: "hacker", landedAt: elapsed, bobOffset: Math.random() * 10 });
   showMessage("HACKER CRATE SPAWNED — OWNER ONLY!", 3);
@@ -3077,6 +4145,7 @@ function setHackerTool(tool: HackerTool): void {
 
 function pasteHackerClipboard(): void {
   if (!isHacker) return;
+  if (blockGuestMultiplayerAction("HACKER MODE")) return;
   if (!hackerClipboard) {
     showMessage("CLIPBOARD IS EMPTY — COPY SOMETHING FIRST.", 3);
     return;
@@ -3548,6 +4617,7 @@ function applyDeletedGui(): void {
 // tab brings the whole thing back.
 function deleteWholeGame(): void {
   if (!isHacker) return;
+  if (blockGuestMultiplayerAction("HACKER MODE")) return;
   saveGame();
   gameDeleted = true;
   closeHackerPanel();
@@ -3557,6 +4627,7 @@ function deleteWholeGame(): void {
 
 function restoreDeletedAssets(): void {
   if (!isHacker) return;
+  if (blockGuestMultiplayerAction("HACKER MODE")) return;
   const hadDeletions = sharkDeleted || homeRaftDeleted || shopkeeperDeleted || hudDeleted
     || oceanDeleted || playerDeleted || deletedIslands.size > 0 || deletedGuiSelectors.size > 0;
   if (!hadDeletions) {
@@ -3607,15 +4678,28 @@ function randomWaterPosition(): { x: number; y: number } {
 }
 
 function collectCrates(): void {
+  if (isGuestMultiplayer()) {
+    for (const crate of crates) {
+      if (distance(player.x, player.y, crate.x, crate.y) > 34) continue;
+      if (Array.from(multiplayerPendingCommands.values()).some((pending) => pending.type === "crate.collect" && (pending.payload as { crateId?: string }).crateId === crate.id)) continue;
+      queueMultiplayerCommand("crate.collect", { crateId: ensureCrateId(crate), crate: { ...crate } });
+    }
+    return;
+  }
   let collectedAny = false;
   crates = crates.filter((crate) => {
     if (distance(player.x, player.y, crate.x, crate.y) > 34) return true;
+    ensureCrateId(crate);
+    // The catalog and carried-ID ledger are co-op replication state. Writing
+    // them during offline play only leaks memory: nothing ever deletes the
+    // entries outside a voyage.
+    if (hasActiveMultiplayerVoyage()) {
+      multiplayerCrateCatalog.set(crate.id!, { ...crate });
+      multiplayerCarriedCrateIds.p1 = [...multiplayerCarriedCrateIds.p1, crate.id!];
+    }
     carriedCrates.push(crate);
     collectedAny = true;
     burst(crate.x, crate.y, crateColor(crate), 14);
-    // Tell the host to drop it from the world list, otherwise the next world
-    // sync would put the crate straight back.
-    if (multiplayerConnected && !multiplayerIsHost) sendMultiplayerMessage("take", { x: crate.x, y: crate.y });
     showMessage(
       `CRATE SECURED! REACH ANY RAFT PLATFORM${carriedCrates.length > 1 ? ` (${carriedCrates.length} CARRIED)` : ""}.`,
       3.2
@@ -3630,13 +4714,35 @@ function collectCrates(): void {
 
 function depositCarriedCrates(): void {
   if (carriedCrates.length === 0 || !isOnRaftNetwork(player.x, player.y)) return;
+  if (multiplayerIsHost && hasActiveMultiplayerVoyage()) {
+    for (const crate of [...carriedCrates]) {
+      dispatchHostCommand("crate.deposit", { crateId: ensureCrateId(crate) }, "p1", multiplayerHostRevision, crypto.randomUUID());
+    }
+    carriedCrates = carriedCrates.filter((crate) => multiplayerCarriedCrateIds.p1.includes(ensureCrateId(crate)));
+    return;
+  }
+  if (isGuestMultiplayer()) {
+    for (const crate of carriedCrates) {
+      if (Array.from(multiplayerPendingCommands.values()).some((pending) => pending.type === "crate.deposit" && (pending.payload as { crateId?: string }).crateId === crate.id)) continue;
+      queueMultiplayerCommand("crate.deposit", { crateId: ensureCrateId(crate) });
+    }
+    return;
+  }
   const delivered = carriedCrates.splice(0);
+  multiplayerCarriedCrateIds.p1 = [];
   for (const crate of delivered) openCrate(crate);
   saveGame();
   broadcastMultiplayerNotice(`OPENED ${delivered.length} SHARED CRATE${delivered.length === 1 ? "" : "S"}!`);
 }
 
 function openCrate(crate: FloatingCrate): void {
+  if (multiplayerIsHost && hasActiveMultiplayerVoyage() && crate.multiplayerReward) {
+    for (const [name, amount] of Object.entries(crate.multiplayerReward.inventory)) addItem(name, amount);
+    for (const healing of crate.multiplayerReward.foodHealing) addFood(healing, 1);
+    applyMultiplayerCrateRewardEffects(crate);
+    if (crate.id) multiplayerCrateCatalog.delete(crate.id);
+    return;
+  }
   if (crate.kind === "hacker") {
     grantHackerCrate();
     burst(player.x, player.y, "#4dff9b", 120);
@@ -3738,6 +4844,7 @@ function getPreviousMaterial(materialName: string): MaterialDrop | undefined {
 
 function loseCarriedCrates(): number {
   const lost = carriedCrates.splice(0);
+  multiplayerCarriedCrateIds[getMultiplayerPlayerId()] = [];
   for (const crate of lost) {
     const position = randomWaterPosition();
     crates.push({
@@ -3770,6 +4877,10 @@ function addCrateFood(): string {
 
 function eatFood(): void {
   if (mode !== "playing") return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("food.eat", {});
+    return;
+  }
   if (foodHealing.length === 0) {
     showMessage("You do not have any food yet.", 2.5);
     return;
@@ -3925,12 +5036,24 @@ function depositSelectedItems(): void {
   if (!(select instanceof HTMLSelectElement) || !(amountInput instanceof HTMLInputElement)) return;
   const itemName = select.value;
   const requested = Math.max(0, Math.floor(Number(amountInput.value)));
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("storage.deposit", { item: itemName, amount: requested });
+    closeDepositDialog();
+    return;
+  }
+  if (applyStorageDeposit(itemName, requested) <= 0) return;
+  closeDepositDialog();
+  showMessage(`DEPOSITED ${requested} ${itemName.toUpperCase()} IN THE CHEST.`, 4);
+  saveGame();
+}
+
+function applyStorageDeposit(itemName: string, requested: number): number {
   const chestSpace = Math.max(0, getChestCapacity() - getChestUsed());
   const available = itemName === "Food" ? foodHealing.length : inventory.get(itemName) ?? 0;
   const amount = Math.min(requested, available, chestSpace);
   if (!itemName || amount <= 0) {
     showMessage(chestSpace <= 0 ? "Your chests are full." : "Choose an available item and amount.", 3);
-    return;
+    return 0;
   }
   if (itemName === "Food") {
     for (let index = 0; index < amount; index += 1) {
@@ -3942,12 +5065,14 @@ function depositSelectedItems(): void {
     inventory.set(itemName, available - amount);
     chestInventory.set(itemName, (chestInventory.get(itemName) ?? 0) + amount);
   }
-  closeDepositDialog();
-  showMessage(`DEPOSITED ${amount} ${itemName.toUpperCase()} IN THE CHEST.`, 4);
-  saveGame();
+  return amount;
 }
 
 function craftRecipe(recipe: number): void {
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand(recipe === 2 ? "shield.craft" : recipe === 3 ? "raft.expand" : "craft.recipe", { recipe });
+    return;
+  }
   if (recipe === 1) craftDecoy();
   else if (recipe === 2) craftShield();
   else if (recipe === 3) craftRaftExpansion();
@@ -4182,6 +5307,7 @@ function craftFisherBot(): void {
 }
 
 function updateFisherBot(): void {
+  if (isGuestMultiplayer()) return;
   if (!hasFisherBot || elapsed < nextAutoFishAt) return;
   const undiscovered = fishCatches.filter((fish) => (fishCollection.get(fish.name) ?? 0) === 0);
   const pool = undiscovered.length > 0 ? undiscovered : fishCatches;
@@ -4217,6 +5343,7 @@ function syncCollectorBots(): void {
 }
 
 function updateCollectorBots(dt: number): void {
+  if (isGuestMultiplayer()) return;
   if (collectorBotCount === 0) return;
   syncCollectorBots();
   collectorBots.forEach((bot, index) => {
@@ -4381,6 +5508,10 @@ function moveCollectorDropsToCompartment(): void {
 }
 
 function collectCollectorDrops(pickupX = player.x, pickupY = player.y, pickupRadius = 48): void {
+  // Drops are host-owned. The update() loop already gates on world authority,
+  // but the canvas click handler calls this directly and must not let a guest
+  // grant itself food that the next snapshot will silently revert.
+  if (isGuestMultiplayer()) return;
   let collected = 0;
   let blockedByFullStorage = false;
   collectorDrops = collectorDrops.filter((drop) => {
@@ -4433,7 +5564,10 @@ function craftShield(): void {
     showMessage("You need 5 Technology Shards.", 2);
     return;
   }
-  shieldUntil = Number.POSITIVE_INFINITY;
+  // Key on the voyage, not the transport: a host whose guest is briefly
+  // disconnected must still receive a replicated shield charge.
+  if (hasActiveMultiplayerVoyage()) setMultiplayerShieldCharge(getMultiplayerPlayerId(), 1);
+  else shieldUntil = Number.POSITIVE_INFINITY;
   showMessage(isNightmareLevel() ? "THE VEIN SHIELD TWITCHES AROUND YOU. ONE BITE WILL FEED IT." : "TECH SHIELD READY! It blocks one bite.", 3);
   saveGame();
 }
@@ -4479,6 +5613,10 @@ function craftRaftExpansion(): void {
 }
 
 function craftBridge(): void {
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("bridge.build", {});
+    return;
+  }
   const targetIsland = isIslandUnlocked() && bridgesBuilt < ISLANDS.length ? ISLANDS[bridgesBuilt] : undefined;
   if (targetIsland && !isIslandVisible(targetIsland)) {
     showMessage("Build a fourth raft expansion to reveal the animal islands.", 3);
@@ -4567,6 +5705,10 @@ function craftChest(): void {
 
 function harvestCoconuts(): void {
   if (mode !== "playing") return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("island.harvest", {});
+    return;
+  }
   const islandIndex = ISLANDS.findIndex((island) => isInsideIsland(player.x, player.y, island));
   const island = ISLANDS[islandIndex];
   if (islandIndex < 0 || islandIndex >= bridgesBuilt || island?.kind !== "coconut") {
@@ -4607,6 +5749,10 @@ function getAvailableCoconuts(islandIndex: number): number {
 
 function huntAnimal(): void {
   if (mode !== "playing") return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("animal.hunt", {});
+    return;
+  }
   const closestShark = getClosestShark();
   if (distance(player.x, player.y, closestShark.x, closestShark.y) <= 76) {
     hitShark();
@@ -4646,6 +5792,10 @@ function huntAnimal(): void {
 }
 
 function hitShark(): void {
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("shark.hit", {});
+    return;
+  }
   if (!hasHuntingSpear) {
     showMessage(isNightmareLevel() ? "The shark fears only a barbed harpoon." : "Craft a hunting spear before attacking the shark.", 3);
     return;
@@ -4719,6 +5869,10 @@ function getChestUsed(): number {
 
 function storeAllInChest(): void {
   if (!storageOpen) return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("storage.deposit", { item: "__all__", amount: 0 });
+    return;
+  }
   let available = Math.max(0, getChestCapacity() - getChestUsed());
   for (const [name, amount] of inventory) {
     if (name === "Food" || amount <= 0 || available <= 0) continue;
@@ -4739,6 +5893,10 @@ function storeAllInChest(): void {
 
 function takeAllFromChest(): void {
   if (!storageOpen) return;
+  if (isGuestMultiplayer()) {
+    queueMultiplayerCommand("storage.withdraw", {});
+    return;
+  }
   for (const [name, amount] of chestInventory) {
     const room = Math.max(0, STACK_LIMIT - (inventory.get(name) ?? 0));
     const moved = Math.min(amount, room);
@@ -6251,27 +7409,7 @@ function drawPlayer(): void {
   ctx.translate(player.x, player.y);
   const nightmare = isNightmareLevel();
   if (swimming) ctx.rotate(Math.sin(elapsed * 7) * 0.08);
-  if (elapsed < shieldUntil) {
-    ctx.strokeStyle = nightmare ? "rgba(255, 24, 55, 0.92)" : "rgba(105, 250, 255, 0.9)";
-    ctx.lineWidth = nightmare ? 3 : 4;
-    if (nightmare) {
-      ctx.shadowColor = "#ff001e";
-      ctx.shadowBlur = 13;
-    }
-    ctx.beginPath();
-    ctx.arc(0, 0, 25 + Math.sin(elapsed * 5) * 2, 0, Math.PI * 2);
-    ctx.stroke();
-    if (nightmare) {
-      for (let vein = 0; vein < 6; vein += 1) {
-        const angle = vein * Math.PI / 3 + elapsed * 0.12;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(angle) * 12, Math.sin(angle) * 12);
-        ctx.quadraticCurveTo(Math.cos(angle + 0.35) * 20, Math.sin(angle + 0.35) * 20, Math.cos(angle) * 27, Math.sin(angle) * 27);
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-    }
-  }
+  drawShieldRing(multiplayerShieldIsActive());
   ctx.fillStyle = nightmare ? "#d2c6c0" : "#f2bb87";
   ctx.beginPath();
   ctx.arc(0, -8, 10, 0, Math.PI * 2);
@@ -6314,15 +7452,19 @@ function drawPlayer(): void {
 
 function drawRemoteMultiplayerPlayer(): void {
   if (!remotePlayerState || performance.now() - remotePlayerState.updatedAt > 5000) return;
-  const swimming = !isInSafeZone(remotePlayerState.x, remotePlayerState.y);
+  const frame = remotePlayerState.frame;
+  if (frame.hearts <= 0) return;
+  if (elapsed < frame.invincibleUntilMs / 1000 && Math.floor(elapsed * 12) % 2 === 0) return;
+  const swimming = !isInSafeZone(frame.x, frame.y);
   ctx.save();
-  ctx.translate(remotePlayerState.x, remotePlayerState.y);
+  ctx.translate(frame.x, frame.y);
   if (swimming) ctx.rotate(Math.sin(elapsed * 7 + 1.3) * 0.08);
+  drawShieldRing(frame.shieldCharges > 0);
   ctx.fillStyle = "#f2bb87";
   ctx.beginPath();
   ctx.arc(0, -8, 10, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = remotePlayerState.player === 2 ? "#8e68e8" : "#ff5e55";
+  ctx.fillStyle = frame.id === "p2" ? "#8e68e8" : "#ff5e55";
   roundedRect(-11, 1, 22, 25, 7);
   ctx.fill();
   ctx.fillStyle = "#8ff9f5";
@@ -6344,8 +7486,32 @@ function drawRemoteMultiplayerPlayer(): void {
   ctx.fillStyle = "#ffffff";
   ctx.font = "900 10px Trebuchet MS";
   ctx.textAlign = "center";
-  ctx.fillText(`PLAYER ${remotePlayerState.player}`, 0, -29);
+  ctx.fillText(`PLAYER ${frame.id === "p1" ? 1 : 2}`, 0, -29);
   ctx.restore();
+}
+
+function drawShieldRing(active: boolean): void {
+  if (!active) return;
+  const nightmare = isNightmareLevel();
+  ctx.strokeStyle = nightmare ? "rgba(255, 24, 55, 0.92)" : "rgba(105, 250, 255, 0.9)";
+  ctx.lineWidth = nightmare ? 3 : 4;
+  if (nightmare) {
+    ctx.shadowColor = "#ff001e";
+    ctx.shadowBlur = 13;
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, 25 + Math.sin(elapsed * 5) * 2, 0, Math.PI * 2);
+  ctx.stroke();
+  if (nightmare) {
+    for (let vein = 0; vein < 6; vein += 1) {
+      const angle = vein * Math.PI / 3 + elapsed * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * 12, Math.sin(angle) * 12);
+      ctx.quadraticCurveTo(Math.cos(angle + 0.35) * 20, Math.sin(angle + 0.35) * 20, Math.cos(angle) * 27, Math.sin(angle) * 27);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
 }
 
 function drawShark(): void {
@@ -6607,10 +7773,39 @@ function drawHud(): void {
   });
 
   if (multiplayerRoomCode) {
-    ctx.textAlign = "center";
+    // The header already uses its center for the drop timer and its right side
+    // for materials. Keep co-op status in a bounded screen-space panel below
+    // that header so responsive canvas scaling cannot make those labels cross.
+    const panelX = 12;
+    const panelY = 86;
+    const panelWidth = 335;
+    const panelHeight = 46;
+    ctx.fillStyle = nightmare ? "rgba(25, 0, 5, 0.92)" : "rgba(2, 25, 40, 0.9)";
+    roundedRect(panelX, panelY, panelWidth, panelHeight, 9);
+    ctx.fill();
+    ctx.strokeStyle = multiplayerConnected ? (nightmare ? "#ff5368" : "#8ff9f5") : "#ffe56b";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.textAlign = "left";
     ctx.fillStyle = multiplayerConnected ? "#8ff9f5" : "#ffe56b";
     ctx.font = "900 10px Trebuchet MS";
-    ctx.fillText(`P${multiplayerPlayerNumber} • ROOM ${multiplayerRoomCode}${multiplayerConnected ? " • LINKED" : " • WAITING"}`, 565, 15);
+    ctx.fillText(
+      `YOU: P${multiplayerPlayerNumber} • ROOM ${multiplayerRoomCode} • ${multiplayerConnected ? "LINKED" : "WAITING"}`,
+      panelX + 10,
+      panelY + 17,
+    );
+    const ally = remotePlayerState?.frame;
+    if (ally) {
+      ctx.fillStyle = ally.connected ? "#dffcff" : "#ffe56b";
+      ctx.fillText(
+        `ALLY: P${ally.id === "p1" ? 1 : 2} ${ally.connected ? "ONLINE" : "OFFLINE"} • HEARTS ${ally.hearts} • SHIELD ${ally.shieldCharges > 0 ? "ON" : "OFF"} • CARGO ${ally.carriedCrateCount}`,
+        panelX + 10,
+        panelY + 34,
+      );
+    } else {
+      ctx.fillStyle = "#9ac6ce";
+      ctx.fillText("ALLY: WAITING • HEARTS — • SHIELD — • CARGO —", panelX + 10, panelY + 34);
+    }
   }
 
   if (message && elapsed < messageUntil && mode === "playing") {
@@ -7456,9 +8651,9 @@ function distanceToSegment(px: number, py: number, x1: number, y1: number, x2: n
   return distance(px, py, x1 + t * dx, y1 + t * dy);
 }
 
-function saveGame(): void {
-  if (mode === "ready" || mode === "gameOver") return;
-  const data: SaveData = {
+function createSaveData(): SaveData {
+  ensureAllCrateIds();
+  return {
     version: 1,
     saveFileName,
     raftName,
@@ -7478,6 +8673,13 @@ function saveGame(): void {
     progressionIndex,
     crates,
     carriedCrates,
+    ...(hasActiveMultiplayerVoyage() ? {
+      multiplayerCarriedCrateIds: {
+        p1: [...multiplayerCarriedCrateIds.p1],
+        p2: [...multiplayerCarriedCrateIds.p2],
+      },
+      multiplayerCrateCatalog: [...multiplayerCrateCatalog.values()].map((crate) => ({ ...crate })),
+    } : {}),
     inventory: [...inventory.entries()],
     foodHealing,
     hearts: player.hearts,
@@ -7526,6 +8728,16 @@ function saveGame(): void {
     sunkenRafts,
     extraSharks,
   };
+}
+
+function saveGame(): void {
+  if (mode === "ready" || mode === "gameOver") return;
+  if (isGuestMultiplayer()) {
+    // Guests never write shared co-op state. The last host snapshot remains
+    // available in memory and in the recovery key if the connection drops.
+    return;
+  }
+  const data = createSaveData();
   try {
     const saveKey = getSaveKey(currentSaveSlot);
     const previousRaw = localStorage.getItem(saveKey);
@@ -7538,7 +8750,10 @@ function saveGame(): void {
     // Only the host broadcasts full snapshots. When both sides did it, each
     // player's autosave overwrote the other's crates — which is why freshly
     // spawned crates vanished a moment later.
-    if (multiplayerConnected && multiplayerIsHost) sendMultiplayerMessage("state", data);
+    if (multiplayerConnected && multiplayerIsHost && !multiplayerSuppressSaveBroadcast) {
+      multiplayerHostRevision += 1;
+      publishMultiplayerSnapshot();
+    }
   } catch {
     showMessage("Autosave could not be written.", 3);
   }
@@ -7579,6 +8794,7 @@ function restoreAutosave(): void {
     progressionIndex = clamp(Math.floor(data.progressionIndex ?? 0), 0, materialProgression.length);
     crates = Array.isArray(data.crates) ? data.crates : [];
     carriedCrates = Array.isArray(data.carriedCrates) ? data.carriedCrates : [];
+    if (multiplayerIsHost || !multiplayerConnected) ensureAllCrateIds();
     chestCount = Math.max(0, Math.floor(data.chestCount ?? 0));
     chestInventory.clear();
     if (Array.isArray(data.chestInventory)) {
@@ -7738,7 +8954,6 @@ function restoreAutosave(): void {
     updateTerrainButton();
     updateTimeWarperButton();
     updateCreativeCrateSpawnerButton();
-    if (pendingMultiplayerState) applyMultiplayerState(pendingMultiplayerState);
     if (multiplayerConnected && multiplayerIsHost) saveGame();
   } catch {
     showMessage("SAVE FILE NEEDS RECOVERY. YOUR DATA WAS NOT DELETED.", 5);
