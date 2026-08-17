@@ -110,8 +110,16 @@ interface MultiplayerMessage {
   room: string;
   sender: string;
   player: 1 | 2;
-  type: "join" | "welcome" | "position" | "state" | "notice" | "start" | "world" | "take";
+  type: "join" | "welcome" | "position" | "state" | "notice" | "start" | "world" | "take" | "trade-offer" | "trade-accept" | "trade-decline";
   payload?: unknown;
+}
+
+interface TradeOffer {
+  id: string;
+  from: 1 | 2;
+  to: 1 | 2;
+  item: string;
+  amount: number;
 }
 
 interface RemotePlayerState {
@@ -419,6 +427,7 @@ const changelogEntries: ChangelogEntry[] = [
   { title: "77. Automatic Fisher Bot", detail: "The Automation page gained a Fisher Bot that works from the raft while you explore, catches a fish every twenty seconds, and prioritizes undiscovered species to fill the Fish Index." },
   { title: "78. Fisher Bot Catch Box", detail: "The Fisher Bot now drops its catches into a wooden box on the raft. Miniature versions of the Fish Index artwork are visibly piled inside." },
   { title: "79. Internet Two-Player Rooms", detail: "The save-file screen gained internet-capable short-code multiplayer rooms. Both players share supplies, catches, purchases, automation, crates, coconuts, and generated terrain, with numbered player announcements." },
+  { title: "80. Player Trading Challenges", detail: "Multiplayer players now carry separate personal supplies and can complete bottom-right trading challenges by sending offers for the other player to accept or decline. The raft chest remains shared." },
 ];
 
 const keys = new Set<Direction>();
@@ -531,6 +540,17 @@ let multiplayerConnected = false;
 let remotePlayerState: RemotePlayerState | null = null;
 let pendingMultiplayerState: Partial<SaveData> | null = null;
 let lastMultiplayerPositionAt = 0;
+let tradeChallengeIndex = 0;
+let outgoingTradeOffer: TradeOffer | null = null;
+let incomingTradeOffer: TradeOffer | null = null;
+
+const tradeChallenges = [
+  { item: "Wood", amount: 3 },
+  { item: "Stone", amount: 2 },
+  { item: "Iron", amount: 1 },
+  { item: "Technology Shards", amount: 2 },
+  { item: "Wood", amount: 5 },
+];
 let lastWorldSyncAt = 0;
 // Last shark pose the host sent, with the speed it was travelling at, so the
 // guest can keep animating between updates instead of teleporting.
@@ -821,6 +841,8 @@ document.querySelector<HTMLButtonElement>("[data-action='create-room']")?.addEve
 document.querySelector<HTMLButtonElement>("[data-action='join-room']")?.addEventListener("click", joinMultiplayerRoom);
 document.querySelector<HTMLButtonElement>("[data-action='start-multiplayer']")?.addEventListener("click", startMultiplayerGame);
 document.querySelector<HTMLButtonElement>("[data-action='close-multiplayer']")?.addEventListener("click", closeMultiplayerDialog);
+document.querySelector<HTMLButtonElement>("[data-action='trade-primary']")?.addEventListener("click", handleTradePrimaryAction);
+document.querySelector<HTMLButtonElement>("[data-action='trade-decline']")?.addEventListener("click", declineIncomingTrade);
 document.querySelector<HTMLButtonElement>("[data-action='harvest']")?.addEventListener("click", harvestCoconuts);
 document.querySelector<HTMLButtonElement>("[data-action='changelog']")?.addEventListener("click", toggleChangelog);
 document.querySelector<HTMLButtonElement>("[data-action='fish-index']")?.addEventListener("click", toggleFishIndex);
@@ -970,9 +992,13 @@ function wireInternetConnection(connection: DataConnection): void {
     if (multiplayerPlayerNumber === 2) sendMultiplayerMessage("join");
   });
   connection.on("close", () => {
+    if (outgoingTradeOffer) addTradeItem(outgoingTradeOffer.item, outgoingTradeOffer.amount);
+    outgoingTradeOffer = null;
+    incomingTradeOffer = null;
     multiplayerConnected = false;
     remotePlayerState = null;
     updateMultiplayerStatus("The other player disconnected. The room can be joined again.");
+    updateTradeChallengeCard();
   });
   connection.on("error", () => updateMultiplayerStatus("The player-to-player connection failed. Try joining again."));
 }
@@ -997,7 +1023,7 @@ function isMultiplayerMessage(value: unknown): value is MultiplayerMessage {
   return typeof message.room === "string"
     && typeof message.sender === "string"
     && (message.player === 1 || message.player === 2)
-    && ["join", "welcome", "position", "state", "notice", "start", "world", "take"].includes(message.type ?? "");
+    && ["join", "welcome", "position", "state", "notice", "start", "world", "take", "trade-offer", "trade-accept", "trade-decline"].includes(message.type ?? "");
 }
 
 function handleMultiplayerMessage(value: unknown): void {
@@ -1052,6 +1078,29 @@ function handleMultiplayerMessage(value: unknown): void {
     if (index >= 0) crates.splice(index, 1);
     return;
   }
+  if (value.type === "trade-offer") {
+    const offer = parseTradeOffer(value.payload);
+    if (!offer || offer.to !== multiplayerPlayerNumber || incomingTradeOffer) return;
+    incomingTradeOffer = offer;
+    showMessage(`PLAYER ${offer.from} OFFERED ${offer.amount} ${offer.item.toUpperCase()}!`, 5);
+    updateTradeChallengeCard();
+    return;
+  }
+  if (value.type === "trade-accept" || value.type === "trade-decline") {
+    const response = value.payload as { id?: unknown } | undefined;
+    if (!outgoingTradeOffer || response?.id !== outgoingTradeOffer.id) return;
+    if (value.type === "trade-decline") {
+      addTradeItem(outgoingTradeOffer.item, outgoingTradeOffer.amount);
+      showMessage(`PLAYER ${value.player} DECLINED — YOUR ITEMS WERE RETURNED.`, 4);
+    } else {
+      tradeChallengeIndex = (tradeChallengeIndex + 1) % tradeChallenges.length;
+      showMessage(`TRADE COMPLETE WITH PLAYER ${value.player}!`, 4);
+    }
+    outgoingTradeOffer = null;
+    saveGame();
+    updateTradeChallengeCard();
+    return;
+  }
   if (value.type === "start") {
     multiplayerConnected = true;
     beginMultiplayerSession();
@@ -1100,6 +1149,7 @@ function beginMultiplayerSession(): void {
   saveSelected = true;
   document.getElementById("save-selector")?.setAttribute("hidden", "");
   startGame();
+  updateTradeChallengeCard();
   showMessage("BOTH PLAYERS ARE IN — NEW SURVIVAL, GO!", 4);
 }
 
@@ -1111,12 +1161,104 @@ function broadcastMultiplayerNotice(text: string): void {
   if (multiplayerConnected) sendMultiplayerMessage("notice", text);
 }
 
+function parseTradeOffer(value: unknown): TradeOffer | null {
+  if (!value || typeof value !== "object") return null;
+  const offer = value as Partial<TradeOffer>;
+  const amount = typeof offer.amount === "number" ? Math.floor(offer.amount) : 0;
+  const allowedItem = tradeChallenges.some((challenge) => challenge.item === offer.item);
+  if (typeof offer.id !== "string" || !allowedItem || amount < 1 || amount > 20) return null;
+  if ((offer.from !== 1 && offer.from !== 2) || (offer.to !== 1 && offer.to !== 2) || offer.from === offer.to) return null;
+  return { id: offer.id, from: offer.from, to: offer.to, item: offer.item as string, amount };
+}
+
+function handleTradePrimaryAction(): void {
+  if (incomingTradeOffer) {
+    const offer = incomingTradeOffer;
+    addTradeItem(offer.item, offer.amount);
+    incomingTradeOffer = null;
+    sendMultiplayerMessage("trade-accept", { id: offer.id });
+    showMessage(`ACCEPTED ${offer.amount} ${offer.item.toUpperCase()} FROM PLAYER ${offer.from}!`, 4);
+    saveGame();
+    updateTradeChallengeCard();
+    return;
+  }
+  if (!multiplayerConnected || outgoingTradeOffer) return;
+  const challenge = tradeChallenges[tradeChallengeIndex] ?? tradeChallenges[0];
+  if (!challenge) return;
+  const available = inventory.get(challenge.item) ?? 0;
+  if (available < challenge.amount) {
+    showMessage(`YOU NEED ${challenge.amount} ${challenge.item.toUpperCase()} FOR THIS TRADE.`, 4);
+    return;
+  }
+  inventory.set(challenge.item, available - challenge.amount);
+  const otherPlayer: 1 | 2 = multiplayerPlayerNumber === 1 ? 2 : 1;
+  outgoingTradeOffer = {
+    id: crypto.randomUUID(),
+    from: multiplayerPlayerNumber,
+    to: otherPlayer,
+    item: challenge.item,
+    amount: challenge.amount,
+  };
+  sendMultiplayerMessage("trade-offer", outgoingTradeOffer);
+  showMessage(`TRADE OFFER SENT TO PLAYER ${otherPlayer}.`, 4);
+  saveGame();
+  updateTradeChallengeCard();
+}
+
+function declineIncomingTrade(): void {
+  if (!incomingTradeOffer) return;
+  const offer = incomingTradeOffer;
+  incomingTradeOffer = null;
+  sendMultiplayerMessage("trade-decline", { id: offer.id });
+  showMessage(`DECLINED PLAYER ${offer.from}'S TRADE.`, 3);
+  updateTradeChallengeCard();
+}
+
+function addTradeItem(name: string, amount: number): void {
+  addItem(name, amount);
+}
+
+function updateTradeChallengeCard(): void {
+  const card = document.getElementById("trade-challenge");
+  if (!card) return;
+  const visible = multiplayerConnected && saveSelected && mode !== "gameOver";
+  card.toggleAttribute("hidden", !visible);
+  if (!visible) return;
+  const playerLabel = document.getElementById("trade-player");
+  const title = document.getElementById("trade-title");
+  const description = document.getElementById("trade-description");
+  const primary = document.querySelector<HTMLButtonElement>("[data-action='trade-primary']");
+  const decline = document.querySelector<HTMLButtonElement>("[data-action='trade-decline']");
+  if (!playerLabel || !title || !description || !primary || !decline) return;
+  playerLabel.textContent = `Player ${multiplayerPlayerNumber}`;
+  if (incomingTradeOffer) {
+    title.textContent = `Player ${incomingTradeOffer.from} is trading`;
+    description.textContent = `Accept ${incomingTradeOffer.amount} ${incomingTradeOffer.item}?`;
+    primary.textContent = "Accept Trade";
+    primary.disabled = false;
+    decline.hidden = false;
+    return;
+  }
+  decline.hidden = true;
+  const otherPlayer = multiplayerPlayerNumber === 1 ? 2 : 1;
+  const challenge = tradeChallenges[tradeChallengeIndex] ?? tradeChallenges[0];
+  if (!challenge) return;
+  title.textContent = "Trading Challenge";
+  description.textContent = outgoingTradeOffer
+    ? `Waiting for Player ${otherPlayer} to accept ${outgoingTradeOffer.amount} ${outgoingTradeOffer.item}.`
+    : `Give Player ${otherPlayer}: ${challenge.amount} ${challenge.item}`;
+  primary.textContent = outgoingTradeOffer ? "Offer Sent" : "Offer Trade";
+  primary.disabled = outgoingTradeOffer !== null;
+}
+
 function applyMultiplayerState(data: Partial<SaveData>): void {
-  if (Array.isArray(data.inventory)) {
+  // Players carry separate supplies in co-op so they can genuinely trade.
+  // The raft chest and world upgrades below remain shared.
+  if (!multiplayerConnected && Array.isArray(data.inventory)) {
     inventory.clear();
     for (const [name, amount] of data.inventory) inventory.set(name, Math.max(0, Math.floor(amount)));
   }
-  if (Array.isArray(data.foodHealing)) {
+  if (!multiplayerConnected && Array.isArray(data.foodHealing)) {
     foodHealing.splice(0, foodHealing.length, ...data.foodHealing.filter((value) => value === 1 || value === 99));
     inventory.set("Food", foodHealing.length);
   }
@@ -2356,6 +2498,7 @@ function getTotalFishCaught(): number {
 }
 
 function update(dt: number): void {
+  updateTradeChallengeCard();
   if (mode === "paused") return;
   updateWater(dt);
   updateParticles(dt);

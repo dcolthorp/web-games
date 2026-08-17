@@ -1448,6 +1448,45 @@ body.level-1000-horror .fish-glitched-fish.toast-popped::before {
 }
 .deposit-actions button:last-child { background: #66848c; color: #ffffff; }
 
+.trade-challenge {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 6;
+  width: min(250px, calc(100% - 28px));
+  padding: 13px 14px;
+  border: 3px solid #8ff9f5;
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(7, 45, 65, 0.96), rgba(47, 28, 76, 0.96));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
+  color: #ffffff;
+  font-family: "Trebuchet MS", system-ui, sans-serif;
+}
+.trade-challenge[hidden] { display: none; }
+.trade-player {
+  display: block;
+  color: #ffe56b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.trade-challenge strong { display: block; margin-top: 2px; color: #8ff9f5; text-transform: uppercase; }
+.trade-challenge p { margin: 6px 0 10px; font-size: 0.86rem; font-weight: 800; line-height: 1.3; }
+.trade-actions { display: flex; gap: 7px; }
+.trade-actions button {
+  flex: 1;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: #ffd45e;
+  color: #17232a;
+  font-weight: 900;
+  cursor: pointer;
+}
+.trade-actions button:disabled { cursor: default; filter: grayscale(0.7); opacity: 0.65; }
+.trade-actions button:last-child:not([hidden]) { background: #805b8f; color: #ffffff; }
+
 canvas { display: block; width: 100%; height: auto; outline: none; touch-action: none; }
 .instructions { margin: 12px 0 0; color: #b6e5ed; text-align: center; font-weight: 700; }
 

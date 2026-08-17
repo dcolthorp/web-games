@@ -16,6 +16,9 @@ export default defineConfig({
   base: "./",
   server: {
     host: true,
+    // Honor an assigned port (e.g. from a preview harness) so a dev server
+    // already sitting on Vite's default 5173 doesn't block a second one.
+    ...(process.env["PORT"] ? { port: Number(process.env["PORT"]) } : {}),
   },
   build: {
     outDir: "../dist",
