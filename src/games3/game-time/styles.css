@@ -10,7 +10,7 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .instructions { max-width: 50rem; margin: 16px 0 10px; font-size: 1rem; font-weight: 700; }
 .scoreboard { display: grid; gap: 3px; min-width: 180px; color: #4a3458; font-size: 1.2rem; font-weight: 700; transform: rotate(1deg); }
 .stickman-field { position: relative; height: clamp(390px, 55vh, 570px); overflow: hidden; border: 3px dashed rgba(68, 79, 125, 0.35); }
-.stickman { --tilt: 0deg; --scale: 1; position: absolute; width: 34px; height: 58px; padding: 0; border: 0; background: transparent; cursor: pointer; transform: translate(-50%, -50%) rotate(var(--tilt)) scale(var(--scale)); transition: filter 120ms ease, transform 120ms ease; }
+.stickman { --tilt: 0deg; --scale: 1; --walk-x: 0px; --walk-y: 0px; --walk-time: 7s; position: absolute; width: 34px; height: 58px; padding: 0; border: 0; background: transparent; cursor: pointer; transform: translate(-50%, -50%) rotate(var(--tilt)) scale(var(--scale)); transition: filter 120ms ease; animation: wander var(--walk-time) ease-in-out infinite alternate; }
 .stickman:hover { z-index: 2; filter: drop-shadow(0 0 5px #e05770); transform: translate(-50%, -50%) rotate(var(--tilt)) scale(calc(var(--scale) * 1.25)); }
 .stickman span { position: absolute; display: block; background: #232437; pointer-events: none; }
 .stick-head { left: 10px; top: 0; width: 15px; height: 15px; border: 3px solid #232437; border-radius: 50%; background: transparent !important; }
@@ -22,13 +22,28 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .stick-leg { top: 37px; }
 .stick-leg-left { transform: rotate(30deg); }
 .stick-leg-right { transform: rotate(-30deg); }
+.stickman-bomb .stick-head { border-color: #bd273d; background: #bd273d !important; }
+.stickman-bomb::after { content: "●"; position: absolute; right: -8px; top: 21px; color: #15151d; font-size: 18px; text-shadow: 4px -6px 0 #bd273d; }
+.stickman-expander { filter: drop-shadow(0 0 4px #e99d1f); }
+.stickman-expander .stick-body { width: 10px; left: 12px; background: #d97918; animation: expand-pulse 1.2s ease-in-out infinite; }
+.stickman-poison span { background: #5a9e38; }
+.stickman-poison .stick-head { border-color: #5a9e38; background: #b7e55d !important; }
+.flying-bomb { position: absolute !important; z-index: 4; left: 12px !important; top: 18px !important; width: 22px !important; height: 22px !important; border-radius: 50%; background: #111 !important; animation: throw-bomb 700ms ease-in forwards !important; }
+.poisoned-away { animation: poisoned-away 420ms ease-in forwards; pointer-events: none; }
 .clicked-away { animation: clicked-away 420ms ease-in forwards; pointer-events: none; }
 .faded-away { animation: faded-away 420ms ease-in forwards; pointer-events: none; }
 @keyframes clicked-away { to { opacity: 0; filter: blur(12px); transform: translate(-50%, -50%) rotate(90deg) scale(0.1); } }
 @keyframes faded-away { to { opacity: 0; filter: blur(7px); transform: translate(-50%, -50%) scale(1.8); } }
+@keyframes poisoned-away { to { opacity: 0; filter: blur(8px) hue-rotate(80deg); transform: translate(-50%, -50%) scale(0.2); } }
+@keyframes wander { to { margin-left: var(--walk-x); margin-top: var(--walk-y); } }
+@keyframes expand-pulse { 50% { width: 20px; left: 7px; } }
+@keyframes throw-bomb { to { transform: translate(130vw, -65vh) rotate(900deg) scale(2); } }
+.blindness { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; background: #08080b; color: #ffda53; font-size: clamp(4rem, 18vw, 12rem); font-weight: 900; pointer-events: none; }
+.blindness.active { display: grid; animation: blind-flash 5s steps(2, end) forwards; }
+@keyframes blind-flash { 0% { background: #fff; color: #111; } 8%, 92% { background: #08080b; color: #ffda53; } 100% { opacity: 0; } }
 .overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; padding: 30px; background: rgba(245, 240, 221, 0.72); text-align: center; }
 .overlay.hidden { display: none; }
 .start { padding: 15px 28px; border: 4px solid #242a4f; background: #f1d85c; color: #242a4f; box-shadow: 5px 6px 0 #242a4f; font: 900 1.35rem inherit; cursor: pointer; transform: rotate(-2deg); }
 .message { max-width: 32rem; color: #9b3044; font-size: 1.35rem; font-weight: 900; }
 @media (max-width: 680px) { body { padding: 8px; } .note { min-height: 760px; padding: 42px 28px 34px 48px; background-size: cover; } .game-header { align-items: start; flex-direction: column; gap: 12px; } .stickman-field { height: 475px; } }
-@media (prefers-reduced-motion: reduce) { .clicked-away, .faded-away { animation-duration: 1ms; } }
+@media (prefers-reduced-motion: reduce) { .stickman { animation: none; } .clicked-away, .faded-away, .poisoned-away { animation-duration: 1ms; } }

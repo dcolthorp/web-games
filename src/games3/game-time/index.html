@@ -18,10 +18,14 @@
           <div class="scoreboard" aria-live="polite">
             <span>stickmen: <strong id="count">50</strong>/100</span>
             <span>next split: <strong id="time">60</strong>s</span>
+            <span>hearts: <strong id="hearts">♥ ♥ ♥</strong></span>
           </div>
         </header>
-        <p class="instructions">Click every stickman before it fades away. An unclicked stickman comes back as two. If there are 100, you lose.</p>
+        <p class="instructions">Click the walkers. Bombers blind you and steal a heart. Don't click expanding stickmen—wait for them to split safely. Poison stickmen infect their neighbors. At 100 stickmen or zero hearts, you lose.</p>
         <div class="stickman-field" id="stickman-field" aria-label="Stickman play area"></div>
+        <div class="blindness" id="blindness" aria-live="assertive" aria-hidden="true">
+          <span>BOOM!</span>
+        </div>
         <div class="overlay" id="overlay">
           <button class="start" id="start" type="button">start with 50</button>
           <p class="message" id="message" role="status">clear the paper before they multiply</p>
