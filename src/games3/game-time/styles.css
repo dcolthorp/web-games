@@ -1,0 +1,49 @@
+:root {
+  font-family: "Comic Sans MS", "Bradley Hand", "Segoe Print", cursive;
+  color: #242a4f;
+  background: #173e55;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px;
+  background: radial-gradient(circle at top, #2d7184, #102c43 72%);
+}
+
+.paper-page { width: min(920px, 100%); margin: 0 auto; }
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #fff;
+  font-weight: 900;
+}
+
+.note {
+  position: relative;
+  min-height: min(720px, calc(100vh - 90px));
+  padding: 56px 70px 50px 110px;
+  overflow: hidden;
+  background: url("../assets/crumpled-school-paper.png") center / 100% 100% no-repeat;
+  filter: drop-shadow(12px 18px 8px rgba(0, 0, 0, 0.42));
+}
+
+h1 { margin: 0; font-size: clamp(3rem, 10vw, 6.5rem); line-height: 0.9; transform: rotate(-2deg); }
+.scribble { margin: 0; color: #9b3044; font-size: 1.3rem; font-weight: 900; transform: rotate(2deg); }
+.instructions { max-width: 34rem; font-size: 1.1rem; font-weight: 700; }
+.scoreboard { display: flex; gap: 28px; font-size: 1.45rem; }
+.target, .start { border: 4px solid #242a4f; font: 900 1.1rem inherit; cursor: pointer; box-shadow: 4px 5px 0 #242a4f; }
+.target { position: absolute; left: 50%; top: 60%; display: none; width: 100px; height: 100px; border-radius: 50%; background: #e05770; color: #fff; }
+.target.is-playing { display: block; }
+.start { margin-top: 24px; padding: 12px 24px; background: #f1d85c; color: #242a4f; transform: rotate(-1deg); }
+.start:disabled { opacity: 0.45; cursor: default; }
+.message { margin-top: 18px; color: #9b3044; font-size: 1.25rem; font-weight: 900; }
+
+@media (max-width: 620px) {
+  body { padding: 10px; }
+  .note { min-height: 700px; padding: 48px 34px 38px 52px; background-size: cover; }
+  .scoreboard { gap: 16px; }
+}

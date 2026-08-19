@@ -28,6 +28,14 @@ if (list) {
         <span class="game-blurb">Build a machine out of movers, rotators, and generators, then press play and watch it fight for you.</span>
       </a>
     </li>
+    <li class="paper-game-item">
+      <a class="game-card paper-game-card" href="./game-time/index.html" aria-label="Click on me — Game Time">
+        <span class="paper-game-doodle" aria-hidden="true">★</span>
+        <span class="paper-game-title">click on me</span>
+        <span class="paper-game-note">because it's gonna be game time!!!</span>
+        <span class="paper-game-arrow" aria-hidden="true">→</span>
+      </a>
+    </li>
   `;
 }
 

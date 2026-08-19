@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Time</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="paper-page">
+      <a class="back-link" href="../index.html">← Games 3</a>
+      <section class="note" aria-labelledby="game-title">
+        <p class="scribble">you clicked it!</p>
+        <h1 id="game-title">GAME TIME</h1>
+        <p class="instructions">Click the circle as many times as you can before the bell rings.</p>
+        <div class="scoreboard" aria-live="polite">
+          <span>time: <strong id="time">10</strong></span>
+          <span>clicks: <strong id="score">0</strong></span>
+        </div>
+        <button class="target" id="target" type="button" aria-label="Click the moving circle">CLICK!</button>
+        <button class="start" id="start" type="button">start game</button>
+        <p class="message" id="message" role="status">hit start when you're ready</p>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

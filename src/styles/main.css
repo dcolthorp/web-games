@@ -638,6 +638,64 @@ h1.is-glitching::after {
     linear-gradient(180deg, #0b5a73, #06354f);
 }
 
+.games3-hub .paper-game-card {
+  position: relative;
+  justify-content: center;
+  min-height: 220px;
+  padding: 34px 42px 28px 64px;
+  overflow: hidden;
+  border: 0;
+  background: url("../games3/assets/crumpled-school-paper.png") center / 100% 100% no-repeat;
+  color: #242a4f;
+  filter: drop-shadow(7px 10px 6px rgba(0, 0, 0, 0.42));
+  font-family: "Comic Sans MS", "Bradley Hand", "Segoe Print", cursive;
+  transform: rotate(1.2deg);
+}
+
+.games3-hub .paper-game-card:hover {
+  border-color: transparent;
+  filter: drop-shadow(13px 16px 5px rgba(0, 0, 0, 0.52));
+  transform: translate(-3px, -7px) rotate(-1deg) scale(1.02);
+}
+
+.paper-game-title {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  line-height: 0.9;
+  text-transform: lowercase;
+  transform: rotate(-3deg);
+}
+
+.paper-game-note {
+  max-width: 15rem;
+  color: #4a3458;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.05;
+  transform: rotate(1.5deg);
+}
+
+.paper-game-doodle,
+.paper-game-arrow {
+  position: absolute;
+  color: #9b3044;
+  font-size: 2.2rem;
+  font-weight: 900;
+}
+
+.paper-game-doodle {
+  right: 35px;
+  top: 35px;
+  transform: rotate(14deg);
+}
+
+.paper-game-arrow {
+  right: 38px;
+  bottom: 29px;
+  transform: rotate(8deg);
+}
+
 .floor-warning-copy {
   text-decoration: underline;
 }
