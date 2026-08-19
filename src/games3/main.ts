@@ -29,10 +29,10 @@ if (list) {
       </a>
     </li>
     <li class="paper-game-item">
-      <a class="game-card paper-game-card" href="./game-time/index.html" aria-label="Click on me — Game Time">
+      <a class="game-card paper-game-card" href="./game-time/index.html" aria-label="Click on Me">
         <span class="paper-game-doodle" aria-hidden="true">★</span>
         <span class="paper-game-title">click on me</span>
-        <span class="paper-game-note">because it's gonna be game time!!!</span>
+        <span class="paper-game-note">50 stickmen. don't let them become 100.</span>
         <span class="paper-game-arrow" aria-hidden="true">→</span>
       </a>
     </li>

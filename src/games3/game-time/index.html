@@ -3,23 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Game Time</title>
+    <title>Click on Me</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="paper-page">
       <a class="back-link" href="../index.html">← Games 3</a>
       <section class="note" aria-labelledby="game-title">
-        <p class="scribble">you clicked it!</p>
-        <h1 id="game-title">GAME TIME</h1>
-        <p class="instructions">Click the circle as many times as you can before the bell rings.</p>
-        <div class="scoreboard" aria-live="polite">
-          <span>time: <strong id="time">10</strong></span>
-          <span>clicks: <strong id="score">0</strong></span>
+        <header class="game-header">
+          <div>
+            <p class="scribble">they multiply if you wait...</p>
+            <h1 id="game-title">CLICK ON ME</h1>
+          </div>
+          <div class="scoreboard" aria-live="polite">
+            <span>stickmen: <strong id="count">50</strong>/100</span>
+            <span>next split: <strong id="time">60</strong>s</span>
+          </div>
+        </header>
+        <p class="instructions">Click every stickman before it fades away. An unclicked stickman comes back as two. If there are 100, you lose.</p>
+        <div class="stickman-field" id="stickman-field" aria-label="Stickman play area"></div>
+        <div class="overlay" id="overlay">
+          <button class="start" id="start" type="button">start with 50</button>
+          <p class="message" id="message" role="status">clear the paper before they multiply</p>
         </div>
-        <button class="target" id="target" type="button" aria-label="Click the moving circle">CLICK!</button>
-        <button class="start" id="start" type="button">start game</button>
-        <p class="message" id="message" role="status">hit start when you're ready</p>
       </section>
     </main>
     <script type="module" src="./main.ts"></script>
