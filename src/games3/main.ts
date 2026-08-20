@@ -54,8 +54,11 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   const pressedKeys = new Set<string>();
 
   const updateFloorLabel = (): void => {
-    const autoClickStatus = autoClicker ? ` · AUTO ${autoClickRate}/s [-/=]` : "";
-    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS${autoClickStatus}`;
+    if (autoClicker) {
+      trapFloor3.textContent = `OSCAR, PLEASE STOP MAKING NEW SEQUELS — AUTOCLICKER ENABLED · ${autoClickRate}/s [-/=]`;
+      return;
+    }
+    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS`;
   };
 
   const playNote = (midi: number, duration = 0.16): void => {
