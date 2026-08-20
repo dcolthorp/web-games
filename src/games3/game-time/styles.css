@@ -10,7 +10,7 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .instructions { max-width: 50rem; margin: 16px 0 10px; font-size: 1rem; font-weight: 700; }
 .scoreboard { display: grid; gap: 3px; min-width: 180px; color: #4a3458; font-size: 1.2rem; font-weight: 700; transform: rotate(1deg); }
 .stickman-field { position: relative; height: clamp(390px, 55vh, 570px); overflow: hidden; border: 3px dashed rgba(68, 79, 125, 0.35); }
-.stickman { --tilt: 0deg; --scale: 1; --walk-x: 0px; --walk-y: 0px; --walk-time: 7s; position: absolute; width: 34px; height: 58px; padding: 0; border: 0; background: transparent; cursor: pointer; transform: translate(-50%, -50%) rotate(var(--tilt)) scale(var(--scale)); transition: filter 120ms ease; animation: wander var(--walk-time) ease-in-out infinite alternate; }
+.stickman { --tilt: 0deg; --scale: 1; position: absolute; width: 34px; height: 58px; padding: 0; border: 0; background: transparent; cursor: pointer; transform: translate(-50%, -50%) rotate(var(--tilt)) scale(var(--scale)); transition: filter 120ms ease; }
 .stickman:hover { z-index: 2; filter: drop-shadow(0 0 5px #e05770); transform: translate(-50%, -50%) rotate(var(--tilt)) scale(calc(var(--scale) * 1.25)); }
 .stickman span { position: absolute; display: block; background: #232437; pointer-events: none; }
 .stick-head { left: 10px; top: 0; width: 15px; height: 15px; border: 3px solid #232437; border-radius: 50%; background: transparent !important; }
@@ -32,10 +32,11 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .poisoned-away { animation: poisoned-away 420ms ease-in forwards; pointer-events: none; }
 .clicked-away { animation: clicked-away 420ms ease-in forwards; pointer-events: none; }
 .faded-away { animation: faded-away 420ms ease-in forwards; pointer-events: none; }
+.burst-away { animation: burst-away 420ms ease-out forwards; pointer-events: none; }
 @keyframes clicked-away { to { opacity: 0; filter: blur(12px); transform: translate(-50%, -50%) rotate(90deg) scale(0.1); } }
 @keyframes faded-away { to { opacity: 0; filter: blur(7px); transform: translate(-50%, -50%) scale(1.8); } }
 @keyframes poisoned-away { to { opacity: 0; filter: blur(8px) hue-rotate(80deg); transform: translate(-50%, -50%) scale(0.2); } }
-@keyframes wander { to { margin-left: var(--walk-x); margin-top: var(--walk-y); } }
+@keyframes burst-away { 55% { opacity: 1; filter: brightness(2); transform: translate(-50%, -50%) rotate(160deg) scale(2.2); } 100% { opacity: 0; filter: blur(10px); transform: translate(-50%, -50%) rotate(300deg) scale(0.05); } }
 @keyframes expand-pulse { 50% { width: 20px; left: 7px; } }
 @keyframes throw-bomb { to { transform: translate(130vw, -65vh) rotate(900deg) scale(2); } }
 .blindness { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; background: #08080b; color: #ffda53; font-size: clamp(4rem, 18vw, 12rem); font-weight: 900; pointer-events: none; }
@@ -46,4 +47,4 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .start { padding: 15px 28px; border: 4px solid #242a4f; background: #f1d85c; color: #242a4f; box-shadow: 5px 6px 0 #242a4f; font: 900 1.35rem inherit; cursor: pointer; transform: rotate(-2deg); }
 .message { max-width: 32rem; color: #9b3044; font-size: 1.35rem; font-weight: 900; }
 @media (max-width: 680px) { body { padding: 8px; } .note { min-height: 760px; padding: 42px 28px 34px 48px; background-size: cover; } .game-header { align-items: start; flex-direction: column; gap: 12px; } .stickman-field { height: 475px; } }
-@media (prefers-reduced-motion: reduce) { .stickman { animation: none; } .clicked-away, .faded-away, .poisoned-away { animation-duration: 1ms; } }
+@media (prefers-reduced-motion: reduce) { .clicked-away, .faded-away, .poisoned-away, .burst-away { animation-duration: 1ms; } }
