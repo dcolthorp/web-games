@@ -1173,6 +1173,33 @@ h1.is-glitching::after {
   filter: saturate(1.1);
 }
 
+.games3-trap-floor {
+  background:
+    repeating-linear-gradient(-45deg, #79f2ea 0 22px, #082d42 22px 44px);
+  color: #061f30;
+  transition: transform 0.18s ease, filter 0.18s ease, opacity 0.55s ease;
+}
+
+.games3-trap-floor.is-bumped {
+  animation: games3-floor-bump 0.24s ease;
+}
+
+.games3-trap-floor.is-collapsed {
+  opacity: 0.78;
+  color: #fff2a8;
+  cursor: not-allowed;
+  animation: games3-floor-collapse 0.9s ease-in forwards;
+}
+
+@keyframes games3-floor-bump {
+  50% { transform: translateY(7px) scaleY(0.88); }
+}
+
+@keyframes games3-floor-collapse {
+  35% { transform: rotate(-1deg) translateY(12px); }
+  100% { transform: rotate(3deg) translateY(70px) scaleY(0.12); }
+}
+
 .hub-trophy {
   position: absolute;
   width: 52px;
