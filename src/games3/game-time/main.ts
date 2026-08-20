@@ -74,7 +74,6 @@ function getAudioContext(): AudioContext | null {
     (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextClass) return null;
   audioContext ??= new AudioContextClass();
-  if (audioContext.state === "suspended") void audioContext.resume();
   return audioContext;
 }
 
@@ -84,21 +83,23 @@ function playPianoNote(noteIndex: number, quiet = false): void {
   const now = context.currentTime;
   const frequency = 261.63 * 2 ** (Math.min(noteIndex, 18) / 12);
   const gain = context.createGain();
+  const compressor = context.createDynamicsCompressor();
   const tone = context.createOscillator();
   const overtone = context.createOscillator();
   tone.type = "triangle";
   overtone.type = "sine";
   tone.frequency.value = frequency;
   overtone.frequency.value = frequency * 2;
-  gain.gain.setValueAtTime(quiet ? 0.055 : 0.11, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+  gain.gain.setValueAtTime(quiet ? 0.18 : 0.38, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.72);
   tone.connect(gain);
   overtone.connect(gain);
-  gain.connect(context.destination);
+  gain.connect(compressor);
+  compressor.connect(context.destination);
   tone.start(now);
   overtone.start(now);
-  tone.stop(now + 0.56);
-  overtone.stop(now + 0.56);
+  tone.stop(now + 0.73);
+  overtone.stop(now + 0.73);
 }
 
 function announceCorner(): void {
@@ -107,7 +108,8 @@ function announceCorner(): void {
   const line = new SpeechSynthesisUtterance("You hit a corner. Oh my God!");
   line.rate = 1.08;
   line.pitch = 1.18;
-  window.speechSynthesis.speak(line);
+  line.volume = 1;
+  window.setTimeout(() => window.speechSynthesis.speak(line), 120);
 }
 
 function chooseKind(): StickmanKind {
@@ -329,7 +331,12 @@ function finish(won: boolean, result?: string): void {
   }
 }
 
-function resetGame(): void {
+async function resetGame(): Promise<void> {
+  const context = getAudioContext();
+  if (context?.state === "suspended") await context.resume();
+  playPianoNote(0);
+  window.setTimeout(() => playPianoNote(4), 110);
+  window.setTimeout(() => playPianoNote(7), 220);
   for (const stickman of stickmen.values()) {
     for (const timer of stickman.timers) window.clearTimeout(timer);
   }
@@ -339,7 +346,6 @@ function resetGame(): void {
   nextId = 1;
   playing = true;
   previousFrame = performance.now();
-  getAudioContext();
   hearts = 3;
   overlay?.classList.add("hidden");
   if (timeLabel) timeLabel.textContent = "60";
@@ -357,4 +363,4 @@ function resetGame(): void {
   animationFrame = window.requestAnimationFrame(moveStickmen);
 }
 
-startButton?.addEventListener("click", resetGame);
+startButton?.addEventListener("click", () => void resetGame());
