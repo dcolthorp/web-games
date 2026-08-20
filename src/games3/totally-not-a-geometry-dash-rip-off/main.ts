@@ -1,276 +1,329 @@
-export {};
+const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+const context = canvas.getContext("2d")!;
+const scoreDisplay = document.querySelector<HTMLElement>("#score")!;
+const bestDisplay = document.querySelector<HTMLElement>("#best")!;
+const message = document.querySelector<HTMLElement>("#message")!;
 
-const canvas = document.querySelector<HTMLCanvasElement>("#game");
-const scoreText = document.querySelector<HTMLElement>("#score");
-const bestText = document.querySelector<HTMLElement>("#best");
-const message = document.querySelector<HTMLElement>("#message");
+type PlayerMode = "cube" | "ship" | "ball" | "ufo" | "wave" | "robot" | "spider";
+type PortalEffect = PlayerMode | "fast" | "slow" | "gravity-up" | "gravity-down" | "mini" | "normal-size";
+type Obstacle = { x: number; y: number; width: number; height: number; kind: "spike" | "block" };
+type Gizmo = { x: number; y: number; kind: "pad" | "orb" | "portal"; used: boolean; portalEffect?: PortalEffect };
 
-if (!canvas || !scoreText || !bestText || !message) throw new Error("Secret game UI is missing");
-
-const context = canvas.getContext("2d");
-if (!context) throw new Error("Canvas is unavailable");
-
-type Obstacle = { x: number; width: number; height: number; kind: "spike" | "block" };
-type Gizmo = { x: number; y: number; kind: "pad" | "orb" | "portal"; used: boolean; portalMode?: "fast" | "slow" };
-const player = { x: 145, y: 0, size: 42, velocity: 0, rotation: 0, grounded: true };
 const floorY = 400;
 const gravity = 2050;
-const jumpVelocity = -760;
+const portalEffects: PortalEffect[] = [
+  "ship", "cube", "ball", "ufo", "wave", "robot", "spider",
+  "gravity-up", "gravity-down", "mini", "normal-size", "fast", "slow",
+];
+
+const portalStyles: Record<PortalEffect, { color: string; symbol: string; name: string }> = {
+  ship: { color: "#a855f7", symbol: "▶", name: "SHIP" },
+  cube: { color: "#32d875", symbol: "■", name: "CUBE" },
+  ball: { color: "#ef4444", symbol: "●", name: "BALL" },
+  ufo: { color: "#ff66c4", symbol: "⌒", name: "UFO" },
+  wave: { color: "#3b82f6", symbol: "◆", name: "WAVE" },
+  robot: { color: "#f97316", symbol: "▣", name: "ROBOT" },
+  spider: { color: "#d946ef", symbol: "✳", name: "SPIDER" },
+  "gravity-up": { color: "#facc15", symbol: "↑", name: "GRAVITY UP" },
+  "gravity-down": { color: "#22d3ee", symbol: "↓", name: "GRAVITY DOWN" },
+  mini: { color: "#f8fafc", symbol: "−", name: "MINI" },
+  "normal-size": { color: "#eab308", symbol: "+", name: "NORMAL SIZE" },
+  fast: { color: "#14b8a6", symbol: "≫", name: "SPEED UP" },
+  slow: { color: "#fb7185", symbol: "≪", name: "SLOW DOWN" },
+};
+
+const player = { x: 155, y: floorY - 42, size: 42, velocity: 0, rotation: 0, grounded: true };
+let mode: PlayerMode = "cube";
+let gravityDirection: 1 | -1 = 1;
+let sizeScale = 1;
+let running = false;
+let dead = false;
+let inputHeld = false;
+let distance = 0;
+let best = Number(localStorage.getItem("totally-not-geometry-best") || 0);
+let speed = 330;
+let spawnTimer = 0;
+let gizmoTimer = 2;
+let lastTime = 0;
+let portalNotice = "";
+let portalNoticeTime = 0;
 let obstacles: Obstacle[] = [];
 let gizmos: Gizmo[] = [];
-let running = false;
-let gameOver = false;
-let distance = 0;
-let speed = 360;
-let portalSpeedMultiplier = 1;
-let activePortalMode: "normal" | "fast" | "slow" = "normal";
-let portalNoticeTime = 0;
-let portalFlashTime = 0;
-let portalFlashColor = "#67f7dc";
-let spawnIn = 1;
-let previousTime = performance.now();
-let best = Number(localStorage.getItem("totally-not-dash-best") ?? 0);
 
-const reset = (): void => {
-  obstacles = [];
-  gizmos = [];
+bestDisplay.textContent = `BEST ${best}`;
+
+function reset() {
+  mode = "cube";
+  gravityDirection = 1;
+  sizeScale = 1;
+  player.size = 42;
   player.y = floorY - player.size;
   player.velocity = 0;
   player.rotation = 0;
   player.grounded = true;
+  obstacles = [];
+  gizmos = [];
   distance = 0;
-  speed = 360;
-  portalSpeedMultiplier = 1;
-  activePortalMode = "normal";
-  portalNoticeTime = 0;
-  portalFlashTime = 0;
-  spawnIn = .9;
+  speed = 330;
+  spawnTimer = 0.8;
+  gizmoTimer = 2.4;
+  dead = false;
   running = true;
-  gameOver = false;
   message.classList.add("hidden");
-};
+}
 
-const jump = (): void => {
-  if (!running) {
+function startOrAct() {
+  if (!running || dead) {
     reset();
     return;
   }
-  const orb = gizmos.find((gizmo) => gizmo.kind === "orb" && !gizmo.used
-    && Math.abs(player.x + player.size / 2 - gizmo.x) < 78
-    && Math.abs(player.y + player.size / 2 - gizmo.y) < 92);
-  if (orb) {
-    orb.used = true;
-    player.velocity = jumpVelocity * 1.08;
-    player.grounded = false;
-  } else if (player.grounded) {
-    player.velocity = jumpVelocity;
+  if (mode === "ball") {
+    gravityDirection = gravityDirection === 1 ? -1 : 1;
+    player.velocity = 260 * gravityDirection;
+  } else if (mode === "spider") {
+    gravityDirection = gravityDirection === 1 ? -1 : 1;
+    player.y = gravityDirection === 1 ? floorY - player.size : 0;
+    player.velocity = 0;
+  } else if (mode === "ufo") {
+    player.velocity = -gravityDirection * 610;
+  } else if ((mode === "cube" || mode === "robot") && player.grounded) {
+    player.velocity = -gravityDirection * (mode === "robot" ? 940 : 760);
     player.grounded = false;
   }
-};
+}
 
-const lose = (): void => {
+function addObstacle() {
+  const block = Math.random() < 0.34;
+  const height = block ? 58 + Math.random() * 38 : 44;
+  obstacles.push({ x: canvas.width + 40, y: floorY - height, width: block ? 58 : 48, height, kind: block ? "block" : "spike" });
+  spawnTimer = 0.85 + Math.random() * 1.15;
+}
+
+function addGizmo() {
+  const roll = Math.random();
+  if (roll < 0.22) {
+    gizmos.push({ x: canvas.width + 50, y: floorY - 18, kind: "pad", used: false });
+  } else if (roll < 0.42) {
+    gizmos.push({ x: canvas.width + 50, y: floorY - 135 - Math.random() * 90, kind: "orb", used: false });
+  } else {
+    const portalEffect = portalEffects[Math.floor(Math.random() * portalEffects.length)];
+    gizmos.push({ x: canvas.width + 50, y: floorY / 2, kind: "portal", used: false, portalEffect });
+  }
+  gizmoTimer = 3.2 + Math.random() * 3.7;
+}
+
+function applyPortal(effect: PortalEffect) {
+  const style = portalStyles[effect];
+  portalNotice = style.name;
+  portalNoticeTime = 1.15;
+  if (["cube", "ship", "ball", "ufo", "wave", "robot", "spider"].includes(effect)) {
+    mode = effect as PlayerMode;
+    player.velocity = 0;
+  } else if (effect === "gravity-up") {
+    gravityDirection = -1;
+    player.grounded = false;
+  } else if (effect === "gravity-down") {
+    gravityDirection = 1;
+    player.grounded = false;
+  } else if (effect === "mini" || effect === "normal-size") {
+    sizeScale = effect === "mini" ? 0.64 : 1;
+    player.size = 42 * sizeScale;
+  } else {
+    speed = effect === "fast" ? Math.min(570, speed + 90) : Math.max(240, speed - 90);
+  }
+}
+
+function overlap(ax: number, ay: number, aw: number, ah: number, bx: number, by: number, bw: number, bh: number) {
+  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+}
+
+function lose() {
+  dead = true;
   running = false;
-  gameOver = true;
   best = Math.max(best, Math.floor(distance));
-  localStorage.setItem("totally-not-dash-best", String(best));
-  message.innerHTML = `<strong>THAT WAS TOTALLY NOT A CRASH</strong><span>Distance ${Math.floor(distance)} · click to try again</span>`;
+  localStorage.setItem("totally-not-geometry-best", String(best));
+  bestDisplay.textContent = `BEST ${best}`;
+  message.innerHTML = "<strong>GEOMETRICALLY INCONVENIENT.</strong><span>Click to try again</span>";
   message.classList.remove("hidden");
-};
+}
 
-const update = (seconds: number): void => {
+function update(dt: number) {
   if (!running) return;
-  distance += seconds * speed / 10;
-  speed = Math.max(170, Math.min(1400, (360 + distance * .7) * portalSpeedMultiplier));
-  portalNoticeTime = Math.max(0, portalNoticeTime - seconds);
-  portalFlashTime = Math.max(0, portalFlashTime - seconds);
-  const previousBottom = player.y + player.size;
-  player.velocity += gravity * seconds;
-  player.y = Math.min(floorY - player.size, player.y + player.velocity * seconds);
-  player.grounded = player.y >= floorY - player.size;
-  player.rotation += seconds * (player.y < floorY - player.size ? 7 : 0);
-  spawnIn -= seconds;
-  if (spawnIn <= 0) {
-    const gizmoRoll = Math.random();
-    if (gizmoRoll < .16) {
-      gizmos.push({ x: canvas.width + 60, y: floorY - 8, kind: "pad", used: false });
-      spawnIn = 1.15 + Math.random() * .5;
-    } else if (gizmoRoll < .29) {
-      gizmos.push({ x: canvas.width + 60, y: floorY - 125 - Math.random() * 95, kind: "orb", used: false });
-      spawnIn = 1.05 + Math.random() * .55;
-    } else if (gizmoRoll < .37) {
-      gizmos.push({ x: canvas.width + 70, y: floorY - 85, kind: "portal", used: false, portalMode: speed > 560 ? "slow" : "fast" });
-      spawnIn = 1.25 + Math.random() * .55;
-    } else {
-      const kind = Math.random() < .34 ? "block" : "spike";
-      obstacles.push({
-        x: canvas.width + 40,
-        width: kind === "block" ? 70 + Math.random() * 55 : 38 + Math.random() * 24,
-        height: kind === "block" ? 55 + Math.random() * 65 : 45 + Math.random() * 45,
-        kind,
-      });
-      spawnIn = kind === "block" ? 1.05 + Math.random() * .65 : .72 + Math.random() * .85;
-    }
-  }
-  obstacles.forEach((obstacle) => { obstacle.x -= speed * seconds; });
-  gizmos.forEach((gizmo) => { gizmo.x -= speed * seconds; });
-  obstacles = obstacles.filter((obstacle) => obstacle.x + obstacle.width > -20);
-  gizmos = gizmos.filter((gizmo) => gizmo.x > -80);
-  for (const gizmo of gizmos) {
-    const centerX = player.x + player.size / 2;
-    const interactionRadius = gizmo.kind === "portal" ? 70 : player.size / 2 + 28;
-    if (gizmo.used || Math.abs(centerX - gizmo.x) > interactionRadius) continue;
-    if (gizmo.kind === "pad" && player.y + player.size >= floorY - 15) {
-      gizmo.used = true;
-      player.velocity = jumpVelocity * 1.28;
-      player.grounded = false;
-    } else if (gizmo.kind === "portal" && Math.abs(player.y + player.size / 2 - gizmo.y) < 105) {
-      gizmo.used = true;
-      const nextMode = gizmo.portalMode ?? "fast";
-      portalSpeedMultiplier = nextMode === "fast" ? 1.75 : .55;
-      activePortalMode = nextMode;
-      portalNoticeTime = 1.2;
-      portalFlashTime = .24;
-      portalFlashColor = nextMode === "fast" ? "#67f7dc" : "#ff9c55";
-    }
-  }
-  for (const obstacle of obstacles) {
-    const overlapsX = player.x + player.size - 8 > obstacle.x && player.x + 8 < obstacle.x + obstacle.width;
-    const obstacleTop = floorY - obstacle.height;
-    if (obstacle.kind === "spike") {
-      const overlapsY = player.y + player.size - 5 > obstacleTop;
-      if (overlapsX && overlapsY) lose();
-      continue;
-    }
-    const overlapsY = player.y + player.size > obstacleTop && player.y < floorY;
-    if (!overlapsX || !overlapsY) continue;
-    const canLand = player.velocity >= 0 && previousBottom <= obstacleTop + 12;
-    if (canLand) {
-      player.y = obstacleTop - player.size;
-      player.velocity = 0;
-      player.grounded = true;
-    } else {
-      lose();
-    }
-  }
-};
+  distance += dt * speed / 12;
+  scoreDisplay.textContent = `DISTANCE ${Math.floor(distance)} · ${mode.toUpperCase()}`;
+  spawnTimer -= dt;
+  gizmoTimer -= dt;
+  portalNoticeTime -= dt;
+  if (spawnTimer <= 0) addObstacle();
+  if (gizmoTimer <= 0) addGizmo();
 
-const draw = (): void => {
+  if (mode === "ship") {
+    player.velocity += gravity * gravityDirection * 0.38 * dt;
+    if (inputHeld) player.velocity -= gravityDirection * 1450 * dt;
+  } else if (mode === "wave") {
+    player.velocity = (inputHeld ? -1 : 1) * gravityDirection * 430;
+  } else {
+    player.velocity += gravity * gravityDirection * dt;
+  }
+  player.velocity = Math.max(-920, Math.min(920, player.velocity));
+  player.y += player.velocity * dt;
+  player.rotation += dt * (mode === "ball" ? 8 : mode === "cube" ? 4.5 : 1.2);
+  player.grounded = false;
+
+  if (gravityDirection === 1 && player.y >= floorY - player.size) {
+    player.y = floorY - player.size;
+    player.velocity = 0;
+    player.grounded = true;
+  } else if (gravityDirection === -1 && player.y <= 0) {
+    player.y = 0;
+    player.velocity = 0;
+    player.grounded = true;
+  }
+  if (player.y < -80 || player.y > floorY + 80) lose();
+
+  for (const obstacle of obstacles) {
+    obstacle.x -= speed * dt;
+    if (overlap(player.x + 6, player.y + 5, player.size - 12, player.size - 8, obstacle.x + 5, obstacle.y + 4, obstacle.width - 10, obstacle.height - 4)) lose();
+  }
+  obstacles = obstacles.filter((item) => item.x + item.width > -30);
+
+  for (const gizmo of gizmos) {
+    gizmo.x -= speed * dt;
+    if (gizmo.used) continue;
+    if (gizmo.kind === "portal" && overlap(player.x, player.y, player.size, player.size, gizmo.x - 25, gizmo.y - 58, 50, 116)) {
+      gizmo.used = true;
+      applyPortal(gizmo.portalEffect!);
+    } else if (gizmo.kind === "pad" && overlap(player.x, player.y, player.size, player.size, gizmo.x - 25, gizmo.y - 10, 50, 20)) {
+      gizmo.used = true;
+      player.velocity = -gravityDirection * 980;
+    } else if (gizmo.kind === "orb" && inputHeld && Math.hypot(player.x + player.size / 2 - gizmo.x, player.y + player.size / 2 - gizmo.y) < 64) {
+      gizmo.used = true;
+      player.velocity = -gravityDirection * 850;
+    }
+  }
+  gizmos = gizmos.filter((item) => item.x > -80);
+}
+
+function drawBackground() {
   const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, "#3b176d");
-  gradient.addColorStop(1, "#10103b");
+  gradient.addColorStop(0, "#151b48");
+  gradient.addColorStop(1, "#07152b");
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.strokeStyle = "rgba(103,247,220,.15)";
-  context.lineWidth = 2;
-  for (let x = -(distance * 4) % 80; x < canvas.width; x += 80) {
+  context.strokeStyle = "rgba(86, 233, 255, .12)";
+  context.lineWidth = 1;
+  for (let x = -(distance * 5) % 48; x < canvas.width; x += 48) {
     context.beginPath(); context.moveTo(x, 0); context.lineTo(x, floorY); context.stroke();
   }
-  for (let y = 0; y < floorY; y += 80) {
+  for (let y = 0; y < floorY; y += 48) {
     context.beginPath(); context.moveTo(0, y); context.lineTo(canvas.width, y); context.stroke();
   }
-  context.fillStyle = "#67f7dc";
+  context.fillStyle = "#0d2942";
   context.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+  context.fillStyle = "#5ee7ed";
+  context.fillRect(0, floorY, canvas.width, 5);
+}
+
+function drawPlayer() {
+  const centerX = player.x + player.size / 2;
+  const centerY = player.y + player.size / 2;
   context.save();
-  context.translate(player.x + player.size / 2, player.y + player.size / 2);
-  context.rotate(player.rotation);
-  context.fillStyle = gameOver ? "#e13e8d" : "#ffe954";
-  context.fillRect(-player.size / 2, -player.size / 2, player.size, player.size);
-  context.strokeStyle = "#160d35"; context.lineWidth = 5;
-  context.strokeRect(-player.size / 2, -player.size / 2, player.size, player.size);
+  context.translate(centerX, centerY);
+  context.rotate(mode === "cube" || mode === "ball" ? player.rotation : 0);
+  context.fillStyle = "#ffe45c";
+  context.strokeStyle = "#161d52";
+  context.lineWidth = Math.max(3, 5 * sizeScale);
+  const s = player.size;
+  if (mode === "ship") {
+    context.beginPath(); context.moveTo(s / 2, 0); context.lineTo(-s / 2, -s / 2); context.lineTo(-s / 3, 0); context.lineTo(-s / 2, s / 2); context.closePath(); context.fill(); context.stroke();
+  } else if (mode === "ball") {
+    context.beginPath(); context.arc(0, 0, s / 2, 0, Math.PI * 2); context.fill(); context.stroke();
+    context.beginPath(); context.moveTo(-s / 2, 0); context.lineTo(s / 2, 0); context.stroke();
+  } else if (mode === "ufo") {
+    context.beginPath(); context.arc(0, -2, s / 3, Math.PI, 0); context.lineTo(s / 2, s / 4); context.lineTo(-s / 2, s / 4); context.closePath(); context.fill(); context.stroke();
+  } else if (mode === "wave") {
+    context.beginPath(); context.moveTo(s / 2, 0); context.lineTo(0, -s / 2); context.lineTo(-s / 2, 0); context.lineTo(0, s / 2); context.closePath(); context.fill(); context.stroke();
+  } else if (mode === "robot") {
+    context.fillRect(-s / 2, -s / 2, s, s * .72); context.strokeRect(-s / 2, -s / 2, s, s * .72);
+    context.beginPath(); context.moveTo(-s / 3, s / 5); context.lineTo(-s / 3, s / 2); context.moveTo(s / 3, s / 5); context.lineTo(s / 3, s / 2); context.stroke();
+  } else if (mode === "spider") {
+    context.beginPath(); context.moveTo(0, -s / 2); context.lineTo(s / 2, 0); context.lineTo(0, s / 2); context.lineTo(-s / 2, 0); context.closePath(); context.fill(); context.stroke();
+    for (const side of [-1, 1]) { context.beginPath(); context.moveTo(side * s / 3, -s / 5); context.lineTo(side * s / 2, -s / 2); context.moveTo(side * s / 3, s / 5); context.lineTo(side * s / 2, s / 2); context.stroke(); }
+  } else {
+    context.fillRect(-s / 2, -s / 2, s, s); context.strokeRect(-s / 2, -s / 2, s, s);
+    context.fillStyle = "#161d52"; context.fillRect(-s * .24, -s * .18, s * .13, s * .13); context.fillRect(s * .11, -s * .18, s * .13, s * .13);
+  }
   context.restore();
-  obstacles.forEach((obstacle) => {
-    if (obstacle.kind === "block") {
-      context.fillStyle = "#7b4dd1";
-      context.fillRect(obstacle.x, floorY - obstacle.height, obstacle.width, obstacle.height);
-      context.strokeStyle = "#ffe954";
-      context.lineWidth = 5;
-      context.strokeRect(obstacle.x, floorY - obstacle.height, obstacle.width, obstacle.height);
-      context.strokeStyle = "rgba(255,255,255,.22)";
-      context.lineWidth = 2;
-      for (let y = floorY - obstacle.height + 18; y < floorY; y += 18) {
-        context.beginPath(); context.moveTo(obstacle.x, y); context.lineTo(obstacle.x + obstacle.width, y); context.stroke();
-      }
-      return;
-    }
-    context.fillStyle = "#e13e8d";
-    context.beginPath();
-    context.moveTo(obstacle.x, floorY);
-    context.lineTo(obstacle.x + obstacle.width / 2, floorY - obstacle.height);
-    context.lineTo(obstacle.x + obstacle.width, floorY);
-    context.closePath(); context.fill();
-  });
-  gizmos.forEach((gizmo) => {
-    context.save();
-    context.translate(gizmo.x, gizmo.y);
-    if (gizmo.kind === "pad") {
-      context.fillStyle = gizmo.used ? "#765f77" : "#ffe954";
-      context.strokeStyle = "#e13e8d";
-      context.lineWidth = 5;
-      context.beginPath();
-      context.moveTo(-30, 8); context.lineTo(-20, -8); context.lineTo(20, -8); context.lineTo(30, 8);
-      context.closePath(); context.fill(); context.stroke();
-    } else if (gizmo.kind === "orb") {
-      context.globalAlpha = gizmo.used ? .25 : 1;
-      context.fillStyle = "#ffe954";
-      context.strokeStyle = "#fff";
-      context.lineWidth = 5;
-      context.beginPath(); context.arc(0, 0, 20, 0, Math.PI * 2); context.fill(); context.stroke();
-      context.strokeStyle = "#e13e8d";
-      context.beginPath(); context.arc(0, 0, 29, 0, Math.PI * 2); context.stroke();
+}
+
+function drawPortal(gizmo: Gizmo) {
+  const style = portalStyles[gizmo.portalEffect!];
+  context.save();
+  context.translate(gizmo.x, gizmo.y);
+  context.globalAlpha = gizmo.used ? 0.25 : 1;
+  context.shadowColor = style.color;
+  context.shadowBlur = 22;
+  context.strokeStyle = style.color;
+  context.lineWidth = 8;
+  context.beginPath(); context.ellipse(0, 0, 25, 56, 0, 0, Math.PI * 2); context.stroke();
+  context.lineWidth = 3;
+  context.setLineDash([6, 7]);
+  context.beginPath(); context.ellipse(0, 0, 34, 66, 0, 0, Math.PI * 2); context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = style.color;
+  context.font = "bold 29px sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(style.symbol, 0, 0);
+  context.restore();
+}
+
+function draw() {
+  drawBackground();
+  for (const obstacle of obstacles) {
+    context.fillStyle = obstacle.kind === "block" ? "#664ce8" : "#f14d75";
+    context.strokeStyle = "#b9f7ff"; context.lineWidth = 3;
+    if (obstacle.kind === "spike") {
+      context.beginPath(); context.moveTo(obstacle.x, floorY); context.lineTo(obstacle.x + obstacle.width / 2, obstacle.y); context.lineTo(obstacle.x + obstacle.width, floorY); context.closePath(); context.fill(); context.stroke();
+    } else { context.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height); context.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height); }
+  }
+  for (const gizmo of gizmos) {
+    if (gizmo.kind === "portal") drawPortal(gizmo);
+    else if (gizmo.kind === "orb") {
+      context.fillStyle = gizmo.used ? "#676b78" : "#ffec66"; context.strokeStyle = "#fff"; context.lineWidth = 4;
+      context.beginPath(); context.arc(gizmo.x, gizmo.y, 18, 0, Math.PI * 2); context.fill(); context.stroke();
     } else {
-      context.globalAlpha = gizmo.used ? .3 : 1;
-      context.strokeStyle = gizmo.portalMode === "fast" ? "#67f7dc" : "#ff9c55";
-      context.lineWidth = 9;
-      context.beginPath(); context.ellipse(0, 0, 24, 70, 0, 0, Math.PI * 2); context.stroke();
-      context.lineWidth = 3;
-      context.strokeStyle = "#fff";
-      context.beginPath(); context.ellipse(0, 0, 14, 58, 0, 0, Math.PI * 2); context.stroke();
+      context.fillStyle = gizmo.used ? "#676b78" : "#ff66c4";
+      context.beginPath(); context.moveTo(gizmo.x - 28, floorY); context.lineTo(gizmo.x - 18, floorY - 16); context.lineTo(gizmo.x + 18, floorY - 16); context.lineTo(gizmo.x + 28, floorY); context.closePath(); context.fill();
     }
-    context.restore();
-  });
-  if (portalFlashTime > 0) {
-    context.save();
-    context.globalAlpha = portalFlashTime / .24 * .28;
-    context.fillStyle = portalFlashColor;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.restore();
   }
-
+  drawPlayer();
   if (portalNoticeTime > 0) {
-    context.save();
-    context.globalAlpha = Math.min(1, portalNoticeTime * 2);
-    context.textAlign = "center";
-    context.font = "bold 36px sans-serif";
-    context.fillStyle = portalFlashColor;
-    context.strokeStyle = "#160d35";
-    context.lineWidth = 8;
-    const portalMessage = activePortalMode === "fast" ? "FAST PORTAL!" : "SLOW PORTAL!";
-    context.strokeText(portalMessage, canvas.width / 2, 64);
-    context.fillText(portalMessage, canvas.width / 2, 64);
-    context.restore();
+    context.fillStyle = `rgba(255,255,255,${Math.min(1, portalNoticeTime * 2)})`;
+    context.font = "bold 30px sans-serif"; context.textAlign = "center";
+    context.fillText(portalNotice, canvas.width / 2, 55);
   }
+}
 
-  const portalLabel = activePortalMode === "normal" ? "" : ` · ${activePortalMode.toUpperCase()}`;
-  scoreText.textContent = `DISTANCE ${Math.floor(distance)}${portalLabel}`;
-  bestText.textContent = `BEST ${best}`;
-};
-
-const frame = (time: number): void => {
-  const seconds = Math.min(.033, (time - previousTime) / 1000);
-  previousTime = time;
-  update(seconds);
+function frame(time: number) {
+  const dt = Math.min(0.033, (time - lastTime) / 1000 || 0);
+  lastTime = time;
+  update(dt);
   draw();
   requestAnimationFrame(frame);
-};
+}
 
-canvas.addEventListener("pointerdown", jump);
+canvas.addEventListener("pointerdown", () => { inputHeld = true; startOrAct(); });
+window.addEventListener("pointerup", () => { inputHeld = false; });
+window.addEventListener("pointercancel", () => { inputHeld = false; });
 window.addEventListener("keydown", (event) => {
-  if ([" ", "ArrowUp", "w", "W"].includes(event.key)) {
+  if (["Space", "ArrowUp", "KeyW"].includes(event.code)) {
     event.preventDefault();
-    jump();
+    if (!event.repeat) { inputHeld = true; startOrAct(); }
   }
 });
+window.addEventListener("keyup", (event) => { if (["Space", "ArrowUp", "KeyW"].includes(event.code)) inputHeld = false; });
 
-player.y = floorY - player.size;
 draw();
 requestAnimationFrame(frame);
+export {};
