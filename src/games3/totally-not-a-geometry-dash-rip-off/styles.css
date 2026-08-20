@@ -1,0 +1,17 @@
+@import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&display=swap");
+
+:root { font-family: "Chakra Petch", system-ui, sans-serif; color: #fff; background: #09051b; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; overflow-x: hidden; background: radial-gradient(circle at 50% 20%, #482272, #09051b 62%); }
+main { width: min(1100px, 94vw); margin: 0 auto; padding: 4vh 0; text-align: center; }
+.eyebrow { margin: 0; color: #67f7dc; letter-spacing: .3em; font-weight: 700; }
+h1 { margin: .3rem 0; font-size: clamp(2rem, 5vw, 4.8rem); line-height: .95; text-transform: uppercase; text-shadow: 5px 5px 0 #e13e8d; }
+h1 em { color: #ffe954; font-style: normal; }
+.instructions { color: #cfc4f7; }
+.game-shell { position: relative; margin-top: 2rem; border: 6px solid #fff; box-shadow: 14px 14px 0 #e13e8d, -14px -14px 0 #67f7dc; background: #160d35; overflow: hidden; }
+.hud { display: flex; justify-content: space-between; padding: .65rem 1rem; background: #100923; font-weight: 700; letter-spacing: .08em; }
+canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-action: manipulation; }
+.message { position: absolute; inset: 3rem 0 0; display: grid; place-content: center; gap: .5rem; background: rgb(9 5 27 / .58); text-shadow: 3px 3px 0 #7f1e68; pointer-events: none; }
+.message strong { font-size: clamp(1.25rem, 4vw, 3rem); }
+.message span { color: #ffe954; }
+.message.hidden { display: none; }
