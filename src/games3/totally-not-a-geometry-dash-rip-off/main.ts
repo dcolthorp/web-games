@@ -22,7 +22,11 @@ let running = false;
 let gameOver = false;
 let distance = 0;
 let speed = 360;
-let portalSpeedOffset = 0;
+let portalSpeedMultiplier = 1;
+let activePortalMode: "normal" | "fast" | "slow" = "normal";
+let portalNoticeTime = 0;
+let portalFlashTime = 0;
+let portalFlashColor = "#67f7dc";
 let spawnIn = 1;
 let previousTime = performance.now();
 let best = Number(localStorage.getItem("totally-not-dash-best") ?? 0);
@@ -36,7 +40,10 @@ const reset = (): void => {
   player.grounded = true;
   distance = 0;
   speed = 360;
-  portalSpeedOffset = 0;
+  portalSpeedMultiplier = 1;
+  activePortalMode = "normal";
+  portalNoticeTime = 0;
+  portalFlashTime = 0;
   spawnIn = .9;
   running = true;
   gameOver = false;
@@ -73,7 +80,9 @@ const lose = (): void => {
 const update = (seconds: number): void => {
   if (!running) return;
   distance += seconds * speed / 10;
-  speed = Math.max(280, Math.min(900, 360 + distance * .7 + portalSpeedOffset));
+  speed = Math.max(170, Math.min(1400, (360 + distance * .7) * portalSpeedMultiplier));
+  portalNoticeTime = Math.max(0, portalNoticeTime - seconds);
+  portalFlashTime = Math.max(0, portalFlashTime - seconds);
   const previousBottom = player.y + player.size;
   player.velocity += gravity * seconds;
   player.y = Math.min(floorY - player.size, player.y + player.velocity * seconds);
@@ -108,14 +117,20 @@ const update = (seconds: number): void => {
   gizmos = gizmos.filter((gizmo) => gizmo.x > -80);
   for (const gizmo of gizmos) {
     const centerX = player.x + player.size / 2;
-    if (gizmo.used || Math.abs(centerX - gizmo.x) > player.size / 2 + 28) continue;
+    const interactionRadius = gizmo.kind === "portal" ? 70 : player.size / 2 + 28;
+    if (gizmo.used || Math.abs(centerX - gizmo.x) > interactionRadius) continue;
     if (gizmo.kind === "pad" && player.y + player.size >= floorY - 15) {
       gizmo.used = true;
       player.velocity = jumpVelocity * 1.28;
       player.grounded = false;
-    } else if (gizmo.kind === "portal" && Math.abs(player.y + player.size / 2 - gizmo.y) < 90) {
+    } else if (gizmo.kind === "portal" && Math.abs(player.y + player.size / 2 - gizmo.y) < 105) {
       gizmo.used = true;
-      portalSpeedOffset = gizmo.portalMode === "fast" ? 220 : -180;
+      const nextMode = gizmo.portalMode ?? "fast";
+      portalSpeedMultiplier = nextMode === "fast" ? 1.75 : .55;
+      activePortalMode = nextMode;
+      portalNoticeTime = 1.2;
+      portalFlashTime = .24;
+      portalFlashColor = nextMode === "fast" ? "#67f7dc" : "#ff9c55";
     }
   }
   for (const obstacle of obstacles) {
@@ -213,7 +228,30 @@ const draw = (): void => {
     }
     context.restore();
   });
-  scoreText.textContent = `DISTANCE ${Math.floor(distance)}`;
+  if (portalFlashTime > 0) {
+    context.save();
+    context.globalAlpha = portalFlashTime / .24 * .28;
+    context.fillStyle = portalFlashColor;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.restore();
+  }
+
+  if (portalNoticeTime > 0) {
+    context.save();
+    context.globalAlpha = Math.min(1, portalNoticeTime * 2);
+    context.textAlign = "center";
+    context.font = "bold 36px sans-serif";
+    context.fillStyle = portalFlashColor;
+    context.strokeStyle = "#160d35";
+    context.lineWidth = 8;
+    const portalMessage = activePortalMode === "fast" ? "FAST PORTAL!" : "SLOW PORTAL!";
+    context.strokeText(portalMessage, canvas.width / 2, 64);
+    context.fillText(portalMessage, canvas.width / 2, 64);
+    context.restore();
+  }
+
+  const portalLabel = activePortalMode === "normal" ? "" : ` · ${activePortalMode.toUpperCase()}`;
+  scoreText.textContent = `DISTANCE ${Math.floor(distance)}${portalLabel}`;
   bestText.textContent = `BEST ${best}`;
 };
 
