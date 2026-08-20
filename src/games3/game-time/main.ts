@@ -5,6 +5,11 @@ interface Stickman {
   expiresAt: number;
   kind: StickmanKind;
   timers: number[];
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  edgeHits: number;
 }
 
 type StickmanKind = "normal" | "bomb" | "expander" | "poison";
@@ -13,6 +18,8 @@ const STARTING_STICKMEN = 50;
 const MAX_STICKMEN = 100;
 const LIFETIME_MS = 60_000;
 const FADE_MS = 420;
+const STICKMAN_RADIUS = 18;
+const EDGE_HITS_BEFORE_BURST = 7;
 
 const field = document.getElementById("stickman-field");
 const countLabel = document.getElementById("count");
@@ -29,6 +36,10 @@ let clock = 0;
 let playing = false;
 let hearts = 3;
 let blindnessTimer = 0;
+let animationFrame = 0;
+let previousFrame = 0;
+let audioContext: AudioContext | null = null;
+const collisionCooldowns = new Map<string, number>();
 
 function drawStickman(): string {
   return `
@@ -46,14 +57,57 @@ function updateHud(): void {
   if (heartsLabel) heartsLabel.textContent = `${"♥ ".repeat(hearts)}${"♡ ".repeat(3 - hearts)}`.trim();
 }
 
-function placeStickman(element: HTMLButtonElement): void {
-  element.style.left = `${4 + Math.random() * 90}%`;
-  element.style.top = `${6 + Math.random() * 82}%`;
+function placeStickman(element: HTMLButtonElement): { x: number; y: number } {
+  const width = field?.clientWidth ?? 900;
+  const height = field?.clientHeight ?? 500;
+  const x = STICKMAN_RADIUS + Math.random() * Math.max(1, width - STICKMAN_RADIUS * 2);
+  const y = STICKMAN_RADIUS + Math.random() * Math.max(1, height - STICKMAN_RADIUS * 2);
+  element.style.left = `${x}px`;
+  element.style.top = `${y}px`;
   element.style.setProperty("--tilt", `${-18 + Math.random() * 36}deg`);
   element.style.setProperty("--scale", `${0.72 + Math.random() * 0.5}`);
-  element.style.setProperty("--walk-x", `${-90 + Math.random() * 180}px`);
-  element.style.setProperty("--walk-y", `${-65 + Math.random() * 130}px`);
-  element.style.setProperty("--walk-time", `${4.5 + Math.random() * 5}s`);
+  return { x, y };
+}
+
+function getAudioContext(): AudioContext | null {
+  const AudioContextClass = window.AudioContext ??
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  audioContext ??= new AudioContextClass();
+  if (audioContext.state === "suspended") void audioContext.resume();
+  return audioContext;
+}
+
+function playPianoNote(noteIndex: number, quiet = false): void {
+  const context = getAudioContext();
+  if (!context) return;
+  const now = context.currentTime;
+  const frequency = 261.63 * 2 ** (Math.min(noteIndex, 18) / 12);
+  const gain = context.createGain();
+  const tone = context.createOscillator();
+  const overtone = context.createOscillator();
+  tone.type = "triangle";
+  overtone.type = "sine";
+  tone.frequency.value = frequency;
+  overtone.frequency.value = frequency * 2;
+  gain.gain.setValueAtTime(quiet ? 0.055 : 0.11, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+  tone.connect(gain);
+  overtone.connect(gain);
+  gain.connect(context.destination);
+  tone.start(now);
+  overtone.start(now);
+  tone.stop(now + 0.56);
+  overtone.stop(now + 0.56);
+}
+
+function announceCorner(): void {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const line = new SpeechSynthesisUtterance("You hit a corner. Oh my God!");
+  line.rate = 1.08;
+  line.pitch = 1.18;
+  window.speechSynthesis.speak(line);
 }
 
 function chooseKind(): StickmanKind {
@@ -76,15 +130,111 @@ function spawnStickman(kind: StickmanKind = chooseKind()): void {
   element.className = `stickman stickman-${kind}`;
   element.setAttribute("aria-label", `${kind} stickman`);
   element.innerHTML = drawStickman();
-  placeStickman(element);
+  const position = placeStickman(element);
   field.appendChild(element);
 
   const expiresAt = performance.now() + LIFETIME_MS;
   const timers = [window.setTimeout(() => splitStickman(id), LIFETIME_MS)];
-  stickmen.set(id, { element, expiresAt, kind, timers });
+  const speed = 42 + Math.random() * 45;
+  const angle = Math.random() * Math.PI * 2;
+  stickmen.set(id, {
+    element,
+    expiresAt,
+    kind,
+    timers,
+    x: position.x,
+    y: position.y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    edgeHits: 0,
+  });
   if (kind === "poison") timers.push(window.setTimeout(() => poisonAttack(id), 7_000 + Math.random() * 6_000));
   element.addEventListener("click", () => removeStickman(id));
   updateHud();
+}
+
+function burstStickman(id: number, corner = false): void {
+  const stickman = stickmen.get(id);
+  if (!stickman) return;
+  for (const timer of stickman.timers) window.clearTimeout(timer);
+  stickmen.delete(id);
+  stickman.element.disabled = true;
+  stickman.element.classList.add("burst-away");
+  if (corner) announceCorner();
+  window.setTimeout(() => stickman.element.remove(), FADE_MS);
+  updateHud();
+  if (playing && stickmen.size === 0) finish(true);
+}
+
+function moveStickmen(timestamp: number): void {
+  if (!playing || !field) return;
+  const delta = Math.min(0.035, (timestamp - previousFrame) / 1000 || 0);
+  previousFrame = timestamp;
+  const width = field.clientWidth;
+  const height = field.clientHeight;
+  const entries = Array.from(stickmen.entries());
+
+  for (const [id, stickman] of entries) {
+    stickman.x += stickman.vx * delta;
+    stickman.y += stickman.vy * delta;
+    const hitX = stickman.x <= STICKMAN_RADIUS || stickman.x >= width - STICKMAN_RADIUS;
+    const hitY = stickman.y <= STICKMAN_RADIUS || stickman.y >= height - STICKMAN_RADIUS;
+    if (hitX) {
+      stickman.x = Math.max(STICKMAN_RADIUS, Math.min(width - STICKMAN_RADIUS, stickman.x));
+      stickman.vx *= -1;
+    }
+    if (hitY) {
+      stickman.y = Math.max(STICKMAN_RADIUS, Math.min(height - STICKMAN_RADIUS, stickman.y));
+      stickman.vy *= -1;
+    }
+    if (hitX || hitY) {
+      stickman.edgeHits += 1;
+      playPianoNote(stickman.edgeHits * 2);
+      if (hitX && hitY) {
+        burstStickman(id, true);
+        continue;
+      }
+      if (stickman.edgeHits >= EDGE_HITS_BEFORE_BURST) {
+        burstStickman(id);
+        continue;
+      }
+    }
+    stickman.element.style.left = `${stickman.x}px`;
+    stickman.element.style.top = `${stickman.y}px`;
+  }
+
+  const liveEntries = Array.from(stickmen.entries());
+  for (let first = 0; first < liveEntries.length; first += 1) {
+    for (let second = first + 1; second < liveEntries.length; second += 1) {
+      const [firstId, a] = liveEntries[first]!;
+      const [secondId, b] = liveEntries[second]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared <= 0 || distanceSquared > (STICKMAN_RADIUS * 2) ** 2) continue;
+      const distance = Math.sqrt(distanceSquared);
+      const nx = dx / distance;
+      const ny = dy / distance;
+      const overlap = STICKMAN_RADIUS * 2 - distance;
+      a.x -= nx * overlap * 0.5;
+      a.y -= ny * overlap * 0.5;
+      b.x += nx * overlap * 0.5;
+      b.y += ny * overlap * 0.5;
+      const relativeSpeed = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (relativeSpeed < 0) {
+        a.vx += relativeSpeed * nx;
+        a.vy += relativeSpeed * ny;
+        b.vx -= relativeSpeed * nx;
+        b.vy -= relativeSpeed * ny;
+      }
+      const key = `${firstId}:${secondId}`;
+      if ((collisionCooldowns.get(key) ?? 0) < timestamp) {
+        playPianoNote(2 + ((firstId + secondId) % 8), true);
+        collisionCooldowns.set(key, timestamp + 180);
+      }
+    }
+  }
+  animationFrame = window.requestAnimationFrame(moveStickmen);
 }
 
 function removeStickman(id: number): void {
@@ -165,6 +315,7 @@ function poisonAttack(id: number): void {
 function finish(won: boolean, result?: string): void {
   playing = false;
   window.clearInterval(clock);
+  window.cancelAnimationFrame(animationFrame);
   for (const stickman of stickmen.values()) {
     for (const timer of stickman.timers) window.clearTimeout(timer);
   }
@@ -184,9 +335,12 @@ function resetGame(): void {
     for (const timer of stickman.timers) window.clearTimeout(timer);
   }
   stickmen.clear();
+  collisionCooldowns.clear();
   field?.replaceChildren();
   nextId = 1;
   playing = true;
+  previousFrame = performance.now();
+  getAudioContext();
   hearts = 3;
   overlay?.classList.add("hidden");
   if (timeLabel) timeLabel.textContent = "60";
@@ -200,6 +354,8 @@ function resetGame(): void {
     const soonest = Math.min(...Array.from(stickmen.values(), (stickman) => stickman.expiresAt));
     timeLabel.textContent = String(Math.max(0, Math.ceil((soonest - performance.now()) / 1000)));
   }, 200);
+  window.cancelAnimationFrame(animationFrame);
+  animationFrame = window.requestAnimationFrame(moveStickmen);
 }
 
 startButton?.addEventListener("click", resetGame);
