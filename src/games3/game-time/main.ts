@@ -19,6 +19,7 @@ const MAX_STICKMEN = 100;
 const LIFETIME_MS = 60_000;
 const FADE_MS = 420;
 const STICKMAN_RADIUS = 18;
+const CORNER_RADIUS = 82;
 const EDGE_HITS_BEFORE_BURST = 7;
 
 const field = document.getElementById("stickman-field");
@@ -192,7 +193,12 @@ function moveStickmen(timestamp: number): void {
     if (hitX || hitY) {
       stickman.edgeHits += 1;
       playPianoNote(stickman.edgeHits * 2);
-      if (hitX && hitY) {
+      const nearLeft = stickman.x <= CORNER_RADIUS;
+      const nearRight = stickman.x >= width - CORNER_RADIUS;
+      const nearTop = stickman.y <= CORNER_RADIUS;
+      const nearBottom = stickman.y >= height - CORNER_RADIUS;
+      const hitCornerZone = (nearLeft || nearRight) && (nearTop || nearBottom);
+      if (hitCornerZone) {
         burstStickman(id, true);
         continue;
       }
