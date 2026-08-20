@@ -142,7 +142,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
       updateFloorLabel();
     } else if (event.key === "=" || event.key === "+") {
       event.preventDefault();
-      autoClickRate = Math.min(40, autoClickRate + 1);
+      autoClickRate += 1;
       updateFloorLabel();
     }
   });
