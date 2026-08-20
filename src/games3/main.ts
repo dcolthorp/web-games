@@ -42,6 +42,7 @@ if (list) {
 
 const trapFloor3 = document.getElementById("trap-floor-3");
 if (trapFloor3 instanceof HTMLButtonElement) {
+  const sequelSubtitle = document.querySelector<HTMLElement>(".games3-hero .subtitle");
   const melody = [60, 64, 67, 71, 69, 67, 64, 62, 65, 69, 72, 69, 67, 64, 62, 59];
   let audioContext: AudioContext | null = null;
   let melodyStep = 0;
@@ -54,11 +55,13 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   const pressedKeys = new Set<string>();
 
   const updateFloorLabel = (): void => {
-    if (autoClicker) {
-      trapFloor3.textContent = `OSCAR, PLEASE STOP MAKING NEW SEQUELS — AUTOCLICKER ENABLED · ${autoClickRate}/s [-/=]`;
-      return;
+    const autoClickStatus = autoClicker ? ` · AUTO ${autoClickRate}/s [-/=]` : "";
+    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS${autoClickStatus}`;
+    if (sequelSubtitle) {
+      sequelSubtitle.textContent = autoClicker
+        ? "AUTOCLICKER ENABLED"
+        : "OSCAR, PLEASE STOP MAKING NEW SEQUELS.";
     }
-    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS`;
   };
 
   const playNote = (midi: number, duration = 0.16): void => {
