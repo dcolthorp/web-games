@@ -28,6 +28,7 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .stickman-expander .stick-body { width: 10px; left: 12px; background: #d97918; animation: expand-pulse 1.2s ease-in-out infinite; }
 .stickman-poison span { background: #5a9e38; }
 .stickman-poison .stick-head { border-color: #5a9e38; background: #b7e55d !important; }
+.newly-poisoned { animation: poison-flash 650ms ease-out; }
 .flying-bomb { position: absolute !important; z-index: 4; left: 12px !important; top: 18px !important; width: 22px !important; height: 22px !important; border-radius: 50%; background: #111 !important; animation: throw-bomb 700ms ease-in forwards !important; }
 .poisoned-away { animation: poisoned-away 420ms ease-in forwards; pointer-events: none; }
 .clicked-away { animation: clicked-away 420ms ease-in forwards; pointer-events: none; }
@@ -36,6 +37,7 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 @keyframes clicked-away { to { opacity: 0; filter: blur(12px); transform: translate(-50%, -50%) rotate(90deg) scale(0.1); } }
 @keyframes faded-away { to { opacity: 0; filter: blur(7px); transform: translate(-50%, -50%) scale(1.8); } }
 @keyframes poisoned-away { to { opacity: 0; filter: blur(8px) hue-rotate(80deg); transform: translate(-50%, -50%) scale(0.2); } }
+@keyframes poison-flash { 50% { filter: drop-shadow(0 0 12px #72bb35) brightness(1.7); transform: translate(-50%, -50%) rotate(var(--tilt)) scale(calc(var(--scale) * 1.45)); } }
 @keyframes burst-away { 55% { opacity: 1; filter: brightness(2); transform: translate(-50%, -50%) rotate(160deg) scale(2.2); } 100% { opacity: 0; filter: blur(10px); transform: translate(-50%, -50%) rotate(300deg) scale(0.05); } }
 @keyframes expand-pulse { 50% { width: 20px; left: 7px; } }
 @keyframes throw-bomb { to { transform: translate(130vw, -65vh) rotate(900deg) scale(2); } }
