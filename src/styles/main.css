@@ -652,6 +652,7 @@ h1.is-glitching::after {
   border: 0;
   background: url("../games3/assets/crumpled-school-paper.png") center / 100% 100% no-repeat;
   color: #242a4f;
+  box-shadow: none;
   filter: drop-shadow(7px 10px 6px rgba(0, 0, 0, 0.42));
   font-family: "Comic Sans MS", "Bradley Hand", "Segoe Print", cursive;
   transform: rotate(1.2deg);
@@ -659,6 +660,7 @@ h1.is-glitching::after {
 
 .games3-hub .paper-game-card:hover {
   border-color: transparent;
+  box-shadow: none;
   filter: drop-shadow(13px 16px 5px rgba(0, 0, 0, 0.52));
   transform: translate(-3px, -7px) rotate(-1deg) scale(1.02);
 }
