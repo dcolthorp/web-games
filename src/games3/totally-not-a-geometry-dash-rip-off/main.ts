@@ -166,6 +166,7 @@ function update(dt: number) {
     player.velocity += gravity * gravityDirection * dt;
   }
   player.velocity = Math.max(-920, Math.min(920, player.velocity));
+  const previousY = player.y;
   player.y += player.velocity * dt;
   player.rotation += dt * (mode === "ball" ? 8 : mode === "cube" ? 4.5 : 1.2);
   player.grounded = false;
@@ -183,7 +184,34 @@ function update(dt: number) {
 
   for (const obstacle of obstacles) {
     obstacle.x -= speed * dt;
-    if (overlap(player.x + 6, player.y + 5, player.size - 12, player.size - 8, obstacle.x + 5, obstacle.y + 4, obstacle.width - 10, obstacle.height - 4)) lose();
+    const obstacleTop = obstacle.y + 4;
+    const hitObstacle = overlap(
+      player.x + 6,
+      player.y + 5,
+      player.size - 12,
+      player.size - 8,
+      obstacle.x + 5,
+      obstacleTop,
+      obstacle.width - 10,
+      obstacle.height - 4,
+    );
+
+    if (!hitObstacle) continue;
+
+    const landedOnBlock =
+      obstacle.kind === "block" &&
+      gravityDirection === 1 &&
+      player.velocity >= 0 &&
+      previousY + player.size <= obstacleTop + 10;
+
+    if (landedOnBlock) {
+      player.y = obstacleTop - player.size;
+      player.velocity = 0;
+      player.grounded = true;
+    } else {
+      lose();
+      break;
+    }
   }
   obstacles = obstacles.filter((item) => item.x + item.width > -30);
 
