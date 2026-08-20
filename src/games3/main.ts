@@ -74,7 +74,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   const scheduleNextNote = (): void => {
     playNote(melody[melodyStep % melody.length] ?? 60);
     melodyStep += 1;
-    const beatLength = 60000 / 112 / 2 / tempo;
+    const beatLength = Math.max(8, 60000 / 112 / 2 / tempo);
     window.setTimeout(scheduleNextNote, beatLength);
   };
 
@@ -82,7 +82,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
     audioContext ??= new AudioContext();
     await audioContext.resume();
     touches += 1;
-    tempo = Math.min(8, 1.1 ** Math.max(0, touches - 1));
+    tempo *= touches === 1 ? 1 : 1.1;
 
     if (touches === 1) {
       scheduleNextNote();
