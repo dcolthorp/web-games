@@ -30,6 +30,7 @@ if (list) {
     </li>
     <li class="paper-game-item">
       <a class="game-card paper-game-card" href="./game-time/index.html" aria-label="Click on Me">
+        <span class="paper-game-tag">Stickman Clicker</span>
         <span class="paper-game-doodle" aria-hidden="true">★</span>
         <span class="paper-game-title">click on me</span>
         <span class="paper-game-note">50 stickmen. don't let them become 100.</span>
