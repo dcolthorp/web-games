@@ -1184,20 +1184,8 @@ h1.is-glitching::after {
   animation: games3-floor-bump 0.24s ease;
 }
 
-.games3-trap-floor.is-collapsed {
-  opacity: 0.78;
-  color: #fff2a8;
-  cursor: not-allowed;
-  animation: games3-floor-collapse 0.9s ease-in forwards;
-}
-
 @keyframes games3-floor-bump {
   50% { transform: translateY(7px) scaleY(0.88); }
-}
-
-@keyframes games3-floor-collapse {
-  35% { transform: rotate(-1deg) translateY(12px); }
-  100% { transform: rotate(3deg) translateY(70px) scaleY(0.12); }
 }
 
 .hub-trophy {
