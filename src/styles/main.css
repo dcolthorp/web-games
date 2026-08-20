@@ -638,7 +638,12 @@ h1.is-glitching::after {
     linear-gradient(180deg, #0b5a73, #06354f);
 }
 
+.games3-hub .paper-game-item {
+  display: flex;
+}
+
 .games3-hub .paper-game-card {
+  flex: 1;
   position: relative;
   justify-content: center;
   min-height: 220px;
