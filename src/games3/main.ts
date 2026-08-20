@@ -47,6 +47,16 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   let melodyStep = 0;
   let touches = 0;
   let tempo = 1;
+  let autoClicker = false;
+  let autoClickRate = 5;
+  let autoClickTimer: number | null = null;
+  let chordToggleArmed = true;
+  const pressedKeys = new Set<string>();
+
+  const updateFloorLabel = (): void => {
+    const autoClickStatus = autoClicker ? ` · AUTO ${autoClickRate}/s [-/=]` : "";
+    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS${autoClickStatus}`;
+  };
 
   const playNote = (midi: number, duration = 0.16): void => {
     if (!audioContext) return;
@@ -79,7 +89,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
     window.setTimeout(scheduleNextNote, beatLength);
   };
 
-  trapFloor3.addEventListener("click", async () => {
+  const activateFloor = async (): Promise<void> => {
     audioContext ??= new AudioContext();
     await audioContext.resume();
     touches += 1;
@@ -89,9 +99,53 @@ if (trapFloor3 instanceof HTMLButtonElement) {
       scheduleNextNote();
     }
 
-    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS`;
+    updateFloorLabel();
     trapFloor3.classList.remove("is-bumped");
     requestAnimationFrame(() => trapFloor3.classList.add("is-bumped"));
+  };
+
+  const runAutoClicker = (): void => {
+    if (!autoClicker) return;
+    void activateFloor();
+    autoClickTimer = window.setTimeout(runAutoClicker, 1000 / autoClickRate);
+  };
+
+  const toggleAutoClicker = (): void => {
+    autoClicker = !autoClicker;
+    if (autoClickTimer !== null) window.clearTimeout(autoClickTimer);
+    autoClickTimer = null;
+    updateFloorLabel();
+    if (autoClicker) runAutoClicker();
+  };
+
+  trapFloor3.addEventListener("click", () => void activateFloor());
+
+  window.addEventListener("keydown", (event) => {
+    pressedKeys.add(event.key);
+    const both = (pressedKeys.has("4") || pressedKeys.has("Numpad4"))
+      && (pressedKeys.has("7") || pressedKeys.has("Numpad7"));
+    if (both && chordToggleArmed) {
+      event.preventDefault();
+      chordToggleArmed = false;
+      toggleAutoClicker();
+    }
+    if (!autoClicker || event.repeat) return;
+    if (event.key === "-" || event.key === "_") {
+      event.preventDefault();
+      autoClickRate = Math.max(1, autoClickRate - 1);
+      updateFloorLabel();
+    } else if (event.key === "=" || event.key === "+") {
+      event.preventDefault();
+      autoClickRate = Math.min(40, autoClickRate + 1);
+      updateFloorLabel();
+    }
+  });
+
+  window.addEventListener("keyup", (event) => {
+    pressedKeys.delete(event.key);
+    const both = (pressedKeys.has("4") || pressedKeys.has("Numpad4"))
+      && (pressedKeys.has("7") || pressedKeys.has("Numpad7"));
+    if (!both) chordToggleArmed = true;
   });
 }
 
