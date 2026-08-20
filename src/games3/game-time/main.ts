@@ -82,7 +82,6 @@ function spawnStickman(kind: StickmanKind = chooseKind()): void {
   const expiresAt = performance.now() + LIFETIME_MS;
   const timers = [window.setTimeout(() => splitStickman(id), LIFETIME_MS)];
   stickmen.set(id, { element, expiresAt, kind, timers });
-  if (kind === "bomb") timers.push(window.setTimeout(() => bombAttack(id), 8_000 + Math.random() * 7_000));
   if (kind === "poison") timers.push(window.setTimeout(() => poisonAttack(id), 7_000 + Math.random() * 6_000));
   element.addEventListener("click", () => removeStickman(id));
   updateHud();
@@ -92,6 +91,10 @@ function removeStickman(id: number): void {
   if (!playing) return;
   const stickman = stickmen.get(id);
   if (!stickman) return;
+  if (stickman.kind === "bomb") {
+    bombAttack(id);
+    if (!playing) return;
+  }
   for (const timer of stickman.timers) window.clearTimeout(timer);
   stickmen.delete(id);
   stickman.element.disabled = true;
@@ -121,10 +124,7 @@ function bombAttack(id: number): void {
   if (!playing) return;
   const bomber = stickmen.get(id);
   if (!bomber || bomber.kind !== "bomb") return;
-  if (blindness?.classList.contains("active")) {
-    bomber.timers.push(window.setTimeout(() => bombAttack(id), 4_000 + Math.random() * 4_000));
-    return;
-  }
+  if (blindness?.classList.contains("active")) return;
   const bomb = document.createElement("span");
   bomb.className = "flying-bomb";
   bomber.element.appendChild(bomb);
@@ -142,7 +142,6 @@ function bombAttack(id: number): void {
     finish(false, "NO HEARTS LEFT! the bombers got you.");
     return;
   }
-  bomber.timers.push(window.setTimeout(() => bombAttack(id), 10_000 + Math.random() * 8_000));
 }
 
 function poisonAttack(id: number): void {
