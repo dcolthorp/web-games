@@ -10,8 +10,8 @@ if (!canvas || !scoreText || !bestText || !message) throw new Error("Secret game
 const context = canvas.getContext("2d");
 if (!context) throw new Error("Canvas is unavailable");
 
-type Obstacle = { x: number; width: number; height: number };
-const player = { x: 145, y: 0, size: 42, velocity: 0, rotation: 0 };
+type Obstacle = { x: number; width: number; height: number; kind: "spike" | "block" };
+const player = { x: 145, y: 0, size: 42, velocity: 0, rotation: 0, grounded: true };
 const floorY = 400;
 const gravity = 2050;
 const jumpVelocity = -760;
@@ -29,6 +29,7 @@ const reset = (): void => {
   player.y = floorY - player.size;
   player.velocity = 0;
   player.rotation = 0;
+  player.grounded = true;
   distance = 0;
   speed = 360;
   spawnIn = .9;
@@ -42,7 +43,10 @@ const jump = (): void => {
     reset();
     return;
   }
-  if (player.y >= floorY - player.size - 2) player.velocity = jumpVelocity;
+  if (player.grounded) {
+    player.velocity = jumpVelocity;
+    player.grounded = false;
+  }
 };
 
 const lose = (): void => {
@@ -58,20 +62,42 @@ const update = (seconds: number): void => {
   if (!running) return;
   distance += seconds * speed / 10;
   speed = Math.min(780, 360 + distance * .7);
+  const previousBottom = player.y + player.size;
   player.velocity += gravity * seconds;
   player.y = Math.min(floorY - player.size, player.y + player.velocity * seconds);
+  player.grounded = player.y >= floorY - player.size;
   player.rotation += seconds * (player.y < floorY - player.size ? 7 : 0);
   spawnIn -= seconds;
   if (spawnIn <= 0) {
-    obstacles.push({ x: canvas.width + 40, width: 38 + Math.random() * 24, height: 45 + Math.random() * 45 });
-    spawnIn = .72 + Math.random() * .85;
+    const kind = Math.random() < .34 ? "block" : "spike";
+    obstacles.push({
+      x: canvas.width + 40,
+      width: kind === "block" ? 70 + Math.random() * 55 : 38 + Math.random() * 24,
+      height: kind === "block" ? 55 + Math.random() * 65 : 45 + Math.random() * 45,
+      kind,
+    });
+    spawnIn = kind === "block" ? 1.05 + Math.random() * .65 : .72 + Math.random() * .85;
   }
   obstacles.forEach((obstacle) => { obstacle.x -= speed * seconds; });
   obstacles = obstacles.filter((obstacle) => obstacle.x + obstacle.width > -20);
   for (const obstacle of obstacles) {
     const overlapsX = player.x + player.size - 8 > obstacle.x && player.x + 8 < obstacle.x + obstacle.width;
-    const overlapsY = player.y + player.size - 5 > floorY - obstacle.height;
-    if (overlapsX && overlapsY) lose();
+    const obstacleTop = floorY - obstacle.height;
+    if (obstacle.kind === "spike") {
+      const overlapsY = player.y + player.size - 5 > obstacleTop;
+      if (overlapsX && overlapsY) lose();
+      continue;
+    }
+    const overlapsY = player.y + player.size > obstacleTop && player.y < floorY;
+    if (!overlapsX || !overlapsY) continue;
+    const canLand = player.velocity >= 0 && previousBottom <= obstacleTop + 12;
+    if (canLand) {
+      player.y = obstacleTop - player.size;
+      player.velocity = 0;
+      player.grounded = true;
+    } else {
+      lose();
+    }
   }
 };
 
@@ -99,8 +125,21 @@ const draw = (): void => {
   context.strokeStyle = "#160d35"; context.lineWidth = 5;
   context.strokeRect(-player.size / 2, -player.size / 2, player.size, player.size);
   context.restore();
-  context.fillStyle = "#e13e8d";
   obstacles.forEach((obstacle) => {
+    if (obstacle.kind === "block") {
+      context.fillStyle = "#7b4dd1";
+      context.fillRect(obstacle.x, floorY - obstacle.height, obstacle.width, obstacle.height);
+      context.strokeStyle = "#ffe954";
+      context.lineWidth = 5;
+      context.strokeRect(obstacle.x, floorY - obstacle.height, obstacle.width, obstacle.height);
+      context.strokeStyle = "rgba(255,255,255,.22)";
+      context.lineWidth = 2;
+      for (let y = floorY - obstacle.height + 18; y < floorY; y += 18) {
+        context.beginPath(); context.moveTo(obstacle.x, y); context.lineTo(obstacle.x + obstacle.width, y); context.stroke();
+      }
+      return;
+    }
+    context.fillStyle = "#e13e8d";
     context.beginPath();
     context.moveTo(obstacle.x, floorY);
     context.lineTo(obstacle.x + obstacle.width / 2, floorY - obstacle.height);
