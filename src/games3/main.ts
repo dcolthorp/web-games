@@ -135,7 +135,14 @@ if (trapFloor3 instanceof HTMLButtonElement) {
     updateFloorLabel();
   };
 
-  trapFloor3.addEventListener("click", () => void activateFloor());
+  trapFloor3.addEventListener("click", (event) => {
+    if (!event.isTrusted) return;
+    if (!Number.isFinite(tempo)) {
+      window.location.href = "./totally-not-a-geometry-dash-rip-off/index.html";
+      return;
+    }
+    void activateFloor();
+  });
 
   window.addEventListener("keydown", (event) => {
     pressedKeys.add(event.key);

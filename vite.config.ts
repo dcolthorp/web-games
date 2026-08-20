@@ -45,6 +45,10 @@ export default defineConfig({
         sharksInTheWater: resolve(__dirname, "src/games3/sharks-in-the-water/index.html"),
         zeroPlayerGame: resolve(__dirname, "src/games3/zero-player-game/index.html"),
         gameTime: resolve(__dirname, "src/games3/game-time/index.html"),
+        totallyNotGeometryDash: resolve(
+          __dirname,
+          "src/games3/totally-not-a-geometry-dash-rip-off/index.html"
+        ),
       },
     },
   },
