@@ -51,6 +51,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   let autoClicker = false;
   let autoClickRate = 5;
   let autoClickTimer: number | null = null;
+  let rateIncreaseTimer: number | null = null;
   let chordToggleArmed = true;
   const pressedKeys = new Set<string>();
 
@@ -124,6 +125,16 @@ if (trapFloor3 instanceof HTMLButtonElement) {
     if (autoClicker) runAutoClicker();
   };
 
+  const stopRateIncrease = (): void => {
+    if (rateIncreaseTimer !== null) window.clearInterval(rateIncreaseTimer);
+    rateIncreaseTimer = null;
+  };
+
+  const increaseAutoClickRate = (): void => {
+    autoClickRate += 1;
+    updateFloorLabel();
+  };
+
   trapFloor3.addEventListener("click", () => void activateFloor());
 
   window.addEventListener("keydown", (event) => {
@@ -135,24 +146,27 @@ if (trapFloor3 instanceof HTMLButtonElement) {
       chordToggleArmed = false;
       toggleAutoClicker();
     }
-    if (!autoClicker || event.repeat) return;
+    if (!autoClicker) return;
     if (event.key === "-" || event.key === "_") {
       event.preventDefault();
       autoClickRate = Math.max(1, autoClickRate - 1);
       updateFloorLabel();
     } else if (event.key === "=" || event.key === "+") {
       event.preventDefault();
-      autoClickRate += 1;
-      updateFloorLabel();
+      if (event.repeat || rateIncreaseTimer !== null) return;
+      increaseAutoClickRate();
+      rateIncreaseTimer = window.setInterval(increaseAutoClickRate, 60);
     }
   });
 
   window.addEventListener("keyup", (event) => {
     pressedKeys.delete(event.key);
+    if (event.key === "=" || event.key === "+") stopRateIncrease();
     const both = (pressedKeys.has("4") || pressedKeys.has("Numpad4"))
       && (pressedKeys.has("7") || pressedKeys.has("Numpad7"));
     if (!both) chordToggleArmed = true;
   });
+  window.addEventListener("blur", stopRateIncrease);
 }
 
 const penelopePortal = document.querySelector<HTMLAnchorElement>(".owner-switch-penelope");
