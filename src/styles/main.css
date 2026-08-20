@@ -683,6 +683,19 @@ h1.is-glitching::after {
   transform: rotate(1.5deg);
 }
 
+.paper-game-tag {
+  position: absolute;
+  left: 62px;
+  top: 31px;
+  color: #9b3044;
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-decoration: underline;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+
 .paper-game-doodle,
 .paper-game-arrow {
   position: absolute;
