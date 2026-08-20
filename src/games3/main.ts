@@ -44,11 +44,9 @@ const trapFloor3 = document.getElementById("trap-floor-3");
 if (trapFloor3 instanceof HTMLButtonElement) {
   const melody = [60, 64, 67, 71, 69, 67, 64, 62, 65, 69, 72, 69, 67, 64, 62, 59];
   let audioContext: AudioContext | null = null;
-  let musicTimer = 0;
   let melodyStep = 0;
   let touches = 0;
   let tempo = 1;
-  let collapsed = false;
 
   const playNote = (midi: number, duration = 0.16): void => {
     if (!audioContext) return;
@@ -74,41 +72,23 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   };
 
   const scheduleNextNote = (): void => {
-    if (collapsed) return;
     playNote(melody[melodyStep % melody.length] ?? 60);
     melodyStep += 1;
     const beatLength = 60000 / 112 / 2 / tempo;
-    musicTimer = window.setTimeout(scheduleNextNote, beatLength);
-  };
-
-  const collapseFloor = (): void => {
-    collapsed = true;
-    window.clearTimeout(musicTimer);
-    trapFloor3.classList.add("is-collapsed");
-    trapFloor3.textContent = "YOUR SHOPPING SESSION HAS EXPIRED";
-    trapFloor3.disabled = true;
-    [72, 67, 64, 60, 55, 48].forEach((note, index) => {
-      window.setTimeout(() => playNote(note, 0.3), index * 90);
-    });
+    window.setTimeout(scheduleNextNote, beatLength);
   };
 
   trapFloor3.addEventListener("click", async () => {
-    if (collapsed) return;
     audioContext ??= new AudioContext();
     await audioContext.resume();
     touches += 1;
-    tempo = 1.1 ** Math.max(0, touches - 1);
+    tempo = Math.min(8, 1.1 ** Math.max(0, touches - 1));
 
     if (touches === 1) {
       scheduleNextNote();
     }
 
-    if (touches >= 10) {
-      collapseFloor();
-      return;
-    }
-
-    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED`;
+    trapFloor3.textContent = `SHOPPING MUSIC: ${Math.round(tempo * 100)}% SPEED · ${touches} CLICKS`;
     trapFloor3.classList.remove("is-bumped");
     requestAnimationFrame(() => trapFloor3.classList.add("is-bumped"));
   });
