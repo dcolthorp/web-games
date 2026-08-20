@@ -52,6 +52,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
     if (!audioContext) return;
     const now = audioContext.currentTime;
     const frequency = 440 * 2 ** ((midi - 69) / 12);
+    const safePeak = Math.max(0.004, 0.12 / Math.sqrt(tempo));
     const gain = audioContext.createGain();
     const bell = audioContext.createOscillator();
     const sparkle = audioContext.createOscillator();
@@ -60,7 +61,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
     bell.frequency.value = frequency;
     sparkle.frequency.value = frequency * 2;
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(safePeak, now + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     bell.connect(gain);
     sparkle.connect(gain);
@@ -74,7 +75,7 @@ if (trapFloor3 instanceof HTMLButtonElement) {
   const scheduleNextNote = (): void => {
     playNote(melody[melodyStep % melody.length] ?? 60);
     melodyStep += 1;
-    const beatLength = 60000 / 112 / 2 / tempo;
+    const beatLength = Math.max(12, 60000 / 112 / 2 / tempo);
     window.setTimeout(scheduleNextNote, beatLength);
   };
 
