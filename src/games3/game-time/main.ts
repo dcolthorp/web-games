@@ -301,15 +301,14 @@ function poisonAttack(id: number): void {
   const candidates = Array.from(stickmen.entries()).filter(([, stickman]) => stickman.kind === "normal");
   const victim = candidates[Math.floor(Math.random() * candidates.length)];
   if (victim) {
-    const [victimId, stickman] = victim;
-    for (const timer of stickman.timers) window.clearTimeout(timer);
-    stickmen.delete(victimId);
-    stickman.element.classList.add("poisoned-away");
-    window.setTimeout(() => stickman.element.remove(), FADE_MS);
-    spawnStickman("poison");
+    const [, stickman] = victim;
+    stickman.kind = "poison";
+    stickman.element.classList.remove("stickman-normal");
+    stickman.element.classList.add("stickman-poison", "newly-poisoned");
+    stickman.element.setAttribute("aria-label", "poisoned stickman");
+    window.setTimeout(() => stickman.element.classList.remove("newly-poisoned"), 650);
   }
   spawnStickman("normal");
-  poisoner.timers.push(window.setTimeout(() => poisonAttack(id), 9_000 + Math.random() * 7_000));
 }
 
 function finish(won: boolean, result?: string): void {
