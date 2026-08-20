@@ -78,8 +78,10 @@ function startOrAct() {
     return;
   }
   if (mode === "ball") {
+    if (!player.grounded) return;
     gravityDirection = gravityDirection === 1 ? -1 : 1;
     player.velocity = 260 * gravityDirection;
+    player.grounded = false;
   } else if (mode === "spider") {
     gravityDirection = gravityDirection === 1 ? -1 : 1;
     player.y = gravityDirection === 1 ? floorY - player.size : 0;
