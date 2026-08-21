@@ -8,10 +8,21 @@ main { width: min(1100px, 94vw); margin: 0 auto; padding: 4vh 0; text-align: cen
 h1 { margin: .3rem 0; font-size: clamp(2rem, 5vw, 4.8rem); line-height: .95; text-transform: uppercase; text-shadow: 5px 5px 0 #e13e8d; }
 h1 em { color: #ffe954; font-style: normal; }
 .instructions { color: #cfc4f7; }
-.game-shell { position: relative; margin-top: 2rem; border: 6px solid #fff; box-shadow: 14px 14px 0 #e13e8d, -14px -14px 0 #67f7dc; background: #160d35; overflow: hidden; }
+.music-player { display: flex; align-items: center; justify-content: center; gap: 1rem; width: min(680px, 100%); margin: 1.25rem auto 0; padding: .7rem; border: 3px solid #67f7dc; background: #100923; box-shadow: 7px 7px 0 #e13e8d; text-align: left; }
+.music-copy { display: grid; gap: .15rem; flex: 1; }
+.music-copy span { color: #67f7dc; font-size: .72rem; font-weight: 700; letter-spacing: .18em; }
+.music-copy strong { color: #fff; font-size: 1.1rem; }
+.music-copy small { color: #cfc4f7; }
+.music-player iframe { width: 240px; max-width: 44%; aspect-ratio: 16 / 9; border: 0; }
+.game-shell { position: relative; margin-top: 1.5rem; border: 6px solid #fff; box-shadow: 14px 14px 0 #e13e8d, -14px -14px 0 #67f7dc; background: #160d35; overflow: hidden; }
 .hud { display: flex; justify-content: space-between; padding: .65rem 1rem; background: #100923; font-weight: 700; letter-spacing: .08em; }
 canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-action: manipulation; }
 .message { position: absolute; inset: 3rem 0 0; display: grid; place-content: center; gap: .5rem; background: rgb(9 5 27 / .58); text-shadow: 3px 3px 0 #7f1e68; pointer-events: none; }
 .message strong { font-size: clamp(1.25rem, 4vw, 3rem); }
 .message span { color: #ffe954; }
 .message.hidden { display: none; }
+
+@media (max-width: 620px) {
+  .music-player { align-items: stretch; flex-direction: column; text-align: center; }
+  .music-player iframe { width: 100%; max-width: none; }
+}
