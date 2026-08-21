@@ -99,6 +99,7 @@ function reset() {
   gizmoTimer = 2.4;
   dead = false;
   running = true;
+  message.classList.remove("death-screen");
   message.classList.add("hidden");
 }
 
@@ -194,7 +195,8 @@ function lose() {
   best = Math.max(best, Math.floor(distance));
   localStorage.setItem("totally-not-geometry-best", String(best));
   bestDisplay.textContent = `BEST ${best}`;
-  message.innerHTML = "<strong>GEOMETRICALLY INCONVENIENT.</strong><span>Click to try again</span>";
+  message.classList.add("death-screen");
+  message.innerHTML = '<img class="death-screen-image" src="./geometrically-dominated-death-screen.jpg" alt="You just got geometrically dominated!"><span>Click to try again</span>';
   message.classList.remove("hidden");
 }
 
