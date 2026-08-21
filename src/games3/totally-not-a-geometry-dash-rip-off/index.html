@@ -15,10 +15,13 @@
         <div class="music-copy">
           <span>BACKGROUND TRACK</span>
           <strong>Xenogenesis · TheFatRat</strong>
-          <small>Press play once—your browser blocks surprise audio.</small>
+          <small>Music starts with your first jump. If it is still quiet, press the button.</small>
+          <button id="music-toggle" class="music-toggle" type="button">▶ START MUSIC</button>
         </div>
         <iframe
+          id="music-frame"
           src="https://www.youtube-nocookie.com/embed/_nabH71Bgyc?loop=1&amp;playlist=_nabH71Bgyc&amp;rel=0"
+          data-autoplay-src="https://www.youtube-nocookie.com/embed/_nabH71Bgyc?autoplay=1&amp;loop=1&amp;playlist=_nabH71Bgyc&amp;rel=0"
           title="TheFatRat - Xenogenesis"
           allow="autoplay; encrypted-media; picture-in-picture"
           loading="eager"
