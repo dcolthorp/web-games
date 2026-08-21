@@ -243,7 +243,6 @@ function update(dt: number) {
       gravityDirection === -1 &&
       player.velocity <= 0 &&
       previousY >= obstacleBottom - 10;
-
     if (landedOnBlock) {
       player.y = obstacleTop - player.size;
       player.velocity = 0;
