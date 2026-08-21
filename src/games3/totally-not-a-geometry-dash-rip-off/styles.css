@@ -31,6 +31,14 @@ canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-actio
 .message { position: absolute; inset: 3rem 0 0; display: grid; place-content: center; gap: .5rem; background: rgb(9 5 27 / .58); text-shadow: 3px 3px 0 #7f1e68; pointer-events: none; }
 .message strong { font-size: clamp(1.25rem, 4vw, 3rem); }
 .message span { color: #ffe954; }
+.message.death-screen { background: #000; }
+.death-screen-image {
+  display: block;
+  width: min(500px, 82%);
+  max-height: calc(100% - 3rem);
+  margin: 0 auto;
+  object-fit: contain;
+}
 .message.hidden { display: none; }
 
 @media (max-width: 620px) {
