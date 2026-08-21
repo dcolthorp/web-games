@@ -6,10 +6,22 @@ const message = document.querySelector<HTMLElement>("#message")!;
 
 type PlayerMode = "cube" | "ship" | "ball" | "ufo" | "wave" | "robot" | "spider";
 type PortalEffect = PlayerMode | "fast" | "slow" | "gravity-up" | "gravity-down" | "mini" | "normal-size";
-type Obstacle = { x: number; y: number; width: number; height: number; kind: "spike" | "block" };
+type Obstacle = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  kind: "spike" | "block";
+  spikeDirection: "up" | "down";
+};
 type Gizmo = { x: number; y: number; kind: "pad" | "orb" | "portal"; used: boolean; portalEffect?: PortalEffect };
 
 const floorY = 400;
+const flyingModes: PlayerMode[] = ["ship", "ufo", "wave"];
+
+function isFlyingMode(value: PlayerMode) {
+  return flyingModes.includes(value);
+}
 const gravity = 2050;
 const portalEffects: PortalEffect[] = [
   "ship", "cube", "ball", "ufo", "wave", "robot", "spider",
@@ -95,10 +107,24 @@ function startOrAct() {
 }
 
 function addObstacle() {
-  const block = Math.random() < 0.34;
-  const height = block ? 58 + Math.random() * 38 : 44;
-  obstacles.push({ x: canvas.width + 40, y: floorY - height, width: block ? 58 : 48, height, kind: block ? "block" : "spike" });
-  spawnTimer = 0.85 + Math.random() * 1.15;
+  const flying = isFlyingMode(mode);
+  const block = Math.random() < (flying ? 0.55 : 0.34);
+  const height = block ? 52 + Math.random() * 42 : 44;
+  const spikeDirection = flying
+    ? (Math.random() < 0.5 ? "up" : "down")
+    : gravityDirection === 1 ? "up" : "down";
+  const y = flying
+    ? 48 + Math.random() * Math.max(40, floorY - height - 96)
+    : gravityDirection === 1 ? floorY - height : 0;
+  obstacles.push({
+    x: canvas.width + 40,
+    y,
+    width: block ? 58 : 48,
+    height,
+    kind: block ? "block" : "spike",
+    spikeDirection,
+  });
+  spawnTimer = flying ? 0.7 + Math.random() * 0.8 : 0.85 + Math.random() * 1.15;
 }
 
 function addGizmo() {
@@ -119,7 +145,12 @@ function applyPortal(effect: PortalEffect) {
   portalNotice = style.name;
   portalNoticeTime = 1.15;
   if (["cube", "ship", "ball", "ufo", "wave", "robot", "spider"].includes(effect)) {
-    mode = effect as PlayerMode;
+    const nextMode = effect as PlayerMode;
+    if (nextMode !== mode) {
+      mode = nextMode;
+      obstacles = obstacles.filter((obstacle) => obstacle.x < player.x + 250);
+      spawnTimer = Math.min(spawnTimer, 0.18);
+    }
     player.velocity = 0;
   } else if (effect === "gravity-up") {
     gravityDirection = -1;
@@ -187,6 +218,7 @@ function update(dt: number) {
   for (const obstacle of obstacles) {
     obstacle.x -= speed * dt;
     const obstacleTop = obstacle.y + 4;
+    const obstacleBottom = obstacle.y + obstacle.height - 4;
     const hitObstacle = overlap(
       player.x + 6,
       player.y + 5,
@@ -206,8 +238,18 @@ function update(dt: number) {
       player.velocity >= 0 &&
       previousY + player.size <= obstacleTop + 10;
 
+    const landedUnderBlock =
+      obstacle.kind === "block" &&
+      gravityDirection === -1 &&
+      player.velocity <= 0 &&
+      previousY >= obstacleBottom - 10;
+
     if (landedOnBlock) {
       player.y = obstacleTop - player.size;
+      player.velocity = 0;
+      player.grounded = true;
+    } else if (landedUnderBlock) {
+      player.y = obstacleBottom;
       player.velocity = 0;
       player.grounded = true;
     } else {
@@ -314,7 +356,15 @@ function draw() {
     context.fillStyle = obstacle.kind === "block" ? "#664ce8" : "#f14d75";
     context.strokeStyle = "#b9f7ff"; context.lineWidth = 3;
     if (obstacle.kind === "spike") {
-      context.beginPath(); context.moveTo(obstacle.x, floorY); context.lineTo(obstacle.x + obstacle.width / 2, obstacle.y); context.lineTo(obstacle.x + obstacle.width, floorY); context.closePath(); context.fill(); context.stroke();
+      const spikeBaseY = obstacle.spikeDirection === "up" ? obstacle.y + obstacle.height : obstacle.y;
+      const spikeTipY = obstacle.spikeDirection === "up" ? obstacle.y : obstacle.y + obstacle.height;
+      context.beginPath();
+      context.moveTo(obstacle.x, spikeBaseY);
+      context.lineTo(obstacle.x + obstacle.width / 2, spikeTipY);
+      context.lineTo(obstacle.x + obstacle.width, spikeBaseY);
+      context.closePath();
+      context.fill();
+      context.stroke();
     } else { context.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height); context.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height); }
   }
   for (const gizmo of gizmos) {
