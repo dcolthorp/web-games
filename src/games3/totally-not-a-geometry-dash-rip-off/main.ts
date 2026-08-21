@@ -3,6 +3,24 @@ const context = canvas.getContext("2d")!;
 const scoreDisplay = document.querySelector<HTMLElement>("#score")!;
 const bestDisplay = document.querySelector<HTMLElement>("#best")!;
 const message = document.querySelector<HTMLElement>("#message")!;
+const musicFrame = document.querySelector<HTMLIFrameElement>("#music-frame")!;
+const musicToggle = document.querySelector<HTMLButtonElement>("#music-toggle")!;
+
+let musicStarted = false;
+
+function startMusic(): void {
+  if (musicStarted) return;
+
+  const autoplaySource = musicFrame.dataset["autoplaySrc"];
+  if (!autoplaySource) return;
+
+  musicStarted = true;
+  musicFrame.src = autoplaySource;
+  musicToggle.textContent = "♫ MUSIC STARTED";
+  musicToggle.disabled = true;
+}
+
+musicToggle.addEventListener("click", startMusic);
 
 type PlayerMode = "cube" | "ship" | "ball" | "ufo" | "wave" | "robot" | "spider";
 type PortalEffect = PlayerMode | "fast" | "slow" | "gravity-up" | "gravity-down" | "mini" | "normal-size";
@@ -392,13 +410,13 @@ function frame(time: number) {
   requestAnimationFrame(frame);
 }
 
-canvas.addEventListener("pointerdown", () => { inputHeld = true; startOrAct(); });
+canvas.addEventListener("pointerdown", () => { inputHeld = true; startMusic(); startOrAct(); });
 window.addEventListener("pointerup", () => { inputHeld = false; });
 window.addEventListener("pointercancel", () => { inputHeld = false; });
 window.addEventListener("keydown", (event) => {
   if (["Space", "ArrowUp", "KeyW"].includes(event.code)) {
     event.preventDefault();
-    if (!event.repeat) { inputHeld = true; startOrAct(); }
+    if (!event.repeat) { inputHeld = true; startMusic(); startOrAct(); }
   }
 });
 window.addEventListener("keyup", (event) => { if (["Space", "ArrowUp", "KeyW"].includes(event.code)) inputHeld = false; });

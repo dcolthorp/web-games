@@ -13,6 +13,17 @@ h1 em { color: #ffe954; font-style: normal; }
 .music-copy span { color: #67f7dc; font-size: .72rem; font-weight: 700; letter-spacing: .18em; }
 .music-copy strong { color: #fff; font-size: 1.1rem; }
 .music-copy small { color: #cfc4f7; }
+.music-toggle {
+  border: 2px solid #ffe954;
+  padding: .55rem .75rem;
+  color: #09051b;
+  background: #ffe954;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 #e13e8d;
+}
+.music-toggle:disabled { opacity: .72; cursor: default; }
 .music-player iframe { width: 240px; max-width: 44%; aspect-ratio: 16 / 9; border: 0; }
 .game-shell { position: relative; margin-top: 1.5rem; border: 6px solid #fff; box-shadow: 14px 14px 0 #e13e8d, -14px -14px 0 #67f7dc; background: #160d35; overflow: hidden; }
 .hud { display: flex; justify-content: space-between; padding: .65rem 1rem; background: #100923; font-weight: 700; letter-spacing: .08em; }
