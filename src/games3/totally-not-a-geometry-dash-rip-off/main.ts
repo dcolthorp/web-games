@@ -1,3 +1,5 @@
+import deathScreenUrl from "./geometrically-dominated-death-screen.jpg";
+
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const context = canvas.getContext("2d")!;
 const scoreDisplay = document.querySelector<HTMLElement>("#score")!;
@@ -196,7 +198,15 @@ function lose() {
   localStorage.setItem("totally-not-geometry-best", String(best));
   bestDisplay.textContent = `BEST ${best}`;
   message.classList.add("death-screen");
-  message.innerHTML = '<img class="death-screen-image" src="./geometrically-dominated-death-screen.jpg" alt="You just got geometrically dominated!"><span>Click to try again</span>';
+  const deathImage = new Image();
+  deathImage.className = "death-screen-image";
+  deathImage.src = deathScreenUrl;
+  deathImage.alt = "You just got geometrically dominated!";
+
+  const retryText = document.createElement("span");
+  retryText.textContent = "Click to try again";
+
+  message.replaceChildren(deathImage, retryText);
   message.classList.remove("hidden");
 }
 

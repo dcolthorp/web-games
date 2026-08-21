@@ -31,11 +31,20 @@ canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-actio
 .message { position: absolute; inset: 3rem 0 0; display: grid; place-content: center; gap: .5rem; background: rgb(9 5 27 / .58); text-shadow: 3px 3px 0 #7f1e68; pointer-events: none; }
 .message strong { font-size: clamp(1.25rem, 4vw, 3rem); }
 .message span { color: #ffe954; }
-.message.death-screen { background: #000; }
+.message.death-screen {
+  box-sizing: border-box;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-content: stretch;
+  align-items: center;
+  justify-items: center;
+  padding: 1rem;
+  background: #000;
+}
 .death-screen-image {
   display: block;
   width: min(500px, 82%);
-  max-height: calc(100% - 3rem);
+  max-width: 100%;
+  max-height: 100%;
   margin: 0 auto;
   object-fit: contain;
 }
