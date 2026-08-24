@@ -1,4 +1,4 @@
-export {};
+import { installDefiantTitle, isDefiant } from "./defiant";
 
 interface Stickman {
   element: HTMLButtonElement;
@@ -370,3 +370,5 @@ async function resetGame(): Promise<void> {
 }
 
 startButton?.addEventListener("click", () => void resetGame());
+
+if (isDefiant()) installDefiantTitle();

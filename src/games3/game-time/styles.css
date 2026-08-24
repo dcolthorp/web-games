@@ -7,6 +7,30 @@ body { min-height: 100vh; margin: 0; padding: 20px; background: radial-gradient(
 .game-header { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transform: rotate(-2deg); }
 .scribble { margin: 0 0 5px; color: #9b3044; font-size: 1.15rem; font-weight: 900; transform: rotate(1deg); }
+
+/* "don't click on me" mode: the title argues back, then seals itself shut. */
+/* The lines vary a lot in length, so the box is sized once for the longest of
+   them and never resizes — otherwise the header lurches on every click. */
+/* Lifted above .overlay, which covers the whole note before the game starts and
+   would otherwise swallow every click aimed at the title. */
+.title-box { position: relative; z-index: 3; display: inline-flex; align-items: flex-start; min-height: 2.05em; font-size: clamp(2rem, 4.6vw, 3.8rem); }
+.title-box h1 { font-size: inherit; }
+.title-clickable { cursor: pointer; }
+.title-clickable:focus-visible { outline: 4px dashed #9b3044; outline-offset: 6px; }
+.title-flinch { animation: title-flinch 220ms ease-out; }
+@keyframes title-flinch { 30% { transform: rotate(-2deg) translate(-7px, 2px) scale(0.985); } 65% { transform: rotate(-2deg) translate(4px, -1px); } }
+.title-box.caged h1 { pointer-events: none; filter: brightness(0.72) contrast(0.85); }
+/* Solid frame and bars, near-clear middle: it has to read as a cage with the
+   title still legible behind it, not as a plate that hides the punchline. */
+.title-cage { position: absolute; inset: -12px -18px; border: 9px solid; border-color: #666d78 #4d545e #434a54 #5d646f; border-radius: 5px; background: linear-gradient(158deg, rgba(120, 128, 140, 0.22), rgba(70, 77, 87, 0.3) 45%, rgba(150, 158, 170, 0.24) 70%, rgba(64, 70, 80, 0.3)); box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.45), inset 0 3px 0 rgba(255, 255, 255, 0.32), 0 8px 0 rgba(0, 0, 0, 0.24), 0 2px 5px rgba(0, 0, 0, 0.4); animation: cage-slam 280ms cubic-bezier(0.2, 1.5, 0.4, 1); }
+/* Rivets, one per corner. */
+.title-cage::before, .title-cage::after { content: ""; position: absolute; left: 6px; right: 6px; height: 9px; background: radial-gradient(circle at 5px 50%, #d8dde4 0 3px, #757c87 3px 4px, transparent 4px), radial-gradient(circle at calc(100% - 5px) 50%, #d8dde4 0 3px, #757c87 3px 4px, transparent 4px); }
+.title-cage::before { top: 5px; }
+.title-cage::after { bottom: 5px; }
+.title-cage span { position: absolute; top: 5px; bottom: 5px; width: 10px; margin-left: -5px; border-radius: 3px; background: linear-gradient(90deg, #474e58, #dfe4ea 32%, #8d949f 62%, #3f464f); box-shadow: 0 0 8px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.25); }
+@keyframes cage-slam { 0% { opacity: 0; transform: translateY(-190%) scaleY(1.5); } 60% { opacity: 1; transform: translateY(6%) scaleY(0.94); } 100% { opacity: 1; transform: translateY(0) scaleY(1); } }
+.shaking { animation: screen-shake 118ms linear 18; }
+@keyframes screen-shake { 0% { transform: translate(0, 0) rotate(0deg); } 25% { transform: translate(-7px, 4px) rotate(-0.45deg); } 50% { transform: translate(6px, -3px) rotate(0.35deg); } 75% { transform: translate(-4px, -5px) rotate(-0.2deg); } 100% { transform: translate(0, 0) rotate(0deg); } }
 .instructions { max-width: 50rem; margin: 16px 0 10px; font-size: 1rem; font-weight: 700; }
 .scoreboard { display: grid; gap: 3px; min-width: 180px; color: #4a3458; font-size: 1.2rem; font-weight: 700; transform: rotate(1deg); }
 .stickman-field { position: relative; height: clamp(390px, 55vh, 570px); overflow: hidden; border: 3px dashed rgba(68, 79, 125, 0.35); }
@@ -49,4 +73,5 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .start { padding: 15px 28px; border: 4px solid #242a4f; background: #f1d85c; color: #242a4f; box-shadow: 5px 6px 0 #242a4f; font: 900 1.35rem inherit; cursor: pointer; transform: rotate(-2deg); }
 .message { max-width: 32rem; color: #9b3044; font-size: 1.35rem; font-weight: 900; }
 @media (max-width: 680px) { body { padding: 8px; } .note { min-height: 760px; padding: 96px 28px 34px 48px; background-size: cover; } .game-header { align-items: start; flex-direction: column; gap: 12px; } .stickman-field { height: 475px; } }
-@media (prefers-reduced-motion: reduce) { .clicked-away, .faded-away, .poisoned-away, .burst-away { animation-duration: 1ms; } }
+/* The cage still lands under reduced motion — it just stops being a stunt. */
+@media (prefers-reduced-motion: reduce) { .clicked-away, .faded-away, .poisoned-away, .burst-away, .title-flinch, .title-cage, .shaking { animation-duration: 1ms; } }

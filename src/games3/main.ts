@@ -1,9 +1,15 @@
 import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
 import { NIGHTMARE_TOAST_KEY, TOAST_FOR_PENELOPE_KEY, TOAST_ON_GAMES3_KEY } from "../shared/glitchedToast";
+import { rollDefiant } from "./game-time/defiant";
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+// Re-rolled on every visit to the hub, so a refresh is what changes the card.
+const defiant = rollDefiant();
+const paperTitle = defiant ? "don't click on me" : "click on me";
+const paperLabel = defiant ? "Don't Click on Me" : "Click on Me";
 
 const list = document.getElementById("game-list");
 if (list) {
@@ -29,10 +35,10 @@ if (list) {
       </a>
     </li>
     <li class="paper-game-item">
-      <a class="game-card paper-game-card" href="./game-time/index.html" aria-label="Click on Me">
+      <a class="game-card paper-game-card" href="./game-time/index.html" aria-label="${paperLabel}">
         <span class="paper-game-tag">Stickman Clicker</span>
         <span class="paper-game-doodle" aria-hidden="true">★</span>
-        <span class="paper-game-title">click on me</span>
+        <span class="paper-game-title">${paperTitle}</span>
         <span class="paper-game-note">50 stickmen. don't let them become 100.</span>
         <span class="paper-game-arrow" aria-hidden="true">→</span>
       </a>
