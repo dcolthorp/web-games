@@ -35,6 +35,9 @@ const LINES = [
 const WHY_YS = 420;
 const SHAKE_MS = 2100;
 const CAGE_BARS = 5;
+/** How long the crack shows before the box gives way, and the fall after it. */
+const CRACK_MS = 260;
+const SHARD_MS = 1500;
 
 let stage: Stage = "arguing";
 let step = 0;
@@ -78,13 +81,24 @@ export function installDefiantTitle(): void {
 
 /**
  * A stickman was clicked. If something is currently boxed around the title, this
- * is what breaks it, on the spot.
+ * is what breaks it.
+ *
+ * A bomb swaps instantly, under cover of its own flash. Poison has no flash to
+ * hide behind, so it cracks the box down the middle and drops the two halves off
+ * the bottom of the screen instead.
  */
-export function notifyCageBreaker(_kind: Breaker): void {
+export function notifyCageBreaker(kind: Breaker): void {
   if (stage !== "caged" && stage !== "sealed") return;
   const breaking = stage;
   stage = breaking === "caged" ? "why" : "freed";
-  breakOut(breaking);
+
+  const piece = boxEl?.querySelector(pieceSelector(breaking));
+  if (kind !== "poison" || !piece || reducedMotion()) {
+    breakOut(breaking, false);
+    return;
+  }
+  piece.appendChild(buildCrack());
+  window.setTimeout(() => breakOut(breaking, true), CRACK_MS);
 }
 
 function provoke(): void {
@@ -126,6 +140,7 @@ function cage(box: HTMLElement, title: HTMLHeadingElement): void {
   bars.setAttribute("aria-hidden", "true");
   for (let bar = 0; bar < CAGE_BARS; bar += 1) {
     const rod = document.createElement("span");
+    rod.className = "cage-bar";
     rod.style.left = `${((bar + 1) / (CAGE_BARS + 1)) * 100}%`;
     bars.appendChild(rod);
   }
@@ -141,12 +156,16 @@ function cage(box: HTMLElement, title: HTMLHeadingElement): void {
   window.setTimeout(() => page.classList.remove("shaking"), SHAKE_MS);
 }
 
-function breakOut(from: Stage): void {
+function breakOut(from: Stage, shatter: boolean): void {
   const title = titleEl;
   const box = boxEl;
   if (!title || !box) return;
 
-  box.querySelector(from === "caged" ? ".title-cage" : ".title-flag")?.remove();
+  const piece = box.querySelector(pieceSelector(from));
+  if (piece) {
+    if (shatter) launchShards(piece);
+    piece.remove();
+  }
   box.classList.remove(from === "caged" ? "caged" : "flagged");
   box.classList.add("busted");
   window.setTimeout(() => box.classList.remove("busted"), 520);
@@ -163,6 +182,90 @@ function breakOut(from: Stage): void {
   // Out of the flag, thought still unfinished. One more click completes it.
   title.textContent = "WHAT IF I";
   setClickable(true);
+}
+
+function pieceSelector(from: Stage): string {
+  return from === "caged" ? ".title-cage" : ".title-flag";
+}
+
+function reducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * A jagged split straight down the middle, right before it gives way.
+ *
+ * The svg is wrapped in a span because it is a replaced element: stretching it
+ * with top/bottom offsets does nothing, and a percentage height against the
+ * box's own borders doesn't resolve. The span stretches, the svg fills the span.
+ */
+function buildCrack(): HTMLElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const holder = document.createElement("span");
+  holder.className = "cage-crack";
+  holder.setAttribute("aria-hidden", "true");
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 12 100");
+  svg.setAttribute("preserveAspectRatio", "none");
+  const line = document.createElementNS(ns, "polyline");
+  line.setAttribute("points", "6,0 3,13 9,27 2,41 8,55 3,69 9,83 5,100");
+  line.setAttribute("fill", "none");
+  svg.appendChild(line);
+  holder.appendChild(svg);
+  return holder;
+}
+
+/**
+ * Clone the box into two half-width shards and drop them off the screen.
+ *
+ * They live on <body>, not in the note: the note clips its overflow, and its
+ * drop-shadow filter would make position:fixed resolve against the note instead
+ * of the viewport, so a shard parented there could never reach the bottom.
+ */
+function launchShards(piece: Element): void {
+  const rect = piece.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) return;
+  const half = rect.width / 2;
+  const fall = Math.max(40, window.innerHeight - rect.bottom);
+
+  // Shards remove themselves when their animation finishes, but animation events
+  // only fire while the page is actually rendering — a tab hidden mid-fall holds
+  // its shards until it comes back. Sweep any leftovers so they can't stack up.
+  for (const stale of document.querySelectorAll(".cage-shard")) stale.remove();
+
+  for (const side of ["left", "right"] as const) {
+    const shard = document.createElement("span");
+    shard.className = "cage-shard";
+    shard.style.left = `${rect.left + (side === "right" ? half : 0)}px`;
+    shard.style.top = `${rect.top}px`;
+    shard.style.width = `${half}px`;
+    shard.style.height = `${rect.height}px`;
+
+    // The full box, offset so each shard frames its own half of it.
+    const face = piece.cloneNode(true) as HTMLElement;
+    face.style.inset = "auto";
+    face.style.left = `${side === "right" ? -half : 0}px`;
+    face.style.top = "0";
+    face.style.width = `${rect.width}px`;
+    face.style.height = `${rect.height}px`;
+    face.style.animation = "none"; // don't replay the slam on the way down
+    shard.appendChild(face);
+    document.body.appendChild(shard);
+
+    const drift = side === "left" ? -34 : 34;
+    const spin = side === "left" ? -17 : 17;
+    const animation = shard.animate(
+      [
+        { transform: "translate(0px, 0px) rotate(0deg)", opacity: 1, easing: "cubic-bezier(0.45, 0, 0.9, 0.55)" },
+        { transform: `translate(${drift * 0.5}px, ${fall}px) rotate(${spin}deg)`, opacity: 1, offset: 0.56, easing: "cubic-bezier(0.2, 0.85, 0.4, 1)" },
+        { transform: `translate(${drift * 0.78}px, ${fall - 30}px) rotate(${spin * 1.3}deg)`, opacity: 1, offset: 0.71, easing: "cubic-bezier(0.5, 0, 0.9, 0.6)" },
+        { transform: `translate(${drift}px, ${fall}px) rotate(${spin * 1.5}deg)`, opacity: 1, offset: 0.83, easing: "linear" },
+        { transform: `translate(${drift}px, ${fall}px) rotate(${spin * 1.5}deg)`, opacity: 0, offset: 1 },
+      ],
+      { duration: SHARD_MS, fill: "forwards" },
+    );
+    animation.onfinish = () => shard.remove();
+  }
 }
 
 /** The Jolly Roger it reaches for once caging didn't work. */
