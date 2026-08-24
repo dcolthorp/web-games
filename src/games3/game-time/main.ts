@@ -1,4 +1,4 @@
-import { installDefiantTitle, isDefiant } from "./defiant";
+import { installDefiantTitle, isDefiant, notifyCageBreaker } from "./defiant";
 
 interface Stickman {
   element: HTMLButtonElement;
@@ -18,6 +18,7 @@ const STARTING_STICKMEN = 50;
 const MAX_STICKMEN = 100;
 const LIFETIME_MS = 60_000;
 const FADE_MS = 420;
+const BLINDNESS_MS = 5_000;
 const STICKMAN_RADIUS = 18;
 const CORNER_RADIUS = 82;
 const EDGE_HITS_BEFORE_BURST = 7;
@@ -253,6 +254,7 @@ function removeStickman(id: number): void {
     bombAttack(id);
     if (!playing) return;
   }
+  if (stickman.kind === "poison") notifyCageBreaker("poison");
   for (const timer of stickman.timers) window.clearTimeout(timer);
   stickmen.delete(id);
   stickman.element.disabled = true;
@@ -295,7 +297,11 @@ function bombAttack(id: number): void {
   blindnessTimer = window.setTimeout(() => {
     blindness?.classList.remove("active");
     blindness?.setAttribute("aria-hidden", "true");
-  }, 5_000);
+  }, BLINDNESS_MS);
+  // Whatever is boxed around the title gives way once the blast clears. Kept off
+  // the blindness timer on purpose: finish() cancels that one, and losing your
+  // last heart to a bomber should still blow the box open.
+  notifyCageBreaker("bomb", BLINDNESS_MS);
   if (hearts <= 0) {
     finish(false, "NO HEARTS LEFT! the bombers got you.");
     return;
