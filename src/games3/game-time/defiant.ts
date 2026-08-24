@@ -40,6 +40,8 @@ const CRACK_MS = 260;
 const SHARD_MS = 1500;
 
 let stage: Stage = "arguing";
+/** True while a box is cracking but has not come apart yet. */
+let breaking = false;
 let step = 0;
 let titleEl: HTMLHeadingElement | null = null;
 let boxEl: HTMLElement | null = null;
@@ -88,23 +90,37 @@ export function installDefiantTitle(): void {
  * the bottom of the screen instead.
  */
 export function notifyCageBreaker(kind: Breaker): void {
+  if (breaking) return;
   if (stage !== "caged" && stage !== "sealed") return;
-  const breaking = stage;
-  stage = breaking === "caged" ? "why" : "freed";
+  const from = stage;
 
-  const piece = boxEl?.querySelector(pieceSelector(breaking));
+  const piece = boxEl?.querySelector(pieceSelector(from));
   if (kind !== "poison" || !piece || reducedMotion()) {
-    breakOut(breaking, false);
+    advance(from);
+    breakOut(from, false);
     return;
   }
+
+  // The crack shows before the box gives way, so the stage cannot advance yet:
+  // moving it here would leave `stage` describing a DOM that is 260ms away, and
+  // a click landing in that window would act on the box that is still on screen.
+  breaking = true;
   piece.appendChild(buildCrack());
-  window.setTimeout(() => breakOut(breaking, true), CRACK_MS);
+  window.setTimeout(() => {
+    breaking = false;
+    advance(from);
+    breakOut(from, true);
+  }, CRACK_MS);
+}
+
+function advance(from: Stage): void {
+  stage = from === "caged" ? "why" : "freed";
 }
 
 function provoke(): void {
   const title = titleEl;
   const box = boxEl;
-  if (!title || !box) return;
+  if (!title || !box || breaking) return;
 
   if (stage === "why") {
     // The wall of WHY collapses into an idea nobody asked for.
