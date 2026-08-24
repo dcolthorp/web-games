@@ -179,6 +179,91 @@ describe("multiplayer protocol validation", () => {
       reason: "invalid payload",
     });
   });
+
+  it("applies an application validator to complete world-frame data", () => {
+    const world = {
+      shark: { x: 1, y: 2, angle: 0.5, speed: 42 },
+      extraSharks: [{ x: 3, y: 4, angle: 1 }],
+      sharkDeleted: false,
+    };
+    const validateWorld = (value: unknown): value is typeof world => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+      const candidate = value as typeof world;
+      return typeof candidate.shark?.x === "number"
+        && typeof candidate.shark?.y === "number"
+        && typeof candidate.shark?.angle === "number"
+        && typeof candidate.shark?.speed === "number"
+        && Array.isArray(candidate.extraSharks)
+        && candidate.extraSharks.every((hunter) => typeof hunter.x === "number" && typeof hunter.y === "number" && typeof hunter.angle === "number")
+        && typeof candidate.sharkDeleted === "boolean";
+    };
+    const base = {
+      revision: 4,
+      frameSeq: 10,
+      hostTimeMs: 1000,
+      players,
+      crates: [],
+      world,
+    };
+    expect(parseMultiplayerMessage(envelope("world-frame", base), {
+      validateWorldFrameData: validateWorld,
+    }).ok).toBe(true);
+    expect(parseMultiplayerMessage(envelope("world-frame", {
+      ...base,
+      world: { ...world, extraSharks: [{ x: 3, y: 4 }] },
+    }), {
+      validateWorldFrameData: validateWorld,
+    })).toEqual({ ok: false, reason: "invalid payload" });
+    expect(parseMultiplayerMessage(envelope("world-frame", {
+      ...base,
+      world: { shark: { x: 1, y: 2 }, extraSharks: [], sharkDeleted: false },
+    }), {
+      validateWorldFrameData: validateWorld,
+    })).toEqual({ ok: false, reason: "invalid payload" });
+    expect(parseMultiplayerMessage(envelope("world-frame", base), {
+      validateWorldFrameData: (_value): _value is typeof world => {
+        throw new Error("bad world validator");
+      },
+    })).toEqual({ ok: false, reason: "invalid payload" });
+  });
+
+  it("lets an application snapshot validator reject malformed nested state", () => {
+    const validateSaveShape = (value: unknown): value is Record<string, unknown> => {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+      const candidate = value as Record<string, unknown>;
+      const carried = candidate["multiplayerCarriedCrateIds"];
+      const chest = candidate["chestInventory"];
+      const inventory = candidate["inventory"];
+      return Array.isArray(inventory)
+        && inventory.every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && typeof entry[1] === "number")
+        && (carried === undefined || (typeof carried === "object" && carried !== null && !Array.isArray(carried)
+          && Array.isArray((carried as Record<string, unknown>)["p1"])
+          && Array.isArray((carried as Record<string, unknown>)["p2"])))
+        && (chest === undefined || (Array.isArray(chest)
+          && chest.every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && typeof entry[1] === "number")));
+    };
+    const validState = {
+      ...snapshot.state,
+      inventory: [["Wood", 4]],
+      multiplayerCarriedCrateIds: { p1: ["crate-1"], p2: [] },
+      chestInventory: [["Stone", 2]],
+    };
+    expect(parseMultiplayerMessage(envelope("snapshot", { ...snapshot, state: validState }), {
+      validateSnapshotState: validateSaveShape,
+    }).ok).toBe(true);
+    expect(parseMultiplayerMessage(envelope("snapshot", {
+      ...snapshot,
+      state: { ...validState, chestInventory: [null] },
+    }), {
+      validateSnapshotState: validateSaveShape,
+    })).toEqual({ ok: false, reason: "invalid payload" });
+    expect(parseMultiplayerMessage(envelope("snapshot", {
+      ...snapshot,
+      state: { ...validState, multiplayerCarriedCrateIds: { p1: 1, p2: [] } },
+    }), {
+      validateSnapshotState: validateSaveShape,
+    })).toEqual({ ok: false, reason: "invalid payload" });
+  });
 });
 
 describe("message ordering and revisions", () => {

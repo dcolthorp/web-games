@@ -206,9 +206,11 @@ export type ProtocolValidationResult<State = Record<string, unknown>, World = Re
   | { ok: true; message: AnyMultiplayerEnvelope<State, World> }
   | { ok: false; reason: string };
 
-export interface MultiplayerValidationOptions<State> {
+export interface MultiplayerValidationOptions<State, World = Record<string, unknown>> {
   /** Add the application schema after the protocol's bounded-data check. */
   validateSnapshotState?: (state: unknown) => state is State;
+  /** Add the application schema for dynamic world frames. */
+  validateWorldFrameData?: (world: unknown) => world is World;
 }
 
 interface UnknownRecord {
@@ -468,7 +470,10 @@ function isStatePatchPayload(value: unknown): value is StatePatchPayload {
     && isBoundedData(value.patch);
 }
 
-function isWorldFramePayload(value: unknown): value is WorldFramePayload {
+function isWorldFramePayload<World>(
+  value: unknown,
+  validateWorld?: (world: unknown) => world is World,
+): value is WorldFramePayload<World> {
   if (!isRecord(value) || !Array.isArray(value.players) || !Array.isArray(value.crates)) return false;
   const players = value.players;
   const crates = value.crates;
@@ -482,7 +487,8 @@ function isWorldFramePayload(value: unknown): value is WorldFramePayload {
     && crates.every(isReplicatedCrate)
     && hasUniqueCrateIds(crates)
     && isRecord(value.world)
-    && isBoundedData(value.world);
+    && isBoundedData(value.world)
+    && passesStateValidator(value.world, validateWorld);
 }
 
 function isResyncRequestPayload(value: unknown): value is ResyncRequestPayload {
@@ -508,10 +514,11 @@ function isDisconnectPayload(value: unknown): value is DisconnectPayload {
   return validReason && validRecovery;
 }
 
-function isPayloadForKind<State>(
+function isPayloadForKind<State, World>(
   kind: MultiplayerMessageKind,
   payload: unknown,
   validateState?: (state: unknown) => state is State,
+  validateWorld?: (world: unknown) => world is World,
 ): boolean {
   switch (kind) {
     case "hello": return isHelloPayload(payload);
@@ -522,7 +529,7 @@ function isPayloadForKind<State>(
     case "command-result": return isCommandResultPayload(payload);
     case "snapshot": return isSnapshotPayload(payload, validateState);
     case "state-patch": return isStatePatchPayload(payload);
-    case "world-frame": return isWorldFramePayload(payload);
+    case "world-frame": return isWorldFramePayload(payload, validateWorld);
     case "resync-request": return isResyncRequestPayload(payload);
     case "notice": return isNoticePayload(payload);
     case "disconnect": return isDisconnectPayload(payload);
@@ -532,7 +539,7 @@ function isPayloadForKind<State>(
 /** Parse untrusted PeerJS data into a protocol-v2 message. */
 export function parseMultiplayerMessage<State = Record<string, unknown>, World = Record<string, unknown>>(
   value: unknown,
-  options: MultiplayerValidationOptions<State> = {},
+  options: MultiplayerValidationOptions<State, World> = {},
 ): ProtocolValidationResult<State, World> {
   if (!isRecord(value)) return { ok: false, reason: "message is not an object" };
   if (value.protocol !== MULTIPLAYER_PROTOCOL_VERSION) return { ok: false, reason: "unsupported protocol" };
@@ -551,7 +558,9 @@ export function parseMultiplayerMessage<State = Record<string, unknown>, World =
   } else if (!isIdentifier(value.sessionEpoch)) {
     return { ok: false, reason: "missing session epoch" };
   }
-  if (!isPayloadForKind(kind, value.payload, options.validateSnapshotState)) return { ok: false, reason: "invalid payload" };
+  if (!isPayloadForKind(kind, value.payload, options.validateSnapshotState, options.validateWorldFrameData)) {
+    return { ok: false, reason: "invalid payload" };
+  }
   return { ok: true, message: value as unknown as AnyMultiplayerEnvelope<State, World> };
 }
 

@@ -6,6 +6,7 @@ import recoveredSaveOne from "./recovered-save-1.json";
 import {
   MAX_MULTIPLAYER_COLLECTION_ITEMS,
   MAX_MULTIPLAYER_CRATES,
+  MAX_MULTIPLAYER_COORDINATE,
   MULTIPLAYER_PROTOCOL_VERSION,
   createCommandResultCache,
   decideSnapshotAcceptance,
@@ -1175,6 +1176,12 @@ function resetMultiplayerProtocolState(): void {
 
 function pauseGuestForHostLoss(reason: string): void {
   if (multiplayerIsHost) return;
+  if (remotePlayerState) {
+    remotePlayerState = {
+      frame: { ...remotePlayerState.frame, connected: false },
+      updatedAt: performance.now(),
+    };
+  }
   if (multiplayerHostPaused) {
     scheduleGuestReconnect();
     return;
@@ -1245,6 +1252,7 @@ function sendMultiplayerMessage<K extends MultiplayerMessageKind>(
 function handleMultiplayerMessage(value: unknown, sourceConnection?: DataConnection): void {
   const parsed = parseMultiplayerMessage<Partial<SaveData>, MultiplayerWorldData>(value, {
     validateSnapshotState: isValidMultiplayerSaveData,
+    validateWorldFrameData: isValidMultiplayerWorldData,
   });
   if (!parsed.ok) return;
   const message = parsed.message;
@@ -1290,6 +1298,10 @@ function handleMultiplayerMessage(value: unknown, sourceConnection?: DataConnect
   } else if (message.kind !== "welcome" && message.senderSessionId !== multiplayerHostSenderId) {
     return;
   }
+  // After a liveness timeout, only a fresh welcome can resume the guest. A
+  // delayed frame from the old transport must not mark the ally online or
+  // apply a snapshot that clears multiplayerHostPaused.
+  if (!multiplayerIsHost && !multiplayerConnected && message.kind !== "welcome") return;
   if (multiplayerSeenMessageIds.has(message.messageId)) return;
   const lastSequence = multiplayerIncomingSequences.get(message.senderSessionId);
   if (!shouldAcceptSequence(lastSequence, message.sequence)) return;
@@ -1432,36 +1444,273 @@ function handleMultiplayerMessage(value: unknown, sourceConnection?: DataConnect
   }
 }
 
+const MULTIPLAYER_MAX_SAVE_STRING_LENGTH = 20_000;
+const MULTIPLAYER_MAX_RESOURCE_AMOUNT = 1_000_000_000;
+const MULTIPLAYER_CRATE_KINDS: readonly CrateKind[] = [
+  "supply", "wooden", "technology", "blood", "rainbow", "super", "hacker",
+];
+const MULTIPLAYER_COLLECTOR_STATES: readonly CollectorBot["state"][] = [
+  "idle", "outbound", "harvesting", "returning",
+];
+const MULTIPLAYER_COLLECTOR_SOURCES: readonly CollectorDrop["source"][] = [
+  "coconut", "blood-orange", "cow", "sheep",
+];
+
+interface MultiplayerValueRecord {
+  [key: string]: unknown;
+  name?: unknown;
+  amount?: unknown;
+  color?: unknown;
+  inventory?: unknown;
+  foodHealing?: unknown;
+  unlockCraftingTable?: unknown;
+  unlockEndgame?: unknown;
+  terrainGenerators?: unknown;
+  x?: unknown;
+  y?: unknown;
+  id?: unknown;
+  kind?: unknown;
+  material?: unknown;
+  landedAt?: unknown;
+  bobOffset?: unknown;
+  deliveredByCargoShip?: unknown;
+  multiplayerReward?: unknown;
+  angle?: unknown;
+  speed?: unknown;
+  shark?: unknown;
+  extraSharks?: unknown;
+  sharkDeleted?: unknown;
+  state?: unknown;
+  targetIslandIndex?: unknown;
+  waypointIndex?: unknown;
+  harvestUntil?: unknown;
+  stepOffset?: unknown;
+  waypoints?: unknown;
+  cargo?: unknown;
+  healing?: unknown;
+  count?: unknown;
+  source?: unknown;
+  onCompartment?: unknown;
+  width?: unknown;
+  height?: unknown;
+  raisedAt?: unknown;
+  bridgeBuilt?: unknown;
+  bridgeSourceKind?: unknown;
+  bridgeSourceIndex?: unknown;
+  p1?: unknown;
+  p2?: unknown;
+}
+
+function isMultiplayerRecord(value: unknown): value is MultiplayerValueRecord {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isMultiplayerFiniteNumber(value: unknown, minimum = -Infinity, maximum = Infinity): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
+}
+
+function isMultiplayerResourceAmount(value: unknown): value is number {
+  return isMultiplayerFiniteNumber(value, 0, MULTIPLAYER_MAX_RESOURCE_AMOUNT);
+}
+
+function isMultiplayerSaveString(value: unknown, maximum = MULTIPLAYER_MAX_SAVE_STRING_LENGTH): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+
+function isMultiplayerCoordinate(value: unknown): value is number {
+  return isMultiplayerFiniteNumber(value, -MAX_MULTIPLAYER_COORDINATE, MAX_MULTIPLAYER_COORDINATE);
+}
+
+function isMultiplayerNumberArray(value: unknown, minimum = -Infinity): value is number[] {
+  return Array.isArray(value)
+    && value.length <= MAX_MULTIPLAYER_COLLECTION_ITEMS
+    && value.every((item) => isMultiplayerFiniteNumber(item, minimum));
+}
+
+function isMultiplayerHealingArray(value: unknown): value is Array<1 | 99> {
+  return Array.isArray(value)
+    && value.length <= MAX_MULTIPLAYER_COLLECTION_ITEMS
+    && value.every((item) => item === 1 || item === 99);
+}
+
+function isMultiplayerInventoryEntries(value: unknown): value is [string, number][] {
+  return Array.isArray(value)
+    && value.length <= MAX_MULTIPLAYER_COLLECTION_ITEMS
+    && value.every((entry) => Array.isArray(entry)
+      && entry.length === 2
+      && isMultiplayerSaveString(entry[0], 80)
+      && isMultiplayerResourceAmount(entry[1]));
+}
+
+function isMultiplayerCrateMaterial(value: unknown): value is MaterialDrop {
+  return isMultiplayerRecord(value)
+    && isMultiplayerSaveString(value.name, 80)
+    && isMultiplayerResourceAmount(value.amount)
+    && isMultiplayerSaveString(value.color, 32);
+}
+
+function isMultiplayerCrateReward(value: unknown): value is MultiplayerCrateReward {
+  if (!isMultiplayerRecord(value) || !isMultiplayerRecord(value.inventory) || !isMultiplayerHealingArray(value.foodHealing)) return false;
+  const inventoryEntries = Object.entries(value.inventory);
+  return inventoryEntries.length <= MAX_MULTIPLAYER_COLLECTION_ITEMS
+    && inventoryEntries.every(([name, amount]) => isMultiplayerSaveString(name, 80) && isMultiplayerResourceAmount(amount))
+    && (value.unlockCraftingTable === undefined || typeof value.unlockCraftingTable === "boolean")
+    && (value.unlockEndgame === undefined || typeof value.unlockEndgame === "boolean")
+    && (value.terrainGenerators === undefined || isMultiplayerResourceAmount(value.terrainGenerators));
+}
+
+function isValidMultiplayerCrate(value: unknown): value is FloatingCrate {
+  if (!isMultiplayerRecord(value)
+    || !isMultiplayerCoordinate(value.x)
+    || !isMultiplayerCoordinate(value.y)
+    || !MULTIPLAYER_CRATE_KINDS.includes(value.kind as CrateKind)) return false;
+  return (value.id === undefined || isMultiplayerSaveString(value.id, 160))
+    && (value.material === undefined || isMultiplayerCrateMaterial(value.material))
+    && (value.landedAt === undefined || isMultiplayerFiniteNumber(value.landedAt))
+    && (value.bobOffset === undefined || isMultiplayerFiniteNumber(value.bobOffset))
+    && (value.deliveredByCargoShip === undefined || typeof value.deliveredByCargoShip === "boolean")
+    && (value.multiplayerReward === undefined || isMultiplayerCrateReward(value.multiplayerReward));
+}
+
+function isValidMultiplayerWorldPose(value: unknown, withSpeed: boolean): boolean {
+  if (!isMultiplayerRecord(value)
+    || !isMultiplayerCoordinate(value.x)
+    || !isMultiplayerCoordinate(value.y)
+    // Shark angles accumulate while the animal turns. They are not world
+    // coordinates, so a long voyage can validly exceed the coordinate limit.
+    || !isMultiplayerFiniteNumber(value.angle)) return false;
+  return !withSpeed || isMultiplayerFiniteNumber(value.speed, 0, MAX_MULTIPLAYER_COORDINATE);
+}
+
+function isValidMultiplayerWorldData(value: unknown): value is MultiplayerWorldData {
+  return isMultiplayerRecord(value)
+    && isValidMultiplayerWorldPose(value.shark, true)
+    && Array.isArray(value.extraSharks)
+    && value.extraSharks.length <= MAX_MULTIPLAYER_COLLECTION_ITEMS
+    && value.extraSharks.every((hunter) => isValidMultiplayerWorldPose(hunter, false))
+    && typeof value.sharkDeleted === "boolean";
+}
+
+function isValidMultiplayerCollectorBot(value: unknown): value is CollectorBot {
+  if (!isMultiplayerRecord(value)
+    || !isMultiplayerCoordinate(value.x)
+    || !isMultiplayerCoordinate(value.y)
+    || !MULTIPLAYER_COLLECTOR_STATES.includes(value.state as CollectorBot["state"])
+    || !Number.isSafeInteger(value.targetIslandIndex)
+    || !isMultiplayerFiniteNumber(value.waypointIndex, 0, MAX_MULTIPLAYER_COLLECTION_ITEMS)
+    || !isMultiplayerFiniteNumber(value.harvestUntil)
+    || !isMultiplayerFiniteNumber(value.stepOffset)
+    || !Array.isArray(value.waypoints)
+    || value.waypoints.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+    || !value.waypoints.every((waypoint) => isMultiplayerRecord(waypoint)
+      && isMultiplayerCoordinate(waypoint.x)
+      && isMultiplayerCoordinate(waypoint.y))) return false;
+  if (value.cargo === null) return true;
+  return isMultiplayerRecord(value.cargo)
+    && (value.cargo.healing === 1 || value.cargo.healing === 99)
+    && isMultiplayerResourceAmount(value.cargo.count)
+    && MULTIPLAYER_COLLECTOR_SOURCES.includes(value.cargo.source as CollectorDrop["source"]);
+}
+
+function isValidMultiplayerCollectorDrop(value: unknown): value is CollectorDrop {
+  return isMultiplayerRecord(value)
+    && isMultiplayerCoordinate(value.x)
+    && isMultiplayerCoordinate(value.y)
+    && (value.healing === 1 || value.healing === 99)
+    && isMultiplayerResourceAmount(value.count)
+    && MULTIPLAYER_COLLECTOR_SOURCES.includes(value.source as CollectorDrop["source"])
+    && typeof value.onCompartment === "boolean";
+}
+
+function isValidMultiplayerSunkenRaft(value: unknown): value is SunkenRaft {
+  if (!isMultiplayerRecord(value)
+    || !isMultiplayerCoordinate(value.x)
+    || !isMultiplayerCoordinate(value.y)
+    || !isMultiplayerFiniteNumber(value.width, 0, MAX_MULTIPLAYER_COORDINATE)
+    || !isMultiplayerFiniteNumber(value.height, 0, MAX_MULTIPLAYER_COORDINATE)
+    || !isMultiplayerFiniteNumber(value.raisedAt)
+    || !isMultiplayerFiniteNumber(value.bobOffset)
+    || typeof value.bridgeBuilt !== "boolean") return false;
+  return (value.bridgeSourceKind === undefined || value.bridgeSourceKind === "main" || value.bridgeSourceKind === "raft" || value.bridgeSourceKind === "island")
+    && (value.bridgeSourceIndex === undefined || Number.isSafeInteger(value.bridgeSourceIndex));
+}
+
 function isValidMultiplayerSaveData(value: unknown): value is Partial<SaveData> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const data = value as Partial<SaveData>;
-  if (data.version !== 1 || typeof data.elapsed !== "number" || !Number.isFinite(data.elapsed) || data.elapsed < 0) return false;
-  if (!Array.isArray(data.inventory) || data.inventory.length > 256) return false;
-  if (!data.inventory.every((entry) => Array.isArray(entry)
-    && entry.length === 2
-    && typeof entry[0] === "string"
-    && entry[0].length > 0
-    && entry[0].length <= 80
-    && typeof entry[1] === "number"
-    && Number.isFinite(entry[1])
-    && entry[1] >= 0)) return false;
-  if (!Array.isArray(data.crates) || data.crates.length > MAX_MULTIPLAYER_CRATES) return false;
-  if (!data.crates.every((crate) => crate !== null
-    && typeof crate === "object"
-    && typeof crate.id === "string"
-    && crate.id.length > 0
-    && typeof crate.x === "number"
-    && Number.isFinite(crate.x)
-    && typeof crate.y === "number"
-    && Number.isFinite(crate.y)
-    && ["supply", "wooden", "technology", "blood", "rainbow", "super", "hacker"].includes(crate.kind))) return false;
-  // Food is easy to hoard (super crates add 100 at a time). A cap that real
-  // sessions can reach would silently reject every snapshot, including the
-  // welcome, and permanently break joining. Match the protocol's bounded-data
-  // ceiling instead.
-  if (!Array.isArray(data.foodHealing) || data.foodHealing.length > MAX_MULTIPLAYER_COLLECTION_ITEMS || !data.foodHealing.every((value) => value === 1 || value === 99)) return false;
-  if (typeof data.raftLevel !== "number" || !Number.isSafeInteger(data.raftLevel) || data.raftLevel < 1) return false;
-  if (typeof data.expansionCount !== "number" || !Number.isSafeInteger(data.expansionCount) || data.expansionCount < 0) return false;
+  if (!isMultiplayerRecord(value)) return false;
+  const data = value as Partial<SaveData> & Record<string, unknown>;
+  if (data.version !== 1
+    || !isMultiplayerFiniteNumber(data.elapsed, 0)
+    || !isMultiplayerInventoryEntries(data.inventory)
+    || !Array.isArray(data.crates)
+    || data.crates.length > MAX_MULTIPLAYER_CRATES
+    || !data.crates.every(isValidMultiplayerCrate)
+    || !isMultiplayerHealingArray(data.foodHealing)
+    || !Number.isSafeInteger(data.raftLevel)
+    || (data.raftLevel as number) < 1
+    || !Number.isSafeInteger(data.expansionCount)
+    || (data.expansionCount as number) < 0) return false;
+
+  const nonNegativeNumbers = [
+    "nextSupplyIn", "nextRandomIn", "nextScoldIn", "nextCollectorRunIn", "nextAutoFishIn",
+    "sharkFleeIn", "nextShopkeeperIn", "shopkeeperRemaining",
+  ];
+  if (!nonNegativeNumbers.every((key) => data[key] === undefined || isMultiplayerFiniteNumber(data[key], 0))) return false;
+  const safeIntegers = [
+    "progressionIndex", "craftingTableLevel", "cargoShipCount", "collectorBotCount", "bridgesBuilt",
+    "chestCount", "terrainGenerators", "terrainLevel",
+  ];
+  if (!safeIntegers.every((key) => data[key] === undefined || (Number.isSafeInteger(data[key]) && (data[key] as number) >= 0))) return false;
+  const finiteNumbers = ["hearts", "spearDurability", "maxHearts", "cosmicTimeYears"];
+  if (!finiteNumbers.every((key) => data[key] === undefined || isMultiplayerFiniteNumber(data[key], 0))) return false;
+  const booleans = [
+    "hasCraftingTable", "hasCargoDock", "hasScoldBot", "hasSuperScoldBot", "hasStorageCompartment",
+    "endgameUnlocked", "hasHuntingSpear", "hasFishingRod", "hasFisherBot", "hasTimeWarper",
+  ];
+  if (!booleans.every((key) => data[key] === undefined || typeof data[key] === "boolean")) return false;
+
+  if (data.multiplayerCarriedCrateIds !== undefined) {
+    const ids = data.multiplayerCarriedCrateIds;
+    if (!isMultiplayerRecord(ids)
+      || !Array.isArray(ids.p1)
+      || !Array.isArray(ids.p2)
+      || ids.p1.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+      || ids.p2.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+      || !ids.p1.every((id) => isMultiplayerSaveString(id, 160))
+      || !ids.p2.every((id) => isMultiplayerSaveString(id, 160))) return false;
+  }
+  if (data.multiplayerCrateCatalog !== undefined
+    && (!Array.isArray(data.multiplayerCrateCatalog)
+      || data.multiplayerCrateCatalog.length > MAX_MULTIPLAYER_CRATES
+      || !data.multiplayerCrateCatalog.every(isValidMultiplayerCrate))) return false;
+  if (data.carriedCrates !== undefined
+    && (!Array.isArray(data.carriedCrates)
+      || data.carriedCrates.length > MAX_MULTIPLAYER_CRATES
+      || !data.carriedCrates.every(isValidMultiplayerCrate))) return false;
+  if (data.cargoShipCargo !== undefined
+    && (!Array.isArray(data.cargoShipCargo)
+      || data.cargoShipCargo.length > MAX_MULTIPLAYER_CRATES
+      || !data.cargoShipCargo.every(isValidMultiplayerCrate))) return false;
+  if (data.chestInventory !== undefined && !isMultiplayerInventoryEntries(data.chestInventory)) return false;
+  if (data.chestFoodHealing !== undefined && !isMultiplayerHealingArray(data.chestFoodHealing)) return false;
+  if (data.fishCollection !== undefined && !isMultiplayerInventoryEntries(data.fishCollection)) return false;
+  if (data.collectorBots !== undefined
+    && (!Array.isArray(data.collectorBots)
+      || data.collectorBots.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+      || !data.collectorBots.every(isValidMultiplayerCollectorBot))) return false;
+  if (data.collectorDrops !== undefined
+    && (!Array.isArray(data.collectorDrops)
+      || data.collectorDrops.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+      || !data.collectorDrops.every(isValidMultiplayerCollectorDrop))) return false;
+  if (data.sunkenRafts !== undefined
+    && (!Array.isArray(data.sunkenRafts)
+      || data.sunkenRafts.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+      || !data.sunkenRafts.every(isValidMultiplayerSunkenRaft))) return false;
+  if (data.coconutReadyIn !== undefined && !isMultiplayerNumberArray(data.coconutReadyIn)) return false;
+  if (data.animalReadyIn !== undefined && !isMultiplayerNumberArray(data.animalReadyIn)) return false;
+  if (data.fisherBotCatches !== undefined
+    && (!Array.isArray(data.fisherBotCatches)
+      || data.fisherBotCatches.length > MAX_MULTIPLAYER_COLLECTION_ITEMS
+      || !data.fisherBotCatches.every((name) => isMultiplayerSaveString(name, 160)))) return false;
   return true;
 }
 
@@ -2509,6 +2758,15 @@ function startGame(): void {
 }
 
 function togglePause(): void {
+  if (isGuestMultiplayer()) {
+    showMessage(
+      multiplayerHostGamePaused
+        ? "THE HOST CONTROLS THE SHARED PAUSE."
+        : "ONLY THE HOST CAN PAUSE A SHARED VOYAGE.",
+      3,
+    );
+    return;
+  }
   if (mode === "playing") {
     mode = "paused";
     keys.clear();
