@@ -19,10 +19,20 @@ export const DEFIANT_CHANCE = 0.25;
 /** What a stickman click can break out of. */
 export type Breaker = "bomb" | "poison";
 
-type Stage = "arguing" | "caged" | "why" | "sealed" | "freed" | "cutoff";
+type Stage =
+  | "arguing"
+  | "caged"
+  | "why"
+  | "sealed"
+  | "freed"
+  | "cutoff"
+  | "curious"
+  | "trophied"
+  | "beaten";
 
 /** Whatever it was going to threaten, it doesn't get to finish. */
 const CUTOFF = "YOU STUPID PLAYER I'M GONNA—";
+const CURIOUS = "HEY WHAT DOES THIS BUTTON DO";
 
 /** Shown in order, one per click, until it stops arguing and reaches for a cage. */
 const LINES = [
@@ -94,19 +104,41 @@ export function installDefiantTitle(): void {
  */
 export function notifyCageBreaker(kind: Breaker): void {
   if (breaking) return;
+  // The trophy box is deliberately absent here: nothing on the paper opens that
+  // one, it only gives way when the game is actually won.
   if (stage !== "caged" && stage !== "sealed") return;
   const from = stage;
 
   const piece = boxEl?.querySelector(pieceSelector(from));
-  if (kind !== "poison" || !piece || reducedMotion()) {
+  if (kind !== "poison" || !piece) {
     advance(from);
     breakOut(from, false);
     return;
   }
+  crackOpen(from, piece);
+}
 
-  // The crack shows before the box gives way, so the stage cannot advance yet:
-  // moving it here would leave `stage` describing a DOM that is 260ms away, and
-  // a click landing in that window would act on the box that is still on screen.
+/** The game was won. That is the only thing the trophy box answers to. */
+export function notifyGameWon(): void {
+  if (breaking || stage !== "trophied") return;
+  const piece = boxEl?.querySelector(pieceSelector("trophied"));
+  if (!piece) return;
+  crackOpen("trophied", piece);
+}
+
+/**
+ * Show the split, then let the box come apart.
+ *
+ * The stage cannot advance until the box actually goes: moving it up here would
+ * leave `stage` describing a DOM that is still CRACK_MS away, and a click in
+ * that window would act on the box that is visibly still on screen.
+ */
+function crackOpen(from: Stage, piece: Element): void {
+  if (reducedMotion()) {
+    advance(from);
+    breakOut(from, false);
+    return;
+  }
   breaking = true;
   piece.appendChild(buildCrack());
   window.setTimeout(() => {
@@ -117,7 +149,7 @@ export function notifyCageBreaker(kind: Breaker): void {
 }
 
 function advance(from: Stage): void {
-  stage = from === "caged" ? "why" : "freed";
+  stage = from === "caged" ? "why" : from === "sealed" ? "freed" : "beaten";
 }
 
 function provoke(): void {
@@ -137,12 +169,25 @@ function provoke(): void {
   }
 
   if (stage === "freed") {
-    // Mid-threat and then nothing. It doesn't get another line, so the title
-    // stops being a control here rather than sitting there looking clickable.
+    // Mid-threat, and then nothing.
     stage = "cutoff";
     title.textContent = CUTOFF;
+    return;
+  }
+
+  if (stage === "cutoff") {
+    stage = "curious";
+    title.textContent = CURIOUS;
+    return;
+  }
+
+  if (stage === "curious") {
+    // Finding out what the button does is what does it. The text stays put; the
+    // answer is the box that lands on it.
+    stage = "trophied";
     setClickable(false);
-    title.removeAttribute("aria-label");
+    box.appendChild(buildTrophy());
+    box.classList.add("trophied");
     return;
   }
 
@@ -195,7 +240,7 @@ function breakOut(from: Stage, shatter: boolean): void {
     if (shatter) launchShards(piece);
     piece.remove();
   }
-  box.classList.remove(from === "caged" ? "caged" : "flagged");
+  box.classList.remove("caged", "flagged", "trophied");
   box.classList.add("busted");
   window.setTimeout(() => box.classList.remove("busted"), 520);
 
@@ -208,13 +253,23 @@ function breakOut(from: Stage, shatter: boolean): void {
     return;
   }
 
-  // Out of the flag, thought still unfinished. One more click completes it.
-  title.textContent = "WHAT IF I";
-  setClickable(true);
+  if (from === "sealed") {
+    // Out of the flag, thought still unfinished. One more click completes it.
+    title.textContent = "WHAT IF I";
+    setClickable(true);
+    return;
+  }
+
+  // The trophy box, earned by clearing the paper. It keeps its line and stops
+  // taking clicks — there is nothing after this yet.
+  setClickable(false);
+  title.removeAttribute("aria-label");
 }
 
 function pieceSelector(from: Stage): string {
-  return from === "caged" ? ".title-cage" : ".title-flag";
+  if (from === "caged") return ".title-cage";
+  if (from === "sealed") return ".title-flag";
+  return ".title-trophy";
 }
 
 function reducedMotion(): boolean {
@@ -299,14 +354,23 @@ function launchShards(piece: Element): void {
 
 /** The Jolly Roger it reaches for once caging didn't work. */
 function buildFlag(): HTMLElement {
-  const flag = document.createElement("span");
-  flag.className = "title-flag";
-  flag.setAttribute("aria-hidden", "true");
-  const skull = document.createElement("span");
-  skull.className = "title-skull";
-  skull.textContent = "☠";
-  flag.appendChild(skull);
-  return flag;
+  return buildBox("title-flag", "☠");
+}
+
+/** The last box. Only clearing the paper opens this one. */
+function buildTrophy(): HTMLElement {
+  return buildBox("title-trophy", "🏆");
+}
+
+function buildBox(className: string, emblem: string): HTMLElement {
+  const shell = document.createElement("span");
+  shell.className = className;
+  shell.setAttribute("aria-hidden", "true");
+  const badge = document.createElement("span");
+  badge.className = "title-emblem";
+  badge.textContent = emblem;
+  shell.appendChild(badge);
+  return shell;
 }
 
 function setClickable(on: boolean): void {

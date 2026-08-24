@@ -1,4 +1,4 @@
-import { installDefiantTitle, isDefiant, notifyCageBreaker } from "./defiant";
+import { installDefiantTitle, isDefiant, notifyCageBreaker, notifyGameWon } from "./defiant";
 
 interface Stickman {
   element: HTMLButtonElement;
@@ -341,6 +341,8 @@ function finish(won: boolean, result?: string): void {
       ? "YOU GOT THEM ALL. the paper is safe."
       : result ?? "100 STICKMEN! they took over the paper.";
   }
+  // Clearing the paper is the only thing the trophy box gives way to.
+  if (won) notifyGameWon();
 }
 
 async function resetGame(): Promise<void> {
