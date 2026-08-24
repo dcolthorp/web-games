@@ -162,8 +162,8 @@ function breakOut(from: Stage): void {
     return;
   }
 
-  // Out of the flag. What it does next is not written yet.
-  title.textContent = "";
+  // Out of the flag, thought still unfinished. One more click completes it.
+  title.textContent = "WHAT IF I";
   setClickable(true);
 }
 
