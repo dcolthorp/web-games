@@ -78,15 +78,13 @@ export function installDefiantTitle(): void {
 
 /**
  * A stickman was clicked. If something is currently boxed around the title, this
- * is what breaks it. `delayMs` lets the bomb finish going off first.
+ * is what breaks it, on the spot.
  */
-export function notifyCageBreaker(_kind: Breaker, delayMs = 0): void {
+export function notifyCageBreaker(_kind: Breaker): void {
   if (stage !== "caged" && stage !== "sealed") return;
   const breaking = stage;
-  // Latch immediately so a second stickman during the blindness can't re-trigger.
   stage = breaking === "caged" ? "why" : "freed";
-  if (delayMs > 0) window.setTimeout(() => breakOut(breaking), delayMs);
-  else breakOut(breaking);
+  breakOut(breaking);
 }
 
 function provoke(): void {

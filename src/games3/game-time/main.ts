@@ -293,15 +293,15 @@ function bombAttack(id: number): void {
   updateHud();
   blindness?.classList.add("active");
   blindness?.setAttribute("aria-hidden", "false");
+  // Same frame as the flash, so the swap happens under cover. The flash animates
+  // through transparent, so anything left boxed around the title would show
+  // through it mid-blast.
+  notifyCageBreaker("bomb");
   window.clearTimeout(blindnessTimer);
   blindnessTimer = window.setTimeout(() => {
     blindness?.classList.remove("active");
     blindness?.setAttribute("aria-hidden", "true");
   }, BLINDNESS_MS);
-  // Whatever is boxed around the title gives way once the blast clears. Kept off
-  // the blindness timer on purpose: finish() cancels that one, and losing your
-  // last heart to a bomber should still blow the box open.
-  notifyCageBreaker("bomb", BLINDNESS_MS);
   if (hearts <= 0) {
     finish(false, "NO HEARTS LEFT! the bombers got you.");
     return;
