@@ -3,7 +3,7 @@
 body { min-height: 100vh; margin: 0; padding: 20px; background: radial-gradient(circle at top, #2d7184, #102c43 72%); }
 .paper-page { width: min(1120px, 100%); margin: 0 auto; }
 .back-link { display: inline-block; margin-bottom: 10px; color: #fff; font-weight: 900; }
-.note { position: relative; min-height: min(790px, calc(100vh - 78px)); padding: 50px 64px 48px 100px; overflow: hidden; background: url("../assets/crumpled-school-paper.png") center / 100% 100% no-repeat; filter: drop-shadow(12px 18px 8px rgba(0, 0, 0, 0.42)); }
+.note { position: relative; min-height: min(790px, calc(100vh - 78px)); padding: 88px 64px 48px 100px; overflow: hidden; background: url("../assets/crumpled-school-paper.png") center / 100% 100% no-repeat; filter: drop-shadow(12px 18px 8px rgba(0, 0, 0, 0.42)); }
 .game-header { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transform: rotate(-2deg); }
 .scribble { margin: 0 0 5px; color: #9b3044; font-size: 1.15rem; font-weight: 900; transform: rotate(1deg); }
@@ -48,5 +48,5 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .overlay.hidden { display: none; }
 .start { padding: 15px 28px; border: 4px solid #242a4f; background: #f1d85c; color: #242a4f; box-shadow: 5px 6px 0 #242a4f; font: 900 1.35rem inherit; cursor: pointer; transform: rotate(-2deg); }
 .message { max-width: 32rem; color: #9b3044; font-size: 1.35rem; font-weight: 900; }
-@media (max-width: 680px) { body { padding: 8px; } .note { min-height: 760px; padding: 42px 28px 34px 48px; background-size: cover; } .game-header { align-items: start; flex-direction: column; gap: 12px; } .stickman-field { height: 475px; } }
+@media (max-width: 680px) { body { padding: 8px; } .note { min-height: 760px; padding: 96px 28px 34px 48px; background-size: cover; } .game-header { align-items: start; flex-direction: column; gap: 12px; } .stickman-field { height: 475px; } }
 @media (prefers-reduced-motion: reduce) { .clicked-away, .faded-away, .poisoned-away, .burst-away { animation-duration: 1ms; } }
