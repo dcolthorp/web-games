@@ -1,4 +1,4 @@
-import { installDefiantTitle, isDefiant, notifyCageBreaker, notifyGameWon } from "./defiant";
+import { installDefiantTitle, isDefiant, notifyCageBreaker, notifyFieldCleared, notifyGameWon } from "./defiant";
 
 interface Stickman {
   element: HTMLButtonElement;
@@ -357,6 +357,9 @@ async function resetGame(): Promise<void> {
   stickmen.clear();
   collisionCooldowns.clear();
   field?.replaceChildren();
+  // That just wiped anything the title had painted onto the field, so let it
+  // put the blackout back rather than handing out a free escape.
+  notifyFieldCleared();
   nextId = 1;
   playing = true;
   previousFrame = performance.now();

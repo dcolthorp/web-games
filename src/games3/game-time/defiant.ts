@@ -28,11 +28,21 @@ type Stage =
   | "cutoff"
   | "curious"
   | "trophied"
-  | "beaten";
+  | "beaten"
+  | "blackout"
+  | "puzzle"
+  | "unlocked";
 
 /** Whatever it was going to threaten, it doesn't get to finish. */
 const CUTOFF = "YOU STUPID PLAYER I'M GONNA—";
 const CURIOUS = "HEY WHAT DOES THIS BUTTON DO";
+const IDEA = "I HAVE AN IDEA";
+const ALARM = "HEY WHAT'S HAPPENING?";
+
+/** Always six. Click them alphabetically to undo the blackout. */
+const PUZZLE_LETTERS = 6;
+const CURSOR_FALL_MS = 900;
+const BLACKOUT_MS = 700;
 
 /** Shown in order, one per click, until it stops arguing and reaches for a cage. */
 const LINES = [
@@ -118,6 +128,24 @@ export function notifyCageBreaker(kind: Breaker): void {
   crackOpen(from, piece);
 }
 
+/**
+ * The playfield was rebuilt. resetGame() clears every child of the field, which
+ * takes the blackout with it — so starting a new game would otherwise undo the
+ * sabotage for free, and the letter lock would be guarding nothing.
+ */
+export function notifyFieldCleared(): void {
+  if (stage === "puzzle") inkField();
+}
+
+function inkField(): void {
+  const field = document.getElementById("stickman-field");
+  if (!field || field.querySelector(".field-blackout")) return;
+  const ink = document.createElement("div");
+  ink.className = "field-blackout";
+  ink.setAttribute("aria-hidden", "true");
+  field.appendChild(ink);
+}
+
 /** The game was won. That is the only thing the trophy box answers to. */
 export function notifyGameWon(): void {
   if (breaking || stage !== "trophied") return;
@@ -149,7 +177,10 @@ function crackOpen(from: Stage, piece: Element): void {
 }
 
 function advance(from: Stage): void {
-  stage = from === "caged" ? "why" : from === "sealed" ? "freed" : "beaten";
+  if (from === "caged") stage = "why";
+  else if (from === "sealed") stage = "freed";
+  else if (from === "puzzle") stage = "unlocked";
+  else stage = "beaten";
 }
 
 function provoke(): void {
@@ -178,6 +209,12 @@ function provoke(): void {
   if (stage === "cutoff") {
     stage = "curious";
     title.textContent = CURIOUS;
+    return;
+  }
+
+  if (stage === "beaten") {
+    stage = "blackout";
+    sabotage();
     return;
   }
 
@@ -240,7 +277,7 @@ function breakOut(from: Stage, shatter: boolean): void {
     if (shatter) launchShards(piece);
     piece.remove();
   }
-  box.classList.remove("caged", "flagged", "trophied");
+  box.classList.remove("caged", "flagged", "trophied", "locked");
   box.classList.add("busted");
   window.setTimeout(() => box.classList.remove("busted"), 520);
 
@@ -260,8 +297,16 @@ function breakOut(from: Stage, shatter: boolean): void {
     return;
   }
 
-  // The trophy box, earned by clearing the paper. It keeps its line and stops
-  // taking clicks — there is nothing after this yet.
+  if (from === "trophied") {
+    // Earned by clearing the paper. It keeps its line and stays clickable —
+    // pressing it again is what sets off the blackout.
+    setClickable(true);
+    return;
+  }
+
+  // Out of the letter lock, and out of ideas. Nothing after this yet, so the
+  // title stops taking clicks rather than looking like a button that does
+  // nothing.
   setClickable(false);
   title.removeAttribute("aria-label");
 }
@@ -269,6 +314,7 @@ function breakOut(from: Stage, shatter: boolean): void {
 function pieceSelector(from: Stage): string {
   if (from === "caged") return ".title-cage";
   if (from === "sealed") return ".title-flag";
+  if (from === "puzzle") return ".title-lock";
   return ".title-trophy";
 }
 
@@ -350,6 +396,117 @@ function launchShards(piece: Element): void {
     );
     animation.onfinish = () => shard.remove();
   }
+}
+
+/**
+ * Its last idea: reach up with a cursor and black out the playfield. Something
+ * interrupts before it can enjoy that, and clamps a letter lock on it instead.
+ */
+function sabotage(): void {
+  const title = titleEl;
+  const box = boxEl;
+  const field = document.getElementById("stickman-field");
+  if (!title || !box) return;
+
+  title.textContent = IDEA;
+  setClickable(false);
+
+  const quick = reducedMotion();
+  const cursor = buildCursor();
+  document.body.appendChild(cursor);
+
+  const target = field?.getBoundingClientRect();
+  if (target) {
+    cursor.style.left = `${target.left + target.width / 2}px`;
+    cursor.style.top = `${target.top + target.height * 0.34}px`;
+    cursor.animate(
+      [
+        { transform: "translate(-50%, -140%) scale(1.25)", opacity: 0 },
+        { transform: "translate(-50%, -110%) scale(1.15)", opacity: 1, offset: 0.22 },
+        { transform: "translate(-50%, 0%) scale(1)", opacity: 1, offset: 0.82 },
+        { transform: "translate(-50%, 4%) scale(0.92)", opacity: 1 },
+      ],
+      { duration: quick ? 1 : CURSOR_FALL_MS, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" },
+    );
+  }
+
+  const fillAt = quick ? 1 : CURSOR_FALL_MS;
+  window.setTimeout(inkField, fillAt);
+
+  window.setTimeout(() => {
+    cursor.remove();
+    if (stage !== "blackout") return;
+    stage = "puzzle";
+    title.textContent = ALARM;
+    box.appendChild(buildLetterLock());
+    box.classList.add("locked");
+  }, fillAt + (quick ? 1 : BLACKOUT_MS));
+}
+
+/** The pointer it drives down onto the paper. */
+function buildCursor(): HTMLElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const holder = document.createElement("span");
+  holder.className = "sabotage-cursor";
+  holder.setAttribute("aria-hidden", "true");
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 32");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", "M2 1 L2 25 L8.5 19.5 L12.5 29 L16.5 27 L12.5 18 L21 17 Z");
+  svg.appendChild(path);
+  holder.appendChild(svg);
+  return holder;
+}
+
+/**
+ * Six random letters, shuffled on screen, cleared by clicking them in
+ * alphabetical order. A wrong letter drops all progress.
+ */
+function buildLetterLock(): HTMLElement {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const picked: string[] = [];
+  while (picked.length < PUZZLE_LETTERS) {
+    picked.push(...alphabet.splice(Math.floor(Math.random() * alphabet.length), 1));
+  }
+  const order = [...picked].sort();
+
+  const lock = document.createElement("span");
+  lock.className = "title-lock";
+  let progress = 0;
+
+  for (const letter of picked) {
+    const key = document.createElement("button");
+    key.type = "button";
+    key.className = "lock-letter";
+    key.textContent = letter;
+    key.setAttribute("aria-label", `letter ${letter}`);
+    key.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (key.classList.contains("done")) return;
+      if (letter !== order[progress]) {
+        progress = 0;
+        for (const other of lock.querySelectorAll(".lock-letter")) other.classList.remove("done");
+        key.classList.remove("wrong");
+        void key.offsetWidth;
+        key.classList.add("wrong");
+        return;
+      }
+      key.classList.add("done");
+      progress += 1;
+      if (progress >= order.length) solveLock();
+    });
+    lock.appendChild(key);
+  }
+  return lock;
+}
+
+/** Lock cleared: the box comes apart and the playfield comes back. */
+function solveLock(): void {
+  if (breaking || stage !== "puzzle") return;
+  const piece = boxEl?.querySelector(pieceSelector("puzzle"));
+  if (!piece) return;
+  document.querySelector(".field-blackout")?.remove();
+  crackOpen("puzzle", piece);
 }
 
 /** The Jolly Roger it reaches for once caging didn't work. */
