@@ -11,9 +11,7 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 /* "don't click on me" mode: the title argues back, then seals itself shut. */
 /* The lines vary a lot in length, so the box is sized once for the longest of
    them and never resizes — otherwise the header lurches on every click. */
-/* Lifted above .overlay, which covers the whole note before the game starts and
-   would otherwise swallow every click aimed at the title. */
-.title-box { position: relative; z-index: 3; display: inline-flex; align-items: flex-start; min-height: 2.05em; font-size: clamp(2rem, 4.6vw, 3.8rem); }
+.title-box { position: relative; display: inline-flex; align-items: flex-start; min-height: 2.05em; font-size: clamp(2rem, 4.6vw, 3.8rem); }
 .title-box h1 { font-size: inherit; }
 .title-clickable { cursor: pointer; }
 .title-clickable:focus-visible { outline: 4px dashed #9b3044; outline-offset: 6px; }
@@ -68,7 +66,12 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 .blindness { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; background: #08080b; color: #ffda53; font-size: clamp(4rem, 18vw, 12rem); font-weight: 900; pointer-events: none; }
 .blindness.active { display: grid; animation: blind-flash 5s steps(2, end) forwards; }
 @keyframes blind-flash { 0% { background: #fff; color: #111; } 8%, 92% { background: #08080b; color: #ffda53; } 100% { opacity: 0; } }
-.overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; padding: 30px; background: rgba(245, 240, 221, 0.72); text-align: center; }
+/* The scrim dims the whole note, so it must keep painting over the title — but
+   it should not swallow clicks aimed at what's underneath it. Only its own
+   controls take pointer input. (Clicking a stickman through it is already a
+   no-op: removeStickman() bails unless a game is running.) */
+.overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; padding: 30px; background: rgba(245, 240, 221, 0.72); text-align: center; pointer-events: none; }
+.overlay > * { pointer-events: auto; }
 .overlay.hidden { display: none; }
 .start { padding: 15px 28px; border: 4px solid #242a4f; background: #f1d85c; color: #242a4f; box-shadow: 5px 6px 0 #242a4f; font: 900 1.35rem inherit; cursor: pointer; transform: rotate(-2deg); }
 .message { max-width: 32rem; color: #9b3044; font-size: 1.35rem; font-weight: 900; }
