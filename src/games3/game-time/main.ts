@@ -382,4 +382,19 @@ async function resetGame(): Promise<void> {
 
 startButton?.addEventListener("click", () => void resetGame());
 
-if (isDefiant()) installDefiantTitle();
+/**
+ * The title blacking out the paper takes every stickman with it. Deliberately
+ * not routed through removeStickman(): that would read as the player clearing
+ * the board and hand them a win they didn't earn.
+ */
+function eraseStickmen(): void {
+  for (const stickman of stickmen.values()) {
+    for (const timer of stickman.timers) window.clearTimeout(timer);
+    stickman.element.remove();
+  }
+  stickmen.clear();
+  collisionCooldowns.clear();
+  updateHud();
+}
+
+if (isDefiant()) installDefiantTitle(eraseStickmen);

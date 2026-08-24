@@ -68,6 +68,8 @@ let breaking = false;
 let step = 0;
 let titleEl: HTMLHeadingElement | null = null;
 let boxEl: HTMLElement | null = null;
+/** Wipes every stickman off the paper. Supplied by the game. */
+let eraseStickmen: (() => void) | null = null;
 
 export function rollDefiant(): boolean {
   const defiant = Math.random() < DEFIANT_CHANCE;
@@ -80,9 +82,10 @@ export function isDefiant(): boolean {
   return localStorage.getItem(DEFIANT_KEY) === "true";
 }
 
-export function installDefiantTitle(): void {
+export function installDefiantTitle(onErase?: () => void): void {
   const title = document.getElementById("game-title");
   if (!(title instanceof HTMLHeadingElement)) return;
+  eraseStickmen = onErase ?? null;
 
   document.title = "Don't Click on Me";
   title.textContent = LINES[0]!;
@@ -134,16 +137,20 @@ export function notifyCageBreaker(kind: Breaker): void {
  * sabotage for free, and the letter lock would be guarding nothing.
  */
 export function notifyFieldCleared(): void {
-  if (stage === "puzzle") inkField();
+  // Restoring the ink after a restart, not spilling it — the stickmen the game
+  // is about to spawn are allowed to live.
+  if (stage === "puzzle") inkField(false);
 }
 
-function inkField(): void {
+function inkField(erase: boolean): void {
   const field = document.getElementById("stickman-field");
   if (!field || field.querySelector(".field-blackout")) return;
   const ink = document.createElement("div");
   ink.className = "field-blackout";
   ink.setAttribute("aria-hidden", "true");
   field.appendChild(ink);
+  // Whatever was walking around under there goes with it.
+  if (erase) eraseStickmen?.();
 }
 
 /** The game was won. That is the only thing the trophy box answers to. */
@@ -431,7 +438,7 @@ function sabotage(): void {
   }
 
   const fillAt = quick ? 1 : CURSOR_FALL_MS;
-  window.setTimeout(inkField, fillAt);
+  window.setTimeout(() => inkField(true), fillAt);
 
   window.setTimeout(() => {
     cursor.remove();
