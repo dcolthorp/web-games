@@ -19,7 +19,10 @@ export const DEFIANT_CHANCE = 0.25;
 /** What a stickman click can break out of. */
 export type Breaker = "bomb" | "poison";
 
-type Stage = "arguing" | "caged" | "why" | "sealed" | "freed";
+type Stage = "arguing" | "caged" | "why" | "sealed" | "freed" | "cutoff";
+
+/** Whatever it was going to threaten, it doesn't get to finish. */
+const CUTOFF = "YOU STUPID PLAYER I'M GONNA—";
 
 /** Shown in order, one per click, until it stops arguing and reaches for a cage. */
 const LINES = [
@@ -130,6 +133,16 @@ function provoke(): void {
     setClickable(false);
     box.appendChild(buildFlag());
     box.classList.add("flagged");
+    return;
+  }
+
+  if (stage === "freed") {
+    // Mid-threat and then nothing. It doesn't get another line, so the title
+    // stops being a control here rather than sitting there looking clickable.
+    stage = "cutoff";
+    title.textContent = CUTOFF;
+    setClickable(false);
+    title.removeAttribute("aria-label");
     return;
   }
 
