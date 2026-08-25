@@ -42,6 +42,22 @@ export const FRONT_YARD: Body = {
 
 export const PLANETS: Body[] = [
   {
+    id: "sun",
+    name: "The Sun",
+    glyph: "☀️",
+    // Really is 28 times Earth's pull. The air is cartoon-thick on purpose:
+    // without it you'd fall so fast you'd be an unreadable streak, and the
+    // joke here is that you are pinned, not that you are fast.
+    gravity: 8370,
+    air: 1e-24,
+    skyTop: "#fff3b0",
+    skyBottom: "#ff4d16",
+    haze: "255, 245, 200",
+    hazeAlpha: 0.3,
+    hazeCount: 20,
+    fact: "Twenty-eight times Earth's gravity, and the plasma is thicker than treacle. You can barely twitch. Nobody said you could land here — only that you could go.",
+  },
+  {
     id: "mercury",
     name: "Mercury",
     glyph: "🌑",

@@ -15,6 +15,7 @@ describe("planets", () => {
   /** The numbers on the star map are shown to a child. They should be true. */
   it("matches real surface gravity to two decimals", () => {
     const real: Record<string, string> = {
+      sun: "27.90g",
       mercury: "0.38g",
       venus: "0.90g",
       earth: "1.00g",
@@ -29,6 +30,13 @@ describe("planets", () => {
     for (const [id, label] of Object.entries(real)) {
       expect(gravityLabel(planetById(id)!)).toBe(label);
     }
+  });
+
+  it("makes the Sun the one place you cannot get off the floor", () => {
+    const sun = planetById("sun")!;
+    expect(sun.gravity).toBeGreaterThan(planetById("jupiter")!.gravity);
+    // Air this thick means a full squeeze barely shifts you.
+    expect(sun.air).toBeLessThan(0.01);
   });
 
   it("keeps the Moon floatier than Earth and Jupiter heavier", () => {
