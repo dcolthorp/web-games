@@ -12,7 +12,7 @@ import { FRONT_YARD, gravityLabel, PLANETS, type Body } from "./planets";
 import { playWarp } from "./sfx";
 import { WORLDS } from "./worlds";
 import { createYard } from "./yard";
-import { BREAK_POINT, clicksInWindow, formatVelocity, prune, velocityFor } from "./velocity";
+import { BREAK_POINT, fartsInWindow, formatVelocity, prune, velocityFor } from "./velocity";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#farttopia")!;
 const context = canvas.getContext("2d")!;
@@ -26,7 +26,7 @@ const starGrid = document.querySelector<HTMLElement>("#star-grid")!;
 const starClose = document.querySelector<HTMLButtonElement>("#star-close")!;
 const starOpen = document.querySelector<HTMLButtonElement>("#star-open")!;
 const planetGravity = document.querySelector<HTMLElement>("#planet-gravity")!;
-const velocityMeter = document.querySelector<HTMLButtonElement>("#velocity")!;
+const velocityMeter = document.querySelector<HTMLElement>("#velocity")!;
 const velocityValue = document.querySelector<HTMLElement>("#velocity-value")!;
 const velocityRate = document.querySelector<HTMLElement>("#velocity-rate")!;
 
@@ -39,10 +39,16 @@ const WARP_MS = 520;
 const PLANET_CONTROLS =
   "Hold {Space} to squeeze, aim with {←} {→}. The gravity here is not the gravity you're used to. {★ Star map} to move on.";
 
-const yard = createYard(context, W, H, {
-  charge: document.querySelector<HTMLElement>("#charge-fill")!,
-  farts: document.querySelector<HTMLElement>("#fart-count")!,
-});
+const yard = createYard(
+  context,
+  W,
+  H,
+  {
+    charge: document.querySelector<HTMLElement>("#charge-fill")!,
+    farts: document.querySelector<HTMLElement>("#fart-count")!,
+  },
+  recordFart,
+);
 
 const city = createCity(
   context,
@@ -54,6 +60,7 @@ const city = createCity(
     place: document.querySelector<HTMLElement>("#place-name")!,
   },
   openStarMap,
+  recordFart,
 );
 
 type Place = { kind: "yard" | "city" | "planet"; body: Body };
@@ -203,21 +210,21 @@ teleportButton.addEventListener("click", () => {
 
 // ---- the velocity meter ------------------------------------------------
 
-let clickTimes: number[] = [];
+let fartTimes: number[] = [];
 let peakVelocity = 0;
 let brokenThrough = false;
 
-velocityMeter.addEventListener("click", () => {
+/** Every fart, anywhere — the yard, the city, or a planet — feeds the meter. */
+function recordFart(): void {
   const now = performance.now();
-  clickTimes = prune(clickTimes, now);
-  clickTimes.push(now);
+  fartTimes = prune(fartTimes, now);
+  fartTimes.push(now);
   drawVelocity(now);
-  velocityMeter.blur();
-});
+}
 
 function drawVelocity(now: number): void {
-  const clicks = clicksInWindow(clickTimes, now);
-  const velocity = velocityFor(clicks);
+  const farts = fartsInWindow(fartTimes, now);
+  const velocity = velocityFor(farts);
   if (velocity > peakVelocity) peakVelocity = velocity;
 
   velocityValue.textContent = formatVelocity(velocity);
@@ -231,11 +238,11 @@ function drawVelocity(now: number): void {
   }
 
   if (brokenThrough) {
-    velocityRate.textContent = `${clicks}/sec · you broke ${BREAK_POINT} — peak ${formatVelocity(peakVelocity)}`;
-  } else if (clicks === 0) {
-    velocityRate.textContent = "Click. Keep clicking. Every click in the same second doubles it.";
+    velocityRate.textContent = `${farts}/sec · you broke ${BREAK_POINT} — peak ${formatVelocity(peakVelocity)}`;
+  } else if (farts === 0) {
+    velocityRate.textContent = "Fart to build velocity. Every fart in the same second doubles it.";
   } else {
-    velocityRate.textContent = `${clicks} click${clicks === 1 ? "" : "s"} this second · best so far ${formatVelocity(peakVelocity)}`;
+    velocityRate.textContent = `${farts} fart${farts === 1 ? "" : "s"} this second · best so far ${formatVelocity(peakVelocity)}`;
   }
 }
 

@@ -42,6 +42,7 @@ export function createCity(
   viewH: number,
   hud: { coins: HTMLElement; quests: HTMLElement; place: HTMLElement },
   onTelescope: () => void,
+  onFart: () => void,
 ): City {
   const questById = new Map(QUESTS.map((quest) => [quest.id, quest]));
   let log: QuestLog = createLog(QUESTS);
@@ -235,6 +236,7 @@ export function createCity(
       return;
     }
     playFart(0.7);
+    onFart();
     for (let i = 0; i < 16; i += 1) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 30 + Math.random() * 90;

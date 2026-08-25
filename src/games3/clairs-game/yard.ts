@@ -31,6 +31,7 @@ export function createYard(
   W: number,
   H: number,
   hud: { charge: HTMLElement; farts: HTMLElement },
+  onFart: () => void,
 ): Yard {
   let body: Body = FRONT_YARD;
   const player = { x: W / 2, y: H / 2, vx: 0, vy: 0, aim: -Math.PI / 2, lean: 0 };
@@ -73,6 +74,7 @@ export function createYard(
     playFart(power);
     farts += 1;
     hud.farts.textContent = `FARTS ${farts}`;
+    onFart();
     charge = 0;
   }
 

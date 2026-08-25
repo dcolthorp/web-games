@@ -385,12 +385,7 @@ body:not([data-world="planet"]) .planet-only {
   color: #d8ecff;
   font: inherit;
   text-align: center;
-  cursor: pointer;
   transition: border-color 120ms ease, background 120ms ease;
-}
-
-.velocity-meter:active {
-  background: rgba(24, 52, 66, 0.95);
 }
 
 .velocity-label {

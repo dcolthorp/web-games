@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { BREAK_POINT, clicksInWindow, formatVelocity, prune, velocityFor } from "./velocity";
+import { BREAK_POINT, fartsInWindow, formatVelocity, prune, velocityFor } from "./velocity";
 
 describe("velocityFor", () => {
-  it("follows the rule: one, two, four, and doubling after that", () => {
+  it("follows the rule: one fart is 1, two is 2, three is 4, doubling on", () => {
     expect(velocityFor(1)).toBe(1);
     expect(velocityFor(2)).toBe(2);
     expect(velocityFor(3)).toBe(4);
@@ -10,19 +10,19 @@ describe("velocityFor", () => {
     expect(velocityFor(5)).toBe(16);
   });
 
-  it("is standing still with no clicks", () => {
+  it("is standing still with no farts", () => {
     expect(velocityFor(0)).toBe(0);
     expect(velocityFor(-3)).toBe(0);
   });
 
   it("doubles every single step, all the way up", () => {
-    for (let clicks = 2; clicks <= 40; clicks += 1) {
-      expect(velocityFor(clicks)).toBe(velocityFor(clicks - 1) * 2);
+    for (let farts = 2; farts <= 40; farts += 1) {
+      expect(velocityFor(farts)).toBe(velocityFor(farts - 1) * 2);
     }
   });
 
   /** The values are powers of two, so nothing lands on exactly 100. */
-  it("clears the break point on the eighth click, not the seventh", () => {
+  it("clears the break point on the eighth fart, not the seventh", () => {
     expect(velocityFor(7)).toBe(64);
     expect(velocityFor(7)).toBeLessThan(BREAK_POINT);
     expect(velocityFor(8)).toBe(128);
@@ -31,23 +31,23 @@ describe("velocityFor", () => {
 });
 
 describe("the one second window", () => {
-  it("counts only the clicks from the last second", () => {
+  it("counts only the farts from the last second", () => {
     const now = 10_000;
     const times = [8_500, 9_100, 9_600, 9_990];
-    expect(clicksInWindow(times, now)).toBe(3);
+    expect(fartsInWindow(times, now)).toBe(3);
   });
 
-  it("drops to nothing once you stop clicking", () => {
-    expect(clicksInWindow([1_000, 1_200], 5_000)).toBe(0);
-    expect(velocityFor(clicksInWindow([1_000, 1_200], 5_000))).toBe(0);
+  it("drops to nothing once you stop farting", () => {
+    expect(fartsInWindow([1_000, 1_200], 5_000)).toBe(0);
+    expect(velocityFor(fartsInWindow([1_000, 1_200], 5_000))).toBe(0);
   });
 
-  it("throws away stale clicks rather than keeping them forever", () => {
+  it("throws away stale farts rather than keeping them forever", () => {
     expect(prune([0, 500, 9_800, 9_900], 10_000)).toEqual([9_800, 9_900]);
   });
 
-  it("counts a click made this very instant", () => {
-    expect(clicksInWindow([10_000], 10_000)).toBe(1);
+  it("counts a fart let go this very instant", () => {
+    expect(fartsInWindow([10_000], 10_000)).toBe(1);
   });
 });
 
