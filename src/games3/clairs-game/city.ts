@@ -57,6 +57,8 @@ export function createCity(
   let bubble: Bubble | null = null;
   let banner = "";
   let bannerLeft = 0;
+  /** Stops the guards repeating themselves every single frame. */
+  let refusalCooldown = 0;
   const keys = new Set<string>();
 
   window.addEventListener("keydown", (event) => keys.add(event.key.toLowerCase()));
@@ -75,7 +77,27 @@ export function createCity(
     if (x < PLAYER_R || y < PLAYER_R || x > scene.w - PLAYER_R || y > scene.h - PLAYER_R) return true;
     for (const prop of scene.props) if (prop.solid && overlaps(x, y, prop.rect)) return true;
     for (const building of scene.buildings) if (overlaps(x, y, building.rect)) return true;
+    if (scene.gate && !duke && overlaps(x, y, scene.gate.rect)) return true;
     return false;
+  }
+
+  /** The strip of road just west of the gate, where the guards stop you. */
+  function approachTo(rect: Rect): Rect {
+    return { x: rect.x - 52, y: rect.y, w: 52, h: rect.h };
+  }
+
+  function nearestGuard(): NPC | null {
+    let best: NPC | null = null;
+    let bestDistance = Infinity;
+    for (const npc of scene.npcs) {
+      if (!npc.id.startsWith("guard")) continue;
+      const distance = (npc.x - player.x) ** 2 + (npc.y - player.y) ** 2;
+      if (distance < bestDistance) {
+        best = npc;
+        bestDistance = distance;
+      }
+    }
+    return best;
   }
 
   function near(npc: NPC, range: number): boolean {
@@ -101,6 +123,25 @@ export function createCity(
       if (inside) goTo(building.goesTo, inside.entrance);
       return;
     }
+    const gate = scene.gate;
+    if (gate) {
+      if (duke && overlaps(player.x, player.y, gate.rect)) {
+        const beyond = SCENES[gate.goesTo];
+        if (beyond) {
+          goTo(gate.goesTo, beyond.entrance);
+          return;
+        }
+      }
+      // Bumping into it is what sets the guard off.
+      if (!duke && overlaps(player.x, player.y, approachTo(gate.rect)) && refusalCooldown <= 0) {
+        const guard = nearestGuard();
+        if (guard) {
+          say(guard, gate.refusal);
+          refusalCooldown = 4;
+        }
+      }
+    }
+
     const exit = scene.exit;
     if (exit && overlaps(player.x, player.y, exit.rect)) goTo(exit.goesTo, exit.arrive);
   }
@@ -132,6 +173,11 @@ export function createCity(
         say(npc, `Bring me ${DUKE_PRICE} coins and I'll make you a duke. You have ${coins}.`);
       }
       refreshHud();
+      return;
+    }
+
+    if (npc.id.startsWith("guard") && scene.gate) {
+      say(npc, duke ? scene.gate.welcome : scene.gate.refusal);
       return;
     }
 
@@ -311,6 +357,7 @@ export function createCity(
       bubble.left -= dt;
       if (bubble.left <= 0) bubble = null;
     }
+    if (refusalCooldown > 0) refusalCooldown -= dt;
     if (bannerLeft > 0) {
       bannerLeft -= dt;
       if (bannerLeft <= 0) banner = "";
@@ -364,6 +411,31 @@ export function createCity(
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(building.name.toUpperCase(), x + rect.w / 2, y + 27);
+    }
+  }
+
+  function drawGate(): void {
+    const gate = scene.gate;
+    if (!gate) return;
+    const { rect } = gate;
+    drawRect(rect, duke ? "#6d5a3a" : "#3d3648", false);
+    const x = rect.x - camera.x;
+    const y = rect.y - camera.y;
+    // Bars stand across the road when it's shut, and fold to the edges when open.
+    context.strokeStyle = duke ? "#ffd166" : "#9aa2b8";
+    context.lineWidth = 5;
+    context.lineCap = "round";
+    for (let i = 0; i < 5; i += 1) {
+      const along = y + 14 + i * ((rect.h - 28) / 4);
+      context.beginPath();
+      if (duke) {
+        context.moveTo(x + 4, along);
+        context.lineTo(x + 14, along);
+      } else {
+        context.moveTo(x + 4, along);
+        context.lineTo(x + rect.w - 4, along);
+      }
+      context.stroke();
     }
   }
 
@@ -467,6 +539,10 @@ export function createCity(
   }
 
   function doorUnderfoot(): string {
+    const gate = scene.gate;
+    if (gate && overlaps(player.x, player.y, approachTo(gate.rect))) {
+      return duke ? "The gate is open — walk through" : "The gate is shut";
+    }
     for (const building of scene.buildings) {
       const close = { ...building.door, y: building.door.y + 20, h: building.door.h + 40 };
       if (overlaps(player.x, player.y, close)) return `Walk up into ${building.name}`;
@@ -492,6 +568,7 @@ export function createCity(
     drawGround();
     for (const prop of scene.props) drawRect(prop.rect, prop.color, prop.round ?? false, prop.label);
     if (scene.exit) drawRect(scene.exit.rect, "#3a2a1e", false, "🚪");
+    drawGate();
     drawBuildings();
 
     const bob = Math.sin(player.step) * 3;

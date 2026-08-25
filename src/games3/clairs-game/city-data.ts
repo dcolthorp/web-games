@@ -57,6 +57,13 @@ export type Scene = {
   exit?: { rect: Rect; goesTo: string; arrive: { x: number; y: number } };
   /** Where you land when you walk in the door. */
   entrance: { x: number; y: number };
+  /** A way out that only opens for the Duke. */
+  gate?: {
+    rect: Rect;
+    goesTo: string;
+    refusal: string;
+    welcome: string;
+  };
 };
 
 export const QUESTS: QuestDef[] = [
@@ -139,7 +146,17 @@ export const CITY: Scene = {
     { rect: { x: 640, y: 180, w: 60, h: 60 }, color: "#2f5540", solid: true, round: true },
     { rect: { x: 1660, y: 460, w: 60, h: 60 }, color: "#2f5540", solid: true, round: true },
     { rect: { x: 700, y: 980, w: 60, h: 60 }, color: "#2f5540", solid: true, round: true },
+    // The wall across the east end. The only gap in it is the gate.
+    { rect: { x: 1690, y: 22, w: 40, h: 518 }, color: "#5c5060", solid: true },
+    { rect: { x: 1690, y: 670, w: 40, h: 508 }, color: "#5c5060", solid: true },
   ],
+  gate: {
+    rect: { x: 1690, y: 540, w: 40, h: 130 },
+    goesTo: "observatory",
+    refusal:
+      "Whoa, whoa, whoa — hey. Hey. You can't just go in there unless you're the Duke of Farttopia.",
+    welcome: "Your Grace! Open her up. Mind the steps on the way in.",
+  },
   buildings: [
     {
       id: "hospital",
@@ -208,6 +225,22 @@ export const CITY: Scene = {
       color: "#f0a5c8",
       tag: "cat",
       lines: ["*the cat does not respond to words*"],
+    },
+    {
+      id: "guard-north",
+      name: "Guard Huff",
+      x: 1630,
+      y: 566,
+      color: "#c8d0e0",
+      lines: ["Observatory's not for everyone. It's for the Duke."],
+    },
+    {
+      id: "guard-south",
+      name: "Guard Puff",
+      x: 1630,
+      y: 646,
+      color: "#c8d0e0",
+      lines: ["I don't make the rules. I just stand in front of them."],
     },
     {
       id: "mayor",
@@ -359,10 +392,49 @@ export const HALL: Scene = {
   ],
 };
 
+export const OBSERVATORY: Scene = {
+  id: "observatory",
+  name: "The Observatory",
+  w: 960,
+  h: 560,
+  ground: ["#1b1436", "#0d1b2e"],
+  entrance: { x: 480, y: 470 },
+  exit: { rect: { x: 430, y: 520, w: 100, h: 40 }, goesTo: "city", arrive: { x: 1640, y: 605 } },
+  props: [
+    { rect: { x: 0, y: 0, w: 960, h: 18 }, color: "#3a3158", solid: true },
+    { rect: { x: 0, y: 0, w: 18, h: 560 }, color: "#3a3158", solid: true },
+    { rect: { x: 942, y: 0, w: 18, h: 560 }, color: "#3a3158", solid: true },
+    { rect: { x: 0, y: 542, w: 430, h: 18 }, color: "#3a3158", solid: true },
+    { rect: { x: 530, y: 542, w: 430, h: 18 }, color: "#3a3158", solid: true },
+    // The dome, open to the sky.
+    { rect: { x: 300, y: 60, w: 360, h: 200 }, color: "#101a33", solid: false, round: true, label: "✨" },
+    { rect: { x: 420, y: 250, w: 130, h: 110 }, color: "#8d7fc4", solid: true, label: "🔭" },
+    { rect: { x: 110, y: 380, w: 120, h: 70 }, color: "#2a2350", solid: true, label: "🪐" },
+    { rect: { x: 740, y: 380, w: 120, h: 70 }, color: "#2a2350", solid: true, label: "🌙" },
+  ],
+  buildings: [],
+  npcs: [
+    {
+      id: "professor",
+      name: "Professor Gust",
+      x: 700,
+      y: 250,
+      color: "#a4d66a",
+      lines: [
+        "Nobody comes up here. That's rather the point of the guards.",
+        "From this height you can see the whole city breathing. In. Out. In.",
+        "There's a green haze over the hospital tonight. That'll be your doing.",
+        "Duke. Have a look through the big one. Don't lean on it.",
+      ],
+    },
+  ],
+};
+
 export const SCENES: Record<string, Scene> = {
   city: CITY,
   hospital: HOSPITAL,
   bakery: BAKERY,
   gym: GYM,
   hall: HALL,
+  observatory: OBSERVATORY,
 };
