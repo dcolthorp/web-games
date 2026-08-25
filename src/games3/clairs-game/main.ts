@@ -12,6 +12,7 @@ import { FRONT_YARD, gravityLabel, PLANETS, type Body } from "./planets";
 import { playWarp } from "./sfx";
 import { WORLDS } from "./worlds";
 import { createYard } from "./yard";
+import { BREAK_POINT, clicksInWindow, formatVelocity, prune, velocityFor } from "./velocity";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#farttopia")!;
 const context = canvas.getContext("2d")!;
@@ -25,6 +26,9 @@ const starGrid = document.querySelector<HTMLElement>("#star-grid")!;
 const starClose = document.querySelector<HTMLButtonElement>("#star-close")!;
 const starOpen = document.querySelector<HTMLButtonElement>("#star-open")!;
 const planetGravity = document.querySelector<HTMLElement>("#planet-gravity")!;
+const velocityMeter = document.querySelector<HTMLButtonElement>("#velocity")!;
+const velocityValue = document.querySelector<HTMLElement>("#velocity-value")!;
+const velocityRate = document.querySelector<HTMLElement>("#velocity-rate")!;
 
 const W = canvas.width;
 const H = canvas.height;
@@ -197,9 +201,58 @@ teleportButton.addEventListener("click", () => {
   teleportButton.blur();
 });
 
+// ---- the velocity meter ------------------------------------------------
+
+let clickTimes: number[] = [];
+let peakVelocity = 0;
+let brokenThrough = false;
+
+velocityMeter.addEventListener("click", () => {
+  const now = performance.now();
+  clickTimes = prune(clickTimes, now);
+  clickTimes.push(now);
+  drawVelocity(now);
+  velocityMeter.blur();
+});
+
+function drawVelocity(now: number): void {
+  const clicks = clicksInWindow(clickTimes, now);
+  const velocity = velocityFor(clicks);
+  if (velocity > peakVelocity) peakVelocity = velocity;
+
+  velocityValue.textContent = formatVelocity(velocity);
+  velocityMeter.classList.toggle("warm", velocity >= 8 && velocity < BREAK_POINT);
+  velocityMeter.classList.toggle("broken", brokenThrough || velocity >= BREAK_POINT);
+  velocityMeter.classList.toggle("surging", velocity >= BREAK_POINT);
+
+  if (velocity >= BREAK_POINT && !brokenThrough) {
+    brokenThrough = true;
+    breakThrough();
+  }
+
+  if (brokenThrough) {
+    velocityRate.textContent = `${clicks}/sec · you broke ${BREAK_POINT} — peak ${formatVelocity(peakVelocity)}`;
+  } else if (clicks === 0) {
+    velocityRate.textContent = "Click. Keep clicking. Every click in the same second doubles it.";
+  } else {
+    velocityRate.textContent = `${clicks} click${clicks === 1 ? "" : "s"} this second · best so far ${formatVelocity(peakVelocity)}`;
+  }
+}
+
+/**
+ * Reaching 100 is meant to set something off. Nothing is wired up yet, so for
+ * now it just makes very sure you noticed.
+ */
+function breakThrough(): void {
+  screen.classList.add("warping");
+  playWarp(WARP_MS);
+  window.setTimeout(() => screen.classList.remove("warping"), WARP_MS);
+}
+
 function frame(time: number): void {
   const dt = Math.min(0.033, (time - lastFrame) / 1000 || 0);
   lastFrame = time;
+  drawVelocity(time);
   const mode = onCanvas();
   mode.update(dt);
   mode.draw();

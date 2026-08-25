@@ -370,3 +370,79 @@ body:not([data-world="planet"]) .planet-only {
     transition: none;
   }
 }
+
+/* --- the velocity meter ------------------------------------------------ */
+
+.velocity-meter {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px 20px;
+  border: 4px solid #22103a;
+  border-radius: 12px;
+  background: rgba(10, 26, 34, 0.92);
+  color: #d8ecff;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.velocity-meter:active {
+  background: rgba(24, 52, 66, 0.95);
+}
+
+.velocity-label {
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.velocity-value {
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: #8fe38f;
+}
+
+.velocity-rate {
+  font-size: 0.82rem;
+  opacity: 0.65;
+}
+
+/* Climbing. */
+.velocity-meter.warm {
+  border-color: #ffd166;
+}
+
+.velocity-meter.warm .velocity-value {
+  color: #ffd166;
+}
+
+/* Past the break point. */
+.velocity-meter.broken {
+  border-color: #ff7ad9;
+  background: rgba(60, 12, 48, 0.95);
+}
+
+.velocity-meter.broken .velocity-value {
+  color: #ff7ad9;
+}
+
+/* The badge is permanent; the throb only while you're actually up there. */
+.velocity-meter.surging .velocity-value {
+  animation: velocity-throb 420ms ease-in-out infinite alternate;
+}
+
+@keyframes velocity-throb {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .velocity-meter { transition: none; }
+  .velocity-meter.surging .velocity-value { animation: none; }
+}
