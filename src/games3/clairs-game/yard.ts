@@ -5,7 +5,7 @@
  */
 
 import { fartImpulse, wrap, wrappedCopies } from "./physics";
-import { FRONT_YARD, type Body } from "./planets";
+import { FRONT_YARD, type Body } from "./bodies";
 import { playFart } from "./sfx";
 
 const MAX_CHARGE = 1.15;
@@ -16,6 +16,8 @@ const PLAYER_R = 15;
 
 type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number };
 type Cloud = { x: number; y: number; r: number; drift: number; tone: number };
+/** One falling column of code. Only The Matrix uses these. */
+type Column = { x: number; y: number; speed: number; glyphs: string[] };
 
 export type Yard = {
   /** Same rules everywhere; only the body's gravity and air change. */
@@ -24,6 +26,8 @@ export type Yard = {
   draw(): void;
   press(key: string): void;
   release(key: string): void;
+  /** Which way you are pointing — the direction the meltdown flings you. */
+  aim(): number;
 };
 
 export function createYard(
@@ -37,6 +41,17 @@ export function createYard(
   const player = { x: W / 2, y: H / 2, vx: 0, vy: 0, aim: -Math.PI / 2, lean: 0 };
   const puffs: Puff[] = [];
   let clouds: Cloud[] = makeClouds(FRONT_YARD);
+  let columns: Column[] = [];
+
+  function makeColumns(): Column[] {
+    const step = 18;
+    return Array.from({ length: Math.ceil(W / step) }, (_, i) => ({
+      x: i * step + 4,
+      y: Math.random() * H * 2 - H,
+      speed: 60 + Math.random() * 190,
+      glyphs: Array.from({ length: 14 }, () => (Math.random() < 0.5 ? "0" : "1")),
+    }));
+  }
 
   function makeClouds(from: Body): Cloud[] {
     return Array.from({ length: from.hazeCount }, () => ({
@@ -128,6 +143,35 @@ export function createYard(
     }
 
     for (const cloud of clouds) cloud.x = wrap(cloud.x + cloud.drift * dt, W);
+
+    for (const column of columns) {
+      column.y += column.speed * dt;
+      if (column.y - column.glyphs.length * 16 > H) {
+        column.y = -Math.random() * H * 0.6;
+        column.speed = 60 + Math.random() * 190;
+      }
+      // Flicker a character now and then so the code keeps changing.
+      if (Math.random() < dt * 8) {
+        const at = Math.floor(Math.random() * column.glyphs.length);
+        column.glyphs[at] = Math.random() < 0.5 ? "0" : "1";
+      }
+    }
+  }
+
+  function drawRain(): void {
+    context.font = "700 15px 'Courier New', monospace";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    for (const column of columns) {
+      for (let i = 0; i < column.glyphs.length; i += 1) {
+        const y = column.y - i * 16;
+        if (y < -20 || y > H + 20) continue;
+        const head = i === 0;
+        const fade = 1 - i / column.glyphs.length;
+        context.fillStyle = head ? "rgba(210, 255, 225, 0.95)" : `rgba(70, 255, 130, ${fade * 0.55})`;
+        context.fillText(column.glyphs[i]!, column.x, y);
+      }
+    }
   }
 
   /**
@@ -145,6 +189,8 @@ export function createYard(
     sky.addColorStop(1, body.skyBottom);
     context.fillStyle = sky;
     context.fillRect(0, 0, W, H);
+
+    if (body.rain) drawRain();
 
     for (const cloud of clouds) {
       eachWrapped(cloud.x, cloud.y, cloud.r + 10, (x, y) => {
@@ -230,6 +276,7 @@ export function createYard(
   function enter(arriving: Body): void {
     body = arriving;
     clouds = makeClouds(body);
+    columns = body.rain ? makeColumns() : [];
     farts = 0;
     hud.farts.textContent = "FARTS 0";
     player.x = W / 2;
@@ -255,5 +302,5 @@ export function createYard(
     if (key === " ") releaseFart();
   }
 
-  return { enter, update, draw, press, release };
+  return { enter, update, draw, press, release, aim: () => player.aim };
 }

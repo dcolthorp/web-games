@@ -221,15 +221,15 @@ body[data-world="farttopia"] .yard-only {
   opacity: 0.65;
 }
 
-/* --- planets ---------------------------------------------------------- */
+/* --- other worlds ---------------------------------------------------------- */
 
 body[data-world="farttopia"] .yard-only,
 body:not([data-world="farttopia"]) .city-only,
-body:not([data-world="planet"]) .planet-only {
+body:not([data-world="body"]) .body-only {
   display: none;
 }
 
-.planet-hud {
+.body-hud {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -246,7 +246,7 @@ body:not([data-world="planet"]) .planet-only {
   text-transform: uppercase;
 }
 
-.star-open {
+.sky-open {
   padding: 8px 16px;
   border: 3px solid #22103a;
   border-radius: 999px;
@@ -256,7 +256,7 @@ body:not([data-world="planet"]) .planet-only {
   cursor: pointer;
 }
 
-.star-map {
+.sky-map {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -267,11 +267,11 @@ body:not([data-world="planet"]) .planet-only {
   overflow: auto;
 }
 
-.star-map[hidden] {
+.sky-map[hidden] {
   display: none;
 }
 
-.star-panel {
+.sky-panel {
   width: min(980px, 100%);
   padding: 24px;
   border: 4px solid #ffd166;
@@ -281,7 +281,7 @@ body:not([data-world="planet"]) .planet-only {
   color: #eaf2ff;
 }
 
-.star-head {
+.sky-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -289,19 +289,19 @@ body:not([data-world="planet"]) .planet-only {
   margin-bottom: 18px;
 }
 
-.star-head h2 {
+.sky-head h2 {
   margin: 0;
   font-size: clamp(1.4rem, 3.4vw, 2.1rem);
   letter-spacing: 0.02em;
 }
 
-.star-head p {
+.sky-head p {
   margin: 4px 0 0;
   font-size: 0.92rem;
   opacity: 0.7;
 }
 
-.star-close {
+.sky-close {
   flex: none;
   width: 42px;
   height: 42px;
@@ -314,13 +314,13 @@ body:not([data-world="planet"]) .planet-only {
   cursor: pointer;
 }
 
-.star-grid {
+.sky-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
 }
 
-.planet-card {
+.body-card {
   display: grid;
   gap: 4px;
   padding: 14px;
@@ -334,39 +334,39 @@ body:not([data-world="planet"]) .planet-only {
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
-.planet-card:hover,
-.planet-card:focus-visible {
+.body-card:hover,
+.body-card:focus-visible {
   transform: translateY(-3px);
   border-color: #ffd166;
   background: rgba(255, 209, 102, 0.14);
 }
 
-.planet-glyph {
+.body-glyph {
   font-size: 1.9rem;
   line-height: 1;
 }
 
-.planet-card strong {
+.body-card strong {
   font-size: 1.05rem;
   letter-spacing: 0.03em;
 }
 
-.planet-pull {
+.body-pull {
   font-size: 0.8rem;
   font-weight: 900;
   letter-spacing: 0.14em;
   color: #ffd166;
 }
 
-.planet-fact {
+.body-fact {
   font-size: 0.82rem;
   line-height: 1.35;
   opacity: 0.72;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .planet-card,
-  .star-open {
+  .body-card,
+  .sky-open {
     transition: none;
   }
 }
@@ -514,7 +514,7 @@ body:not([data-world="planet"]) .planet-only {
 
 .clairs-shell .fart-hud,
 .clairs-shell .city-hud,
-.clairs-shell .planet-hud,
+.clairs-shell .body-hud,
 .clairs-shell .teleport-button,
 .clairs-shell .velocity-meter {
   flex: none;
@@ -589,9 +589,101 @@ body:not([data-world="planet"]) .planet-only {
 
   .clairs-shell .fart-hud,
   .clairs-shell .city-hud,
-  .clairs-shell .planet-hud,
+  .clairs-shell .body-hud,
   .clairs-shell .teleport-button,
   .clairs-shell .velocity-meter {
     margin-top: 4px;
   }
+}
+
+/* --- what breaking 100 does -------------------------------------------- */
+
+/* No farting, no teleporting, no star map while it's happening. */
+body[data-meltdown="on"] .teleport-button,
+body[data-meltdown="on"] .sky-open,
+body[data-meltdown="on"] .clairs-back {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.meltdown {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  background: #000;
+}
+
+.meltdown[hidden] {
+  display: none;
+}
+
+.meltdown-screen {
+  position: absolute;
+  inset: 0;
+  will-change: transform, opacity;
+}
+
+/* A blue screen, in the style of every blue screen. Not anyone's in particular. */
+.bsod {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+  padding: clamp(24px, 9vw, 140px);
+  background: #0a75c2;
+  color: #fff;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-weight: 400;
+}
+
+.bsod-face {
+  margin: 0 0 clamp(14px, 3vh, 36px);
+  font-size: clamp(3.5rem, 11vw, 8rem);
+  font-weight: 300;
+  line-height: 1;
+}
+
+.bsod-lead {
+  margin: 0 0 clamp(12px, 2.4vh, 28px);
+  max-width: 22ch;
+  font-size: clamp(1.15rem, 3.1vw, 2.3rem);
+  line-height: 1.28;
+}
+
+.bsod-progress {
+  margin: 0 0 clamp(18px, 4vh, 48px);
+  font-size: clamp(1rem, 2.4vw, 1.7rem);
+}
+
+.bsod-detail {
+  font-size: clamp(0.78rem, 1.5vw, 1.05rem);
+  line-height: 1.5;
+  opacity: 0.92;
+}
+
+.bsod-detail p {
+  margin: 0 0 6px;
+}
+
+.bsod-stop {
+  font-family: "Courier New", monospace;
+}
+
+.meltdown-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The one you can't get to from the map — until you can. */
+.body-card-secret {
+  border-color: #46ff82;
+  background: rgba(70, 255, 130, 0.1);
+}
+
+.body-card-secret .body-pull {
+  color: #46ff82;
 }

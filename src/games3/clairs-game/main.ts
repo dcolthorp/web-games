@@ -8,7 +8,8 @@
  */
 
 import { createCity } from "./city";
-import { FRONT_YARD, gravityLabel, PLANETS, type Body } from "./planets";
+import { createMeltdown } from "./meltdown";
+import { FRONT_YARD, gravityLabel, MATRIX, BODIES, type Body } from "./bodies";
 import { playWarp } from "./sfx";
 import { WORLDS } from "./worlds";
 import { createYard } from "./yard";
@@ -21,11 +22,11 @@ const worldBlurb = document.querySelector<HTMLElement>("#world-blurb")!;
 const controls = document.querySelector<HTMLElement>("#controls")!;
 const teleportButton = document.querySelector<HTMLButtonElement>("#teleport")!;
 const screen = document.querySelector<HTMLElement>(".fart-screen")!;
-const starMap = document.querySelector<HTMLElement>("#star-map")!;
-const starGrid = document.querySelector<HTMLElement>("#star-grid")!;
-const starClose = document.querySelector<HTMLButtonElement>("#star-close")!;
-const starOpen = document.querySelector<HTMLButtonElement>("#star-open")!;
-const planetGravity = document.querySelector<HTMLElement>("#planet-gravity")!;
+const skyMap = document.querySelector<HTMLElement>("#sky-map")!;
+const skyGrid = document.querySelector<HTMLElement>("#sky-grid")!;
+const skyClose = document.querySelector<HTMLButtonElement>("#sky-close")!;
+const skyOpen = document.querySelector<HTMLButtonElement>("#sky-open")!;
+const bodyGravity = document.querySelector<HTMLElement>("#body-gravity")!;
 const velocityMeter = document.querySelector<HTMLElement>("#velocity")!;
 const velocityValue = document.querySelector<HTMLElement>("#velocity-value")!;
 const velocityRate = document.querySelector<HTMLElement>("#velocity-rate")!;
@@ -37,7 +38,7 @@ const H = canvas.height;
 const WARP_MS = 520;
 
 const PLANET_CONTROLS =
-  "Hold {Space} to squeeze, aim with {←} {→}. The gravity here is not the gravity you're used to. {★ Star map} to move on.";
+  "Hold {Space} to squeeze, aim with {←} {→}. The gravity here is not the gravity you're used to. {🔭 Sky map} to move on.";
 
 const yard = createYard(
   context,
@@ -59,11 +60,24 @@ const city = createCity(
     quests: document.querySelector<HTMLElement>("#quest-list")!,
     place: document.querySelector<HTMLElement>("#place-name")!,
   },
-  openStarMap,
+  openSkyMap,
   recordFart,
 );
 
-type Place = { kind: "yard" | "city" | "planet"; body: Body };
+const meltdown = createMeltdown(
+  context,
+  W,
+  H,
+  {
+    root: document.querySelector<HTMLElement>("#meltdown")!,
+    screen: document.querySelector<HTMLElement>("#meltdown-screen")!,
+    canvas: document.querySelector<HTMLCanvasElement>("#meltdown-canvas")!,
+    progress: document.querySelector<HTMLElement>("#bsod-progress")!,
+  },
+  arriveInTheMatrix,
+);
+
+type Place = { kind: "yard" | "city" | "body"; body: Body };
 
 let place: Place = { kind: "yard", body: FRONT_YARD };
 let warping = false;
@@ -76,13 +90,14 @@ function onCanvas(): { update(dt: number): void; draw(): void } {
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (["arrowleft", "arrowright", "arrowup", "arrowdown", " ", "e"].includes(key)) event.preventDefault();
-  if (key === "escape" && !starMap.hidden) closeStarMap();
-  if (event.repeat || !starMap.hidden) return;
+  if (key === "escape" && !skyMap.hidden) closeSkyMap();
+  if (event.repeat || !skyMap.hidden || meltdown.running()) return;
   if (place.kind === "city") city.press(key);
   else yard.press(key);
 });
 
 window.addEventListener("keyup", (event) => {
+  if (meltdown.running()) return;
   if (place.kind !== "city") yard.release(event.key.toLowerCase());
 });
 
@@ -90,19 +105,19 @@ window.addEventListener("keyup", (event) => {
 
 function applyPlace(): void {
   const world = place.kind === "city" ? WORLDS[1]! : WORLDS[0]!;
-  if (place.kind === "planet") {
+  if (place.kind === "body") {
     worldName.textContent = place.body.name;
     worldBlurb.textContent = place.body.fact;
     controls.replaceChildren(...buildControls(PLANET_CONTROLS));
     teleportButton.textContent = "Teleport back to Farttopia";
-    planetGravity.textContent = `${place.body.name} · ${gravityLabel(place.body)}`;
+    bodyGravity.textContent = `${place.body.name} · ${gravityLabel(place.body)}`;
   } else {
     worldName.textContent = world.name;
     worldBlurb.textContent = world.blurb;
     controls.replaceChildren(...buildControls(world.controls));
     teleportButton.textContent = `Teleport to ${world.travelTo}`;
   }
-  document.body.dataset["world"] = place.kind === "planet" ? "planet" : world.id;
+  document.body.dataset["world"] = place.kind === "body" ? "body" : world.id;
 }
 
 /** Turn "Hold {Space} to squeeze" into real <kbd> elements, no innerHTML. */
@@ -115,60 +130,62 @@ function buildControls(text: string): Node[] {
   });
 }
 
-// ---- the star map ------------------------------------------------------
+// ---- the sky map ------------------------------------------------------
 
-function buildStarMap(): void {
-  for (const planet of PLANETS) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "planet-card";
-    button.dataset["planet"] = planet.id;
+function bodyCard(body: Body): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = body.id === MATRIX.id ? "body-card body-card-secret" : "body-card";
+  button.dataset["body"] = body.id;
 
-    const glyph = document.createElement("span");
-    glyph.className = "planet-glyph";
-    glyph.textContent = planet.glyph;
-    const name = document.createElement("strong");
-    name.textContent = planet.name;
-    const pull = document.createElement("span");
-    pull.className = "planet-pull";
-    pull.textContent = gravityLabel(planet);
-    const fact = document.createElement("span");
-    fact.className = "planet-fact";
-    fact.textContent = planet.fact;
+  const glyph = document.createElement("span");
+  glyph.className = "body-glyph";
+  glyph.textContent = body.glyph;
+  const name = document.createElement("strong");
+  name.textContent = body.name;
+  const pull = document.createElement("span");
+  pull.className = "body-pull";
+  pull.textContent = `${gravityLabel(body)} · ${body.kind}`;
+  const fact = document.createElement("span");
+  fact.className = "body-fact";
+  fact.textContent = body.fact;
 
-    button.append(glyph, name, pull, fact);
-    button.addEventListener("click", () => landOn(planet));
-    starGrid.append(button);
-  }
+  button.append(glyph, name, pull, fact);
+  button.addEventListener("click", () => landOn(body));
+  return button;
 }
 
-function openStarMap(): void {
-  starMap.hidden = false;
-  starClose.focus();
+function buildSkyMap(): void {
+  for (const body of BODIES) skyGrid.append(bodyCard(body));
 }
 
-function closeStarMap(): void {
-  starMap.hidden = true;
+function openSkyMap(): void {
+  skyMap.hidden = false;
+  skyClose.focus();
+}
+
+function closeSkyMap(): void {
+  skyMap.hidden = true;
   teleportButton.blur();
 }
 
-function landOn(planet: Body): void {
-  closeStarMap();
+function landOn(body: Body): void {
+  closeSkyMap();
   flash(() => {
-    place = { kind: "planet", body: planet };
-    yard.enter(planet);
+    place = { kind: "body", body: body };
+    yard.enter(body);
     applyPlace();
   });
 }
 
-starClose.addEventListener("click", closeStarMap);
-starOpen.addEventListener("click", () => {
-  openStarMap();
-  starOpen.blur();
+skyClose.addEventListener("click", closeSkyMap);
+skyOpen.addEventListener("click", () => {
+  openSkyMap();
+  skyOpen.blur();
 });
-starMap.addEventListener("click", (event) => {
+skyMap.addEventListener("click", (event) => {
   // Clicking the dark surround closes it; clicking the panel does not.
-  if (event.target === starMap) closeStarMap();
+  if (event.target === skyMap) closeSkyMap();
 });
 
 // ---- travelling --------------------------------------------------------
@@ -194,7 +211,7 @@ function teleport(): void {
       yard.enter(FRONT_YARD);
     } else {
       // Planets hand you back to the observatory you left from.
-      const at = place.kind === "planet" ? "observatory" : "city";
+      const at = place.kind === "body" ? "observatory" : "city";
       place = { kind: "city", body: FRONT_YARD };
       city.enter(at);
     }
@@ -214,7 +231,7 @@ let fartTimes: number[] = [];
 let peakVelocity = 0;
 let brokenThrough = false;
 
-/** Every fart, anywhere — the yard, the city, or a planet — feeds the meter. */
+/** Every fart, anywhere — the yard, the city, or a body — feeds the meter. */
 function recordFart(): void {
   const now = performance.now();
   fartTimes = prune(fartTimes, now);
@@ -246,26 +263,42 @@ function drawVelocity(now: number): void {
   }
 }
 
-/**
- * Reaching 100 is meant to set something off. Nothing is wired up yet, so for
- * now it just makes very sure you noticed.
- */
+/** Break 100 and the game stops being a game for about seventeen seconds. */
 function breakThrough(): void {
-  screen.classList.add("warping");
-  playWarp(WARP_MS);
-  window.setTimeout(() => screen.classList.remove("warping"), WARP_MS);
+  // In the city there is nothing to aim, so it flings you straight up.
+  const direction = place.kind === "city" ? -Math.PI / 2 : yard.aim();
+  meltdown.start(place.body, direction);
+}
+
+/** Where the hand puts you down. */
+function arriveInTheMatrix(): void {
+  place = { kind: "body", body: MATRIX };
+  yard.enter(MATRIX);
+  applyPlace();
+  unlockMatrixCard();
+}
+
+/** Once you have been, you can go back whenever you like. */
+function unlockMatrixCard(): void {
+  if (skyGrid.querySelector('[data-body="matrix"]')) return;
+  skyGrid.prepend(bodyCard(MATRIX));
 }
 
 function frame(time: number): void {
   const dt = Math.min(0.033, (time - lastFrame) / 1000 || 0);
   lastFrame = time;
   drawVelocity(time);
-  const mode = onCanvas();
-  mode.update(dt);
-  mode.draw();
+  meltdown.update(dt);
+  if (meltdown.ownsCanvas()) {
+    meltdown.drawCanvas();
+  } else if (!meltdown.running()) {
+    const mode = onCanvas();
+    mode.update(dt);
+    mode.draw();
+  }
   requestAnimationFrame(frame);
 }
 
-buildStarMap();
+buildSkyMap();
 applyPlace();
 requestAnimationFrame(frame);

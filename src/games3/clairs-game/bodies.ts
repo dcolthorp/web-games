@@ -9,9 +9,13 @@
  * which is why an airless world lets you coast forever off one good squeeze.
  */
 
+/** What the thing actually is. Only one of them is a star. */
+export type BodyKind = "star" | "planet" | "moon" | "dwarf planet" | "home" | "???";
+
 export type Body = {
   id: string;
   name: string;
+  kind: BodyKind;
   /** Emoji shown on the star map. */
   glyph: string;
   gravity: number;
@@ -24,11 +28,14 @@ export type Body = {
   hazeCount: number;
   /** One true thing, for the line under the title. */
   fact: string;
+  /** Draws falling code behind everything. Only one place has it. */
+  rain?: boolean;
 };
 
 export const FRONT_YARD: Body = {
   id: "yard",
   name: "The Front Yard",
+  kind: "home",
   glyph: "🏡",
   gravity: 300,
   air: 0.42,
@@ -40,10 +47,11 @@ export const FRONT_YARD: Body = {
   fact: "Nothing happens here. There is a teleporter.",
 };
 
-export const PLANETS: Body[] = [
+export const BODIES: Body[] = [
   {
     id: "sun",
     name: "The Sun",
+    kind: "star",
     glyph: "☀️",
     // Really is 28 times Earth's pull. The air is cartoon-thick on purpose:
     // without it you'd fall so fast you'd be an unreadable streak, and the
@@ -60,6 +68,7 @@ export const PLANETS: Body[] = [
   {
     id: "mercury",
     name: "Mercury",
+    kind: "planet",
     glyph: "🌑",
     gravity: 114,
     air: 0.97,
@@ -73,6 +82,7 @@ export const PLANETS: Body[] = [
   {
     id: "venus",
     name: "Venus",
+    kind: "planet",
     glyph: "🌕",
     gravity: 270,
     air: 0.28,
@@ -86,6 +96,7 @@ export const PLANETS: Body[] = [
   {
     id: "earth",
     name: "Earth",
+    kind: "planet",
     glyph: "🌍",
     gravity: 300,
     air: 0.42,
@@ -99,6 +110,7 @@ export const PLANETS: Body[] = [
   {
     id: "moon",
     name: "The Moon",
+    kind: "moon",
     glyph: "🌙",
     gravity: 50,
     air: 0.97,
@@ -112,6 +124,7 @@ export const PLANETS: Body[] = [
   {
     id: "mars",
     name: "Mars",
+    kind: "planet",
     glyph: "🔴",
     gravity: 114,
     air: 0.9,
@@ -125,6 +138,7 @@ export const PLANETS: Body[] = [
   {
     id: "jupiter",
     name: "Jupiter",
+    kind: "planet",
     glyph: "🟠",
     gravity: 758,
     air: 0.35,
@@ -138,6 +152,7 @@ export const PLANETS: Body[] = [
   {
     id: "saturn",
     name: "Saturn",
+    kind: "planet",
     glyph: "🪐",
     gravity: 320,
     air: 0.4,
@@ -151,6 +166,7 @@ export const PLANETS: Body[] = [
   {
     id: "uranus",
     name: "Uranus",
+    kind: "planet",
     glyph: "🔵",
     gravity: 265,
     air: 0.45,
@@ -164,6 +180,7 @@ export const PLANETS: Body[] = [
   {
     id: "neptune",
     name: "Neptune",
+    kind: "planet",
     glyph: "🔷",
     gravity: 342,
     air: 0.42,
@@ -177,6 +194,7 @@ export const PLANETS: Body[] = [
   {
     id: "pluto",
     name: "Pluto",
+    kind: "dwarf planet",
     glyph: "⚪",
     gravity: 18,
     air: 0.97,
@@ -189,11 +207,32 @@ export const PLANETS: Body[] = [
   },
 ];
 
-export function planetById(id: string): Body | undefined {
-  return PLANETS.find((planet) => planet.id === id);
+/**
+ * Not on the star map, and not reachable by teleporter. The only way here is
+ * to break 100 velocity and let the whole thing fall over.
+ */
+export const MATRIX: Body = {
+  id: "matrix",
+  name: "The Matrix",
+  kind: "???",
+  glyph: "🟩",
+  gravity: 96,
+  air: 0.86,
+  skyTop: "#01120a",
+  skyBottom: "#000000",
+  haze: "70, 255, 130",
+  hazeAlpha: 0.07,
+  hazeCount: 6,
+  fact: "There is no gravity. Well — there is a bit. Someone had to type it in.",
+  rain: true,
+};
+
+export function bodyById(id: string): Body | undefined {
+  if (id === MATRIX.id) return MATRIX;
+  return BODIES.find((body) => body.id === id);
 }
 
-/** How a body's pull compares to home, for the star map. */
+/** How a body's pull compares to home, for the sky map. */
 export function gravityLabel(body: Body): string {
   return `${(body.gravity / FRONT_YARD.gravity).toFixed(2)}g`;
 }
