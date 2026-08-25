@@ -5,12 +5,9 @@
  */
 
 import { fartImpulse, wrap, wrappedCopies } from "./physics";
+import { FRONT_YARD, type Body } from "./planets";
 import { playFart } from "./sfx";
 
-/** Gentle enough that a good fart beats it; you sink, you don't plummet. */
-const GRAVITY = 300;
-/** Air is thick in the yard. Fraction of speed kept per second. */
-const DRAG = 0.42;
 const MAX_CHARGE = 1.15;
 const MIN_PUSH = 200;
 const MAX_PUSH = 880;
@@ -21,7 +18,8 @@ type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: n
 type Cloud = { x: number; y: number; r: number; drift: number; tone: number };
 
 export type Yard = {
-  enter(): void;
+  /** Same rules everywhere; only the body's gravity and air change. */
+  enter(body: Body): void;
   update(dt: number): void;
   draw(): void;
   press(key: string): void;
@@ -34,15 +32,20 @@ export function createYard(
   H: number,
   hud: { charge: HTMLElement; farts: HTMLElement },
 ): Yard {
+  let body: Body = FRONT_YARD;
   const player = { x: W / 2, y: H / 2, vx: 0, vy: 0, aim: -Math.PI / 2, lean: 0 };
   const puffs: Puff[] = [];
-  const clouds: Cloud[] = Array.from({ length: 9 }, () => ({
-    x: Math.random() * W,
-    y: Math.random() * H,
-    r: 40 + Math.random() * 90,
-    drift: 4 + Math.random() * 12,
-    tone: 0.5 + Math.random() * 0.5,
-  }));
+  let clouds: Cloud[] = makeClouds(FRONT_YARD);
+
+  function makeClouds(from: Body): Cloud[] {
+    return Array.from({ length: from.hazeCount }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 40 + Math.random() * 90,
+      drift: 4 + Math.random() * 12,
+      tone: 0.5 + Math.random() * 0.5,
+    }));
+  }
   const keys = new Set<string>();
   let charge = 0;
   let charging = false;
@@ -99,8 +102,8 @@ export function createYard(
     if (charging) charge = Math.min(MAX_CHARGE, charge + dt);
     hud.charge.style.width = `${(charge / MAX_CHARGE) * 100}%`;
 
-    player.vy += GRAVITY * dt;
-    const keep = DRAG ** dt;
+    player.vy += body.gravity * dt;
+    const keep = body.air ** dt;
     player.vx *= keep;
     player.vy *= keep;
     player.x = wrap(player.x + player.vx * dt, W);
@@ -136,16 +139,16 @@ export function createYard(
 
   function draw(): void {
     const sky = context.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, "#2e5f8a");
-    sky.addColorStop(1, "#7fb3a8");
+    sky.addColorStop(0, body.skyTop);
+    sky.addColorStop(1, body.skyBottom);
     context.fillStyle = sky;
     context.fillRect(0, 0, W, H);
 
     for (const cloud of clouds) {
       eachWrapped(cloud.x, cloud.y, cloud.r + 10, (x, y) => {
         const glow = context.createRadialGradient(x, y, 0, x, y, cloud.r);
-        glow.addColorStop(0, `rgba(255, 255, 255, ${0.2 * cloud.tone})`);
-        glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+        glow.addColorStop(0, `rgba(${body.haze}, ${body.hazeAlpha * cloud.tone})`);
+        glow.addColorStop(1, `rgba(${body.haze}, 0)`);
         context.fillStyle = glow;
         context.beginPath();
         context.arc(x, y, cloud.r, 0, Math.PI * 2);
@@ -222,7 +225,11 @@ export function createYard(
     });
   }
 
-  function enter(): void {
+  function enter(arriving: Body): void {
+    body = arriving;
+    clouds = makeClouds(body);
+    farts = 0;
+    hud.farts.textContent = "FARTS 0";
     player.x = W / 2;
     player.y = H / 2;
     player.vx = 0;

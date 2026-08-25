@@ -30,7 +30,7 @@ type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: n
 type Bubble = { npc: NPC; text: string; left: number };
 
 export type City = {
-  enter(): void;
+  enter(at?: string): void;
   update(dt: number): void;
   draw(): void;
   press(key: string): void;
@@ -41,6 +41,7 @@ export function createCity(
   viewW: number,
   viewH: number,
   hud: { coins: HTMLElement; quests: HTMLElement; place: HTMLElement },
+  onTelescope: () => void,
 ): City {
   const questById = new Map(QUESTS.map((quest) => [quest.id, quest]));
   let log: QuestLog = createLog(QUESTS);
@@ -79,6 +80,15 @@ export function createCity(
     for (const building of scene.buildings) if (overlaps(x, y, building.rect)) return true;
     if (scene.gate && !duke && overlaps(x, y, scene.gate.rect)) return true;
     return false;
+  }
+
+  /** You have to be standing at the eyepiece, not across the room. */
+  function telescopeUnderfoot(): boolean {
+    const scope = scene.props.find((prop) => prop.id === "telescope");
+    if (!scope) return false;
+    const { rect } = scope;
+    const reach = { x: rect.x - 46, y: rect.y - 46, w: rect.w + 92, h: rect.h + 92 };
+    return overlaps(player.x, player.y, reach);
   }
 
   /** The strip of road just west of the gate, where the guards stop you. */
@@ -220,6 +230,10 @@ export function createCity(
   // ---- farting ----------------------------------------------------------
 
   function fart(): void {
+    if (telescopeUnderfoot()) {
+      onTelescope();
+      return;
+    }
     playFart(0.7);
     for (let i = 0; i < 16; i += 1) {
       const angle = Math.random() * Math.PI * 2;
@@ -539,6 +553,7 @@ export function createCity(
   }
 
   function doorUnderfoot(): string {
+    if (telescopeUnderfoot()) return "Space — look through the telescope";
     const gate = scene.gate;
     if (gate && overlaps(player.x, player.y, approachTo(gate.rect))) {
       return duke ? "The gate is open — walk through" : "The gate is shut";
@@ -589,10 +604,10 @@ export function createCity(
     drawBanner();
   }
 
-  function enter(): void {
-    scene = CITY;
-    player.x = CITY.entrance.x;
-    player.y = CITY.entrance.y;
+  function enter(at = "city"): void {
+    scene = SCENES[at] ?? CITY;
+    player.x = scene.entrance.x;
+    player.y = scene.entrance.y;
     puffs.length = 0;
     bubble = null;
     refreshHud();

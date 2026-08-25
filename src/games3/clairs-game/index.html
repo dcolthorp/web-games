@@ -25,6 +25,10 @@
           <div class="charge-track"><div class="charge-fill" id="charge-fill"></div></div>
           <span id="fart-count">FARTS 0</span>
         </div>
+        <div class="planet-hud planet-only">
+          <span id="planet-gravity">—</span>
+          <button class="star-open" id="star-open" type="button">★ Star map</button>
+        </div>
         <div class="city-hud city-only">
           <div class="city-hud-top">
             <span id="place-name">Farttopia</span>
@@ -35,6 +39,18 @@
         <button class="teleport-button" id="teleport" type="button">Teleport to Farttopia</button>
       </div>
     </main>
+    <div class="star-map" id="star-map" hidden>
+      <section class="star-panel" role="dialog" aria-modal="true" aria-labelledby="star-title">
+        <header class="star-head">
+          <div>
+            <h2 id="star-title">The Sky Over Farttopia</h2>
+            <p>Pick one. You'll arrive with its gravity, not ours.</p>
+          </div>
+          <button class="star-close" id="star-close" type="button" aria-label="Close the star map">✕</button>
+        </header>
+        <div class="star-grid" id="star-grid"></div>
+      </section>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

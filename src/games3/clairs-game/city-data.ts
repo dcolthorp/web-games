@@ -8,6 +8,8 @@ import type { QuestDef } from "./quests";
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export type Prop = {
+  /** Named props the game reacts to, like the telescope. */
+  id?: string;
   rect: Rect;
   color: string;
   /** Solid props stop you walking through them. */
@@ -408,7 +410,7 @@ export const OBSERVATORY: Scene = {
     { rect: { x: 530, y: 542, w: 430, h: 18 }, color: "#3a3158", solid: true },
     // The dome, open to the sky.
     { rect: { x: 300, y: 60, w: 360, h: 200 }, color: "#101a33", solid: false, round: true, label: "✨" },
-    { rect: { x: 420, y: 250, w: 130, h: 110 }, color: "#8d7fc4", solid: true, label: "🔭" },
+    { id: "telescope", rect: { x: 420, y: 250, w: 130, h: 110 }, color: "#8d7fc4", solid: true, label: "🔭" },
     { rect: { x: 110, y: 380, w: 120, h: 70 }, color: "#2a2350", solid: true, label: "🪐" },
     { rect: { x: 740, y: 380, w: 120, h: 70 }, color: "#2a2350", solid: true, label: "🌙" },
   ],

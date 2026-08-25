@@ -220,3 +220,153 @@ body[data-world="farttopia"] .yard-only {
   font-style: italic;
   opacity: 0.65;
 }
+
+/* --- planets ---------------------------------------------------------- */
+
+body[data-world="farttopia"] .yard-only,
+body:not([data-world="farttopia"]) .city-only,
+body:not([data-world="planet"]) .planet-only {
+  display: none;
+}
+
+.planet-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 4px solid #22103a;
+  border-radius: 12px;
+  background: rgba(12, 12, 34, 0.9);
+  color: #d8ecff;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.star-open {
+  padding: 8px 16px;
+  border: 3px solid #22103a;
+  border-radius: 999px;
+  background: linear-gradient(100deg, #ffd166, #6ee7ff);
+  color: #22103a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.star-map {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(6, 6, 20, 0.82);
+  overflow: auto;
+}
+
+.star-map[hidden] {
+  display: none;
+}
+
+.star-panel {
+  width: min(980px, 100%);
+  padding: 24px;
+  border: 4px solid #ffd166;
+  border-radius: 18px;
+  background: radial-gradient(circle at 20% 0%, #241a4d, #0b0b1c 70%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  color: #eaf2ff;
+}
+
+.star-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.star-head h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3.4vw, 2.1rem);
+  letter-spacing: 0.02em;
+}
+
+.star-head p {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  opacity: 0.7;
+}
+
+.star-close {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border: 3px solid #ffd166;
+  border-radius: 50%;
+  background: transparent;
+  color: #ffd166;
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.star-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.planet-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 3px solid rgba(255, 209, 102, 0.4);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.planet-card:hover,
+.planet-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: #ffd166;
+  background: rgba(255, 209, 102, 0.14);
+}
+
+.planet-glyph {
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.planet-card strong {
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+}
+
+.planet-pull {
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #ffd166;
+}
+
+.planet-fact {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planet-card,
+  .star-open {
+    transition: none;
+  }
+}
