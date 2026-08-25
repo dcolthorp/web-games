@@ -7,24 +7,32 @@
     <link rel="stylesheet" href="../../styles/main.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="games3-hub">
+  <body class="games3-hub" data-world="yard">
     <main class="menu-shell">
       <a class="clairs-back" href="../index.html">← Games 3</a>
       <section class="clairs-panel">
         <p class="clairs-eyebrow">A present for Clair</p>
-        <h1 class="clairs-title">Farttopia</h1>
-        <p class="clairs-note">
-          You cannot walk. Hold <kbd>Space</kbd> to squeeze one out — the longer you hold, the farther you
-          go. Aim with <kbd>←</kbd> <kbd>→</kbd>. Drift off one edge, come back on the other.
-        </p>
+        <h1 class="clairs-title" id="world-name">The Front Yard</h1>
+        <p class="clairs-blurb" id="world-blurb">Nothing happens here. There is a teleporter.</p>
+        <p class="clairs-note" id="controls"></p>
       </section>
       <div class="fart-stage">
-        <canvas id="farttopia" width="960" height="560" aria-label="Farttopia: fart around to move"></canvas>
-        <div class="fart-hud">
-          <span id="charge-label">CHARGE</span>
+        <div class="fart-screen">
+          <canvas id="farttopia" width="960" height="560" aria-label="Fart around to move"></canvas>
+        </div>
+        <div class="fart-hud yard-only">
+          <span>CHARGE</span>
           <div class="charge-track"><div class="charge-fill" id="charge-fill"></div></div>
           <span id="fart-count">FARTS 0</span>
         </div>
+        <div class="city-hud city-only">
+          <div class="city-hud-top">
+            <span id="place-name">Farttopia</span>
+            <span id="coin-count">0 🪙</span>
+          </div>
+          <ul class="quest-list" id="quest-list"></ul>
+        </div>
+        <button class="teleport-button" id="teleport" type="button">Teleport to Farttopia</button>
       </div>
     </main>
     <script type="module" src="./main.ts"></script>
