@@ -446,3 +446,157 @@ body:not([data-world="planet"]) .planet-only {
   .velocity-meter { transition: none; }
   .velocity-meter.surging .velocity-value { animation: none; }
 }
+
+/* --- fitting the whole game on one screen ------------------------------ */
+/*
+ * The canvas, the HUD, the teleporter and the velocity meter all have to be
+ * visible at once — on a 720px-tall laptop the page was nearly twice the
+ * viewport and everything below the canvas fell off the bottom. So the shell
+ * is a column that owns the viewport height and the canvas takes whatever is
+ * left, scaling by its own 960x560 ratio.
+ */
+.clairs-shell {
+  /* A definite height, not a capped one — the canvas below resolves its own
+     height as a percentage of this, and a max-height alone leaves it auto. */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100vh;
+  height: 100dvh;
+  padding-bottom: 10px;
+  /* Only bites on screens too short for the canvas floor below. */
+  overflow-y: auto;
+}
+
+.clairs-shell .clairs-back {
+  margin-bottom: 0;
+}
+
+.clairs-shell .clairs-panel {
+  flex: none;
+  padding: 18px 26px 20px;
+}
+
+.clairs-shell .clairs-title {
+  margin-bottom: 6px;
+  font-size: clamp(1.6rem, 4.4vw, 2.8rem);
+}
+
+.clairs-shell .clairs-blurb {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.clairs-shell .clairs-note {
+  font-size: 0.92rem;
+}
+
+.clairs-shell .fart-stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.clairs-shell .fart-screen {
+  display: flex;
+  flex: 1 1 auto;
+  align-self: center;
+  justify-content: center;
+  max-width: 100%;
+  /* Below this the canvas is too small to play in; scroll instead. */
+  min-height: 232px;
+}
+
+.clairs-shell #farttopia {
+  box-sizing: border-box;
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+}
+
+.clairs-shell .fart-hud,
+.clairs-shell .city-hud,
+.clairs-shell .planet-hud,
+.clairs-shell .teleport-button,
+.clairs-shell .velocity-meter {
+  flex: none;
+  margin-top: 8px;
+}
+
+.clairs-shell .teleport-button {
+  padding: 11px 20px;
+  font-size: 1rem;
+}
+
+.clairs-shell .velocity-meter {
+  padding: 8px 20px;
+}
+
+.clairs-shell .velocity-value {
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+}
+
+.clairs-shell .city-hud {
+  padding: 10px 14px;
+  overflow-y: auto;
+}
+
+/* Short screens: give the canvas back as much height as the chrome can spare. */
+@media (max-height: 820px) {
+  .clairs-shell {
+    gap: 6px;
+  }
+
+  .clairs-shell .clairs-panel {
+    padding: 10px 20px 12px;
+  }
+
+  .clairs-shell .clairs-eyebrow {
+    margin-bottom: 2px;
+    font-size: 0.68rem;
+  }
+
+  .clairs-shell .clairs-title {
+    /* line-height under 1 lets the blurb ride up over the title's shadow. */
+    margin-bottom: 6px;
+    line-height: 1.05;
+    font-size: clamp(1.3rem, 3.4vw, 2rem);
+  }
+
+  .clairs-shell .clairs-blurb {
+    margin: 0 0 4px;
+    font-size: 0.8rem;
+  }
+
+  .clairs-shell .clairs-note {
+    font-size: 0.8rem;
+  }
+
+  /* The meter collapses to a single row instead of a stack. */
+  .clairs-shell .velocity-meter {
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 0 12px;
+    padding: 6px 18px;
+    text-align: left;
+  }
+
+  .clairs-shell .velocity-value {
+    font-size: 1.5rem;
+  }
+
+  .clairs-shell .city-hud {
+    max-height: 120px;
+  }
+
+  .clairs-shell .fart-hud,
+  .clairs-shell .city-hud,
+  .clairs-shell .planet-hud,
+  .clairs-shell .teleport-button,
+  .clairs-shell .velocity-meter {
+    margin-top: 4px;
+  }
+}
