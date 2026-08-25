@@ -118,6 +118,8 @@ function applyPlace(): void {
     teleportButton.textContent = `Teleport to ${world.travelTo}`;
   }
   document.body.dataset["world"] = place.kind === "body" ? "body" : world.id;
+  if (place.kind === "body") document.body.dataset["body"] = place.body.id;
+  else delete document.body.dataset["body"];
 }
 
 /** Turn "Hold {Space} to squeeze" into real <kbd> elements, no innerHTML. */
@@ -285,6 +287,10 @@ function unlockMatrixCard(): void {
 }
 
 function frame(time: number): void {
+  // Booked first: if anything below throws, the loop still survives. Losing a
+  // frame is recoverable; losing the loop mid-meltdown strands you on a dead
+  // screen with the keys disabled.
+  requestAnimationFrame(frame);
   const dt = Math.min(0.033, (time - lastFrame) / 1000 || 0);
   lastFrame = time;
   drawVelocity(time);
@@ -296,7 +302,6 @@ function frame(time: number): void {
     mode.update(dt);
     mode.draw();
   }
-  requestAnimationFrame(frame);
 }
 
 buildSkyMap();

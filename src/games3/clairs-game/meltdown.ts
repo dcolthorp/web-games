@@ -40,6 +40,8 @@ export function createMeltdown(
 
   let elapsed = 0;
   let active = false;
+  /** Wall clock, so starved frames can never leave you stuck in here. */
+  let startedAt = 0;
   let body: Body | null = null;
   let aim = -Math.PI / 2;
   let travelled = 0;
@@ -52,6 +54,7 @@ export function createMeltdown(
     if (active) return;
     active = true;
     elapsed = 0;
+    startedAt = performance.now();
     travelled = 0;
     digits = [];
     body = from;
@@ -324,7 +327,9 @@ export function createMeltdown(
       }
     }
 
-    if (elapsed >= TOTAL) finish();
+    // Either the sequence played out, or real time ran well past it and the
+    // frames never came. Both end the same way: you go to The Matrix.
+    if (elapsed >= TOTAL || performance.now() - startedAt > (TOTAL + 8) * 1000) finish();
   }
 
   return {
