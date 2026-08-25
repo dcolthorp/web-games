@@ -56,6 +56,9 @@ if (gifted && trapFloor3 instanceof HTMLButtonElement) {
   trapFloor3.classList.remove("games3-trap-floor");
   trapFloor3.textContent = "CLAIR'S GAME";
   trapFloor3.setAttribute("aria-label", "Clair's game");
+  trapFloor3.addEventListener("click", () => {
+    window.location.href = "./clairs-game/index.html";
+  });
 }
 
 if (!gifted && trapFloor3 instanceof HTMLButtonElement) {
