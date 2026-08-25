@@ -31,7 +31,16 @@ type Stage =
   | "beaten"
   | "blackout"
   | "puzzle"
-  | "unlocked";
+  | "unlocked"
+  | "giveup"
+  | "gift";
+
+/** How it finally goes: gives up, remembers its manners, throws you out. */
+const GIVE_UP = "GAAAAAH! I GIVE UP";
+const GIFT = "WAIT I FORGOT. HERE, TAKE THIS. NOW BE GONE.";
+/** Set once it hands the gift over; the hub reads it and swaps the floor. */
+export const CLAIRS_GAME_KEY = "games3-clairs-game";
+const EJECT_MS = 2200;
 
 /** Whatever it was going to threaten, it doesn't get to finish. */
 const CUTOFF = "YOU STUPID PLAYER I'M GONNA—";
@@ -219,6 +228,28 @@ function provoke(): void {
     return;
   }
 
+  if (stage === "unlocked") {
+    stage = "giveup";
+    title.textContent = GIVE_UP;
+    return;
+  }
+
+  if (stage === "giveup") {
+    // Hands the gift over, then throws you back to the hub, where the floor is
+    // no longer a floor.
+    stage = "gift";
+    title.textContent = GIFT;
+    setClickable(false);
+    title.removeAttribute("aria-label");
+    localStorage.setItem(CLAIRS_GAME_KEY, "true");
+    const page = document.querySelector(".paper-page");
+    page?.classList.add("being-evicted");
+    window.setTimeout(() => {
+      window.location.href = "../index.html";
+    }, reducedMotion() ? 400 : EJECT_MS);
+    return;
+  }
+
   if (stage === "beaten") {
     stage = "blackout";
     sabotage();
@@ -311,11 +342,9 @@ function breakOut(from: Stage, shatter: boolean): void {
     return;
   }
 
-  // Out of the letter lock, and out of ideas. Nothing after this yet, so the
-  // title stops taking clicks rather than looking like a button that does
-  // nothing.
-  setClickable(false);
-  title.removeAttribute("aria-label");
+  // Out of the letter lock, and nearly out of ideas. One more click each for
+  // the tantrum and the parting gift.
+  setClickable(true);
 }
 
 function pieceSelector(from: Stage): string {

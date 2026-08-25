@@ -1,7 +1,7 @@
 import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
 import { NIGHTMARE_TOAST_KEY, TOAST_FOR_PENELOPE_KEY, TOAST_ON_GAMES3_KEY } from "../shared/glitchedToast";
-import { rollDefiant } from "./game-time/defiant";
+import { CLAIRS_GAME_KEY, rollDefiant } from "./game-time/defiant";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -47,7 +47,18 @@ if (list) {
 }
 
 const trapFloor3 = document.getElementById("trap-floor-3");
-if (trapFloor3 instanceof HTMLButtonElement) {
+
+// Once the stickman title gives up and hands its parting gift over, the floor
+// stops being a floor. None of the floor's own wiring is installed in that case.
+const gifted = localStorage.getItem(CLAIRS_GAME_KEY) === "true";
+if (gifted && trapFloor3 instanceof HTMLButtonElement) {
+  trapFloor3.classList.add("clairs-game-button");
+  trapFloor3.classList.remove("games3-trap-floor");
+  trapFloor3.textContent = "CLAIR'S GAME";
+  trapFloor3.setAttribute("aria-label", "Clair's game");
+}
+
+if (!gifted && trapFloor3 instanceof HTMLButtonElement) {
   const sequelSubtitle = document.querySelector<HTMLElement>(".games3-hero .subtitle");
   const melody = [60, 64, 67, 71, 69, 67, 64, 62, 65, 69, 72, 69, 67, 64, 62, 59];
   let audioContext: AudioContext | null = null;
