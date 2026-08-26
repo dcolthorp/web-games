@@ -37,6 +37,7 @@ function revealSecret(): void {
   if (!secretGame || secretGame.classList.contains("revealed")) return;
   secretGame.classList.add("revealed");
   secretGame.setAttribute("aria-hidden", "false");
+  document.title = "2D Mario Odyssey";
   window.setTimeout(() => startButton?.focus(), 450);
 }
 
@@ -85,7 +86,7 @@ function updateHud(): void {
 function finish(won: boolean): void {
   running = false;
   window.cancelAnimationFrame(animationFrame);
-  if (message) message.textContent = won ? "SOURCE RESTORED. You found the real game." : "SEGMENTATION FAULT. The bugs got you.";
+  if (message) message.textContent = won ? "ODYSSEY COMPLETE. You found the real game." : "SEGMENTATION FAULT. The bugs got you.";
   if (startButton) startButton.textContent = won ? "play the secret again" : "recompile";
   overlay?.classList.remove("hidden");
 }
