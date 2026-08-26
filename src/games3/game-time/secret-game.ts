@@ -73,6 +73,7 @@ function reveal(): void {
   game.classList.add("revealed");
   game.setAttribute("aria-hidden", "false");
   document.title = "2D Mario Odyssey";
+  window.dispatchEvent(new Event("secret-game-revealed"));
   window.setTimeout(() => startButton?.focus(), 450);
 }
 
@@ -213,6 +214,8 @@ function draw(timestamp: number): void {
   ctx.beginPath(); ctx.arc(780, 90, 46, 0, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.translate(-cameraX, 0);
+  const visibleLeft = cameraX - 280;
+  const visibleRight = cameraX + canvas.width + 280;
   // Each kingdom has its own skyline instead of one stretched environment.
   for (let x = 0; x < KINGDOM_WIDTH; x += 240) {
     ctx.fillStyle = x % 480 ? "#5ebf68" : "#3d9b62";
@@ -241,6 +244,7 @@ function draw(timestamp: number): void {
     ctx.strokeStyle = "rgba(242,205,232,.28)"; ctx.beginPath(); ctx.moveTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 105, GROUND_Y); ctx.stroke();
   }
   for (const platform of platforms) {
+    if (platform.x + platform.width < visibleLeft || platform.x > visibleRight) continue;
     const platformKingdom = Math.min(KINGDOM_COUNT - 1, Math.floor(platform.x / KINGDOM_WIDTH));
     ctx.fillStyle = ["#815438", "#a66d35", "#353242", "#7895a3", "#281827"][platformKingdom]!;
     ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
@@ -248,7 +252,7 @@ function draw(timestamp: number): void {
     ctx.fillRect(platform.x, platform.y, platform.width, 10);
   }
   for (const moon of moons) {
-    if (moon.collected) continue;
+    if (moon.collected || moon.x < visibleLeft || moon.x > visibleRight) continue;
     ctx.save(); ctx.translate(moon.x, moon.y); ctx.rotate(-0.25 + Math.sin(timestamp / 500) * 0.08);
     ctx.shadowColor = "#fff5a8"; ctx.shadowBlur = 18; ctx.fillStyle = "#ffe66d";
     ctx.beginPath();
@@ -258,7 +262,7 @@ function draw(timestamp: number): void {
   }
   ctx.font = "bold 15px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (const enemy of enemies) {
-    if (!enemy.alive) continue;
+    if (!enemy.alive || enemy.x < visibleLeft || enemy.x > visibleRight) continue;
     ctx.fillStyle = creep > 0.65 ? "#e7d5e3" : "#7b293f";
     ctx.fillRect(enemy.x - 16, enemy.y - 17, 32, 30);
     ctx.fillStyle = "#fff"; ctx.fillRect(enemy.x - 9, enemy.y - 10, 6, 7); ctx.fillRect(enemy.x + 4, enemy.y - 10, 6, 7);

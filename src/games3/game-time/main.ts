@@ -371,6 +371,22 @@ async function resetGame(): Promise<void> {
 
 startButton?.addEventListener("click", () => void resetGame());
 
+// Removing the paper reveals the secret platformer. Stop this game's timers,
+// animation, collision work, audio queue, and detached stickmen immediately so
+// it cannot keep consuming a frame budget behind the new canvas.
+window.addEventListener("secret-game-revealed", () => {
+  playing = false;
+  window.clearInterval(clock);
+  window.cancelAnimationFrame(animationFrame);
+  window.clearTimeout(blindnessTimer);
+  window.speechSynthesis?.cancel();
+  for (const stickman of stickmen.values()) {
+    for (const timer of stickman.timers) window.clearTimeout(timer);
+  }
+  stickmen.clear();
+  collisionCooldowns.clear();
+});
+
 /**
  * The title blacking out the paper takes every stickman with it. Deliberately
  * not routed through removeStickman(): that would read as the player clearing
