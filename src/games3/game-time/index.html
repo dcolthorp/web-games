@@ -7,6 +7,29 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <section class="secret-game" id="secret-game" aria-labelledby="secret-title" aria-hidden="true">
+      <div class="secret-game-shell">
+        <header class="secret-header">
+          <div>
+            <p class="secret-kicker">DOM LEVEL // UNREDACTED</p>
+            <h2 id="secret-title">UNDER THE PAPER</h2>
+          </div>
+          <div class="secret-stats" aria-live="polite">
+            <span>fragments <strong id="secret-score">0/8</strong></span>
+            <span>integrity <strong id="secret-lives">♥♥♥</strong></span>
+          </div>
+        </header>
+        <p class="secret-instructions">You deleted the decoy. Use WASD or arrow keys to collect all eight code fragments. Avoid the red bugs.</p>
+        <div class="secret-stage-wrap">
+          <canvas id="secret-stage" width="960" height="520" aria-label="Under the Paper game area"></canvas>
+          <div class="secret-overlay" id="secret-overlay">
+            <p id="secret-message">The DOM noticed you.</p>
+            <button id="secret-start" type="button">enter the source</button>
+          </div>
+        </div>
+        <a class="secret-back" href="../index.html">← pretend you saw nothing</a>
+      </div>
+    </section>
     <main class="paper-page">
       <a class="back-link" href="../index.html">← Games 3</a>
       <section class="note" aria-labelledby="game-title">
@@ -32,6 +55,7 @@
         </div>
       </section>
     </main>
+    <script type="module" src="./secret-game.ts"></script>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

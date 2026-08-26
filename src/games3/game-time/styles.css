@@ -1,7 +1,24 @@
 :root { font-family: "Comic Sans MS", "Bradley Hand", "Segoe Print", cursive; color: #242a4f; background: #173e55; }
 * { box-sizing: border-box; }
 body { min-height: 100vh; margin: 0; padding: 20px; background: radial-gradient(circle at top, #2d7184, #102c43 72%); }
-.paper-page { width: min(1120px, 100%); margin: 0 auto; }
+.paper-page { position: relative; z-index: 2; width: min(1120px, 100%); margin: 0 auto; }
+.secret-game { position: fixed; inset: 0; z-index: 1; display: grid; overflow: auto; padding: 24px; background: radial-gradient(circle at 50% 20%, #123b31, #030806 65%); color: #b6ffdc; font-family: "Courier New", monospace; opacity: 0; pointer-events: none; }
+.secret-game.revealed { z-index: 10; opacity: 1; pointer-events: auto; animation: secret-reveal 420ms steps(5, end); }
+.secret-game-shell { width: min(1040px, 100%); margin: auto; }
+.secret-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; border-bottom: 2px solid #3cffac; }
+.secret-kicker { margin: 0 0 8px; color: #ff4f72; font-weight: 700; letter-spacing: 0.16em; }
+.secret-header h2 { margin: 0 0 10px; font-size: clamp(2.2rem, 7vw, 5rem); line-height: 0.9; text-shadow: 0 0 24px rgba(60, 255, 172, 0.55); }
+.secret-stats { display: grid; gap: 5px; min-width: 190px; padding-bottom: 12px; font-size: 1.05rem; }
+.secret-instructions { max-width: 760px; line-height: 1.5; }
+.secret-stage-wrap { position: relative; overflow: hidden; border: 2px solid #3cffac; box-shadow: 0 0 30px rgba(60, 255, 172, 0.18), inset 0 0 30px rgba(60, 255, 172, 0.08); }
+#secret-stage { display: block; width: 100%; height: auto; aspect-ratio: 24 / 13; }
+.secret-overlay { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 16px; background: rgba(2, 12, 9, 0.82); text-align: center; }
+.secret-overlay.hidden { display: none; }
+.secret-overlay p { margin: 0; color: #fff; font-size: clamp(1.3rem, 4vw, 2.3rem); font-weight: 700; }
+#secret-start { padding: 12px 18px; border: 2px solid #3cffac; background: #07110f; color: #b6ffdc; box-shadow: 5px 5px 0 #3cffac; font: 700 1rem "Courier New", monospace; cursor: pointer; }
+#secret-start:hover, #secret-start:focus-visible { background: #b6ffdc; color: #07110f; }
+.secret-back { display: inline-block; margin-top: 14px; color: #8cbaa3; }
+@keyframes secret-reveal { 0% { opacity: 0; filter: brightness(4); transform: translateX(-8px); } 40% { opacity: 1; transform: translateX(6px); } 70% { transform: translateX(-3px); } 100% { filter: none; transform: none; } }
 .back-link { display: inline-block; margin-bottom: 10px; color: #fff; font-weight: 900; }
 .note { position: relative; min-height: min(790px, calc(100vh - 78px)); padding: 88px 64px 48px 100px; overflow: hidden; background: url("../assets/crumpled-school-paper.png") center / 100% 100% no-repeat; filter: drop-shadow(12px 18px 8px rgba(0, 0, 0, 0.42)); }
 .game-header { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
