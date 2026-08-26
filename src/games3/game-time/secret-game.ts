@@ -16,28 +16,34 @@ const message = document.getElementById("secret-message");
 const startButton = document.getElementById("secret-start") as HTMLButtonElement | null;
 const fullscreenButton = document.getElementById("secret-fullscreen") as HTMLButtonElement | null;
 
-const WORLD_WIDTH = 6600;
+const KINGDOM_COUNT = 5;
 const KINGDOM_WIDTH = 2200;
+const WORLD_WIDTH = KINGDOM_COUNT * KINGDOM_WIDTH;
 const GROUND_Y = 450;
 const keys = new Set<string>();
 const player = { x: 100, y: 380, vx: 0, vy: 0, width: 30, height: 48, grounded: false, facing: 1, invulnerableUntil: 0 };
 const cap = { x: 0, y: 0, vx: 0, active: false, returning: false, distance: 0 };
-const platforms: Platform[] = [
-  // Three separate kingdoms. Their 100px crossings are comfortably below the
-  // player's measured running-jump range of roughly 240px.
-  { x: 0, y: GROUND_Y, width: 2100, height: 70 },
-  { x: 2200, y: GROUND_Y, width: 2100, height: 70 },
-  { x: 4400, y: GROUND_Y, width: 2200, height: 70 },
-  { x: 650, y: 360, width: 240, height: 22 }, { x: 1530, y: 355, width: 240, height: 22 },
-  { x: 2740, y: 365, width: 260, height: 22 }, { x: 3620, y: 355, width: 250, height: 22 },
-  { x: 4940, y: 365, width: 260, height: 22 }, { x: 5820, y: 355, width: 260, height: 22 },
-];
-const moons: Moon[] = [
-  { x: 770, y: 315, collected: false }, { x: 1650, y: 310, collected: false },
-  { x: 2870, y: 320, collected: false }, { x: 3745, y: 310, collected: false },
-  { x: 5070, y: 320, collected: false }, { x: 5950, y: 310, collected: false },
-];
-const enemies: Enemy[] = [1100, 1850, 2500, 3350, 4100, 4700, 5550, 6250].map((x) => ({
+// Every kingdom uses the same proven traversal measurements but gets its own
+// scenery. The 100px kingdom crossings stay well below the ~240px jump range.
+const platforms: Platform[] = Array.from({ length: KINGDOM_COUNT }, (_, kingdom) => {
+  const start = kingdom * KINGDOM_WIDTH;
+  return [
+    { x: start, y: GROUND_Y, width: kingdom === KINGDOM_COUNT - 1 ? 2200 : 2100, height: 70 },
+    { x: start + 650, y: 360, width: 240, height: 22 },
+    { x: start + 1530, y: 355, width: 240, height: 22 },
+  ];
+}).flat();
+const moons: Moon[] = Array.from({ length: KINGDOM_COUNT }, (_, kingdom) => {
+  const start = kingdom * KINGDOM_WIDTH;
+  return [
+    { x: start + 770, y: 315, collected: false },
+    { x: start + 1650, y: 310, collected: false },
+  ];
+}).flat();
+const enemies: Enemy[] = Array.from({ length: KINGDOM_COUNT }, (_, kingdom) => [
+  kingdom * KINGDOM_WIDTH + 1100,
+  kingdom * KINGDOM_WIDTH + 1850,
+]).flat().map((x) => ({
   x, y: GROUND_Y - 30, minX: x - 90, maxX: x + 90, direction: 1, alive: true,
 }));
 
@@ -63,7 +69,7 @@ if (paper) {
 } else reveal();
 
 function updateHud(): void {
-  if (scoreLabel) scoreLabel.textContent = `${moonCount}/6`;
+  if (scoreLabel) scoreLabel.textContent = `${moonCount}/${moons.length}`;
   if (livesLabel) livesLabel.textContent = `${"♥".repeat(lives)}${"♡".repeat(3 - lives)}`;
 }
 
@@ -176,7 +182,7 @@ function update(delta: number, timestamp: number): void {
     if (cap.active && Math.hypot(cap.x - enemy.x, cap.y - enemy.y) < 34) enemy.alive = false;
     if (Math.abs(player.x + 15 - enemy.x) < 28 && Math.abs(player.y + 28 - enemy.y) < 35) hurt(timestamp);
   }
-  if (moonCount === moons.length && player.x > 6450) finish(true);
+  if (moonCount === moons.length && player.x > WORLD_WIDTH - 150) finish(true);
   cameraX += (Math.max(0, Math.min(WORLD_WIDTH - canvas.width, player.x - canvas.width * 0.38)) - cameraX) * Math.min(1, delta * 7);
 }
 
@@ -184,12 +190,12 @@ function draw(timestamp: number): void {
   if (!canvas || !ctx) return;
   const progress = cameraX / (WORLD_WIDTH - canvas.width);
   const creep = Math.max(0, (progress - 0.3) / 0.7);
-  const kingdom = Math.min(2, Math.floor(player.x / KINGDOM_WIDTH));
-  const kingdomNames = ["SUNSHINE KINGDOM", "METRO KINGDOM", "HOLLOW KINGDOM"];
-  const skies = ["#55bce1", "#604c81", "#100817"];
+  const kingdom = Math.min(KINGDOM_COUNT - 1, Math.floor(player.x / KINGDOM_WIDTH));
+  const kingdomNames = ["SUNSHINE KINGDOM", "SAND KINGDOM", "METRO KINGDOM", "FROST KINGDOM", "HOLLOW KINGDOM"];
+  const skies = ["#55bce1", "#e7a953", "#604c81", "#8fb4ca", "#100817"];
   ctx.fillStyle = skies[kingdom]!;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = kingdom === 2 ? "#d9c9d8" : "#fffbd1";
+  ctx.fillStyle = kingdom === KINGDOM_COUNT - 1 ? "#d9c9d8" : "#fffbd1";
   ctx.beginPath(); ctx.arc(780, 90, 46, 0, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.translate(-cameraX, 0);
@@ -198,26 +204,33 @@ function draw(timestamp: number): void {
     ctx.fillStyle = x % 480 ? "#5ebf68" : "#3d9b62";
     ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 110, 260 - (x % 70)); ctx.lineTo(x + 230, GROUND_Y); ctx.fill();
   }
-  for (let x = KINGDOM_WIDTH; x < KINGDOM_WIDTH * 2; x += 150) {
+  for (let x = KINGDOM_WIDTH; x < KINGDOM_WIDTH * 2; x += 260) {
+    ctx.fillStyle = x % 520 ? "#d98d40" : "#c77a36";
+    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.quadraticCurveTo(x + 130, 260 - (x % 55), x + 255, GROUND_Y); ctx.fill();
+    ctx.fillStyle = "#8b5938"; ctx.fillRect(x + 105, 300, 28, 150);
+    ctx.beginPath(); ctx.moveTo(x + 75, 300); ctx.lineTo(x + 120, 235); ctx.lineTo(x + 164, 300); ctx.fill();
+  }
+  for (let x = KINGDOM_WIDTH * 2; x < KINGDOM_WIDTH * 3; x += 150) {
     const height = 150 + (x % 260);
     ctx.fillStyle = x % 300 ? "#34314d" : "#27243d";
     ctx.fillRect(x, GROUND_Y - height, 125, height);
-    ctx.fillStyle = "#ffd56a";
-    for (let y = GROUND_Y - height + 25; y < GROUND_Y - 35; y += 42) {
-      ctx.fillRect(x + 22, y, 13, 18); ctx.fillRect(x + 67, y, 13, 18);
-    }
+    ctx.fillStyle = "#ffd56a"; ctx.fillRect(x + 25, GROUND_Y - height + 30, 16, 22);
   }
-  for (let x = KINGDOM_WIDTH * 2; x < WORLD_WIDTH; x += 250) {
+  for (let x = KINGDOM_WIDTH * 3; x < KINGDOM_WIDTH * 4; x += 230) {
+    ctx.fillStyle = x % 460 ? "#d8f2f4" : "#b7dce5";
+    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 100, 210 - (x % 80)); ctx.lineTo(x + 220, GROUND_Y); ctx.fill();
+  }
+  for (let x = KINGDOM_WIDTH * 4; x < WORLD_WIDTH; x += 250) {
     const height = 120 + (x % 180);
     ctx.fillStyle = x % 500 ? "#271528" : "#35162b";
     ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 80, GROUND_Y - height); ctx.lineTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 240, GROUND_Y); ctx.fill();
     ctx.strokeStyle = "rgba(242,205,232,.28)"; ctx.beginPath(); ctx.moveTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 105, GROUND_Y); ctx.stroke();
   }
   for (const platform of platforms) {
-    const platformKingdom = Math.min(2, Math.floor(platform.x / KINGDOM_WIDTH));
-    ctx.fillStyle = ["#815438", "#353242", "#281827"][platformKingdom]!;
+    const platformKingdom = Math.min(KINGDOM_COUNT - 1, Math.floor(platform.x / KINGDOM_WIDTH));
+    ctx.fillStyle = ["#815438", "#a66d35", "#353242", "#7895a3", "#281827"][platformKingdom]!;
     ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-    ctx.fillStyle = ["#50b657", "#c19055", "#7d304b"][platformKingdom]!;
+    ctx.fillStyle = ["#50b657", "#e8bf5a", "#c19055", "#e4f8ff", "#7d304b"][platformKingdom]!;
     ctx.fillRect(platform.x, platform.y, platform.width, 10);
   }
   for (const moon of moons) {
@@ -261,7 +274,7 @@ function draw(timestamp: number): void {
   ctx.fillStyle = "#fff"; ctx.font = "bold 15px monospace"; ctx.textAlign = "left";
   ctx.fillText(kingdomNames[kingdom]!, 28, 35);
   ctx.font = "bold 13px monospace";
-  ctx.fillText(`KINGDOM ${kingdom + 1}/3 · MOONS ${moonCount}/6 · ${Math.round(player.x)}m`, 28, 56);
+  ctx.fillText(`KINGDOM ${kingdom + 1}/${KINGDOM_COUNT} · MOONS ${moonCount}/${moons.length} · ${Math.round(player.x)}m`, 28, 56);
 }
 
 function tick(timestamp: number): void {
