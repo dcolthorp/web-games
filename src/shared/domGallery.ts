@@ -11,14 +11,14 @@ host.id = "dom-gallery-root";
 const shadow = host.attachShadow({ mode: "open" });
 shadow.innerHTML = `
   <style>
-    :host { all: initial; }
+    :host { all: initial; position: fixed; z-index: 2147483647; top: 0; right: 0; width: 160px; height: 110px; pointer-events: none; }
     * { box-sizing: border-box; }
-    .door { position: fixed; z-index: 2147483646; top: 0; right: 0; width: 92px; height: 72px; border: 0; opacity: 0; cursor: pointer; background: #05070a; color: #62ffb2; font: 800 11px/1.15 monospace; letter-spacing: .08em; transition: opacity 140ms; }
+    .door { position: fixed; z-index: 2147483646; top: 0; right: 0; width: 160px; height: 110px; border: 0; opacity: 0; pointer-events: auto; cursor: pointer; background: #05070a; color: #62ffb2; font: 800 13px/1.15 monospace; letter-spacing: .08em; transition: opacity 140ms; }
     .door:hover, .door:focus-visible { opacity: .94; outline: 2px solid #62ffb2; outline-offset: -4px; }
     .glitch { position: fixed; z-index: 2147483647; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(98,255,178,.22) 0 2px, transparent 2px 7px), #05070a; animation: glitch-in 680ms steps(8,end) forwards; }
     .glitch::after { content: "OPENING THE DOM"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font: 900 clamp(24px,7vw,80px) monospace; text-shadow: 8px 0 #ff3158, -8px 0 #44aaff; }
     @keyframes glitch-in { 0% { clip-path: inset(0 0 90% 0); } 20% { clip-path: inset(65% 0 0 0); transform: translateX(18px); } 45% { clip-path: inset(0); } 80% { opacity: 1; filter: invert(1); } 100% { opacity: 0; } }
-    .gallery { position: fixed; z-index: 2147483645; inset: 0; overflow: hidden; color: #dfffee; background: #07100d; font-family: monospace; }
+    .gallery { position: fixed; z-index: 2147483645; inset: 0; overflow: hidden; pointer-events: auto; color: #dfffee; background: #07100d; font-family: monospace; }
     .gallery[hidden] { display: none; }
     .sky { position: absolute; inset: 0; background: linear-gradient(#061b17 0 64%, #101a16 64%); }
     .grid { position: absolute; inset: 0; opacity: .25; background-image: linear-gradient(#38ef9a 1px,transparent 1px),linear-gradient(90deg,#38ef9a 1px,transparent 1px); background-size: 42px 42px; perspective: 300px; }
