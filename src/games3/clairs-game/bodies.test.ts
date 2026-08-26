@@ -39,6 +39,10 @@ describe("bodies", () => {
     expect(sun.air).toBeLessThan(0.01);
   });
 
+  it("has nowhere lighter than space itself", () => {
+    for (const body of BODIES) expect(body.gravity).toBeGreaterThanOrEqual(bodyById("space")!.gravity);
+  });
+
   it("keeps the Moon floatier than Earth and Jupiter heavier", () => {
     expect(bodyById("moon")!.gravity).toBeLessThan(FRONT_YARD.gravity);
     expect(bodyById("jupiter")!.gravity).toBeGreaterThan(FRONT_YARD.gravity);
@@ -48,6 +52,16 @@ describe("bodies", () => {
   it("gives airless worlds thinner air than the gas giants", () => {
     expect(bodyById("moon")!.air).toBeGreaterThan(bodyById("jupiter")!.air);
     expect(bodyById("pluto")!.air).toBeGreaterThan(FRONT_YARD.air);
+  });
+
+  it("puts space itself on the map, with nothing to fall towards", () => {
+    const space = bodyById("space")!;
+    expect(space.gravity).toBe(0);
+    expect(gravityLabel(space)).toBe("0.00g");
+    expect(space.kind).toBe("empty space");
+    // Near enough no drag: a fart out there keeps carrying you.
+    expect(space.air).toBeGreaterThan(0.95);
+    expect(space.stars).toBe(true);
   });
 
   it("says what each thing actually is — only one of them is a star", () => {

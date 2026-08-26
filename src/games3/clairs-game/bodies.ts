@@ -10,7 +10,7 @@
  */
 
 /** What the thing actually is. Only one of them is a star. */
-export type BodyKind = "star" | "planet" | "moon" | "dwarf planet" | "home" | "???";
+export type BodyKind = "star" | "planet" | "moon" | "dwarf planet" | "home" | "empty space" | "???";
 
 export type Body = {
   id: string;
@@ -30,6 +30,8 @@ export type Body = {
   fact: string;
   /** Draws falling code behind everything. Only one place has it. */
   rain?: boolean;
+  /** Draws a starfield instead of haze. Only out in the open.  */
+  stars?: boolean;
 };
 
 export const FRONT_YARD: Body = {
@@ -204,6 +206,22 @@ export const BODIES: Body[] = [
     hazeAlpha: 0.08,
     hazeCount: 4,
     fact: "Six percent of Earth's gravity. Tap the space bar and you'll drift off the screen.",
+  },
+  {
+    id: "space",
+    name: "Space",
+    kind: "empty space",
+    glyph: "🌌",
+    // Nothing to fall towards, and near enough nothing to slow you down.
+    gravity: 0,
+    air: 0.99,
+    skyTop: "#05040f",
+    skyBottom: "#0b0718",
+    haze: "150, 160, 220",
+    hazeAlpha: 0.05,
+    hazeCount: 4,
+    stars: true,
+    fact: "No gravity and no air. You hang there until you fart, and then you go, and you keep going.",
   },
 ];
 

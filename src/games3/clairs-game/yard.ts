@@ -18,6 +18,8 @@ type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: n
 type Cloud = { x: number; y: number; r: number; drift: number; tone: number };
 /** One falling column of code. Only The Matrix uses these. */
 type Column = { x: number; y: number; speed: number; glyphs: string[] };
+/** A distant star. Only out in open space. */
+type Star = { x: number; y: number; r: number; tone: number; drift: number };
 
 export type Yard = {
   /** Same rules everywhere; only the body's gravity and air change. */
@@ -42,6 +44,17 @@ export function createYard(
   const puffs: Puff[] = [];
   let clouds: Cloud[] = makeClouds(FRONT_YARD);
   let columns: Column[] = [];
+  let stars: Star[] = [];
+
+  function makeStars(): Star[] {
+    return Array.from({ length: 190 }, () => ({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: 0.4 + Math.random() * 1.7,
+      tone: 0.35 + Math.random() * 0.65,
+      drift: 1 + Math.random() * 5,
+    }));
+  }
 
   function makeColumns(): Column[] {
     const step = 18;
@@ -143,6 +156,7 @@ export function createYard(
     }
 
     for (const cloud of clouds) cloud.x = wrap(cloud.x + cloud.drift * dt, W);
+    for (const star of stars) star.x = wrap(star.x - star.drift * dt, W);
 
     for (const column of columns) {
       column.y += column.speed * dt;
@@ -155,6 +169,15 @@ export function createYard(
         const at = Math.floor(Math.random() * column.glyphs.length);
         column.glyphs[at] = Math.random() < 0.5 ? "0" : "1";
       }
+    }
+  }
+
+  function drawStars(): void {
+    for (const star of stars) {
+      context.fillStyle = `rgba(226, 232, 255, ${star.tone})`;
+      context.beginPath();
+      context.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      context.fill();
     }
   }
 
@@ -190,6 +213,7 @@ export function createYard(
     context.fillStyle = sky;
     context.fillRect(0, 0, W, H);
 
+    if (body.stars) drawStars();
     if (body.rain) drawRain();
 
     for (const cloud of clouds) {
@@ -277,6 +301,7 @@ export function createYard(
     body = arriving;
     clouds = makeClouds(body);
     columns = body.rain ? makeColumns() : [];
+    stars = body.stars ? makeStars() : [];
     farts = 0;
     hud.farts.textContent = "FARTS 0";
     player.x = W / 2;
