@@ -17,7 +17,12 @@ body { min-height: 100vh; margin: 0; padding: 20px; background: radial-gradient(
 .secret-overlay p { margin: 0; color: #fff; font-size: clamp(1.3rem, 4vw, 2.3rem); font-weight: 700; }
 #secret-start { padding: 12px 18px; border: 2px solid #3cffac; background: #07110f; color: #b6ffdc; box-shadow: 5px 5px 0 #3cffac; font: 700 1rem "Courier New", monospace; cursor: pointer; }
 #secret-start:hover, #secret-start:focus-visible { background: #b6ffdc; color: #07110f; }
-.secret-back { display: inline-block; margin-top: 14px; color: #8cbaa3; }
+.secret-actions { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 14px; }
+.secret-back { color: #8cbaa3; }
+.secret-fullscreen { padding: 8px 12px; border: 1px solid #3cffac; background: transparent; color: #b6ffdc; font: 700 0.9rem "Courier New", monospace; cursor: pointer; }
+.secret-fullscreen:hover, .secret-fullscreen:focus-visible { background: #b6ffdc; color: #07110f; }
+.secret-game:fullscreen { padding: 18px; }
+.secret-game:fullscreen .secret-game-shell { width: min(1200px, 100%); }
 @keyframes secret-reveal { 0% { opacity: 0; filter: brightness(4); transform: translateX(-8px); } 40% { opacity: 1; transform: translateX(6px); } 70% { transform: translateX(-3px); } 100% { filter: none; transform: none; } }
 .back-link { display: inline-block; margin-bottom: 10px; color: #fff; font-weight: 900; }
 .note { position: relative; min-height: min(790px, calc(100vh - 78px)); padding: 88px 64px 48px 100px; overflow: hidden; background: url("../assets/crumpled-school-paper.png") center / 100% 100% no-repeat; filter: drop-shadow(12px 18px 8px rgba(0, 0, 0, 0.42)); }

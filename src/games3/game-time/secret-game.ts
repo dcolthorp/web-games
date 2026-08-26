@@ -1,75 +1,89 @@
-interface Point {
-  x: number;
-  y: number;
-}
-
 export {};
 
-interface Bug extends Point {
-  vx: number;
-  vy: number;
-  radius: number;
-}
+interface Platform { x: number; y: number; width: number; height: number }
+interface Moon { x: number; y: number; collected: boolean }
+interface Enemy { x: number; y: number; minX: number; maxX: number; direction: number; alive: boolean }
 
-const secretGame = document.getElementById("secret-game");
-const paperPage = document.querySelector(".paper-page");
-const paperNote = document.querySelector(".paper-page .note");
+const game = document.getElementById("secret-game");
+const paper = document.querySelector(".paper-page");
+const note = document.querySelector(".paper-page .note");
 const canvas = document.getElementById("secret-stage") as HTMLCanvasElement | null;
-const context = canvas?.getContext("2d") ?? null;
+const ctx = canvas?.getContext("2d") ?? null;
 const scoreLabel = document.getElementById("secret-score");
 const livesLabel = document.getElementById("secret-lives");
 const overlay = document.getElementById("secret-overlay");
 const message = document.getElementById("secret-message");
 const startButton = document.getElementById("secret-start") as HTMLButtonElement | null;
+const fullscreenButton = document.getElementById("secret-fullscreen") as HTMLButtonElement | null;
 
-const player = { x: 110, y: 260, radius: 15, speed: 250 };
+const WORLD_WIDTH = 7200;
+const GROUND_Y = 450;
 const keys = new Set<string>();
-let fragments: Point[] = [];
-let bugs: Bug[] = [];
-let score = 0;
+const player = { x: 100, y: 380, vx: 0, vy: 0, width: 30, height: 48, grounded: false, facing: 1, invulnerableUntil: 0 };
+const cap = { x: 0, y: 0, vx: 0, active: false, returning: false, distance: 0 };
+const platforms: Platform[] = [
+  { x: 0, y: GROUND_Y, width: 1150, height: 70 }, { x: 1260, y: GROUND_Y, width: 830, height: 70 },
+  { x: 2210, y: GROUND_Y, width: 940, height: 70 }, { x: 3260, y: GROUND_Y, width: 660, height: 70 },
+  { x: 4060, y: GROUND_Y, width: 1010, height: 70 }, { x: 5200, y: GROUND_Y, width: 760, height: 70 },
+  { x: 6080, y: GROUND_Y, width: 1120, height: 70 }, { x: 430, y: 350, width: 190, height: 22 },
+  { x: 820, y: 285, width: 150, height: 22 }, { x: 1390, y: 340, width: 210, height: 22 },
+  { x: 1780, y: 270, width: 150, height: 22 }, { x: 2350, y: 330, width: 240, height: 22 },
+  { x: 2780, y: 245, width: 150, height: 22 }, { x: 3370, y: 315, width: 210, height: 22 },
+  { x: 3720, y: 235, width: 140, height: 22 }, { x: 4220, y: 340, width: 240, height: 22 },
+  { x: 4700, y: 260, width: 170, height: 22 }, { x: 5320, y: 320, width: 190, height: 22 },
+  { x: 5700, y: 225, width: 150, height: 22 }, { x: 6230, y: 330, width: 210, height: 22 },
+  { x: 6650, y: 245, width: 210, height: 22 },
+];
+const moons: Moon[] = [
+  { x: 900, y: 235, collected: false }, { x: 1845, y: 220, collected: false },
+  { x: 2850, y: 195, collected: false }, { x: 3780, y: 185, collected: false },
+  { x: 5770, y: 175, collected: false }, { x: 6760, y: 195, collected: false },
+];
+const enemies: Enemy[] = [1450, 2450, 3490, 4330, 4840, 5440, 6320, 6820].map((x) => ({
+  x, y: GROUND_Y - 30, minX: x - 90, maxX: x + 90, direction: 1, alive: true,
+}));
+
 let lives = 3;
+let moonCount = 0;
+let cameraX = 0;
 let running = false;
-let invulnerableUntil = 0;
 let previousFrame = 0;
 let animationFrame = 0;
 
-function revealSecret(): void {
-  if (!secretGame || secretGame.classList.contains("revealed")) return;
-  secretGame.classList.add("revealed");
-  secretGame.setAttribute("aria-hidden", "false");
+function reveal(): void {
+  if (!game || game.classList.contains("revealed")) return;
+  game.classList.add("revealed");
+  game.setAttribute("aria-hidden", "false");
   document.title = "2D Mario Odyssey";
   window.setTimeout(() => startButton?.focus(), 450);
 }
 
-if (paperPage) {
+if (paper) {
   new MutationObserver(() => {
-    if (!paperPage.isConnected || !paperNote?.isConnected) revealSecret();
+    if (!paper.isConnected || !note?.isConnected) reveal();
   }).observe(document.body, { childList: true, subtree: true });
-} else {
-  revealSecret();
+} else reveal();
+
+function updateHud(): void {
+  if (scoreLabel) scoreLabel.textContent = `${moonCount}/6`;
+  if (livesLabel) livesLabel.textContent = `${"♥".repeat(lives)}${"♡".repeat(3 - lives)}`;
 }
 
-function randomPoint(margin = 45): Point {
-  return {
-    x: margin + Math.random() * ((canvas?.width ?? 960) - margin * 2),
-    y: margin + Math.random() * ((canvas?.height ?? 520) - margin * 2),
-  };
+function resetPlayer(): void {
+  player.x = Math.max(80, cameraX + 90);
+  player.y = 330;
+  player.vx = 0;
+  player.vy = 0;
 }
 
-function resetGame(): void {
-  if (!canvas) return;
-  player.x = 110;
-  player.y = canvas.height / 2;
-  score = 0;
+function start(): void {
   lives = 3;
-  invulnerableUntil = 0;
-  fragments = Array.from({ length: 8 }, () => randomPoint(60));
-  bugs = Array.from({ length: 5 }, (_, index) => {
-    const point = randomPoint(80);
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 90 + index * 14;
-    return { ...point, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius: 13 };
-  });
+  moonCount = 0;
+  cameraX = 0;
+  Object.assign(player, { x: 100, y: 380, vx: 0, vy: 0, invulnerableUntil: 0 });
+  cap.active = false;
+  for (const moon of moons) moon.collected = false;
+  for (const enemy of enemies) enemy.alive = true;
   running = true;
   overlay?.classList.add("hidden");
   updateHud();
@@ -78,100 +92,164 @@ function resetGame(): void {
   animationFrame = window.requestAnimationFrame(tick);
 }
 
-function updateHud(): void {
-  if (scoreLabel) scoreLabel.textContent = `${score}/8`;
-  if (livesLabel) livesLabel.textContent = `${"♥".repeat(lives)}${"♡".repeat(3 - lives)}`;
-}
-
 function finish(won: boolean): void {
   running = false;
-  window.cancelAnimationFrame(animationFrame);
-  if (message) message.textContent = won ? "ODYSSEY COMPLETE. You found the real game." : "SEGMENTATION FAULT. The bugs got you.";
-  if (startButton) startButton.textContent = won ? "play the secret again" : "recompile";
+  if (message) message.textContent = won ? "ODYSSEY COMPLETE. But something followed you home." : "The dark caught up. Try the odyssey again.";
+  if (startButton) startButton.textContent = won ? "return to the kingdom" : "try again";
   overlay?.classList.remove("hidden");
 }
 
-function overlaps(a: Point, aRadius: number, b: Point, bRadius: number): boolean {
-  return Math.hypot(a.x - b.x, a.y - b.y) < aRadius + bRadius;
+function throwCap(): void {
+  if (!running || cap.active) return;
+  cap.active = true;
+  cap.returning = false;
+  cap.distance = 0;
+  cap.x = player.x + player.facing * 24;
+  cap.y = player.y + 14;
+  cap.vx = player.facing * 520;
+}
+
+function hurt(timestamp: number): void {
+  if (timestamp < player.invulnerableUntil) return;
+  lives -= 1;
+  player.invulnerableUntil = timestamp + 1500;
+  updateHud();
+  if (lives <= 0) finish(false); else resetPlayer();
+}
+
+function jump(): void {
+  if (running && player.grounded) {
+    player.vy = -470;
+    player.grounded = false;
+  }
 }
 
 function update(delta: number, timestamp: number): void {
   if (!canvas) return;
-  const horizontal = Number(keys.has("arrowright") || keys.has("d")) - Number(keys.has("arrowleft") || keys.has("a"));
-  const vertical = Number(keys.has("arrowdown") || keys.has("s")) - Number(keys.has("arrowup") || keys.has("w"));
-  const length = Math.hypot(horizontal, vertical) || 1;
-  player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + horizontal / length * player.speed * delta));
-  player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + vertical / length * player.speed * delta));
-
-  fragments = fragments.filter((fragment) => {
-    if (!overlaps(player, player.radius, fragment, 12)) return true;
-    score += 1;
-    updateHud();
-    if (score === 8) finish(true);
-    return false;
-  });
-
-  for (const bug of bugs) {
-    bug.x += bug.vx * delta;
-    bug.y += bug.vy * delta;
-    if (bug.x < bug.radius || bug.x > canvas.width - bug.radius) bug.vx *= -1;
-    if (bug.y < bug.radius || bug.y > canvas.height - bug.radius) bug.vy *= -1;
-    bug.x = Math.max(bug.radius, Math.min(canvas.width - bug.radius, bug.x));
-    bug.y = Math.max(bug.radius, Math.min(canvas.height - bug.radius, bug.y));
-    if (timestamp >= invulnerableUntil && overlaps(player, player.radius, bug, bug.radius)) {
-      lives -= 1;
-      invulnerableUntil = timestamp + 1200;
-      player.x = 110;
-      player.y = canvas.height / 2;
-      updateHud();
-      if (lives === 0) finish(false);
+  const direction = Number(keys.has("arrowright") || keys.has("d")) - Number(keys.has("arrowleft") || keys.has("a"));
+  player.vx += direction * 1650 * delta;
+  player.vx *= Math.pow(0.002, delta);
+  player.vx = Math.max(-270, Math.min(270, player.vx));
+  if (direction) player.facing = direction;
+  player.vy += 1050 * delta;
+  const oldBottom = player.y + player.height;
+  player.x = Math.max(0, Math.min(WORLD_WIDTH - player.width, player.x + player.vx * delta));
+  player.y += player.vy * delta;
+  player.grounded = false;
+  for (const platform of platforms) {
+    const withinX = player.x + player.width > platform.x && player.x < platform.x + platform.width;
+    const newBottom = player.y + player.height;
+    if (withinX && player.vy >= 0 && oldBottom <= platform.y && newBottom >= platform.y) {
+      player.y = platform.y - player.height;
+      player.vy = 0;
+      player.grounded = true;
     }
   }
+  if (player.y > canvas.height + 100) hurt(timestamp);
+
+  if (cap.active) {
+    cap.x += cap.vx * delta;
+    cap.distance += Math.abs(cap.vx * delta);
+    if (cap.distance > 250) cap.returning = true;
+    if (cap.returning) {
+      const dx = player.x + player.width / 2 - cap.x;
+      const dy = player.y + 15 - cap.y;
+      const length = Math.hypot(dx, dy) || 1;
+      cap.x += dx / length * 620 * delta;
+      cap.y += dy / length * 620 * delta;
+      if (length < 28) cap.active = false;
+    }
+  }
+  for (const moon of moons) {
+    if (!moon.collected && Math.hypot(player.x + 15 - moon.x, player.y + 20 - moon.y) < 42) {
+      moon.collected = true;
+      moonCount += 1;
+      updateHud();
+    }
+  }
+  for (const enemy of enemies) {
+    if (!enemy.alive) continue;
+    enemy.x += enemy.direction * 65 * delta;
+    if (enemy.x < enemy.minX || enemy.x > enemy.maxX) enemy.direction *= -1;
+    if (cap.active && Math.hypot(cap.x - enemy.x, cap.y - enemy.y) < 34) enemy.alive = false;
+    if (Math.abs(player.x + 15 - enemy.x) < 28 && Math.abs(player.y + 28 - enemy.y) < 35) hurt(timestamp);
+  }
+  if (moonCount === moons.length && player.x > 7000) finish(true);
+  cameraX += (Math.max(0, Math.min(WORLD_WIDTH - canvas.width, player.x - canvas.width * 0.38)) - cameraX) * Math.min(1, delta * 7);
 }
 
 function draw(timestamp: number): void {
-  if (!canvas || !context) return;
-  context.fillStyle = "#07110f";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.strokeStyle = "rgba(71, 255, 177, 0.09)";
-  context.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += 32) {
-    context.beginPath(); context.moveTo(x, 0); context.lineTo(x, canvas.height); context.stroke();
+  if (!canvas || !ctx) return;
+  const progress = cameraX / (WORLD_WIDTH - canvas.width);
+  const creep = Math.max(0, (progress - 0.3) / 0.7);
+  const skyR = Math.round(77 * (1 - creep) + 12 * creep);
+  const skyG = Math.round(184 * (1 - creep) + 5 * creep);
+  const skyB = Math.round(220 * (1 - creep) + 24 * creep);
+  ctx.fillStyle = `rgb(${skyR} ${skyG} ${skyB})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = `rgba(255,255,210,${1 - creep})`;
+  ctx.beginPath(); ctx.arc(780, 90, 46, 0, Math.PI * 2); ctx.fill();
+  ctx.save();
+  ctx.translate(-cameraX, 0);
+  for (let x = 0; x < WORLD_WIDTH; x += 260) {
+    const height = 90 + ((x * 17) % 130);
+    ctx.fillStyle = creep > 0.45 ? "#201425" : x % 520 ? "#59a863" : "#408e61";
+    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 120, GROUND_Y - height); ctx.lineTo(x + 250, GROUND_Y); ctx.fill();
   }
-  for (let y = 0; y < canvas.height; y += 32) {
-    context.beginPath(); context.moveTo(0, y); context.lineTo(canvas.width, y); context.stroke();
+  for (const platform of platforms) {
+    ctx.fillStyle = progress > 0.7 ? "#281827" : "#815438";
+    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+    ctx.fillStyle = progress > 0.7 ? "#7d304b" : "#50b657";
+    ctx.fillRect(platform.x, platform.y, platform.width, 10);
   }
-  context.font = "bold 24px monospace";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  for (const fragment of fragments) {
-    context.shadowColor = "#5dffc0";
-    context.shadowBlur = 14;
-    context.fillStyle = "#a4ffd8";
-    context.fillText("</>", fragment.x, fragment.y);
+  for (const moon of moons) {
+    if (moon.collected) continue;
+    ctx.save(); ctx.translate(moon.x, moon.y); ctx.rotate(timestamp / 700);
+    ctx.shadowColor = "#fff5a8"; ctx.shadowBlur = 18; ctx.fillStyle = "#ffe66d";
+    ctx.beginPath();
+    for (let i = 0; i < 10; i += 1) {
+      const angle = -Math.PI / 2 + i * Math.PI / 5;
+      const radius = i % 2 ? 10 : 22;
+      ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    }
+    ctx.closePath(); ctx.fill(); ctx.restore();
   }
-  context.shadowBlur = 10;
-  for (const bug of bugs) {
-    context.shadowColor = "#ff3158";
-    context.fillStyle = "#ff3158";
-    context.fillText("BUG", bug.x, bug.y);
+  ctx.font = "bold 15px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const enemy of enemies) {
+    if (!enemy.alive) continue;
+    ctx.fillStyle = creep > 0.65 ? "#e7d5e3" : "#7b293f";
+    ctx.fillRect(enemy.x - 16, enemy.y - 17, 32, 30);
+    ctx.fillStyle = "#fff"; ctx.fillRect(enemy.x - 9, enemy.y - 10, 6, 7); ctx.fillRect(enemy.x + 4, enemy.y - 10, 6, 7);
   }
-  context.shadowBlur = 16;
-  context.shadowColor = "#5dffc0";
-  context.fillStyle = timestamp < invulnerableUntil && Math.floor(timestamp / 100) % 2 === 0 ? "transparent" : "#5dffc0";
-  context.beginPath();
-  context.moveTo(player.x + 18, player.y);
-  context.lineTo(player.x - 12, player.y - 14);
-  context.lineTo(player.x - 6, player.y);
-  context.lineTo(player.x - 12, player.y + 14);
-  context.closePath();
-  context.fill();
-  context.shadowBlur = 0;
+  if (cap.active) {
+    ctx.fillStyle = "#ef344d"; ctx.beginPath(); ctx.ellipse(cap.x, cap.y, 18, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.fillRect(cap.x - 7, cap.y - 8, 14, 5);
+  }
+  const blinking = timestamp < player.invulnerableUntil && Math.floor(timestamp / 90) % 2 === 0;
+  if (!blinking) {
+    ctx.fillStyle = "#273c9a"; ctx.fillRect(player.x + 5, player.y + 20, 21, 28);
+    ctx.fillStyle = "#f2b07e"; ctx.beginPath(); ctx.arc(player.x + 15, player.y + 14, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ef344d"; ctx.fillRect(player.x + 1, player.y + 2, 28, 8);
+    ctx.fillStyle = "#fff"; ctx.fillRect(player.x + (player.facing > 0 ? 19 : 7), player.y + 11, 5, 5);
+  }
+  if (progress > 0.78) {
+    ctx.fillStyle = `rgba(255,240,245,${0.12 + Math.sin(timestamp / 300) * 0.05})`;
+    ctx.font = "bold 54px monospace";
+    const words = ["TURN BACK", "IT KNOWS", "KEEP GOING"];
+    for (let i = 0; i < 5; i += 1) ctx.fillText(words[i % words.length]!, cameraX + 170 + i * 390, 100 + (i % 3) * 105);
+  }
+  ctx.restore();
+  const gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 150, canvas.width / 2, canvas.height / 2, 600);
+  gradient.addColorStop(0, "transparent"); gradient.addColorStop(1, `rgba(10,0,12,${creep * 0.82})`);
+  ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(16, 15, 270, 34);
+  ctx.fillStyle = "#fff"; ctx.font = "bold 15px monospace"; ctx.textAlign = "left";
+  ctx.fillText(`DISTANCE ${Math.round(player.x)}m / MOONS ${moonCount}/6`, 28, 37);
 }
 
 function tick(timestamp: number): void {
   if (!running) return;
-  const delta = Math.min(0.035, (timestamp - previousFrame) / 1000);
+  const delta = Math.min(0.034, (timestamp - previousFrame) / 1000 || 0);
   previousFrame = timestamp;
   update(delta, timestamp);
   draw(timestamp);
@@ -180,12 +258,19 @@ function tick(timestamp: number): void {
 
 window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(key)) {
-    if (secretGame?.classList.contains("revealed")) event.preventDefault();
-    keys.add(key);
-  }
+  if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d", " ", "x"].includes(key) && game?.classList.contains("revealed")) event.preventDefault();
+  keys.add(key);
+  if (!event.repeat && ["arrowup", "w", " "].includes(key)) jump();
+  if (!event.repeat && key === "x") throwCap();
 });
 window.addEventListener("keyup", (event) => keys.delete(event.key.toLowerCase()));
 window.addEventListener("blur", () => keys.clear());
-startButton?.addEventListener("click", resetGame);
+startButton?.addEventListener("click", start);
+fullscreenButton?.addEventListener("click", async () => {
+  if (!game) return;
+  if (document.fullscreenElement) await document.exitFullscreen(); else await game.requestFullscreen();
+});
+document.addEventListener("fullscreenchange", () => {
+  if (fullscreenButton) fullscreenButton.textContent = document.fullscreenElement ? "× exit fullscreen" : "⛶ fullscreen";
+});
 draw(0);
