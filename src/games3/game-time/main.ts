@@ -104,16 +104,6 @@ function playPianoNote(noteIndex: number, quiet = false): void {
   overtone.stop(now + 0.73);
 }
 
-function announceCorner(): void {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const line = new SpeechSynthesisUtterance("You hit a corner. Oh my God!");
-  line.rate = 1.08;
-  line.pitch = 1.18;
-  line.volume = 1;
-  window.setTimeout(() => window.speechSynthesis.speak(line), 120);
-}
-
 function chooseKind(): StickmanKind {
   const roll = Math.random();
   if (roll < 0.12) return "bomb";
@@ -157,14 +147,13 @@ function spawnStickman(kind: StickmanKind = chooseKind()): void {
   updateHud();
 }
 
-function burstStickman(id: number, corner = false): void {
+function burstStickman(id: number): void {
   const stickman = stickmen.get(id);
   if (!stickman) return;
   for (const timer of stickman.timers) window.clearTimeout(timer);
   stickmen.delete(id);
   stickman.element.disabled = true;
   stickman.element.classList.add("burst-away");
-  if (corner) announceCorner();
   window.setTimeout(() => stickman.element.remove(), FADE_MS);
   updateHud();
   if (playing && stickmen.size === 0) finish(true);
@@ -200,7 +189,7 @@ function moveStickmen(timestamp: number): void {
       const nearBottom = stickman.y >= height - CORNER_RADIUS;
       const hitCornerZone = (nearLeft || nearRight) && (nearTop || nearBottom);
       if (hitCornerZone) {
-        burstStickman(id, true);
+        burstStickman(id);
         continue;
       }
       if (stickman.edgeHits >= EDGE_HITS_BEFORE_BURST) {
