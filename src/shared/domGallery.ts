@@ -28,11 +28,10 @@ shadow.innerHTML = `
     .close { pointer-events: auto; border: 2px solid #62ffb2; padding: 9px 12px; color: #62ffb2; background: #07100d; font: 800 12px monospace; cursor: pointer; }
     .world { position: absolute; left: 0; bottom: 74px; height: 430px; will-change: transform; }
     .floor { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; border-top: 4px solid #62ffb2; background: #17251f; }
-    .exhibit { position: absolute; bottom: 44px; width: 230px; height: 280px; padding: 12px; border: 2px solid #3fd894; border-bottom: 12px solid #3fd894; background: rgba(7,16,13,.92); box-shadow: 8px 8px 0 rgba(0,0,0,.45); overflow: hidden; }
-    .exhibit:nth-child(3n) { height: 330px; }
-    .kind { color: #ff7891; font: 800 10px monospace; letter-spacing: .14em; }
-    .label { height: 48px; margin: 6px 0 8px; overflow: hidden; color: #dfffee; font: 800 13px/1.25 monospace; overflow-wrap: anywhere; }
-    .preview { display: grid; place-items: center; width: 100%; height: 170px; border: 1px solid #215b45; background: #020705; overflow: hidden; }
+    .exhibit { position: absolute; bottom: 44px; width: 300px; height: 350px; padding: 8px; border: 2px solid #3fd894; border-bottom: 12px solid #3fd894; background: rgba(7,16,13,.92); box-shadow: 8px 8px 0 rgba(0,0,0,.45); overflow: hidden; }
+    .kind { float: left; height: 25px; max-width: 70px; padding: 5px 6px 0 2px; overflow: hidden; color: #ff7891; font: 800 9px/1 monospace; letter-spacing: .08em; white-space: nowrap; }
+    .label { height: 25px; margin: 0; padding: 4px 3px 0; overflow: hidden; color: #dfffee; font: 800 10px/1.05 monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .preview { clear: both; display: grid; place-items: center; width: 100%; height: 296px; border: 1px solid #215b45; background: #020705; overflow: hidden; }
     .preview img, .preview video { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
     .preview audio { width: 95%; }
     .node { color: #62ffb2; font: 900 18px/1.35 monospace; text-align: center; overflow-wrap: anywhere; }
@@ -122,11 +121,11 @@ function buildGallery(): void {
   exhibits.forEach((exhibit, index) => {
     const card = document.createElement("article");
     card.className = "exhibit";
-    card.style.left = `${120 + index * 280}px`;
+    card.style.left = `${120 + index * 350}px`;
     card.innerHTML = `<div class="kind">${exhibit.kind.toUpperCase()}</div><div class="label">${exhibit.label}</div><div class="preview">${preview(exhibit)}</div>`;
     world.appendChild(card);
   });
-  worldWidth = Math.max(innerWidth, 280 + exhibits.length * 280);
+  worldWidth = Math.max(innerWidth, 350 + exhibits.length * 350);
   world.style.width = `${worldWidth}px`;
   counter.textContent = `${exhibits.length} EXHIBITS · ${location.pathname}`;
 }
