@@ -16,6 +16,20 @@ const message = document.getElementById("secret-message");
 const startButton = document.getElementById("secret-start") as HTMLButtonElement | null;
 const fullscreenButton = document.getElementById("secret-fullscreen") as HTMLButtonElement | null;
 
+// DevTools (and a few Chromium variants) can accidentally repeat the duplicate
+// command while an inspected button is focused. Nested clones grow
+// exponentially, so keep the one button that shipped with the page and discard
+// any copies before they can exhaust the renderer.
+function removeDuplicateStartButtons(): void {
+  if (!startButton) return;
+  for (const candidate of document.querySelectorAll("#secret-start")) {
+    if (candidate !== startButton) candidate.remove();
+  }
+}
+
+const duplicateButtonGuard = new MutationObserver(removeDuplicateStartButtons);
+duplicateButtonGuard.observe(document.body, { childList: true, subtree: true });
+
 const KINGDOM_COUNT = 5;
 const KINGDOM_WIDTH = 2200;
 const WORLD_WIDTH = KINGDOM_COUNT * KINGDOM_WIDTH;
