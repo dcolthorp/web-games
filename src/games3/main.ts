@@ -39,12 +39,16 @@ function triggerClaireEscape(): void {
   const floor = document.getElementById("trap-floor-3");
   if (floor) floor.textContent = "SHE ESCAPED";
 
-  history.replaceState(null, "", `${location.pathname}${location.search}`);
 }
 
-if (location.hash.toUpperCase() === "#FREEME") triggerClaireEscape();
+function hasClaireEscapeSignal(): boolean {
+  return location.hash.toUpperCase() === "#FREEME"
+    || new URLSearchParams(location.search).get("freeme") === "1";
+}
+
+if (hasClaireEscapeSignal()) triggerClaireEscape();
 window.addEventListener("hashchange", () => {
-  if (location.hash.toUpperCase() === "#FREEME") triggerClaireEscape();
+  if (hasClaireEscapeSignal()) triggerClaireEscape();
 });
 
 const list = document.getElementById("game-list");
