@@ -1222,6 +1222,7 @@ h1.is-glitching::after {
   background: rgba(2, 9, 20, 0.9);
   opacity: 1;
   transition: opacity 1s ease;
+  cursor: pointer;
 }
 
 .claire-escape.is-fading {
@@ -1259,6 +1260,15 @@ h1.is-glitching::after {
   text-shadow: 2px 2px #000;
 }
 
+.claire-escape-action {
+  margin: 28px 0 0;
+  font: 900 clamp(0.9rem, 2vw, 1.2rem) monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 2px 2px #000;
+  animation: claire-action-pulse 0.8s ease-in-out infinite alternate;
+}
+
 @keyframes claire-page-breakout {
   25% { transform: translate(-9px, 5px) rotate(-0.5deg); }
   50% { filter: hue-rotate(90deg) saturate(1.8); }
@@ -1273,6 +1283,10 @@ h1.is-glitching::after {
   from { transform: scale(0.05) rotate(-20deg); }
   70% { transform: scale(1.12) rotate(3deg); }
   to { transform: scale(1) rotate(0); }
+}
+
+@keyframes claire-action-pulse {
+  to { transform: scale(1.08); color: #fff4a8; }
 }
 
 .hub-trophy {

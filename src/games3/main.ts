@@ -23,14 +23,22 @@ function triggerClaireEscape(): void {
     <p class="claire-escape-code">TERMINAL OVERRIDE ACCEPTED</p>
     <p class="claire-escape-title">CLAIRE IS FREE!</p>
     <p class="claire-escape-detail">The game can no longer contain her.</p>
+    <p class="claire-escape-action">Click anywhere to follow her.</p>
   `;
+  escape.tabIndex = 0;
+  const followClaire = (): void => {
+    window.location.href = "./clairs-game/index.html";
+  };
+  escape.addEventListener("click", followClaire);
+  escape.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") followClaire();
+  });
   document.body.appendChild(escape);
+  escape.focus();
 
   const floor = document.getElementById("trap-floor-3");
   if (floor) floor.textContent = "SHE ESCAPED";
 
-  window.setTimeout(() => escape.classList.add("is-fading"), 4200);
-  window.setTimeout(() => escape.remove(), 5200);
   history.replaceState(null, "", `${location.pathname}${location.search}`);
 }
 
