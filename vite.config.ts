@@ -4,6 +4,15 @@ import { resolve } from "path";
 export default defineConfig({
   plugins: [
     {
+      name: "dom-gallery-everywhere",
+      transformIndexHtml: {
+        order: "pre",
+        handler(html) {
+          return html.replace("</body>", '  <script type="module" src="/shared/domGallery.ts"></script>\n  </body>');
+        },
+      },
+    },
+    {
       name: "sharks-multiplayer-rooms",
       configureServer(server) {
         server.ws.on("sharks:room-message", (data: unknown) => {
