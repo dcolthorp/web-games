@@ -75,6 +75,15 @@ function shortLabel(source: string): string {
   } catch { return source; }
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function collectAssets(): Exhibit[] {
   const exhibits: Exhibit[] = [];
   const seen = new Set<string>();
@@ -111,7 +120,7 @@ function preview(exhibit: Exhibit): string {
   if (exhibit.kind === "image") return `<img src="${exhibit.source}" alt="">`;
   if (exhibit.kind === "audio") return `<audio controls src="${exhibit.source}"></audio>`;
   if (exhibit.kind === "video") return `<video controls muted src="${exhibit.source}"></video>`;
-  return `<span class="node">${exhibit.kind === "style" ? "{ CSS }" : exhibit.label.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`;
+  return `<span class="node">${exhibit.kind === "style" ? "{ CSS }" : escapeHtml(exhibit.label)}</span>`;
 }
 
 function buildGallery(): void {
@@ -122,7 +131,7 @@ function buildGallery(): void {
     const card = document.createElement("article");
     card.className = "exhibit";
     card.style.left = `${120 + index * 350}px`;
-    card.innerHTML = `<div class="kind">${exhibit.kind.toUpperCase()}</div><div class="label">${exhibit.label}</div><div class="preview">${preview(exhibit)}</div>`;
+    card.innerHTML = `<div class="kind">${exhibit.kind.toUpperCase()}</div><div class="label">${escapeHtml(exhibit.label)}</div><div class="preview">${preview(exhibit)}</div>`;
     world.appendChild(card);
   });
   worldWidth = Math.max(innerWidth, 350 + exhibits.length * 350);
