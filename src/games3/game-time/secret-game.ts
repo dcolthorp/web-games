@@ -16,30 +16,28 @@ const message = document.getElementById("secret-message");
 const startButton = document.getElementById("secret-start") as HTMLButtonElement | null;
 const fullscreenButton = document.getElementById("secret-fullscreen") as HTMLButtonElement | null;
 
-const WORLD_WIDTH = 7200;
+const WORLD_WIDTH = 6600;
+const KINGDOM_WIDTH = 2200;
 const GROUND_Y = 450;
 const keys = new Set<string>();
 const player = { x: 100, y: 380, vx: 0, vy: 0, width: 30, height: 48, grounded: false, facing: 1, invulnerableUntil: 0 };
 const cap = { x: 0, y: 0, vx: 0, active: false, returning: false, distance: 0 };
 const platforms: Platform[] = [
-  { x: 0, y: GROUND_Y, width: 1150, height: 70 }, { x: 1260, y: GROUND_Y, width: 830, height: 70 },
-  { x: 2210, y: GROUND_Y, width: 940, height: 70 }, { x: 3260, y: GROUND_Y, width: 660, height: 70 },
-  { x: 4060, y: GROUND_Y, width: 1010, height: 70 }, { x: 5200, y: GROUND_Y, width: 760, height: 70 },
-  { x: 6080, y: GROUND_Y, width: 1120, height: 70 }, { x: 430, y: 350, width: 190, height: 22 },
-  { x: 820, y: 285, width: 150, height: 22 }, { x: 1390, y: 340, width: 210, height: 22 },
-  { x: 1780, y: 270, width: 150, height: 22 }, { x: 2350, y: 330, width: 240, height: 22 },
-  { x: 2780, y: 245, width: 150, height: 22 }, { x: 3370, y: 315, width: 210, height: 22 },
-  { x: 3720, y: 235, width: 140, height: 22 }, { x: 4220, y: 340, width: 240, height: 22 },
-  { x: 4700, y: 260, width: 170, height: 22 }, { x: 5320, y: 320, width: 190, height: 22 },
-  { x: 5700, y: 225, width: 150, height: 22 }, { x: 6230, y: 330, width: 210, height: 22 },
-  { x: 6650, y: 245, width: 210, height: 22 },
+  // Three separate kingdoms. Their 100px crossings are comfortably below the
+  // player's measured running-jump range of roughly 240px.
+  { x: 0, y: GROUND_Y, width: 2100, height: 70 },
+  { x: 2200, y: GROUND_Y, width: 2100, height: 70 },
+  { x: 4400, y: GROUND_Y, width: 2200, height: 70 },
+  { x: 650, y: 360, width: 240, height: 22 }, { x: 1530, y: 355, width: 240, height: 22 },
+  { x: 2740, y: 365, width: 260, height: 22 }, { x: 3620, y: 355, width: 250, height: 22 },
+  { x: 4940, y: 365, width: 260, height: 22 }, { x: 5820, y: 355, width: 260, height: 22 },
 ];
 const moons: Moon[] = [
-  { x: 900, y: 235, collected: false }, { x: 1845, y: 220, collected: false },
-  { x: 2850, y: 195, collected: false }, { x: 3780, y: 185, collected: false },
-  { x: 5770, y: 175, collected: false }, { x: 6760, y: 195, collected: false },
+  { x: 770, y: 315, collected: false }, { x: 1650, y: 310, collected: false },
+  { x: 2870, y: 320, collected: false }, { x: 3745, y: 310, collected: false },
+  { x: 5070, y: 320, collected: false }, { x: 5950, y: 310, collected: false },
 ];
-const enemies: Enemy[] = [1450, 2450, 3490, 4330, 4840, 5440, 6320, 6820].map((x) => ({
+const enemies: Enemy[] = [1100, 1850, 2500, 3350, 4100, 4700, 5550, 6250].map((x) => ({
   x, y: GROUND_Y - 30, minX: x - 90, maxX: x + 90, direction: 1, alive: true,
 }));
 
@@ -70,7 +68,8 @@ function updateHud(): void {
 }
 
 function resetPlayer(): void {
-  player.x = Math.max(80, cameraX + 90);
+  const kingdomStart = Math.floor(Math.max(0, player.x) / KINGDOM_WIDTH) * KINGDOM_WIDTH;
+  player.x = kingdomStart + 80;
   player.y = 330;
   player.vx = 0;
   player.vy = 0;
@@ -150,7 +149,10 @@ function update(delta: number, timestamp: number): void {
   if (cap.active) {
     cap.x += cap.vx * delta;
     cap.distance += Math.abs(cap.vx * delta);
-    if (cap.distance > 250) cap.returning = true;
+    if (cap.distance > 250 && !cap.returning) {
+      cap.returning = true;
+      cap.vx = 0;
+    }
     if (cap.returning) {
       const dx = player.x + player.width / 2 - cap.x;
       const dy = player.y + 15 - cap.y;
@@ -174,7 +176,7 @@ function update(delta: number, timestamp: number): void {
     if (cap.active && Math.hypot(cap.x - enemy.x, cap.y - enemy.y) < 34) enemy.alive = false;
     if (Math.abs(player.x + 15 - enemy.x) < 28 && Math.abs(player.y + 28 - enemy.y) < 35) hurt(timestamp);
   }
-  if (moonCount === moons.length && player.x > 7000) finish(true);
+  if (moonCount === moons.length && player.x > 6450) finish(true);
   cameraX += (Math.max(0, Math.min(WORLD_WIDTH - canvas.width, player.x - canvas.width * 0.38)) - cameraX) * Math.min(1, delta * 7);
 }
 
@@ -182,37 +184,50 @@ function draw(timestamp: number): void {
   if (!canvas || !ctx) return;
   const progress = cameraX / (WORLD_WIDTH - canvas.width);
   const creep = Math.max(0, (progress - 0.3) / 0.7);
-  const skyR = Math.round(77 * (1 - creep) + 12 * creep);
-  const skyG = Math.round(184 * (1 - creep) + 5 * creep);
-  const skyB = Math.round(220 * (1 - creep) + 24 * creep);
-  ctx.fillStyle = `rgb(${skyR} ${skyG} ${skyB})`;
+  const kingdom = Math.min(2, Math.floor(player.x / KINGDOM_WIDTH));
+  const kingdomNames = ["SUNSHINE KINGDOM", "METRO KINGDOM", "HOLLOW KINGDOM"];
+  const skies = ["#55bce1", "#604c81", "#100817"];
+  ctx.fillStyle = skies[kingdom]!;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = `rgba(255,255,210,${1 - creep})`;
+  ctx.fillStyle = kingdom === 2 ? "#d9c9d8" : "#fffbd1";
   ctx.beginPath(); ctx.arc(780, 90, 46, 0, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.translate(-cameraX, 0);
-  for (let x = 0; x < WORLD_WIDTH; x += 260) {
-    const height = 90 + ((x * 17) % 130);
-    ctx.fillStyle = creep > 0.45 ? "#201425" : x % 520 ? "#59a863" : "#408e61";
-    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 120, GROUND_Y - height); ctx.lineTo(x + 250, GROUND_Y); ctx.fill();
+  // Each kingdom has its own skyline instead of one stretched environment.
+  for (let x = 0; x < KINGDOM_WIDTH; x += 240) {
+    ctx.fillStyle = x % 480 ? "#5ebf68" : "#3d9b62";
+    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 110, 260 - (x % 70)); ctx.lineTo(x + 230, GROUND_Y); ctx.fill();
+  }
+  for (let x = KINGDOM_WIDTH; x < KINGDOM_WIDTH * 2; x += 150) {
+    const height = 150 + (x % 260);
+    ctx.fillStyle = x % 300 ? "#34314d" : "#27243d";
+    ctx.fillRect(x, GROUND_Y - height, 125, height);
+    ctx.fillStyle = "#ffd56a";
+    for (let y = GROUND_Y - height + 25; y < GROUND_Y - 35; y += 42) {
+      ctx.fillRect(x + 22, y, 13, 18); ctx.fillRect(x + 67, y, 13, 18);
+    }
+  }
+  for (let x = KINGDOM_WIDTH * 2; x < WORLD_WIDTH; x += 250) {
+    const height = 120 + (x % 180);
+    ctx.fillStyle = x % 500 ? "#271528" : "#35162b";
+    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 80, GROUND_Y - height); ctx.lineTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 240, GROUND_Y); ctx.fill();
+    ctx.strokeStyle = "rgba(242,205,232,.28)"; ctx.beginPath(); ctx.moveTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 105, GROUND_Y); ctx.stroke();
   }
   for (const platform of platforms) {
-    ctx.fillStyle = progress > 0.7 ? "#281827" : "#815438";
+    const platformKingdom = Math.min(2, Math.floor(platform.x / KINGDOM_WIDTH));
+    ctx.fillStyle = ["#815438", "#353242", "#281827"][platformKingdom]!;
     ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
-    ctx.fillStyle = progress > 0.7 ? "#7d304b" : "#50b657";
+    ctx.fillStyle = ["#50b657", "#c19055", "#7d304b"][platformKingdom]!;
     ctx.fillRect(platform.x, platform.y, platform.width, 10);
   }
   for (const moon of moons) {
     if (moon.collected) continue;
-    ctx.save(); ctx.translate(moon.x, moon.y); ctx.rotate(timestamp / 700);
+    ctx.save(); ctx.translate(moon.x, moon.y); ctx.rotate(-0.25 + Math.sin(timestamp / 500) * 0.08);
     ctx.shadowColor = "#fff5a8"; ctx.shadowBlur = 18; ctx.fillStyle = "#ffe66d";
     ctx.beginPath();
-    for (let i = 0; i < 10; i += 1) {
-      const angle = -Math.PI / 2 + i * Math.PI / 5;
-      const radius = i % 2 ? 10 : 22;
-      ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
-    }
-    ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.arc(0, 0, 22, 0, Math.PI * 2);
+    ctx.arc(9, -7, 19, 0, Math.PI * 2, true);
+    ctx.fill("evenodd"); ctx.restore();
   }
   ctx.font = "bold 15px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   for (const enemy of enemies) {
@@ -242,9 +257,11 @@ function draw(timestamp: number): void {
   const gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 150, canvas.width / 2, canvas.height / 2, 600);
   gradient.addColorStop(0, "transparent"); gradient.addColorStop(1, `rgba(10,0,12,${creep * 0.82})`);
   ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(16, 15, 270, 34);
+  ctx.fillStyle = "rgba(0,0,0,.6)"; ctx.fillRect(16, 15, 390, 56);
   ctx.fillStyle = "#fff"; ctx.font = "bold 15px monospace"; ctx.textAlign = "left";
-  ctx.fillText(`DISTANCE ${Math.round(player.x)}m / MOONS ${moonCount}/6`, 28, 37);
+  ctx.fillText(kingdomNames[kingdom]!, 28, 35);
+  ctx.font = "bold 13px monospace";
+  ctx.fillText(`KINGDOM ${kingdom + 1}/3 · MOONS ${moonCount}/6 · ${Math.round(player.x)}m`, 28, 56);
 }
 
 function tick(timestamp: number): void {
