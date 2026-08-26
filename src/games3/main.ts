@@ -11,6 +11,34 @@ const defiant = rollDefiant();
 const paperTitle = defiant ? "don't click on me" : "click on me";
 const paperLabel = defiant ? "Don't Click on Me" : "Click on Me";
 
+function triggerClaireEscape(): void {
+  if (document.querySelector(".claire-escape")) return;
+
+  document.body.classList.add("claire-is-free");
+  const escape = document.createElement("div");
+  escape.className = "claire-escape";
+  escape.setAttribute("role", "status");
+  escape.innerHTML = `
+    <div class="claire-escape-burst" aria-hidden="true"></div>
+    <p class="claire-escape-code">TERMINAL OVERRIDE ACCEPTED</p>
+    <p class="claire-escape-title">CLAIRE IS FREE!</p>
+    <p class="claire-escape-detail">The game can no longer contain her.</p>
+  `;
+  document.body.appendChild(escape);
+
+  const floor = document.getElementById("trap-floor-3");
+  if (floor) floor.textContent = "SHE ESCAPED";
+
+  window.setTimeout(() => escape.classList.add("is-fading"), 4200);
+  window.setTimeout(() => escape.remove(), 5200);
+  history.replaceState(null, "", `${location.pathname}${location.search}`);
+}
+
+if (location.hash.toUpperCase() === "#FREEME") triggerClaireEscape();
+window.addEventListener("hashchange", () => {
+  if (location.hash.toUpperCase() === "#FREEME") triggerClaireEscape();
+});
+
 const list = document.getElementById("game-list");
 if (list) {
   list.innerHTML = `
@@ -54,8 +82,8 @@ const gifted = localStorage.getItem(CLAIRS_GAME_KEY) === "true";
 if (gifted && trapFloor3 instanceof HTMLButtonElement) {
   trapFloor3.classList.add("clairs-game-button");
   trapFloor3.classList.remove("games3-trap-floor");
-  trapFloor3.textContent = "CLAIR'S GAME";
-  trapFloor3.setAttribute("aria-label", "Clair's game");
+  trapFloor3.textContent = "CLAIRE'S GAME";
+  trapFloor3.setAttribute("aria-label", "Claire's game");
   trapFloor3.addEventListener("click", () => {
     window.location.href = "./clairs-game/index.html";
   });

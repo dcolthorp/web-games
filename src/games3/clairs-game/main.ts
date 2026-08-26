@@ -1,5 +1,5 @@
 /**
- * Clair's game. Three kinds of place: the front yard you start in, Farttopia,
+ * Claire's game. Three kinds of place: the front yard you start in, Farttopia,
  * which is a city you walk around, and the planets — which are the yard's
  * physics again, with each world's own gravity and air.
  *
