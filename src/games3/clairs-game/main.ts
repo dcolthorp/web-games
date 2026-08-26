@@ -307,3 +307,17 @@ function frame(time: number): void {
 buildSkyMap();
 applyPlace();
 requestAnimationFrame(frame);
+
+// The local FREEME command enters through this exact URL. Instead of showing
+// the hub overlay, it immediately forces Claire through the game's full
+// velocity-breakout sequence and drops her into the Matrix.
+if (location.hash.toUpperCase() === "#FREEME") {
+  window.setTimeout(() => {
+    if (meltdown.running()) return;
+    brokenThrough = true;
+    velocityMeter.classList.add("broken", "surging");
+    velocityValue.textContent = "∞";
+    velocityRate.textContent = "TERMINAL OVERRIDE — CONTAINMENT FAILED";
+    breakThrough();
+  }, 650);
+}
