@@ -88,20 +88,47 @@ if (list) {
 
 const trapFloor3 = document.getElementById("trap-floor-3");
 
-// Once the stickman title gives up and hands its parting gift over, the floor
-// stops being a floor. None of the floor's own wiring is installed in that case.
 const gifted = localStorage.getItem(CLAIRS_GAME_KEY) === "true";
+const FLOOR_MODE_KEY = "games3-floor-mode";
 if (gifted && trapFloor3 instanceof HTMLButtonElement) {
-  trapFloor3.classList.add("clairs-game-button");
-  trapFloor3.classList.remove("games3-trap-floor");
-  trapFloor3.textContent = "CLAIRE'S GAME";
-  trapFloor3.setAttribute("aria-label", "Claire's game");
-  trapFloor3.addEventListener("click", () => {
+  const switcher = document.createElement("div");
+  const floorModeButton = document.createElement("button");
+  const claireModeButton = document.createElement("button");
+  const claireGameButton = document.createElement("button");
+  switcher.className = "floor-mode-switch";
+  switcher.setAttribute("aria-label", "Choose floor or Claire's game");
+  floorModeButton.className = "floor-mode-option";
+  floorModeButton.type = "button";
+  floorModeButton.textContent = "THE FLOOR";
+  claireModeButton.className = "floor-mode-option";
+  claireModeButton.type = "button";
+  claireModeButton.textContent = "CLAIRE'S GAME";
+  claireGameButton.className = "trap-floor clairs-game-button";
+  claireGameButton.type = "button";
+  claireGameButton.textContent = "ENTER CLAIRE'S GAME";
+  claireGameButton.setAttribute("aria-label", "Enter Claire's game");
+  switcher.append(floorModeButton, claireModeButton);
+  trapFloor3.before(switcher);
+  trapFloor3.after(claireGameButton);
+
+  const setFloorMode = (mode: "floor" | "claire"): void => {
+    const floorSelected = mode === "floor";
+    trapFloor3.hidden = !floorSelected;
+    claireGameButton.hidden = floorSelected;
+    floorModeButton.setAttribute("aria-pressed", String(floorSelected));
+    claireModeButton.setAttribute("aria-pressed", String(!floorSelected));
+    localStorage.setItem(FLOOR_MODE_KEY, mode);
+  };
+
+  floorModeButton.addEventListener("click", () => setFloorMode("floor"));
+  claireModeButton.addEventListener("click", () => setFloorMode("claire"));
+  claireGameButton.addEventListener("click", () => {
     window.location.href = "./clairs-game/index.html";
   });
+  setFloorMode(localStorage.getItem(FLOOR_MODE_KEY) === "floor" ? "floor" : "claire");
 }
 
-if (!gifted && trapFloor3 instanceof HTMLButtonElement) {
+if (trapFloor3 instanceof HTMLButtonElement) {
   const sequelSubtitle = document.querySelector<HTMLElement>(".games3-hero .subtitle");
   const melody = [60, 64, 67, 71, 69, 67, 64, 62, 65, 69, 72, 69, 67, 64, 62, 59];
   let audioContext: AudioContext | null = null;
