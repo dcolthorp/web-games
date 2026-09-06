@@ -4,20 +4,22 @@ import kickUrl from "./assets/oscars-voice.m4a?url";
 import snareUrl from "./assets/oscars-snare.m4a?url";
 import hihatUrl from "./assets/oscars-hihat.m4a?url";
 import crashUrl from "./assets/oscars-crash.m4a?url";
+import bassDropUrl from "./assets/oscars-bassdrop.m4a?url";
 
 installOofShortcut();
 installForceRefreshHotkey();
 
 const STEPS = 16;
-const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v5";
+const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v6";
 
-type SampleId = "kick" | "snare" | "hihat" | "crash";
+type SampleId = "kick" | "snare" | "hihat" | "crash" | "bassdrop";
 
 const sampleUrls: Record<SampleId, string> = {
   kick: kickUrl,
   snare: snareUrl,
   hihat: hihatUrl,
   crash: crashUrl,
+  bassdrop: bassDropUrl,
 };
 
 interface LoadedSample {
@@ -46,12 +48,14 @@ const lanes: Lane[] = [
   { name: "Snare", chop: "straight off the tape", color: "#ff657b", sample: "snare", slicePosition: 0, duration: 0.4, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.2 },
   { name: "Hi-Hat", chop: "hi-hat hopes", color: "#61d6ff", sample: "hihat", slicePosition: 0, duration: 0.2, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.15 },
   { name: "Crash", chop: "let it ring", color: "#8ae66e", sample: "crash", slicePosition: 0, duration: 1.6, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.1 },
+  { name: "Bass Drop", chop: "hold onto something", color: "#c084fc", sample: "bassdrop", slicePosition: 0, duration: 3.2, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.15 },
 ];
 
 const defaultPattern = [
   [true, false, false, false, false, false, false, false, true, false, false, true, false, false, false, false],
   [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
   [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false],
+  [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
   [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
 ];
 
@@ -231,6 +235,8 @@ function randomize(): void {
   pattern = lanes.map((_, laneIndex) => Array.from({ length: STEPS }, (_, step) => {
     // A crash is a punctuation mark, so it only ever wants the top of the bar.
     if (laneIndex === 3) return step === 0 && Math.random() < 0.7;
+    // The drop is the biggest gesture in the kit, so it stays rare.
+    if (laneIndex === 4) return step === 0 && Math.random() < 0.35;
     const onBeat = laneIndex === 0 ? step % 4 === 0 : laneIndex === 1 ? step % 8 === 4 : step % 2 === 0;
     return Math.random() < (onBeat ? 0.8 : 0.14);
   }));
