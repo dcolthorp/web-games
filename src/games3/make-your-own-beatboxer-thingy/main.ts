@@ -3,19 +3,21 @@ import { installOofShortcut } from "../../shared/oofShortcut";
 import kickUrl from "./assets/oscars-voice.m4a?url";
 import snareUrl from "./assets/oscars-snare.m4a?url";
 import hihatUrl from "./assets/oscars-hihat.m4a?url";
+import crashUrl from "./assets/oscars-crash.m4a?url";
 
 installOofShortcut();
 installForceRefreshHotkey();
 
 const STEPS = 16;
-const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v4";
+const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v5";
 
-type SampleId = "kick" | "snare" | "hihat";
+type SampleId = "kick" | "snare" | "hihat" | "crash";
 
 const sampleUrls: Record<SampleId, string> = {
   kick: kickUrl,
   snare: snareUrl,
   hihat: hihatUrl,
+  crash: crashUrl,
 };
 
 interface LoadedSample {
@@ -43,12 +45,14 @@ const lanes: Lane[] = [
   { name: "Big Mouth Kick", chop: "low + thumpy", color: "#f9d648", sample: "kick", slicePosition: 0, duration: 0.24, playbackRate: 0.58, filter: "lowpass", frequency: 1100, gain: 1.25 },
   { name: "Snare", chop: "straight off the tape", color: "#ff657b", sample: "snare", slicePosition: 0, duration: 0.4, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.2 },
   { name: "Hi-Hat", chop: "hi-hat hopes", color: "#61d6ff", sample: "hihat", slicePosition: 0, duration: 0.2, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.15 },
+  { name: "Crash", chop: "let it ring", color: "#8ae66e", sample: "crash", slicePosition: 0, duration: 1.6, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.1 },
 ];
 
 const defaultPattern = [
   [true, false, false, false, false, false, false, false, true, false, false, true, false, false, false, false],
   [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
   [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false],
+  [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
 ];
 
 function loadPattern(): boolean[][] {
@@ -66,6 +70,7 @@ function loadPattern(): boolean[][] {
 let pattern = loadPattern();
 let audioContext: AudioContext | null = null;
 const samples = new Map<SampleId, LoadedSample>();
+let masterBus: GainNode | null = null;
 let isPlaying = false;
 let currentStep = 0;
 let nextStepTime = 0;
@@ -119,6 +124,24 @@ function refreshSteps(): void {
   savePattern();
 }
 
+// Four lanes landing on the same step used to sum past full scale and clip,
+// which is what made a busy pattern sound harsh. Everything now runs through
+// one compressor so stacked hits duck instead of distorting.
+function ensureMasterBus(context: AudioContext): GainNode {
+  if (masterBus) return masterBus;
+  const bus = context.createGain();
+  bus.gain.value = 0.55;
+  const compressor = context.createDynamicsCompressor();
+  compressor.threshold.value = -14;
+  compressor.knee.value = 12;
+  compressor.ratio.value = 6;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.18;
+  bus.connect(compressor).connect(context.destination);
+  masterBus = bus;
+  return bus;
+}
+
 async function ensureAudio(): Promise<boolean> {
   if (!audioContext) audioContext = new AudioContext();
   await audioContext.resume();
@@ -151,7 +174,7 @@ function playVoice(laneIndex: number, time: number): void {
   gain.gain.setValueAtTime(0.0001, time);
   gain.gain.linearRampToValueAtTime(lane.gain * sample.normalization, time + 0.006);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-  source.connect(filter).connect(gain).connect(audioContext.destination);
+  source.connect(filter).connect(gain).connect(ensureMasterBus(audioContext));
   source.start(time, offset, Math.min(duration / lane.playbackRate, availableDuration));
   source.stop(time + duration + 0.03);
 }
@@ -206,6 +229,8 @@ async function togglePlayback(): Promise<void> {
 function randomize(): void {
   // Downbeats are likely, never guaranteed, so no square lights up every roll.
   pattern = lanes.map((_, laneIndex) => Array.from({ length: STEPS }, (_, step) => {
+    // A crash is a punctuation mark, so it only ever wants the top of the bar.
+    if (laneIndex === 3) return step === 0 && Math.random() < 0.7;
     const onBeat = laneIndex === 0 ? step % 4 === 0 : laneIndex === 1 ? step % 8 === 4 : step % 2 === 0;
     return Math.random() < (onBeat ? 0.8 : 0.14);
   }));
@@ -290,7 +315,7 @@ function analyzeSample(buffer: AudioBuffer): LoadedSample {
     buffer,
     activeStart: startSample / sampleRate,
     activeDuration: Math.max(0.05, (endSample - startSample) / sampleRate),
-    normalization: Math.min(5, 0.82 / Math.max(corePeak, 0.01)),
+    normalization: Math.min(4, 0.7 / Math.max(corePeak, 0.01)),
   };
 }
 
