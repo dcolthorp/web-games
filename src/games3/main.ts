@@ -55,6 +55,16 @@ const list = document.getElementById("game-list");
 if (list) {
   list.innerHTML = `
     <li>
+      <a class="game-card games3-game-card" href="./make-your-own-beatboxer-thingy/index.html" aria-label="Make Your Own Beatboxer Thingy">
+        <span class="game-card-top">
+          <span class="game-tag">Voice Beat Lab</span>
+          <span class="game-arrow" aria-hidden="true">→</span>
+        </span>
+        <span class="game-title">Make Your Own Beatboxer Thingy</span>
+        <span class="game-blurb">Chop up Oscar's voice, poke in a pattern, and make a suspiciously sick beat.</span>
+      </a>
+    </li>
+    <li>
       <a class="game-card games3-game-card" href="./sharks-in-the-water/index.html" aria-label="Sharks in the Water">
         <span class="game-card-top">
           <span class="game-tag">Raft Survival</span>

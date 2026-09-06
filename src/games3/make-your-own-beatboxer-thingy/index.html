@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#17131f" />
+    <title>Make Your Own Beatboxer Thingy</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <main class="studio-shell">
+      <header class="topbar">
+        <a class="back-link" href="../index.html"><span aria-hidden="true">&larr;</span> Games 3</a>
+        <div class="voice-badge"><span class="record-dot" aria-hidden="true"></span> 100% Oscar voice</div>
+      </header>
+
+      <section class="hero">
+        <p class="kicker">Pocket Beat Laboratory no. 03</p>
+        <h1>Make Your Own<br /><span>Beatboxer Thingy</span></h1>
+        <p class="hero-copy">Poke the squares. Stack the noises. Make something suspiciously sick.</p>
+      </section>
+
+      <section class="machine" aria-label="Beat sequencer">
+        <div class="machine-top">
+          <div class="now-playing">
+            <span class="tiny-label">Now mangling</span>
+            <strong id="status-text">Loading Oscar's voice...</strong>
+          </div>
+          <canvas id="waveform" width="720" height="86" aria-label="Waveform of Oscar's voice recording"></canvas>
+        </div>
+
+        <div class="transport" aria-label="Playback controls">
+          <button class="play-button" id="play-button" type="button" disabled>
+            <span class="play-icon" aria-hidden="true">▶</span>
+            <span id="play-label">Play beat</span>
+          </button>
+          <label class="control">
+            <span><b>Tempo</b> <output id="tempo-output">108 BPM</output></span>
+            <input id="tempo" type="range" min="60" max="180" value="108" />
+          </label>
+          <label class="control">
+            <span><b>Swing</b> <output id="swing-output">12%</output></span>
+            <input id="swing" type="range" min="0" max="45" value="12" />
+          </label>
+          <div class="utility-buttons">
+            <button id="random-button" type="button">Dice it</button>
+            <button id="clear-button" type="button">Wipe it</button>
+          </div>
+        </div>
+
+        <div class="beat-numbers" id="beat-numbers" aria-hidden="true"></div>
+        <div class="sequencer" id="sequencer" aria-label="Sixteen step beat grid"></div>
+
+        <footer class="machine-footer">
+          <p><span>Space</span> play / stop <span>R</span> dice it <span>C</span> wipe it</p>
+          <p class="footer-note">Every sound is chopped from one tiny voice memo.</p>
+        </footer>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

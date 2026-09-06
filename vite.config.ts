@@ -36,6 +36,10 @@ export default defineConfig({
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
         games3: resolve(__dirname, "src/games3/index.html"),
+        makeYourOwnBeatboxerThingy: resolve(
+          __dirname,
+          "src/games3/make-your-own-beatboxer-thingy/index.html"
+        ),
         mods: resolve(__dirname, "src/mods/index.html"),
         corruptedGames: resolve(__dirname, "src/corrupted-games/index.html"),
         bioTech: resolve(__dirname, "src/corrupted-games/bio-tech/index.html"),
