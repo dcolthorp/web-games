@@ -1,19 +1,38 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import voiceUrl from "./assets/oscars-voice.m4a?url";
+import kickUrl from "./assets/oscars-voice.m4a?url";
+import snareUrl from "./assets/oscars-snare.m4a?url";
+import hihatUrl from "./assets/oscars-hihat.m4a?url";
 
 installOofShortcut();
 installForceRefreshHotkey();
 
 const STEPS = 16;
-const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v2";
+const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v4";
+
+type SampleId = "kick" | "snare" | "hihat";
+
+const sampleUrls: Record<SampleId, string> = {
+  kick: kickUrl,
+  snare: snareUrl,
+  hihat: hihatUrl,
+};
+
+interface LoadedSample {
+  buffer: AudioBuffer;
+  activeStart: number;
+  activeDuration: number;
+  normalization: number;
+}
 
 interface Lane {
   name: string;
   chop: string;
   color: string;
+  sample: SampleId;
   slicePosition: number;
-  duration: number;
+  // Left undefined, the lane rings out for as long as its recording is loud.
+  duration?: number;
   playbackRate: number;
   filter: BiquadFilterType;
   frequency: number;
@@ -21,17 +40,15 @@ interface Lane {
 }
 
 const lanes: Lane[] = [
-  { name: "Big Mouth Kick", chop: "low + thumpy", color: "#f9d648", slicePosition: 0, duration: 0.24, playbackRate: 0.58, filter: "lowpass", frequency: 1100, gain: 1.25 },
-  { name: "Mouth Slap", chop: "snappy middle", color: "#ff657b", slicePosition: 0.18, duration: 0.18, playbackRate: 1.05, filter: "bandpass", frequency: 1900, gain: 1.2 },
-  { name: "Teeth Tick", chop: "tiny + crispy", color: "#61d6ff", slicePosition: 0.42, duration: 0.1, playbackRate: 1.65, filter: "highpass", frequency: 3000, gain: 1.1 },
-  { name: "Voice Goblin", chop: "the weird bit", color: "#8ae66e", slicePosition: 0.04, duration: 0.42, playbackRate: 0.9, filter: "allpass", frequency: 1000, gain: 1.1 },
+  { name: "Big Mouth Kick", chop: "low + thumpy", color: "#f9d648", sample: "kick", slicePosition: 0, duration: 0.24, playbackRate: 0.58, filter: "lowpass", frequency: 1100, gain: 1.25 },
+  { name: "Snare", chop: "straight off the tape", color: "#ff657b", sample: "snare", slicePosition: 0, duration: 0.4, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.2 },
+  { name: "Hi-Hat", chop: "hi-hat hopes", color: "#61d6ff", sample: "hihat", slicePosition: 0, duration: 0.2, playbackRate: 1, filter: "allpass", frequency: 1000, gain: 1.15 },
 ];
 
 const defaultPattern = [
-  [true, false, false, false, true, false, false, false, true, false, false, true, true, false, false, false],
+  [true, false, false, false, false, false, false, false, true, false, false, true, false, false, false, false],
   [false, false, false, false, true, false, false, false, false, false, false, false, true, false, false, false],
-  [false, false, true, false, false, false, true, false, false, false, true, false, false, false, true, true],
-  [false, false, false, false, false, false, false, true, false, false, false, false, false, false, true, false],
+  [true, false, true, false, true, false, true, false, true, false, true, false, true, false, true, false],
 ];
 
 function loadPattern(): boolean[][] {
@@ -48,10 +65,7 @@ function loadPattern(): boolean[][] {
 
 let pattern = loadPattern();
 let audioContext: AudioContext | null = null;
-let voiceBuffer: AudioBuffer | null = null;
-let activeStart = 0;
-let activeDuration = 0.5;
-let voiceNormalization = 1;
+const samples = new Map<SampleId, LoadedSample>();
 let isPlaying = false;
 let currentStep = 0;
 let nextStepTime = 0;
@@ -108,31 +122,38 @@ function refreshSteps(): void {
 async function ensureAudio(): Promise<boolean> {
   if (!audioContext) audioContext = new AudioContext();
   await audioContext.resume();
-  return voiceBuffer !== null;
+  return samples.size > 0;
+}
+
+function laneDuration(lane: Lane, sample: LoadedSample): number {
+  return lane.duration ?? Math.min(0.6, sample.activeDuration + 0.05);
 }
 
 function playVoice(laneIndex: number, time: number): void {
   const lane = lanes[laneIndex];
-  if (!audioContext || !voiceBuffer || !lane) return;
+  if (!audioContext || !lane) return;
+  const sample = samples.get(lane.sample);
+  if (!sample) return;
+  const duration = laneDuration(lane, sample);
   const offset = Math.min(
-    voiceBuffer.duration - 0.03,
-    activeStart + lane.slicePosition * activeDuration
+    sample.buffer.duration - 0.03,
+    sample.activeStart + lane.slicePosition * sample.activeDuration
   );
-  const availableDuration = Math.max(0.03, voiceBuffer.duration - offset);
+  const availableDuration = Math.max(0.03, sample.buffer.duration - offset);
   const source = audioContext.createBufferSource();
   const filter = audioContext.createBiquadFilter();
   const gain = audioContext.createGain();
-  source.buffer = voiceBuffer;
+  source.buffer = sample.buffer;
   source.playbackRate.value = lane.playbackRate;
   filter.type = lane.filter;
   filter.frequency.value = lane.frequency;
   filter.Q.value = lane.filter === "bandpass" ? 0.8 : 0.3;
   gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.linearRampToValueAtTime(lane.gain * voiceNormalization, time + 0.006);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + lane.duration);
+  gain.gain.linearRampToValueAtTime(lane.gain * sample.normalization, time + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
   source.connect(filter).connect(gain).connect(audioContext.destination);
-  source.start(time, offset, Math.min(lane.duration / lane.playbackRate, availableDuration));
-  source.stop(time + lane.duration + 0.03);
+  source.start(time, offset, Math.min(duration / lane.playbackRate, availableDuration));
+  source.stop(time + duration + 0.03);
 }
 
 function stepDuration(): number {
@@ -183,10 +204,10 @@ async function togglePlayback(): Promise<void> {
 }
 
 function randomize(): void {
+  // Downbeats are likely, never guaranteed, so no square lights up every roll.
   pattern = lanes.map((_, laneIndex) => Array.from({ length: STEPS }, (_, step) => {
-    if (laneIndex === 0) return step % 4 === 0 || Math.random() < 0.12;
-    if (laneIndex === 1) return step % 8 === 4 || Math.random() < 0.1;
-    return Math.random() < (laneIndex === 2 ? 0.28 : 0.13);
+    const onBeat = laneIndex === 0 ? step % 4 === 0 : laneIndex === 1 ? step % 8 === 4 : step % 2 === 0;
+    return Math.random() < (onBeat ? 0.8 : 0.14);
   }));
   refreshSteps();
   if (statusText) statusText.textContent = "The dice have spoken";
@@ -198,61 +219,105 @@ function clearPattern(): void {
   if (statusText) statusText.textContent = "Fresh empty beat. Make noise.";
 }
 
-function drawWaveform(buffer: AudioBuffer): void {
+function drawWaveform(): void {
   if (!waveform) return;
   const context = waveform.getContext("2d");
   if (!context) return;
-  const data = buffer.getChannelData(0);
   const { width, height } = waveform;
   context.clearRect(0, 0, width, height);
   context.fillStyle = "#17131f";
   context.fillRect(0, 0, width, height);
-  const gradient = context.createLinearGradient(0, 0, width, 0);
-  lanes.forEach((lane, index) => gradient.addColorStop(index / (lanes.length - 1), lane.color));
-  context.fillStyle = gradient;
-  const samplesPerPixel = Math.max(1, Math.floor(data.length / width));
-  for (let x = 0; x < width; x += 1) {
-    let peak = 0;
-    const start = x * samplesPerPixel;
-    for (let index = start; index < start + samplesPerPixel && index < data.length; index += 1) peak = Math.max(peak, Math.abs(data[index] ?? 0));
-    const barHeight = Math.max(2, peak * height * 0.9);
-    context.fillRect(x, (height - barHeight) / 2, 2, barHeight);
-  }
+
+  // Each recording gets its own slice of the strip, tinted like the lane that uses it.
+  const drawn = lanes.filter((lane) => samples.has(lane.sample));
+  const laneWidth = width / Math.max(1, drawn.length);
+  drawn.forEach((lane, index) => {
+    const sample = samples.get(lane.sample);
+    if (!sample) return;
+    const data = sample.buffer.getChannelData(0);
+    const left = index * laneWidth;
+    context.fillStyle = lane.color;
+    const samplesPerPixel = Math.max(1, Math.floor(data.length / laneWidth));
+    for (let x = 0; x < laneWidth; x += 1) {
+      let peak = 0;
+      const start = Math.floor(x * samplesPerPixel);
+      for (let i = start; i < start + samplesPerPixel && i < data.length; i += 1) peak = Math.max(peak, Math.abs(data[i] ?? 0));
+      const barHeight = Math.max(2, peak * height * 0.9);
+      context.fillRect(left + x, (height - barHeight) / 2, 2, barHeight);
+    }
+  });
 }
 
-function analyzeVoice(buffer: AudioBuffer): void {
+function analyzeSample(buffer: AudioBuffer): LoadedSample {
   const data = buffer.getChannelData(0);
-  let peak = 0;
-  for (const sample of data) peak = Math.max(peak, Math.abs(sample));
+  const sampleRate = buffer.sampleRate;
 
-  // Voice Memos often leaves a long quiet lead-in. Find the actual sound so
-  // every instrument slices the voice rather than the silence before it.
-  const threshold = Math.max(0.008, peak * 0.08);
-  let firstActive = 0;
-  let lastActive = data.length - 1;
-  while (firstActive < data.length && Math.abs(data[firstActive] ?? 0) < threshold) firstActive += 1;
-  while (lastActive > firstActive && Math.abs(data[lastActive] ?? 0) < threshold) lastActive -= 1;
-  const padding = Math.floor(buffer.sampleRate * 0.015);
-  firstActive = Math.max(0, firstActive - padding);
-  lastActive = Math.min(data.length - 1, lastActive + padding);
-  activeStart = firstActive / buffer.sampleRate;
-  activeDuration = Math.max(0.08, (lastActive - firstActive) / buffer.sampleRate);
-  voiceNormalization = Math.min(5, 0.82 / Math.max(peak, 0.01));
+  // A raw sample threshold treats breath and room tone as "sound", which left
+  // a long dead gap on each side of the hit. Walk a short-window energy
+  // envelope instead and keep only the loud core of the recording.
+  const window = Math.max(1, Math.floor(sampleRate * 0.005));
+  const energy: number[] = [];
+  for (let i = 0; i + window <= data.length; i += window) {
+    let sum = 0;
+    for (let j = i; j < i + window; j += 1) sum += (data[j] ?? 0) ** 2;
+    energy.push(Math.sqrt(sum / window));
+  }
+
+  const loudest = energy.reduce((max, value) => Math.max(max, value), 0);
+  const threshold = loudest * 0.25;
+  let first = 0;
+  let last = energy.length - 1;
+  while (first < energy.length && (energy[first] ?? 0) < threshold) first += 1;
+  while (last > first && (energy[last] ?? 0) < threshold) last -= 1;
+
+  // Nothing crossed the threshold, so fall back to the whole recording.
+  if (first >= energy.length) {
+    first = 0;
+    last = Math.max(0, energy.length - 1);
+  }
+
+  // A hair of lead-in keeps the attack from clicking; a longer tail lets the
+  // sound decay naturally instead of being chopped mid-ring.
+  const leadIn = Math.floor(sampleRate * 0.008);
+  const tail = Math.floor(sampleRate * 0.04);
+  const startSample = Math.max(0, first * window - leadIn);
+  const endSample = Math.min(data.length - 1, last * window + tail);
+
+  let corePeak = 0;
+  for (let i = startSample; i <= endSample; i += 1) corePeak = Math.max(corePeak, Math.abs(data[i] ?? 0));
+
+  return {
+    buffer,
+    activeStart: startSample / sampleRate,
+    activeDuration: Math.max(0.05, (endSample - startSample) / sampleRate),
+    normalization: Math.min(5, 0.82 / Math.max(corePeak, 0.01)),
+  };
 }
 
-async function loadVoice(): Promise<void> {
-  try {
-    audioContext = new AudioContext();
-    const response = await fetch(voiceUrl);
-    if (!response.ok) throw new Error(`Audio request failed: ${response.status}`);
-    voiceBuffer = await audioContext.decodeAudioData(await response.arrayBuffer());
-    analyzeVoice(voiceBuffer);
-    drawWaveform(voiceBuffer);
-    if (playButton) playButton.disabled = false;
-    if (statusText) statusText.textContent = "Your voice kit is armed";
-  } catch (error) {
-    console.error(error);
-    if (statusText) statusText.textContent = "Voice memo refused to load. Try refresh.";
+async function loadVoices(): Promise<void> {
+  audioContext = new AudioContext();
+  const ids = Object.keys(sampleUrls) as SampleId[];
+  const results = await Promise.allSettled(ids.map(async (id) => {
+    const response = await fetch(sampleUrls[id]);
+    if (!response.ok) throw new Error(`Audio request failed for ${id}: ${response.status}`);
+    if (!audioContext) throw new Error("Audio context went away");
+    samples.set(id, analyzeSample(await audioContext.decodeAudioData(await response.arrayBuffer())));
+  }));
+
+  results.forEach((result) => {
+    if (result.status === "rejected") console.error(result.reason);
+  });
+
+  drawWaveform();
+  if (samples.size === 0) {
+    if (statusText) statusText.textContent = "Voice memos refused to load. Try refresh.";
+    return;
+  }
+  if (playButton) playButton.disabled = false;
+  if (statusText) {
+    statusText.textContent = samples.size === ids.length
+      ? "Your voice kit is armed"
+      : "Partly armed — one memo did not load";
   }
 }
 
@@ -291,4 +356,4 @@ window.addEventListener("pagehide", () => {
 });
 
 renderGrid();
-void loadVoice();
+void loadVoices();
