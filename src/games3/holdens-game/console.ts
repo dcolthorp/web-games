@@ -17,9 +17,9 @@ const commands: Command[] = [
     },
   },
   {
-    name: "creative", usage: "creative 101", blurb: "creative mode: no death, build walls",
+    name: "creative101", usage: "creative101", blurb: "creative mode: no death, build walls",
     run: (args, world, print) => {
-      if (args[0] !== "101") { print("creative what? try: creative 101"); return; }
+      if (args[0] !== undefined && args[0] !== "101") { print("just type: creative101"); return; }
       world.setCreative(true);
       print("CREATIVE 101 ON.");
       print("  nothing can hurt you. you walk through walls.");
@@ -114,8 +114,18 @@ export function startConsole(world: WorldControl): void {
     seek = -1;
     print(`> ${raw}`);
 
-    const [name, ...args] = raw.split(/\s+/);
-    const command = commands.find((c) => c.name === (name ?? "").toLowerCase());
+    const [first, ...rest] = raw.split(/\s+/);
+    let name = (first ?? "").toLowerCase();
+    let args = rest;
+    // "creative 101" still works for anyone who types it with the space.
+    if (name === "creative" && rest[0] === "101") {
+      name = "creative101";
+      args = [];
+    } else if (name === "creative") {
+      print("just type: creative101");
+      return;
+    }
+    const command = commands.find((c) => c.name === name);
     if (!command) {
       print(`no command called "${name}". type help`);
       return;
