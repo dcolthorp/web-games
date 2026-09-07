@@ -60,6 +60,17 @@ export default defineConfig({
         gameTime: resolve(__dirname, "src/games3/game-time/index.html"),
         clairsGame: resolve(__dirname, "src/games3/clairs-game/index.html"),
         holdensGame: resolve(__dirname, "src/games3/holdens-game/index.html"),
+        holdensGameActual: resolve(__dirname, "src/games3/holdens-game/game.html"),
+        holdensWorld1: resolve(__dirname, "src/games3/holdens-game/world-1.html"),
+        holdensWorld2: resolve(__dirname, "src/games3/holdens-game/world-2.html"),
+        holdensWorld3: resolve(__dirname, "src/games3/holdens-game/world-3.html"),
+        holdensWorld4: resolve(__dirname, "src/games3/holdens-game/world-4.html"),
+        holdensWorld5: resolve(__dirname, "src/games3/holdens-game/world-5.html"),
+        holdensWorld6: resolve(__dirname, "src/games3/holdens-game/world-6.html"),
+        holdensWorld7: resolve(__dirname, "src/games3/holdens-game/world-7.html"),
+        holdensWorld8: resolve(__dirname, "src/games3/holdens-game/world-8.html"),
+        holdensWorld9: resolve(__dirname, "src/games3/holdens-game/world-9.html"),
+        holdensWorld10: resolve(__dirname, "src/games3/holdens-game/world-10.html"),
         totallyNotGeometryDash: resolve(
           __dirname,
           "src/games3/totally-not-a-geometry-dash-rip-off/index.html"

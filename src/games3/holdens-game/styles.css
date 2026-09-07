@@ -5,3 +5,7 @@ body { margin: 0; min-height: 100vh; background: #17131f; color: var(--ink); fon
 .back-link:hover { border-color: var(--ink); }
 h1 { margin: 0; font-size: clamp(1.8rem, 6vw, 3rem); }
 p { margin: 0; color: var(--muted); font-size: .9rem; }
+
+/* Looks like a dead end. It is not. */
+.nothing { color: var(--muted); font-size: .9rem; text-decoration: none; cursor: pointer; transition: color .2s ease, text-shadow .2s ease; }
+.nothing:hover, .nothing:focus-visible { color: var(--ink); text-shadow: 0 0 14px rgb(246 241 234 / .55); }

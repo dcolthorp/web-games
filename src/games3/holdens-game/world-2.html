@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f1418" />
+    <title>Devil Labs</title>
+    <link rel="stylesheet" href="./game.css" />
+  </head>
+  <body data-world="1">
+    <main class="adventure">
+      <header class="hud">
+        <a class="back-link" href="./game.html"><span aria-hidden="true">&larr;</span> Worlds</a>
+        <p class="world-name" id="world-name">Devil Labs</p>
+        <div class="keys" id="keys" aria-label="Keys found">
+          <span class="key-slot" data-key="red" title="Red key"></span>
+          <span class="key-slot" data-key="blue" title="Blue key"></span>
+          <span class="key-slot" data-key="gold" title="Gold key"></span>
+        </div>
+      </header>
+
+      <div class="stage">
+        <canvas id="world" width="720" height="480" aria-label="The adventure world"></canvas>
+        <div class="banner" id="banner" hidden>
+          <p class="banner-title" id="banner-title"></p>
+          <p class="banner-text" id="banner-text"></p>
+          <div class="banner-buttons">
+            <a class="banner-button" id="banner-next" href="./game.html">Back to the worlds</a>
+            <button class="banner-button is-quiet" id="banner-button" type="button">Play again</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="message" id="message">Arrow keys or WASD to move.</p>
+
+      <div class="dpad" aria-label="Touch controls">
+        <button type="button" data-move="up" aria-label="Up">&#9650;</button>
+        <div class="dpad-row">
+          <button type="button" data-move="left" aria-label="Left">&#9664;</button>
+          <button type="button" data-move="down" aria-label="Down">&#9660;</button>
+          <button type="button" data-move="right" aria-label="Right">&#9654;</button>
+        </div>
+      </div>
+    </main>
+    <script type="module" src="./world.ts"></script>
+  </body>
+</html>
