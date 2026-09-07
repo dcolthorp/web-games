@@ -49,6 +49,10 @@ canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line
 .dpad button:active { background: #24303a; }
 @media (hover: none), (max-width: 700px) { .dpad { display: flex; } }
 
+.music-button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: #182027; color: var(--ink); font: inherit; font-size: .68rem; cursor: pointer; }
+.music-button:hover { border-color: var(--ink); }
+.music-button.is-off { color: var(--muted); }
+.music-button[hidden] { display: none; }
 .story-button { padding: 7px 13px; border: 1px solid var(--gold); border-radius: 999px; background: #2a2313; color: var(--gold); font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
 .story-button[hidden] { display: none; }
 .story-panel { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgb(3 4 10 / .9); }
