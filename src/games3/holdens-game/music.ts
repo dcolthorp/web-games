@@ -39,7 +39,22 @@ export function startMusic(url: string): void {
     paint();
   });
 
-  window.addEventListener("pagehide", () => track.pause());
+  const stop = (): void => {
+    track.pause();
+    track.currentTime = 0;
+  };
+
+  // Leaving the level silences it: following a link, closing the tab, or
+  // switching away. Coming back starts it over rather than mid-phrase.
+  window.addEventListener("pagehide", stop);
+  window.addEventListener("beforeunload", stop);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stop(); else play();
+  });
+  // A page restored from the back/forward cache never re-runs this file.
+  window.addEventListener("pageshow", (event) => {
+    if ((event as PageTransitionEvent).persisted) play();
+  });
   paint();
   play();
 }
