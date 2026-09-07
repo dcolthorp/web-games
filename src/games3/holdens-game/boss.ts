@@ -77,7 +77,13 @@ export function startBoss(): void {
 
   const pressed = new Set<string>();
   const touched = new Set<string>();
+  // Typing in the console is not playing the game: leave those keys alone,
+  // or the space bar never reaches the box you are typing into.
+  const typing = (target: EventTarget | null): boolean =>
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
   window.addEventListener("keydown", (event) => {
+    if (typing(event.target)) return;
     const key = event.key.toLowerCase();
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(key)) event.preventDefault();
     pressed.add(key);

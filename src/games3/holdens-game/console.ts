@@ -17,9 +17,9 @@ const commands: Command[] = [
     },
   },
   {
-    name: "creative101", usage: "creative101", blurb: "creative mode: no death, build walls",
+    name: "creative", usage: "creative101", blurb: "creative mode: no death, build walls",
     run: (args, world, print) => {
-      if (args[0] !== undefined && args[0] !== "101") { print("just type: creative101"); return; }
+      if (args[0] !== "101") { print("just type: creative101"); return; }
       world.setCreative(true);
       print("CREATIVE 101 ON.");
       print("  nothing can hurt you. you walk through walls.");
@@ -40,36 +40,36 @@ const commands: Command[] = [
     run: (_a, world, print) => { world.giveKeys(); print("all doors open."); },
   },
   {
-    name: "speed", usage: "speed <n>", blurb: "how fast you move, 1 is normal",
+    name: "speed", usage: "speed2", blurb: "how fast you move, 1 is normal",
     run: (args, world, print) => {
       const n = Number(args[0]);
-      if (!Number.isFinite(n)) { print("speed needs a number, like: speed 2"); return; }
+      if (!Number.isFinite(n)) { print("speed needs a number, like: speed2"); return; }
       world.setSpeedScale(n);
       print(`speed ${n}.`);
     },
   },
   {
-    name: "fog", usage: "fog <n|off>", blurb: "how far you can see",
+    name: "fog", usage: "fog5 / fogoff / fogauto", blurb: "how far you can see",
     run: (args, world, print) => {
       if (args[0] === "off") { world.setFog(0); print("fog off."); return; }
       if (args[0] === "auto") { world.setFog(null); print("fog back to normal."); return; }
       const n = Number(args[0]);
-      if (!Number.isFinite(n)) { print("fog needs a number, or off, or auto"); return; }
+      if (!Number.isFinite(n)) { print("try fog5, fogoff or fogauto"); return; }
       world.setFog(n);
       print(`fog ${n}.`);
     },
   },
   {
-    name: "tp", usage: "tp <x> <y>", blurb: "jump somewhere. the map is 40 by 28",
+    name: "tp", usage: "tp20,14", blurb: "jump somewhere. the map is 40 by 28",
     run: (args, world, print) => {
       const x = Number(args[0]);
       const y = Number(args[1]);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) { print("tp needs two numbers, like: tp 20 14"); return; }
+      if (!Number.isFinite(x) || !Number.isFinite(y)) { print("tp needs two numbers, like: tp20,14"); return; }
       print(world.teleport(x, y) ? `at ${x},${y}.` : "that is off the map.");
     },
   },
   {
-    name: "coins", usage: "coins <n>", blurb: "put coins in your pocket",
+    name: "coins", usage: "coins25", blurb: "put coins in your pocket",
     run: (args, _w, print) => {
       const n = Number(args[0]);
       if (!Number.isFinite(n)) { print(`you have ${coins()} coins.`); return; }
@@ -114,17 +114,24 @@ export function startConsole(world: WorldControl): void {
     seek = -1;
     print(`> ${raw}`);
 
-    const [first, ...rest] = raw.split(/\s+/);
-    let name = (first ?? "").toLowerCase();
-    let args = rest;
-    // "creative 101" still works for anyone who types it with the space.
-    if (name === "creative" && rest[0] === "101") {
-      name = "creative101";
-      args = [];
-    } else if (name === "creative") {
-      print("just type: creative101");
-      return;
-    }
+    // Everything works as one word: creative101, speed2, fogoff, tp20,14.
+    // Spaces are fine too, for anyone who prefers them.
+    const parse = (text: string): { name: string; args: string[] } => {
+      if (/\s/.test(text)) {
+        const [head, ...tail] = text.split(/\s+/);
+        return { name: (head ?? "").toLowerCase(), args: tail };
+      }
+      const glued = text.toLowerCase();
+      const match = commands
+        .map((c) => c.name)
+        .filter((n) => glued.startsWith(n))
+        .sort((a, b) => b.length - a.length)[0];
+      if (!match) return { name: glued, args: [] };
+      const rest = glued.slice(match.length);
+      return { name: match, args: rest.match(/[a-z]+|[0-9]+(?:\.[0-9]+)?/g) ?? [] };
+    };
+
+    const { name, args } = parse(raw);
     const command = commands.find((c) => c.name === name);
     if (!command) {
       print(`no command called "${name}". type help`);
