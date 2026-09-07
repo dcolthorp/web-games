@@ -40,12 +40,16 @@ const commands: Command[] = [
     run: (_a, world, print) => { world.giveKeys(); print("all doors open."); },
   },
   {
-    name: "speed", usage: "speed2", blurb: "how fast you move, 1 is normal",
+    name: "speed", usage: "speed2 / speed-1", blurb: "how fast you move. minus reverses the controls",
     run: (args, world, print) => {
       const n = Number(args[0]);
       if (!Number.isFinite(n)) { print("speed needs a number, like: speed2"); return; }
       world.setSpeedScale(n);
-      print(`speed ${n}.`);
+      // Report what actually happened, not what was asked for.
+      const size = Math.max(0.1, Math.min(6, Math.abs(n)));
+      const applied = n < 0 ? -size : size;
+      if (applied < 0) print(`speed ${applied}. everything is backwards now.`);
+      else print(`speed ${applied}.`);
     },
   },
   {
@@ -130,7 +134,7 @@ export function startConsole(world: WorldControl): void {
         .sort((a, b) => b.length - a.length)[0];
       if (!match) return { name: glued, args: [] };
       const rest = glued.slice(match.length);
-      return { name: match, args: rest.match(/[a-z]+|[0-9]+(?:\.[0-9]+)?/g) ?? [] };
+      return { name: match, args: rest.match(/[a-z]+|-?[0-9]+(?:\.[0-9]+)?/g) ?? [] };
     };
 
     const { name, args } = parse(raw);

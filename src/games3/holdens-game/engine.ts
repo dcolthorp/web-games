@@ -977,7 +977,12 @@ export function startWorld(
       return creative;
     },
     isCreative: () => creative,
-    setSpeedScale: (n) => { speedScale = Math.max(0.1, Math.min(6, n)); },
+    setSpeedScale: (n) => {
+      // A negative scale flips the direction you move, so the controls
+      // reverse. The magnitude is still kept sane.
+      const size = Math.max(0.1, Math.min(6, Math.abs(n)));
+      speedScale = n < 0 ? -size : size;
+    },
     setFog: (n) => { fogOverride = n; },
     giveKeys: () => {
       spec.keys.forEach((key) => held.add(key.colour));
