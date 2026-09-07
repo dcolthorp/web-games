@@ -25,7 +25,7 @@ if (spec) {
 
   // Only the worlds listed here have a tune, and each one is fetched on
   // demand so no other level ever loads the audio.
-  const themes: Record<number, () => Promise<{ id: string; label: string; url: string }[]>> = {
+  const themes: Record<number, () => Promise<{ id: string; label: string; url: string; loop?: boolean }[]>> = {
     0: async () => [
       { id: "main", label: "Theme", url: (await import("./assets/death-farms-theme.m4a?url")).default },
     ],
@@ -45,6 +45,10 @@ if (spec) {
     ],
     7: async () => [
       { id: "main", label: "Theme", url: (await import("./assets/internet-run-theme.m4a?url")).default },
+    ],
+    // Plays once and then stops. It is not meant to come back around.
+    8: async () => [
+      { id: "main", label: "Theme", loop: false, url: (await import("./assets/do-not-enter-theme.m4a?url")).default },
     ],
   };
 

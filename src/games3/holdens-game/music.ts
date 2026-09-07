@@ -5,6 +5,8 @@ export interface Track {
   id: string;
   label: string;
   url: string;
+  // Some tracks are meant to play once and then leave you in silence.
+  loop?: boolean;
 }
 
 export function startMusic(tracks: Track[]): void {
@@ -19,7 +21,7 @@ export function startMusic(tracks: Track[]): void {
   let muted = localStorage.getItem(MUTE_KEY) === "yes";
 
   const track = new Audio(current.url);
-  track.loop = true;
+  track.loop = current.loop !== false;
   track.volume = 0.35;
   track.preload = "auto";
 
@@ -70,6 +72,7 @@ export function startMusic(tracks: Track[]): void {
     localStorage.setItem(TRACK_KEY, current.id);
     stop();
     track.src = current.url;
+    track.loop = current.loop !== false;
     play();
     paint();
   });
