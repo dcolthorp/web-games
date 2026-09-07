@@ -1,8 +1,6 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { startWorld } from "./engine";
-import { startMusic } from "./music";
-import themeUrl from "./assets/death-farms-theme.m4a?url";
 import { worldSpecs } from "./worldDefs";
 import { markCleared, worlds } from "./worlds";
 
@@ -25,8 +23,12 @@ if (spec) {
     nextLink.textContent = `On to ${next.name}`;
   }
 
-  // Death Farms has a theme tune. The rest are still quiet.
-  if (index === 0) startMusic(themeUrl);
+  // Death Farms has a theme tune. Loaded only there, so no other world can
+  // even reach the audio.
+  if (index === 0) {
+    void Promise.all([import("./music"), import("./assets/death-farms-theme.m4a?url")])
+      .then(([music, theme]) => music.startMusic(theme.default));
+  }
 
   startWorld(spec, () => markCleared(index));
 }
