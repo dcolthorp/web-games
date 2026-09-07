@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { startWorld } from "./engine";
+import { intro2Seen, playIntro2 } from "./intro";
 import { scrambleName, spec, storyPages } from "./world0Spec";
 import { unlockGlitch } from "./shop";
 
@@ -94,5 +95,10 @@ concludeButton?.addEventListener("click", () => {
 });
 
 renderStory();
-const control = startWorld(spec, () => {}, (index) => { keepPage(index); renderStory(); });
-void import("./console").then((c) => c.startConsole(control));
+function enterTheLevel(): void {
+  const control = startWorld(spec, () => {}, (index) => { keepPage(index); renderStory(); });
+  void import("./console").then((c) => c.startConsole(control));
+}
+
+// The way down is shown once, the first time you find this place.
+if (intro2Seen()) enterTheLevel(); else playIntro2(enterTheLevel);

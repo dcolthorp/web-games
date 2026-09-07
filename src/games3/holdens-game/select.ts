@@ -74,3 +74,4 @@ document.querySelector<HTMLButtonElement>("#replay-intro")?.addEventListener("cl
   if (shell) shell.style.visibility = "hidden";
   playIntro(reveal);
 });
+

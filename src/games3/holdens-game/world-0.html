@@ -6,8 +6,14 @@
     <meta name="theme-color" content="#0f1418" />
     <title>Holden's Game</title>
     <link rel="stylesheet" href="./game.css" />
+    <link rel="stylesheet" href="./select.css" />
   </head>
   <body>
+    <div class="intro" id="intro" hidden>
+      <canvas id="intro-canvas" width="720" height="360" aria-label="Going down"></canvas>
+      <button class="intro-skip" id="intro-skip" type="button">Skip</button>
+    </div>
+
     <main class="adventure">
       <header class="hud">
         <a class="back-link" href="./game.html"><span aria-hidden="true">&larr;</span> Worlds</a>
