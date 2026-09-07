@@ -43,6 +43,9 @@ if (spec) {
     6: async () => [
       { id: "main", label: "Theme", url: (await import("./assets/v1d30-game-theme.m4a?url")).default },
     ],
+    7: async () => [
+      { id: "main", label: "Theme", url: (await import("./assets/internet-run-theme.m4a?url")).default },
+    ],
   };
 
   // Whiteout is weather, not a recording.
