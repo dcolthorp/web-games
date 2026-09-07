@@ -2,6 +2,7 @@ import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { clearedWorlds, worlds } from "./worlds";
 import { coins } from "./shop";
+import { bossBeaten, happyNames, isHappy, setHappy } from "./mood";
 import { introSeen, playIntro } from "./intro";
 
 installOofShortcut();
@@ -36,7 +37,7 @@ function render(): void {
 
     const name = document.createElement("span");
     name.className = "world-name";
-    name.textContent = world.name;
+    name.textContent = isHappy() ? happyNames[index] ?? world.name : world.name;
 
     const state = document.createElement("span");
     state.className = "world-state";
@@ -57,6 +58,28 @@ function render(): void {
 const purse = document.querySelector<HTMLElement>("#purse-count");
 if (purse) purse.textContent = String(coins());
 
+function paintMood(): void {
+  const happy = isHappy();
+  document.body.classList.toggle("is-happy", happy);
+  const heading = document.querySelector<HTMLElement>(".dread");
+  const kicker = document.querySelector<HTMLElement>(".kicker");
+  if (heading) heading.textContent = happy ? "The Game of Holden" : "The Game of Holden";
+  if (kicker) kicker.textContent = happy ? "everything turned out fine" : "it knows you opened this";
+  document.title = happy ? "The Game of Holden" : "The Game of Holden";
+
+  const toggle = document.querySelector<HTMLButtonElement>("#mood-toggle");
+  if (!toggle) return;
+  toggle.hidden = !bossBeaten();
+  toggle.textContent = happy ? "Switch to Scawwy Games" : "Switch to Happy Games";
+}
+
+document.querySelector<HTMLButtonElement>("#mood-toggle")?.addEventListener("click", () => {
+  setHappy(!isHappy());
+  paintMood();
+  render();
+});
+
+paintMood();
 render();
 
 const shell = document.querySelector<HTMLElement>(".select");

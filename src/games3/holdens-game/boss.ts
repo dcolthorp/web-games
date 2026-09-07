@@ -1,4 +1,5 @@
 import { wornSkin } from "./shop";
+import { isHappy, markBossBeaten } from "./mood";
 
 const TILE = 32;
 const ARENA = { x: 1, y: 1, w: 21, h: 13 };
@@ -26,6 +27,7 @@ export function startBoss(): void {
   showBanner(false);
 
   const skin = wornSkin();
+  const happy = isHappy();
   const say = (words: string): void => { if (message) message.textContent = words; };
 
   const startPillars = (): Pillar[] => [
@@ -66,10 +68,11 @@ export function startBoss(): void {
 
   const finish = (won: boolean): void => {
     over = true;
+    if (won) markBossBeaten();
     if (bannerTitle && bannerText) {
       bannerTitle.textContent = won ? "It came apart" : "It got you";
       bannerText.textContent = won
-        ? "Five pillars down and nothing left holding it up."
+        ? "Five pillars down. Everything up there is different now. Go and look."
         : "Three hits and you were out. It is still down here.";
       showBanner(true);
     }
@@ -198,22 +201,24 @@ export function startBoss(): void {
     boss.x = Math.max(ARENA.x + 0.6, Math.min(ARENA.x + ARENA.w - 0.6, boss.x));
     boss.y = Math.max(ARENA.y + 0.6, Math.min(ARENA.y + ARENA.h - 0.6, boss.y));
 
-    if (boss.stun <= 0 && Math.hypot(player.x - boss.x, player.y - boss.y) < boss.size * 0.75 + 0.3) hitPlayer();
+    if (!happy && boss.stun <= 0 && Math.hypot(player.x - boss.x, player.y - boss.y) < boss.size * 0.75 + 0.3) hitPlayer();
   }
 
   function draw(now: number): void {
     if (!canvas || !context) return;
     const sx = shake > 0 ? (Math.random() - 0.5) * shake * 22 : 0;
     const sy = shake > 0 ? (Math.random() - 0.5) * shake * 22 : 0;
-    context.fillStyle = "#05000a";
+    context.fillStyle = happy ? "#fffdf2" : "#05000a";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.save();
     context.translate(sx, sy);
 
     const rage = broken();
-    context.fillStyle = ["#140a14", "#170a12", "#1b0a10", "#20090e", "#26080c"][rage] ?? "#26080c";
+    context.fillStyle = happy
+      ? "#f7f2df"
+      : ["#140a14", "#170a12", "#1b0a10", "#20090e", "#26080c"][rage] ?? "#26080c";
     context.fillRect(ARENA.x * TILE, ARENA.y * TILE, ARENA.w * TILE, ARENA.h * TILE);
-    context.strokeStyle = "#4a1020";
+    context.strokeStyle = happy ? "#ded6bb" : "#4a1020";
     context.lineWidth = 4;
     context.strokeRect(ARENA.x * TILE, ARENA.y * TILE, ARENA.w * TILE, ARENA.h * TILE);
 
@@ -251,7 +256,7 @@ export function startBoss(): void {
       context.globalAlpha = 1;
     }
     const pulse = Math.sin(now / 180) * 2;
-    context.fillStyle = boss.stun > 0 ? "#5e2733" : boss.dashing > 0 ? "#ff6b6b" : "#c01e2e";
+    context.fillStyle = happy ? "#ffb3d9" : boss.stun > 0 ? "#5e2733" : boss.dashing > 0 ? "#ff6b6b" : "#c01e2e";
     context.beginPath();
     context.arc(bx, by, boss.size * TILE + pulse, 0, Math.PI * 2);
     context.fill();
@@ -272,11 +277,13 @@ export function startBoss(): void {
 
     // It is very dark down here.
     const px = player.x * TILE + sx, py = player.y * TILE + sy;
-    const dark = context.createRadialGradient(px, py, 40, px, py, 210);
-    dark.addColorStop(0, "rgb(0 0 0 / 0)");
-    dark.addColorStop(1, "rgb(0 0 0 / .93)");
-    context.fillStyle = dark;
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    if (!happy) {
+      const dark = context.createRadialGradient(px, py, 40, px, py, 210);
+      dark.addColorStop(0, "rgb(0 0 0 / 0)");
+      dark.addColorStop(1, "rgb(0 0 0 / .93)");
+      context.fillStyle = dark;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
   }
 
   function loop(now: number): void {
@@ -286,6 +293,8 @@ export function startBoss(): void {
   }
 
   hud();
-  say("Stand in front of a pillar and let it charge. Then move.");
+  say(happy
+    ? "It is just pleased to see you now. Nothing here can hurt you."
+    : "Stand in front of a pillar and let it charge. Then move.");
   window.requestAnimationFrame(loop);
 }

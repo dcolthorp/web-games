@@ -2,6 +2,7 @@ import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { startWorld } from "./engine";
 import { worldSpecs } from "./worldDefs";
+import { brighten, happyNames, isHappy } from "./mood";
 import { markCleared, worlds } from "./worlds";
 
 installOofShortcut();
@@ -9,7 +10,8 @@ installForceRefreshHotkey();
 
 // Every world page shares this entry; the page itself says which one it is.
 const index = Number(document.body.dataset["world"] ?? "0");
-const spec = worldSpecs[index];
+const raw = worldSpecs[index];
+const spec = raw ? brighten(raw, index) : undefined;
 
 if (spec) {
   document.title = spec.name;
@@ -20,7 +22,7 @@ if (spec) {
   const nextLink = document.querySelector<HTMLAnchorElement>("#banner-next");
   if (nextLink && next?.page) {
     nextLink.href = next.page;
-    nextLink.textContent = `On to ${next.name}`;
+    nextLink.textContent = `On to ${isHappy() ? happyNames[index + 1] ?? next.name : next.name}`;
   }
 
   // Only the worlds listed here have a tune, and each one is fetched on

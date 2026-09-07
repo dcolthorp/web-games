@@ -2,6 +2,7 @@ import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { startWorld } from "./engine";
 import { intro2Seen, playIntro2 } from "./intro";
+import { brightenOther, happyZeroName, happyZeroPalette, isHappy } from "./mood";
 import { scrambleName, spec, storyPages } from "./world0Spec";
 import { unlockGlitch } from "./shop";
 
@@ -31,7 +32,11 @@ function keepPage(index: number): void {
 }
 
 
-spec.name = scrambleName();
+if (isHappy()) {
+  Object.assign(spec, brightenOther(spec, happyZeroName, happyZeroPalette));
+} else {
+  spec.name = scrambleName();
+}
 document.title = spec.name;
 const heading = document.querySelector<HTMLElement>("#world-name");
 if (heading) heading.textContent = spec.name;

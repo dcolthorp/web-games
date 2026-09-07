@@ -53,3 +53,20 @@ h1 { margin: 10px 0 6px; font-size: clamp(2rem, 8vw, 3rem); }
 .intro-skip:hover { border-color: var(--ink); color: var(--ink); }
 .replay-intro { display: block; margin: 0 0 18px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: #151d24; color: var(--muted); font: inherit; font-size: .72rem; cursor: pointer; }
 .replay-intro:hover { border-color: var(--ink); color: var(--ink); }
+
+.mood-toggle { display: inline-block; margin: 0 0 18px 9px; padding: 10px 16px; border: 1px solid #7fd7a6; border-radius: 11px; background: #13291f; color: #7fd7a6; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.mood-toggle:hover { background: #1a3a2a; }
+.mood-toggle[hidden] { display: none; }
+
+/* Everything turned out fine. */
+body.is-happy { background: #fffdf5; color: #2f2a24; }
+body.is-happy .kicker { color: #d98f2b; }
+body.is-happy .dread { color: #2f2a24; animation: none; text-shadow: 0 0 18px rgb(255 209 102 / .5); }
+body.is-happy .sub, body.is-happy .note, body.is-happy .purse { color: #6f665a; }
+body.is-happy .world { border-color: #e6ddc9; background: #fff9ea; color: #2f2a24; }
+body.is-happy .world:hover { border-color: #ffb703; }
+body.is-happy .world-number { color: #b3a894; }
+body.is-happy .world-state { color: #8a7f6d; }
+body.is-happy .world.is-done .world-state { color: #4aa96c; }
+body.is-happy .back-link, body.is-happy .shop-link, body.is-happy .replay-intro { border-color: #e0d6c0; color: #6f665a; background: #fff6e4; }
+body.is-happy .mood-toggle { border-color: #c9a227; background: #fff3d2; color: #8a6a12; }
