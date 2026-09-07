@@ -36,6 +36,9 @@ if (spec) {
     2: async () => [
       { id: "main", label: "Theme", url: (await import("./assets/sunken-castle-theme.m4a?url")).default },
     ],
+    3: async () => [
+      { id: "main", label: "Theme", url: (await import("./assets/matrix-45-theme.m4a?url")).default },
+    ],
   };
 
   const theme = themes[index];
