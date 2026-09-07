@@ -4,6 +4,12 @@ import { startWorld } from "./engine";
 import { scrambleName, spec, storyPages } from "./world0Spec";
 import { unlockGlitch } from "./shop";
 
+// Plays once, then leaves you alone down here.
+void Promise.all([import("./music"), import("./assets/world-zero-theme.m4a?url")])
+  .then(([music, theme]) => music.startMusic([
+    { id: "main", label: "Theme", loop: false, url: theme.default },
+  ]));
+
 installOofShortcut();
 installForceRefreshHotkey();
 
