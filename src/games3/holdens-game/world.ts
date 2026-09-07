@@ -39,6 +39,10 @@ if (spec) {
     3: async () => [
       { id: "main", label: "Theme", url: (await import("./assets/matrix-45-theme.m4a?url")).default },
     ],
+    // 5 is Blood Temple, deliberately silent.
+    6: async () => [
+      { id: "main", label: "Theme", url: (await import("./assets/v1d30-game-theme.m4a?url")).default },
+    ],
   };
 
   // Whiteout is weather, not a recording.
