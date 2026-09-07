@@ -100,6 +100,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     homeY: enemy.y,
     phase: Math.random() * Math.PI * 2,
     timer: 0,
+    aim: 0,
     visible: true,
   }));
   const openedDoors = new Set<string>();
@@ -292,10 +293,17 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         break;
       }
       case "skull": {
-        // Lines itself up, then charges down the row it shares with you.
-        const alignedY = Math.abs(player.y - enemy.y) < 0.9;
-        const alignedX = Math.abs(player.x - enemy.x) < 0.9;
-        if (alignedY || alignedX) chase(enemy.speed * 2.1); else patrol();
+        // Lines up, pauses long enough for you to notice, then charges down
+        // the row it shares with you. The charge is slower than you can run.
+        const aligned = Math.abs(player.y - enemy.y) < 0.9 || Math.abs(player.x - enemy.x) < 0.9;
+        if (!aligned || inSafeZone(player.x, player.y)) {
+          enemy.aim = 0;
+          patrol();
+          break;
+        }
+        enemy.aim += dt;
+        if (enemy.aim < 0.45) break;
+        chase(enemy.speed * 1.45);
         break;
       }
       case "pixel": {
@@ -492,6 +500,13 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         context.globalAlpha = 1;
         break;
       case "skull":
+        if (enemy.aim > 0) {
+          context.globalAlpha = Math.min(1, enemy.aim / 0.45);
+          context.beginPath();
+          context.arc(px, py, 16, 0, Math.PI * 2);
+          context.fill();
+          context.globalAlpha = 1;
+        }
         context.beginPath();
         context.arc(px, py - 2, 10, 0, Math.PI * 2);
         context.fill();

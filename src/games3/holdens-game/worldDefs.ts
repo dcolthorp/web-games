@@ -108,10 +108,10 @@ export const worldSpecs: WorldSpec[] = [
     ],
   }),
   makeWorld(5, "Blood Temple", {
-    layout: mirror(sprawl), palette: temple, enemyCount: 4, enemySpeed: 2.4,
+    layout: mirror(sprawl), palette: temple, enemyCount: 4, enemySpeed: 2.0,
     enemyName: "skull", enemyKind: "skull",
-    gimmick: "Skulls charge the moment you share a row with them.",
-    signs: ["Step where the floor is whole.", "Never line yourself up with a skull.", "The last door is close."],
+    gimmick: "Skulls flare, then charge down any row you share with them.",
+    signs: ["Step where the floor is whole.", "When a skull flares, get out of its row.", "The last door is close."],
     hint: "V1D30 game is open.",
     patches: [
       { rect: { x: 15, y: 8, w: 3, h: 3 }, kind: "spike" },
