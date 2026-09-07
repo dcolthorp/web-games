@@ -28,6 +28,7 @@ if (spec) {
   const themes: Record<number, () => Promise<{ default: string }>> = {
     0: () => import("./assets/death-farms-theme.m4a?url"),
     1: () => import("./assets/devil-labs-theme.m4a?url"),
+    2: () => import("./assets/sunken-castle-theme.m4a?url"),
   };
 
   const theme = themes[index];
