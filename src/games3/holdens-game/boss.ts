@@ -2,10 +2,9 @@ import { wornSkin } from "./shop";
 
 const TILE = 32;
 const ARENA = { x: 1, y: 1, w: 21, h: 13 };
-const PILLAR_HOLD = 1.4;
 const HIT_GRACE = 1.6;
 
-interface Pillar { x: number; y: number; charge: number; broken: boolean }
+interface Pillar { x: number; y: number; broken: boolean; rubble: number }
 
 export function startBoss(): void {
   const canvas = document.querySelector<HTMLCanvasElement>("#world");
@@ -30,16 +29,16 @@ export function startBoss(): void {
   const say = (words: string): void => { if (message) message.textContent = words; };
 
   const startPillars = (): Pillar[] => [
-    { x: 4.5, y: 4.5, charge: 0, broken: false },
-    { x: 18.5, y: 4.5, charge: 0, broken: false },
-    { x: 4.5, y: 10.5, charge: 0, broken: false },
-    { x: 18.5, y: 10.5, charge: 0, broken: false },
-    { x: 11.5, y: 7.5, charge: 0, broken: false },
+    { x: 4.5, y: 4.5, broken: false, rubble: 0 },
+    { x: 18.5, y: 4.5, broken: false, rubble: 0 },
+    { x: 4.5, y: 10.5, broken: false, rubble: 0 },
+    { x: 18.5, y: 10.5, broken: false, rubble: 0 },
+    { x: 11.5, y: 7.5, broken: false, rubble: 0 },
   ];
 
   let pillars = startPillars();
   const player = { x: 11.5, y: 12.5, vx: 0, vy: 0, r: 0.34 };
-  const boss = { x: 11.5, y: 3.5, size: 1.5, aim: 0, dashing: 0, cooldown: 3 };
+  const boss = { x: 11.5, y: 3.5, size: 1.5, aim: 0, dashing: 0, cooldown: 3, stun: 0, dashX: 0, dashY: 0 };
   let hearts = 3 + skin.shield;
   let grace = 0;
   let clock = 0;
@@ -57,12 +56,12 @@ export function startBoss(): void {
   const reset = (): void => {
     pillars = startPillars();
     player.x = 11.5; player.y = 12.5; player.vx = 0; player.vy = 0;
-    boss.x = 11.5; boss.y = 3.5; boss.size = 1.5; boss.aim = 0; boss.dashing = 0; boss.cooldown = 3;
+    boss.x = 11.5; boss.y = 3.5; boss.size = 1.5; boss.aim = 0; boss.dashing = 0; boss.cooldown = 3; boss.stun = 0; boss.dashX = 0; boss.dashY = 0;
     hearts = 3 + skin.shield;
     grace = 0; dying = 0; over = false;
     showBanner(false);
     hud();
-    say("Break all five pillars. It cannot outlive them.");
+    say("Stand in front of a pillar and let it charge. Then move.");
   };
 
   const finish = (won: boolean): void => {
@@ -137,20 +136,7 @@ export function startBoss(): void {
     player.x = Math.max(ARENA.x + 0.4, Math.min(ARENA.x + ARENA.w - 0.4, player.x + player.vx * dt));
     player.y = Math.max(ARENA.y + 0.4, Math.min(ARENA.y + ARENA.h - 0.4, player.y + player.vy * dt));
 
-    // Pillars break by standing against them, which is the dangerous part.
-    for (const pillar of pillars) {
-      if (pillar.broken) continue;
-      const close = Math.hypot(player.x - pillar.x, player.y - pillar.y) < 1.15;
-      pillar.charge = close ? pillar.charge + dt : Math.max(0, pillar.charge - dt * 1.5);
-      if (pillar.charge >= PILLAR_HOLD) {
-        pillar.broken = true;
-        shake = 0.6;
-        hud();
-        const left = pillars.length - broken();
-        say(left > 0 ? `Pillar down. ${left} to go.` : "The last pillar is gone.");
-        if (left === 0) { dying = 1.8; say("It is coming apart."); }
-      }
-    }
+    pillars.forEach((pillar) => { if (pillar.rubble > 0) pillar.rubble -= dt; });
 
     // It gets faster and wilder with every pillar it loses.
     const rage = broken();
@@ -158,15 +144,41 @@ export function startBoss(): void {
     boss.size = 1.5 - rage * 0.13;
     boss.cooldown -= dt;
 
-    if (boss.dashing > 0) {
+    if (boss.stun > 0) {
+      boss.stun -= dt;
+    } else if (boss.dashing > 0) {
+      // The lunge commits to the line it picked. Step aside and it carries
+      // straight past you into whatever is behind you.
       boss.dashing -= dt;
-      const dxx = player.x - boss.x, dyy = player.y - boss.y;
-      const len = Math.hypot(dxx, dyy) || 1;
-      boss.x += (dxx / len) * chase * 3.1 * dt;
-      boss.y += (dyy / len) * chase * 3.1 * dt;
+      boss.x += boss.dashX * chase * 3.1 * dt;
+      boss.y += boss.dashY * chase * 3.1 * dt;
+
+      // A charge that lands on a pillar takes the pillar down with it.
+      for (const pillar of pillars) {
+        if (pillar.broken) continue;
+        if (Math.hypot(boss.x - pillar.x, boss.y - pillar.y) > boss.size * 0.7 + 0.75) continue;
+        pillar.broken = true;
+        pillar.rubble = 0.6;
+        boss.dashing = 0;
+        boss.stun = 1.3;
+        boss.cooldown = 2.2;
+        shake = 0.7;
+        hud();
+        const left = pillars.length - broken();
+        say(left > 0 ? `It smashed a pillar. ${left} to go.` : "That was the last one.");
+        if (left === 0) { dying = 1.8; say("It is coming apart."); }
+        break;
+      }
     } else if (boss.aim > 0) {
       boss.aim -= dt;
-      if (boss.aim <= 0) { boss.dashing = 0.55; shake = 0.25; }
+      if (boss.aim <= 0) {
+        const dxx = player.x - boss.x, dyy = player.y - boss.y;
+        const len = Math.hypot(dxx, dyy) || 1;
+        boss.dashX = dxx / len;
+        boss.dashY = dyy / len;
+        boss.dashing = 0.75;
+        shake = 0.25;
+      }
     } else {
       const dxx = player.x - boss.x, dyy = player.y - boss.y;
       const len = Math.hypot(dxx, dyy) || 1;
@@ -177,7 +189,7 @@ export function startBoss(): void {
     boss.x = Math.max(ARENA.x + 0.6, Math.min(ARENA.x + ARENA.w - 0.6, boss.x));
     boss.y = Math.max(ARENA.y + 0.6, Math.min(ARENA.y + ARENA.h - 0.6, boss.y));
 
-    if (Math.hypot(player.x - boss.x, player.y - boss.y) < boss.size * 0.75 + 0.3) hitPlayer();
+    if (boss.stun <= 0 && Math.hypot(player.x - boss.x, player.y - boss.y) < boss.size * 0.75 + 0.3) hitPlayer();
   }
 
   function draw(now: number): void {
@@ -201,23 +213,21 @@ export function startBoss(): void {
       if (pillar.broken) {
         context.fillStyle = "#2a1119";
         context.fillRect(px - 16, py + 14, 32, 8);
+        if (pillar.rubble > 0) {
+          // Chunks thrown out by the impact.
+          context.fillStyle = "#6b5570";
+          for (let i = 0; i < 7; i += 1) {
+            const spread = (1 - pillar.rubble / 0.6) * 34;
+            const angle = i * 0.9;
+            context.fillRect(px + Math.cos(angle) * spread - 3, py + Math.sin(angle) * spread * 0.6 - 3, 6, 6);
+          }
+        }
         return;
       }
-      const grow = pillar.charge / PILLAR_HOLD;
       context.fillStyle = "#6b5570";
       context.fillRect(px - 13, py - 26, 26, 52);
       context.fillStyle = "#8a6f90";
       context.fillRect(px - 13, py - 26, 26, 6);
-      if (grow > 0) {
-        context.strokeStyle = `rgb(255 70 70 / ${Math.min(1, grow + 0.25).toFixed(2)})`;
-        context.lineWidth = 1 + grow * 3;
-        context.beginPath();
-        context.moveTo(px - 8, py - 22);
-        context.lineTo(px + 4, py - 4);
-        context.lineTo(px - 6, py + 10);
-        context.lineTo(px + 6, py + 24);
-        context.stroke();
-      }
     });
 
     // The keeper. A ring of held breath before it lunges.
@@ -232,12 +242,12 @@ export function startBoss(): void {
       context.globalAlpha = 1;
     }
     const pulse = Math.sin(now / 180) * 2;
-    context.fillStyle = boss.dashing > 0 ? "#ff6b6b" : "#c01e2e";
+    context.fillStyle = boss.stun > 0 ? "#5e2733" : boss.dashing > 0 ? "#ff6b6b" : "#c01e2e";
     context.beginPath();
     context.arc(bx, by, boss.size * TILE + pulse, 0, Math.PI * 2);
     context.fill();
-    context.fillStyle = "#ffe9e9";
-    const look = Math.atan2(player.y - boss.y, player.x - boss.x);
+    context.fillStyle = boss.stun > 0 ? "#9a8a8a" : "#ffe9e9";
+    const look = boss.stun > 0 ? now / 120 : Math.atan2(player.y - boss.y, player.x - boss.x);
     context.beginPath();
     context.arc(bx + Math.cos(look) * 9, by + Math.sin(look) * 9 - 4, 5, 0, Math.PI * 2);
     context.arc(bx + Math.cos(look) * 9, by + Math.sin(look) * 9 + 8, 5, 0, Math.PI * 2);
@@ -267,6 +277,6 @@ export function startBoss(): void {
   }
 
   hud();
-  say("Break all five pillars. It cannot outlive them.");
+  say("Stand in front of a pillar and let it charge. Then move.");
   window.requestAnimationFrame(loop);
 }
