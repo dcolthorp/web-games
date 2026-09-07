@@ -41,6 +41,11 @@ if (spec) {
     ],
   };
 
+  // Whiteout is weather, not a recording.
+  if (index === 4) {
+    void import("./wind").then((wind) => wind.startWind());
+  }
+
   const theme = themes[index];
   if (theme) {
     void Promise.all([import("./music"), theme()])
