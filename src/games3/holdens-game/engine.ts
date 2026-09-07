@@ -41,6 +41,8 @@ export interface WorldSpec {
 export const MAP_W = 40;
 export const MAP_H = 28;
 const TILE = 32;
+const SAFE_RADIUS = 2.3;
+const RESPAWN_GRACE = 1.6;
 const CRUMBLE_DELAY = 0.55;
 const CRUMBLE_REGROW = 3.5;
 
@@ -107,6 +109,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
   const standing = new Map<string, number>();
   const holes = new Map<string, number>();
   let padCooldown = 0;
+  let graceUntil = 0;
   // You come back to the last flag you touched, not the front door.
   const litCheckpoints = new Set<number>();
   let respawn: Vec = { x: spec.start.x, y: spec.start.y };
@@ -144,12 +147,20 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     });
   };
 
+  // The start and every flag sit inside a bubble nothing can reach you in, so
+  // coming back can never drop you inside whatever just killed you.
+  const safeSpots: Vec[] = [spec.start, ...spec.checkpoints];
+  const inSafeZone = (x: number, y: number): boolean =>
+    safeSpots.some((spot) => Math.hypot(x - spot.x, y - spot.y) < SAFE_RADIUS);
+
   const sendBack = (reason: string): void => {
     player.x = respawn.x;
     player.y = respawn.y;
     player.vx = 0;
     player.vy = 0;
     flashUntil = performance.now() + 400;
+    // Even outside a bubble, a moment of grace to get moving again.
+    graceUntil = clock + RESPAWN_GRACE;
     say(litCheckpoints.size > 0 ? `${reason} Back to your last flag.` : reason);
   };
 
@@ -172,6 +183,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     standing.clear();
     litCheckpoints.clear();
     respawn = { x: spec.start.x, y: spec.start.y };
+    graceUntil = 0;
     enemies.forEach((enemy, i) => {
       const source = spec.enemies[i];
       if (!source) return;
@@ -225,6 +237,19 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       }
     };
     const chase = (rate: number): void => {
+      // Nothing follows you into a safe zone; they turn back for home instead.
+      if (inSafeZone(player.x, player.y)) {
+        const backX = enemy.homeX - enemy.x;
+        const backY = enemy.homeY - enemy.y;
+        const span = Math.hypot(backX, backY);
+        if (span > 0.2) {
+          const stepX = (backX / span) * rate * 0.6 * dt;
+          const stepY = (backY / span) * rate * 0.6 * dt;
+          if (!isWall(enemy.x + stepX, enemy.y)) enemy.x += stepX;
+          if (!isWall(enemy.x, enemy.y + stepY)) enemy.y += stepY;
+        }
+        return;
+      }
       const dx = player.x - enemy.x;
       const dy = player.y - enemy.y;
       const length = Math.hypot(dx, dy) || 1;
@@ -412,6 +437,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     for (const enemy of enemies) {
       moveEnemy(enemy, dt);
       if (!enemy.visible) continue;
+      if (inSafeZone(player.x, player.y) || clock < graceUntil) continue;
       if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 0.75) {
         sendBack(`The ${spec.enemyName} got you.`);
       }
@@ -618,6 +644,20 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         context.arc(spot.x * TILE, spot.y * TILE, pulse, 0, Math.PI * 2);
         context.fill();
       });
+    });
+
+    safeSpots.forEach((spot) => {
+      const ring = context.createRadialGradient(
+        spot.x * TILE, spot.y * TILE, SAFE_RADIUS * TILE * 0.45,
+        spot.x * TILE, spot.y * TILE, SAFE_RADIUS * TILE,
+      );
+      ring.addColorStop(0, "rgb(160 230 255 / .05)");
+      ring.addColorStop(0.82, "rgb(160 230 255 / .12)");
+      ring.addColorStop(1, "rgb(160 230 255 / 0)");
+      context.fillStyle = ring;
+      context.beginPath();
+      context.arc(spot.x * TILE, spot.y * TILE, SAFE_RADIUS * TILE, 0, Math.PI * 2);
+      context.fill();
     });
 
     spec.checkpoints.forEach((flag, i) => {

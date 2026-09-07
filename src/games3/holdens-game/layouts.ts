@@ -86,7 +86,7 @@ export const tower: Layout = {
     { x: 8, y: 12, colour: "red" }, { x: 30, y: 22, colour: "blue" }, { x: 24, y: 12, colour: "gold" },
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 22, y: 22 }, { x: 22, y: 12 }],
-  checkpoints: [{ x: 5.5, y: 10.5 }, { x: 21.5, y: 21.5 }, { x: 28.5, y: 14.5 }, { x: 28.5, y: 5.5 }],
+  checkpoints: [{ x: 5.5, y: 10.5 }, { x: 21.5, y: 21.5 }, { x: 28.5, y: 14.5 }, { x: 21.5, y: 3.5 }],
   blobSlots: [
     { x: 8.5, y: 12.5, axis: "x", low: 3.5, high: 14.5 },
     { x: 28.5, y: 22.5, axis: "x", low: 21.5, high: 35.5 },
