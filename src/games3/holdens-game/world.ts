@@ -23,11 +23,17 @@ if (spec) {
     nextLink.textContent = `On to ${next.name}`;
   }
 
-  // Death Farms has a theme tune. Loaded only there, so no other world can
-  // even reach the audio.
-  if (index === 0) {
-    void Promise.all([import("./music"), import("./assets/death-farms-theme.m4a?url")])
-      .then(([music, theme]) => music.startMusic(theme.default));
+  // Only the worlds listed here have a tune, and each one is fetched on
+  // demand so no other level ever loads the audio.
+  const themes: Record<number, () => Promise<{ default: string }>> = {
+    0: () => import("./assets/death-farms-theme.m4a?url"),
+    1: () => import("./assets/devil-labs-theme.m4a?url"),
+  };
+
+  const theme = themes[index];
+  if (theme) {
+    void Promise.all([import("./music"), theme()])
+      .then(([music, track]) => music.startMusic(track.default));
   }
 
   startWorld(spec, () => markCleared(index));
