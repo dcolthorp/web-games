@@ -108,7 +108,7 @@ export const worldSpecs: WorldSpec[] = [
     ],
   }),
   makeWorld(5, "Blood Temple", {
-    layout: mirror(sprawl), palette: temple, enemyCount: 4, enemySpeed: 2.0,
+    layout: mirror(sprawl), palette: temple, enemyCount: 3, enemySpeed: 1.5,
     enemyName: "skull", enemyKind: "skull",
     gimmick: "Skulls flare, then charge down any row you share with them.",
     signs: ["Step where the floor is whole.", "When a skull flares, get out of its row.", "The last door is close."],

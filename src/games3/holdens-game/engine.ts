@@ -302,8 +302,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
           break;
         }
         enemy.aim += dt;
-        if (enemy.aim < 0.45) break;
-        chase(enemy.speed * 1.45);
+        if (enemy.aim < 0.7) break;
+        chase(enemy.speed * 1.3);
         break;
       }
       case "pixel": {
@@ -501,7 +501,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         break;
       case "skull":
         if (enemy.aim > 0) {
-          context.globalAlpha = Math.min(1, enemy.aim / 0.45);
+          context.globalAlpha = Math.min(1, enemy.aim / 0.7);
           context.beginPath();
           context.arc(px, py, 16, 0, Math.PI * 2);
           context.fill();
