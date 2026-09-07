@@ -25,16 +25,23 @@ if (spec) {
 
   // Only the worlds listed here have a tune, and each one is fetched on
   // demand so no other level ever loads the audio.
-  const themes: Record<number, () => Promise<{ default: string }>> = {
-    0: () => import("./assets/death-farms-theme.m4a?url"),
-    1: () => import("./assets/devil-labs-theme.m4a?url"),
-    2: () => import("./assets/sunken-castle-theme.m4a?url"),
+  const themes: Record<number, () => Promise<{ id: string; label: string; url: string }[]>> = {
+    0: async () => [
+      { id: "main", label: "Theme", url: (await import("./assets/death-farms-theme.m4a?url")).default },
+    ],
+    1: async () => [
+      { id: "main", label: "New music", url: (await import("./assets/devil-labs-theme.m4a?url")).default },
+      { id: "og", label: "OG music", url: (await import("./assets/devil-labs-theme-og.m4a?url")).default },
+    ],
+    2: async () => [
+      { id: "main", label: "Theme", url: (await import("./assets/sunken-castle-theme.m4a?url")).default },
+    ],
   };
 
   const theme = themes[index];
   if (theme) {
     void Promise.all([import("./music"), theme()])
-      .then(([music, track]) => music.startMusic(track.default));
+      .then(([music, tracks]) => music.startMusic(tracks));
   }
 
   startWorld(spec, () => markCleared(index));
