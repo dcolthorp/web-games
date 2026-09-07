@@ -1,5 +1,6 @@
 const SEEN_KEY = "holdens-game-intro-seen-v1";
 const SEEN2_KEY = "holdens-game-intro2-seen-v1";
+const SEEN3_KEY = "holdens-game-intro3-seen-v1";
 
 // The whole opening, in seconds. Each phase runs until the next one starts.
 const WALK = 0;
@@ -17,6 +18,10 @@ export function introSeen(): boolean {
 
 export function intro2Seen(): boolean {
   return localStorage.getItem(SEEN2_KEY) === "yes";
+}
+
+export function intro3Seen(): boolean {
+  return localStorage.getItem(SEEN3_KEY) === "yes";
 }
 
 export function playIntro(onDone: () => void): void {
@@ -376,6 +381,190 @@ export function playIntro2(onDone: () => void): void {
 
     if (t >= FADE2) {
       context.fillStyle = `rgb(0 0 0 / ${((t - FADE2) / (END2 - FADE2)).toFixed(2)})`;
+      context.fillRect(0, 0, W, H);
+    }
+
+    frame = window.requestAnimationFrame(draw);
+  }
+
+  frame = window.requestAnimationFrame(draw);
+}
+
+
+// Scene three. The bottom of the shaft, and what was waiting at it.
+const FALLING = 0;
+const LAND = 2.4;
+const PILLARS = 3.8;
+const EYES3 = 6.2;
+const LOOM = 8.4;
+const ROAR = 10.6;
+const FADE3 = 12.2;
+const END3 = 13.4;
+
+export function playIntro3(onDone: () => void): void {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    localStorage.setItem(SEEN3_KEY, "yes");
+    onDone();
+    return;
+  }
+
+  const shell = document.querySelector<HTMLDivElement>("#intro");
+  const canvas = document.querySelector<HTMLCanvasElement>("#intro-canvas");
+  const skip = document.querySelector<HTMLButtonElement>("#intro-skip");
+  const context = canvas?.getContext("2d") ?? null;
+  if (!shell || !canvas || !context) { onDone(); return; }
+
+  shell.hidden = false;
+  shell.style.display = "flex";
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const FLOOR = H - 56;
+  let start = 0;
+  let frame = 0;
+  let finished = false;
+  let failsafe = 0;
+
+  const stop = (): void => {
+    if (finished) return;
+    finished = true;
+    window.cancelAnimationFrame(frame);
+    window.clearTimeout(failsafe);
+    localStorage.setItem(SEEN3_KEY, "yes");
+    shell.hidden = true;
+    shell.style.display = "none";
+    onDone();
+  };
+
+  skip?.addEventListener("click", stop, { once: true });
+  failsafe = window.setTimeout(stop, (END3 + 6) * 1000);
+
+  const streaks = Array.from({ length: 40 }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    len: 30 + Math.random() * 90,
+  }));
+
+  const pillarsAt = [90, 220, 360, 500, 630];
+
+  function draw(now: number): void {
+    if (!context) return;
+    if (!start) start = now;
+    const t = (now - start) / 1000;
+    if (t >= END3) { stop(); return; }
+
+    const thud = t > LAND && t < LAND + 0.6 ? (Math.random() - 0.5) * 20 * (1 - (t - LAND) / 0.6) : 0;
+    const rumble = t > ROAR && t < ROAR + 1.2 ? (Math.random() - 0.5) * 16 : 0;
+
+    context.fillStyle = "#030006";
+    context.fillRect(0, 0, W, H);
+    context.save();
+    context.translate(thud + rumble, (thud + rumble) * 0.5);
+
+    // Falling: the shaft wall tearing past.
+    if (t < LAND) {
+      const rush = 1 - t / LAND;
+      context.strokeStyle = `rgb(90 30 45 / ${(0.15 + rush * 0.5).toFixed(2)})`;
+      context.lineWidth = 2;
+      streaks.forEach((s) => {
+        const y = (s.y + t * 900) % (H + 120) - 60;
+        context.beginPath();
+        context.moveTo(s.x, y);
+        context.lineTo(s.x, y + s.len * (0.4 + rush));
+        context.stroke();
+      });
+    }
+
+    if (t >= LAND) {
+      context.fillStyle = "#140a10";
+      context.fillRect(-20, FLOOR, W + 40, H - FLOOR + 20);
+
+      // Pillars fade up out of the dark, one after another.
+      pillarsAt.forEach((px, i) => {
+        const on = Math.max(0, Math.min(1, (t - PILLARS - i * 0.28) / 0.6));
+        if (on <= 0) return;
+        context.globalAlpha = on * 0.9;
+        context.fillStyle = "#6b5570";
+        context.fillRect(px - 15, FLOOR - 116, 30, 116);
+        context.fillStyle = "#8a6f90";
+        context.fillRect(px - 15, FLOOR - 116, 30, 7);
+        context.globalAlpha = 1;
+      });
+    }
+
+    // The walker, landing hard and staying down a moment.
+    if (t >= LAND - 0.35) {
+      const settle = Math.min(1, (t - LAND) / 0.9);
+      const wy = t < LAND ? FLOOR - (LAND - t) * 700 : FLOOR;
+      const squash = t < LAND + 0.25 ? 1 - (0.25 - Math.max(0, t - LAND)) : 1;
+      context.save();
+      context.translate(W / 2 - 150, wy);
+      context.fillStyle = "#f4f1e6";
+      context.beginPath();
+      context.arc(0, -26 * squash, 12, 0, Math.PI * 2);
+      context.fill();
+      context.fillRect(-7, -15 * squash, 14, 22 * squash);
+      context.fillRect(-6, 7, 5, 13);
+      context.fillRect(2, 7, 5, 13);
+      context.fillRect(-12, -12 * squash, 5, 12);
+      context.fillRect(8, -12 * squash, 5, 12);
+      context.restore();
+      if (settle < 1 && t > LAND) {
+        context.fillStyle = `rgb(120 90 100 / ${(1 - settle).toFixed(2)})`;
+        for (let i = 0; i < 8; i += 1) {
+          const spread = settle * 70;
+          context.fillRect(W / 2 - 150 + Math.cos(i) * spread - 3, FLOOR + Math.sin(i) * 8, 6, 4);
+        }
+      }
+    }
+
+    // Two eyes, then the shape behind them, then it comes at you.
+    if (t >= EYES3) {
+      const open = Math.min(1, (t - EYES3) / 1.2);
+      const come = Math.max(0, Math.min(1, (t - LOOM) / (ROAR - LOOM)));
+      const charge = Math.max(0, Math.min(1, (t - ROAR) / 1.1));
+      const size = 26 + come * 90 + charge * 320;
+      const cx = W / 2 + 190 - come * 120 - charge * 60;
+      const cy = FLOOR - 60 - come * 10;
+
+      if (come > 0 || charge > 0) {
+        context.fillStyle = `rgb(150 20 34 / ${(0.35 + come * 0.65).toFixed(2)})`;
+        context.beginPath();
+        context.arc(cx, cy, size, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      const gap = 16 + come * 42 + charge * 150;
+      const eyeR = (7 + come * 12 + charge * 46) * open;
+      context.fillStyle = "#ffe9e9";
+      [-gap, gap].forEach((off) => {
+        context.beginPath();
+        context.ellipse(cx + off, cy - 6, eyeR, eyeR * 1.2, 0, 0, Math.PI * 2);
+        context.fill();
+      });
+      context.fillStyle = "#12060a";
+      [-gap, gap].forEach((off) => {
+        context.beginPath();
+        context.arc(cx + off - 2, cy - 4, eyeR * 0.5, 0, Math.PI * 2);
+        context.fill();
+      });
+
+      if (charge > 0) {
+        context.fillStyle = `rgb(190 20 34 / ${(charge * 0.55).toFixed(2)})`;
+        context.fillRect(0, 0, W, H);
+      }
+    }
+
+    context.restore();
+
+    const vignette = context.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, H * 0.95);
+    vignette.addColorStop(0, "rgb(0 0 0 / 0)");
+    vignette.addColorStop(1, "rgb(0 0 0 / .92)");
+    context.fillStyle = vignette;
+    context.fillRect(0, 0, W, H);
+
+    if (t >= FADE3) {
+      context.fillStyle = `rgb(0 0 0 / ${((t - FADE3) / (END3 - FADE3)).toFixed(2)})`;
       context.fillRect(0, 0, W, H);
     }
 

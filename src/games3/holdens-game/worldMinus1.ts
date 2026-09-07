@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { startBoss } from "./boss";
+import { intro3Seen, playIntro3 } from "./intro";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -17,4 +18,5 @@ if (heading) {
   window.setInterval(() => { heading.textContent = scramble(); }, 220);
 }
 
-startBoss();
+// What was waiting at the bottom, shown once.
+if (intro3Seen()) startBoss(); else playIntro3(startBoss);
