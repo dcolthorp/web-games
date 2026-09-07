@@ -63,3 +63,6 @@ canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line
 .story-line.is-missing { color: #2f3a44; }
 .story-done { margin: 16px 0 0; color: #63ff9f; font: .8rem/1.5 "DM Mono", monospace; }
 .story-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
+
+.boss-stat { color: #ff6b6b; font: .74rem/1 "DM Mono", monospace; }
+.boss-stat.is-hearts { letter-spacing: 2px; }

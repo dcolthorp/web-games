@@ -63,6 +63,7 @@ export default defineConfig({
         holdensGameActual: resolve(__dirname, "src/games3/holdens-game/game.html"),
         holdensShop: resolve(__dirname, "src/games3/holdens-game/shop.html"),
         holdensWorld0: resolve(__dirname, "src/games3/holdens-game/world-0.html"),
+        holdensWorldMinus1: resolve(__dirname, "src/games3/holdens-game/world--1.html"),
         holdensWorld1: resolve(__dirname, "src/games3/holdens-game/world-1.html"),
         holdensWorld2: resolve(__dirname, "src/games3/holdens-game/world-2.html"),
         holdensWorld3: resolve(__dirname, "src/games3/holdens-game/world-3.html"),
