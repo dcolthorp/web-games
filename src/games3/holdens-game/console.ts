@@ -53,14 +53,15 @@ const commands: Command[] = [
     },
   },
   {
-    name: "fog", usage: "fog5 / fogoff / fogauto", blurb: "how far you can see",
+    name: "fog", usage: "fog5 / fog-1 / fogoff", blurb: "how far you can see. minus turns the lights up",
     run: (args, world, print) => {
       if (args[0] === "off") { world.setFog(0); print("fog off."); return; }
       if (args[0] === "auto") { world.setFog(null); print("fog back to normal."); return; }
       const n = Number(args[0]);
       if (!Number.isFinite(n)) { print("try fog5, fogoff or fogauto"); return; }
       world.setFog(n);
-      print(`fog ${n}.`);
+      if (n < 0) print(`fog ${n}. the lights are all the way up.`);
+      else print(`fog ${n}.`);
     },
   },
   {

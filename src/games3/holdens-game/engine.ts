@@ -937,6 +937,19 @@ export function startWorld(
       shade.addColorStop(1, "rgb(0 0 0 / .96)");
       context.fillStyle = shade;
       context.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (fog < 0) {
+      // Negative fog is the opposite of dark: the lights come up until the
+      // whole place is washed out.
+      const glare = Math.min(0.88, Math.abs(fog) * 0.2);
+      context.fillStyle = `rgb(255 255 255 / ${glare.toFixed(2)})`;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      const px = (player.x - camX) * TILE;
+      const py = (player.y - camY) * TILE;
+      const bloom = context.createRadialGradient(px, py, 0, px, py, Math.abs(fog) * TILE * 2);
+      bloom.addColorStop(0, `rgb(255 255 255 / ${Math.min(0.6, glare).toFixed(2)})`);
+      bloom.addColorStop(1, "rgb(255 255 255 / 0)");
+      context.fillStyle = bloom;
+      context.fillRect(0, 0, canvas.width, canvas.height);
     }
   }
 
