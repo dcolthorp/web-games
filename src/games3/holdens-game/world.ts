@@ -50,6 +50,10 @@ if (spec) {
     8: async () => [
       { id: "main", label: "Theme", loop: false, url: (await import("./assets/do-not-enter-theme.m4a?url")).default },
     ],
+    // Also plays once. The end should be allowed to end.
+    9: async () => [
+      { id: "main", label: "Theme", loop: false, url: (await import("./assets/the-end-theme.m4a?url")).default },
+    ],
   };
 
   // Whiteout is weather, not a recording.
