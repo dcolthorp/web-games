@@ -94,4 +94,5 @@ concludeButton?.addEventListener("click", () => {
 });
 
 renderStory();
-startWorld(spec, () => {}, (index) => { keepPage(index); renderStory(); });
+const control = startWorld(spec, () => {}, (index) => { keepPage(index); renderStory(); });
+void import("./console").then((c) => c.startConsole(control));

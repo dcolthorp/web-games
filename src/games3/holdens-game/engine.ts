@@ -71,7 +71,27 @@ export function buildGrid(spec: WorldSpec): string[][] {
   return grid;
 }
 
-export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (index: number) => void): void {
+export interface WorldControl {
+  setCreative(on: boolean): boolean;
+  isCreative(): boolean;
+  setSpeedScale(n: number): void;
+  setFog(n: number | null): void;
+  giveKeys(): void;
+  teleport(x: number, y: number): boolean;
+  clearEdits(): number;
+  editCount(): number;
+}
+
+export function startWorld(
+  spec: WorldSpec,
+  onCleared: () => void,
+  onPage?: (index: number) => void,
+): WorldControl {
+  const noop: WorldControl = {
+    setCreative: () => false, isCreative: () => false, setSpeedScale: () => undefined,
+    setFog: () => undefined, giveKeys: () => undefined, teleport: () => false,
+    clearEdits: () => 0, editCount: () => 0,
+  };
   const canvas = document.querySelector<HTMLCanvasElement>("#world");
   const context = canvas?.getContext("2d") ?? null;
   const messageText = document.querySelector<HTMLParagraphElement>("#message");
@@ -79,7 +99,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
   const bannerTitle = document.querySelector<HTMLParagraphElement>("#banner-title");
   const bannerText = document.querySelector<HTMLParagraphElement>("#banner-text");
   const bannerButton = document.querySelector<HTMLButtonElement>("#banner-button");
-  if (!canvas || !context) return;
+  if (!canvas || !context) return noop;
 
   // Inline styles beat any stylesheet, cached or otherwise, so the win screen
   // cannot show itself before it is won.
@@ -92,6 +112,32 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
 
   const skin = wornSkin();
   const grid = buildGrid(spec);
+
+  // Walls painted in creative mode, kept per world so they survive a reload.
+  const EDIT_KEY = `holdens-game-edits-${spec.name}`;
+  const edits = new Map<string, string>();
+  try {
+    const saved = JSON.parse(localStorage.getItem(EDIT_KEY) ?? "{}") as Record<string, string>;
+    Object.entries(saved).forEach(([id, tile]) => {
+      const [ex, ey] = id.split(",").map(Number);
+      if (ex === undefined || ey === undefined) return;
+      if (grid[ey]?.[ex] === undefined) return;
+      grid[ey]![ex] = tile === "#" ? "#" : ".";
+      edits.set(id, tile);
+    });
+  } catch {
+    // A damaged edit list should never stop the level loading.
+  }
+  const saveEdits = (): void => {
+    localStorage.setItem(EDIT_KEY, JSON.stringify(Object.fromEntries(edits)));
+  };
+
+  let creative = false;
+  let speedScale = 1;
+  let fogOverride: number | null = null;
+  let camX = 0;
+  let camY = 0;
+
   const terrain: (Terrain | null)[][] = Array.from({ length: MAP_H }, () => Array.from({ length: MAP_W }, () => null));
   const winds: (Vec | null)[][] = Array.from({ length: MAP_H }, () => Array.from({ length: MAP_W }, () => null));
   spec.patches.forEach(({ rect, kind, dir }) => {
@@ -148,7 +194,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
 
   const blockedForPlayer = (x: number, y: number): boolean => {
     if (x < 0.4 || y < 0.4 || x > MAP_W - 0.4 || y > MAP_H - 0.4) return true;
-    if (skin.phase) return false;
+    if (skin.phase || creative) return false;
     return isWall(x, y) || holes.has(`${Math.floor(x)},${Math.floor(y)}`);
   };
 
@@ -409,8 +455,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
     if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
     const under = tileAt(player);
-    const wet = under === "water" && !skin.waterProof;
-    const speed = spec.playerSpeed * skin.speed * (wet ? 0.5 : 1);
+    const wet = under === "water" && !skin.waterProof && !creative;
+    const speed = spec.playerSpeed * skin.speed * speedScale * (wet ? 0.5 : 1);
     const grip = under === "ice" && !skin.iceGrip ? 0.045 : 0.34;
     player.vx += (dx * speed - player.vx) * grip;
     player.vy += (dy * speed - player.vy) * grip;
@@ -430,7 +476,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
     if (under === "crumble" && !holes.has(footId)) {
       const held = (standing.get(footId) ?? 0) + dt;
       standing.set(footId, held);
-      if (held >= CRUMBLE_DELAY) {
+      if (held >= CRUMBLE_DELAY && !creative) {
         standing.delete(footId);
         holes.set(footId, clock + CRUMBLE_REGROW);
         sendBack("The floor gave way.");
@@ -530,12 +576,12 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
       updateHud();
     });
 
-    if (under === "spike") sendBack("Spikes.");
+    if (under === "spike" && !creative) sendBack("Spikes.");
 
     for (const enemy of enemies) {
       moveEnemy(enemy, dt);
       if (!enemy.visible) continue;
-      if (inSafeZone(player.x, player.y) || clock < graceUntil) continue;
+      if (creative || inSafeZone(player.x, player.y) || clock < graceUntil) continue;
       if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 0.75) {
         sendBack(`The ${spec.enemyName} got you.`);
       }
@@ -654,8 +700,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
     if (!canvas || !context) return;
     const viewW = canvas.width / TILE;
     const viewH = canvas.height / TILE;
-    const camX = Math.max(0, Math.min(MAP_W - viewW, player.x - viewW / 2));
-    const camY = Math.max(0, Math.min(MAP_H - viewH, player.y - viewH / 2));
+    camX = Math.max(0, Math.min(MAP_W - viewW, player.x - viewW / 2));
+    camY = Math.max(0, Math.min(MAP_H - viewH, player.y - viewH / 2));
 
     context.fillStyle = spec.palette.bg;
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -869,7 +915,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
     context.restore();
 
     const closing = spec.fogStep * Math.max(0, roomsSeen.size - 1);
-    const fog = spec.fog > 0 ? Math.max(2.4, spec.fog - closing + skin.fogBonus) : 0;
+    const natural = spec.fog > 0 ? Math.max(2.4, spec.fog - closing + skin.fogBonus) : 0;
+    const fog = fogOverride === null ? natural : fogOverride;
     if (fog > 0) {
       const px = (player.x - camX) * TILE;
       const py = (player.y - camY) * TILE;
@@ -888,8 +935,64 @@ export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (ind
     window.requestAnimationFrame(loop);
   }
 
+  const paint = (event: PointerEvent, solid: boolean): void => {
+    if (!creative || !canvas) return;
+    const box = canvas.getBoundingClientRect();
+    const tx = Math.floor(camX + ((event.clientX - box.left) / box.width) * (canvas.width / TILE));
+    const ty = Math.floor(camY + ((event.clientY - box.top) / box.height) * (canvas.height / TILE));
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return;
+    grid[ty]![tx] = solid ? "#" : ".";
+    edits.set(`${tx},${ty}`, solid ? "#" : ".");
+    saveEdits();
+    say(`${solid ? "Wall" : "Floor"} at ${tx},${ty}. ${edits.size} edits.`);
+  };
+
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!creative) return;
+    event.preventDefault();
+    paint(event, event.button !== 2 && !event.shiftKey);
+  });
+  canvas.addEventListener("contextmenu", (event) => { if (creative) event.preventDefault(); });
+
   refreshKeyHud();
   updateHud();
   say(spec.gimmick);
   window.requestAnimationFrame(loop);
+
+  return {
+    setCreative: (on) => {
+      creative = on;
+      if (canvas) canvas.style.cursor = on ? "crosshair" : "";
+      return creative;
+    },
+    isCreative: () => creative,
+    setSpeedScale: (n) => { speedScale = Math.max(0.1, Math.min(6, n)); },
+    setFog: (n) => { fogOverride = n; },
+    giveKeys: () => {
+      spec.keys.forEach((key) => held.add(key.colour));
+      keys.forEach((key) => { key.taken = true; });
+      spec.doors.forEach((door) => openedDoors.add(`${door.x},${door.y}`));
+      refreshKeyHud();
+    },
+    teleport: (x, y) => {
+      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) return false;
+      player.x = x;
+      player.y = y;
+      player.vx = 0;
+      player.vy = 0;
+      return true;
+    },
+    clearEdits: () => {
+      const count = edits.size;
+      edits.forEach((_, id) => {
+        const [ex, ey] = id.split(",").map(Number);
+        if (ex === undefined || ey === undefined) return;
+        grid[ey]![ex] = buildGrid(spec)[ey]?.[ex] ?? "#";
+      });
+      edits.clear();
+      saveEdits();
+      return count;
+    },
+    editCount: () => edits.size,
+  };
 }

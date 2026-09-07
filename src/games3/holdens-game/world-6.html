@@ -41,6 +41,14 @@
           <button type="button" data-move="right" aria-label="Right">&#9654;</button>
         </div>
       </div>
+
+      <div class="console" aria-label="Console">
+        <div class="console-log" id="console-log"></div>
+        <form class="console-form" id="console-form" autocomplete="off">
+          <span class="console-caret" aria-hidden="true">&gt;</span>
+          <input class="console-input" id="console-input" type="text" spellcheck="false" aria-label="Type a command" />
+        </form>
+      </div>
     </main>
     <script type="module" src="./world.ts"></script>
   </body>

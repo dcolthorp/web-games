@@ -67,5 +67,6 @@ if (spec) {
       .then(([music, tracks]) => music.startMusic(tracks));
   }
 
-  startWorld(spec, () => markCleared(index));
+  const control = startWorld(spec, () => markCleared(index));
+  void import("./console").then((c) => c.startConsole(control));
 }
