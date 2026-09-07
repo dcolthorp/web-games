@@ -1,6 +1,6 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import { buy, coins, owned, skins, wear, wornSkin } from "./shop";
+import { buy, coins, glitchUnlocked, owned, skins, wear, wornSkin } from "./shop";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -18,6 +18,7 @@ function powers(skin: typeof skins[number]): string[] {
   if (skin.windProof) out.push("ignores wind");
   if (skin.waterProof) out.push("swims freely");
   if (skin.shield > 0) out.push(`${skin.shield} free hit`);
+  if (skin.phase) out.push("walks through walls");
   return out;
 }
 
@@ -28,7 +29,7 @@ function render(): void {
   const worn = wornSkin();
   list.replaceChildren();
 
-  skins.forEach((skin) => {
+  skins.filter((skin) => !skin.secret || glitchUnlocked()).forEach((skin) => {
     const mine = have.includes(skin.id);
     const on = worn.id === skin.id;
 

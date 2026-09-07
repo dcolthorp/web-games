@@ -20,7 +20,9 @@ body { margin: 0; min-height: 100vh; background: #0f1418; color: var(--ink); fon
 .shield-pip { width: 13px; height: 13px; border: 2px solid #dce9f4; border-radius: 50%; }
 .shield-pip.is-spent { border-color: #3c4a55; }
 .shield-pip[hidden] { display: none; }
-.key-slot { width: 20px; height: 20px; border: 2px dashed #2e3c47; border-radius: 6px; }
+.key-slots { display: flex; gap: 6px; }
+.key-slot { width: 18px; height: 18px; border: 2px dashed #2e3c47; border-radius: 6px; }
+.key-slot.is-found { border-style: solid; border-color: var(--key-colour); background: color-mix(in srgb, var(--key-colour) 45%, transparent); }
 .key-slot.is-found { border-style: solid; }
 .key-slot[data-key="red"].is-found { border-color: var(--red); background: color-mix(in srgb, var(--red) 45%, transparent); }
 .key-slot[data-key="blue"].is-found { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 45%, transparent); }
@@ -46,3 +48,14 @@ canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line
 .dpad button { width: 62px; height: 52px; border: 1px solid var(--line); border-radius: 12px; background: #182027; color: var(--ink); font-size: 1rem; cursor: pointer; touch-action: none; }
 .dpad button:active { background: #24303a; }
 @media (hover: none), (max-width: 700px) { .dpad { display: flex; } }
+
+.story-button { padding: 7px 13px; border: 1px solid var(--gold); border-radius: 999px; background: #2a2313; color: var(--gold); font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
+.story-button[hidden] { display: none; }
+.story-panel { position: fixed; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgb(3 4 10 / .9); }
+.story-panel[hidden] { display: none; }
+.story-sheet { width: min(460px, 100%); padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: #0d1016; }
+.story-head { margin: 0 0 14px; color: var(--muted); font: .62rem/1 "DM Mono", monospace; text-transform: uppercase; letter-spacing: .18em; }
+.story-line { margin: 0 0 9px; font: .88rem/1.5 "DM Mono", monospace; }
+.story-line.is-missing { color: #2f3a44; }
+.story-done { margin: 16px 0 0; color: #63ff9f; font: .8rem/1.5 "DM Mono", monospace; }
+.story-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }

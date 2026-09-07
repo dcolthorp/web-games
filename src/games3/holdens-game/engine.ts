@@ -1,4 +1,9 @@
-export type KeyColour = "red" | "blue" | "gold";
+export type KeyColour = string;
+
+export const KEY_COLOURS: Record<string, string> = {
+  red: "#ff5d5d", orange: "#ff9f45", yellow: "#ffe14d", green: "#63e06a",
+  blue: "#57b6ff", violet: "#c084fc", gold: "#ffcc45",
+};
 export type Terrain = "water" | "ice" | "spike" | "crumble" | "wind";
 export type EnemyKind =
   | "scarecrow" | "specimen" | "eel" | "glitch" | "wisp"
@@ -30,7 +35,10 @@ export interface WorldSpec {
   signs: { x: number; y: number; words: string }[];
   enemies: EnemySpec[];
   patches: { rect: Rect; kind: Terrain; dir?: Vec }[];
-  pads: { a: Vec; b: Vec }[];
+  // A portal can demand a key, which keeps it from skipping a locked door.
+  pads: { a: Vec; b: Vec; requires?: KeyColour }[];
+  pages: { x: number; y: number; words: string }[];
+  fogStep: number;
   checkpoints: Vec[];
   coinSpots: Vec[];
   start: Vec;
@@ -63,7 +71,7 @@ export function buildGrid(spec: WorldSpec): string[][] {
   return grid;
 }
 
-export function startWorld(spec: WorldSpec, onCleared: () => void): void {
+export function startWorld(spec: WorldSpec, onCleared: () => void, onPage?: (index: number) => void): void {
   const canvas = document.querySelector<HTMLCanvasElement>("#world");
   const context = canvas?.getContext("2d") ?? null;
   const messageText = document.querySelector<HTMLParagraphElement>("#message");
@@ -98,6 +106,9 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
 
   const keys = spec.keys.map((key) => ({ ...key, taken: false }));
   const coins = spec.coinSpots.map((spot) => ({ ...spot, taken: false }));
+  const pages = spec.pages.map((page) => ({ ...page, taken: false }));
+  // Each new room you set foot in draws the fog a little tighter.
+  const roomsSeen = new Set<number>();
   let shield = skin.shield;
   const enemies = spec.enemies.map((enemy) => ({
     ...enemy,
@@ -135,8 +146,11 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     return grid[ty]?.[tx] === "#" || doorShut(tx, ty);
   };
 
-  const blockedForPlayer = (x: number, y: number): boolean =>
-    isWall(x, y) || holes.has(`${Math.floor(x)},${Math.floor(y)}`);
+  const blockedForPlayer = (x: number, y: number): boolean => {
+    if (x < 0.4 || y < 0.4 || x > MAP_W - 0.4 || y > MAP_H - 0.4) return true;
+    if (skin.phase) return false;
+    return isWall(x, y) || holes.has(`${Math.floor(x)},${Math.floor(y)}`);
+  };
 
   const hitsWall = (x: number, y: number, r: number): boolean =>
     blockedForPlayer(x - r, y - r) || blockedForPlayer(x + r, y - r) ||
@@ -157,11 +171,23 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     }
   };
 
+  const slotHome = document.querySelector<HTMLElement>("#key-slots");
+
   const refreshKeyHud = (): void => {
-    document.querySelectorAll<HTMLElement>(".key-slot").forEach((slot) => {
-      const colour = slot.dataset["key"] as KeyColour;
-      slot.hidden = !spec.keys.some((key) => key.colour === colour);
-      slot.classList.toggle("is-found", held.has(colour));
+    if (!slotHome) return;
+    if (slotHome.childElementCount !== spec.keys.length) {
+      slotHome.replaceChildren();
+      spec.keys.forEach((key) => {
+        const slot = document.createElement("span");
+        slot.className = "key-slot";
+        slot.dataset["key"] = key.colour;
+        slot.title = `${key.colour} key`;
+        slot.style.setProperty("--key-colour", KEY_COLOURS[key.colour] ?? "#fff");
+        slotHome.append(slot);
+      });
+    }
+    slotHome.querySelectorAll<HTMLElement>(".key-slot").forEach((slot) => {
+      slot.classList.toggle("is-found", held.has(slot.dataset["key"] ?? ""));
     });
   };
 
@@ -422,6 +448,11 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         const onA = Math.hypot(player.x - pad.a.x, player.y - pad.a.y) < 0.6;
         const onB = Math.hypot(player.x - pad.b.x, player.y - pad.b.y) < 0.6;
         if (!onA && !onB) continue;
+        if (pad.requires && !held.has(pad.requires)) {
+          say(`That portal wants the ${pad.requires} key.`);
+          padCooldown = 1;
+          break;
+        }
         const target = onA ? pad.b : pad.a;
         player.x = target.x;
         player.y = target.y;
@@ -451,6 +482,21 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       updateHud();
       say("Coin.");
     }
+
+    for (const page of pages) {
+      if (page.taken) continue;
+      if (Math.hypot(player.x - page.x, player.y - page.y) > 0.8) continue;
+      page.taken = true;
+      onPage?.(pages.indexOf(page));
+      say(`A page. "${page.words}"`);
+    }
+
+    spec.rooms.forEach((room, i) => {
+      if (roomsSeen.has(i)) return;
+      if (player.x < room.x || player.x > room.x + room.w) return;
+      if (player.y < room.y || player.y > room.y + room.h) return;
+      roomsSeen.add(i);
+    });
 
     for (const key of keys) {
       if (key.taken) continue;
@@ -498,7 +544,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     if (Math.hypot(player.x - spec.treasure.x, player.y - spec.treasure.y) < 0.8) finish();
   }
 
-  const doorColours: Record<KeyColour, string> = { red: "#ff5d5d", blue: "#57b6ff", gold: "#ffcc45" };
+  const tint = (colour: KeyColour): string => KEY_COLOURS[colour] ?? "#ffffff";
 
   function drawEnemy(enemy: typeof enemies[number], now: number): void {
     if (!context || !enemy.visible) return;
@@ -691,7 +737,9 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     }
 
     spec.pads.forEach((pad) => {
+      const locked = pad.requires !== undefined && !held.has(pad.requires);
       [pad.a, pad.b].forEach((spot) => {
+        context.globalAlpha = locked ? 0.35 : 1;
         const pulse = 6 + Math.sin(now / 220 + spot.x) * 2;
         context.strokeStyle = "#9df";
         context.lineWidth = 2;
@@ -702,6 +750,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         context.beginPath();
         context.arc(spot.x * TILE, spot.y * TILE, pulse, 0, Math.PI * 2);
         context.fill();
+        context.globalAlpha = 1;
       });
     });
 
@@ -750,7 +799,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
 
     spec.doors.forEach((door) => {
       if (openedDoors.has(`${door.x},${door.y}`)) return;
-      context.fillStyle = doorColours[door.colour];
+      context.fillStyle = tint(door.colour);
       context.fillRect(door.x * TILE + 2, door.y * TILE + 2, TILE - 4, TILE - 4);
       context.fillStyle = "rgb(0 0 0 / .35)";
       context.fillRect(door.x * TILE + 2, door.y * TILE + TILE / 2 - 2, TILE - 4, 4);
@@ -759,7 +808,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     keys.forEach((key) => {
       if (key.taken) return;
       const bob = Math.sin(now / 260 + key.x) * 2;
-      context.fillStyle = doorColours[key.colour];
+      context.fillStyle = tint(key.colour);
       context.beginPath();
       context.arc(key.x * TILE + 16, key.y * TILE + 14 + bob, 6, 0, Math.PI * 2);
       context.fill();
@@ -778,6 +827,15 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       context.beginPath();
       context.ellipse(coin.x * TILE, coin.y * TILE, 1 + spin * 1.6, 3, 0, 0, Math.PI * 2);
       context.fill();
+    });
+
+    pages.forEach((page) => {
+      if (page.taken) return;
+      const lift = Math.sin(now / 340 + page.x) * 2;
+      context.fillStyle = "#f4f1e6";
+      context.fillRect(page.x * TILE - 7, page.y * TILE - 9 + lift, 14, 18);
+      context.fillStyle = "#9a958a";
+      for (let i = 0; i < 4; i += 1) context.fillRect(page.x * TILE - 4, page.y * TILE - 5 + i * 4 + lift, 8, 1);
     });
 
     const glow = 0.5 + Math.sin(now / 300) * 0.2;
@@ -810,7 +868,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
 
     context.restore();
 
-    const fog = spec.fog > 0 ? Math.max(2.5, spec.fog + skin.fogBonus) : 0;
+    const closing = spec.fogStep * Math.max(0, roomsSeen.size - 1);
+    const fog = spec.fog > 0 ? Math.max(2.4, spec.fog - closing + skin.fogBonus) : 0;
     if (fog > 0) {
       const px = (player.x - camX) * TILE;
       const py = (player.y - camY) * TILE;

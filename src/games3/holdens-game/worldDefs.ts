@@ -14,7 +14,9 @@ interface WorldOptions {
   playerSpeed?: number;
   fog?: number;
   patches?: { rect: { x: number; y: number; w: number; h: number }; kind: Terrain; dir?: Vec }[];
-  pads?: { a: Vec; b: Vec }[];
+  pads?: { a: Vec; b: Vec; requires?: string }[];
+  pages?: { x: number; y: number; words: string }[];
+  fogStep?: number;
 }
 
 function makeWorld(index: number, name: string, options: WorldOptions): WorldSpec {
@@ -36,6 +38,8 @@ function makeWorld(index: number, name: string, options: WorldOptions): WorldSpe
     })),
     patches: options.patches ?? [],
     pads: options.pads ?? [],
+    pages: options.pages ?? [],
+    fogStep: options.fogStep ?? 0,
     checkpoints: layout.checkpoints,
     coinSpots: layout.coinSpots,
     start: layout.start,
