@@ -63,6 +63,11 @@ if (spec) {
     void import("./wind").then((wind) => wind.startWind());
   }
 
+  // The temple's theme is generated, not played from a file.
+  if (index === 5) {
+    void import("./temple").then((temple) => temple.startTemple());
+  }
+
   const theme = themes[index];
   if (theme) {
     void Promise.all([import("./music"), theme()])

@@ -12,7 +12,7 @@ export function startWind(): void {
   const paint = (): void => {
     if (!button) return;
     button.hidden = false;
-    button.textContent = muted ? "Wind off" : "Wind on";
+    button.textContent = muted ? "Press K to start wind" : "Press K to pause wind";
     button.classList.toggle("is-off", muted);
   };
 
@@ -96,11 +96,20 @@ export function startWind(): void {
   window.addEventListener("keydown", wake);
   window.addEventListener("pointerdown", wake);
 
-  button?.addEventListener("click", () => {
+  const toggleSound = (): void => {
     muted = !muted;
     localStorage.setItem(MUTE_KEY, muted ? "yes" : "no");
     if (muted) stop(); else { play(); gust(); }
     paint();
+  };
+
+  button?.addEventListener("click", toggleSound);
+
+  // K works anywhere on the page, except while typing a command.
+  window.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() !== "k") return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    toggleSound();
   });
 
   window.addEventListener("pagehide", stop);

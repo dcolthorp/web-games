@@ -39,7 +39,7 @@ export function startMusic(tracks: Track[]): void {
   const paint = (): void => {
     if (muteButton) {
       muteButton.hidden = false;
-      muteButton.textContent = muted ? "Music off" : "Music on";
+      muteButton.textContent = muted ? "Press K to start music" : "Press K to pause music";
       muteButton.classList.toggle("is-off", muted);
     }
     if (swapButton && tracks.length > 1) {
@@ -58,11 +58,20 @@ export function startMusic(tracks: Track[]): void {
   window.addEventListener("keydown", wake);
   window.addEventListener("pointerdown", wake);
 
-  muteButton?.addEventListener("click", () => {
+  const toggleSound = (): void => {
     muted = !muted;
     localStorage.setItem(MUTE_KEY, muted ? "yes" : "no");
     if (muted) track.pause(); else play();
     paint();
+  };
+
+  muteButton?.addEventListener("click", toggleSound);
+
+  // K works anywhere on the page, except while typing a command.
+  window.addEventListener("keydown", (event) => {
+    if (event.key.toLowerCase() !== "k") return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    toggleSound();
   });
 
   swapButton?.addEventListener("click", () => {
