@@ -100,7 +100,7 @@ export function startConsole(world: WorldControl): void {
     log.scrollTop = log.scrollHeight;
   };
 
-  print("type help");
+  print("type help. press escape to get back to the game.");
 
   const history: string[] = [];
   let seek = -1;
@@ -109,6 +109,8 @@ export function startConsole(world: WorldControl): void {
     event.preventDefault();
     const raw = input.value.trim();
     input.value = "";
+    // Give the keyboard back to the game, or nothing you press will move you.
+    input.blur();
     if (!raw) return;
     history.push(raw);
     seek = -1;
@@ -141,6 +143,7 @@ export function startConsole(world: WorldControl): void {
   });
 
   input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { input.blur(); return; }
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     event.preventDefault();
     if (history.length === 0) return;

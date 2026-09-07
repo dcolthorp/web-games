@@ -89,6 +89,9 @@ export function startBoss(): void {
     pressed.add(key);
   });
   window.addEventListener("keyup", (event) => pressed.delete(event.key.toLowerCase()));
+  // Clicking into the console drops whatever you were holding, so you do not
+  // walk into a wall while typing.
+  window.addEventListener("focusin", (event) => { if (typing(event.target)) pressed.clear(); });
   window.addEventListener("blur", () => pressed.clear());
   document.querySelectorAll<HTMLButtonElement>("[data-move]").forEach((button) => {
     const dir = button.dataset["move"] ?? "";
