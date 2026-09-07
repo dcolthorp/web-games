@@ -19,3 +19,19 @@ h1 { margin: 10px 0 6px; font-size: clamp(2rem, 8vw, 3rem); }
 .world.is-locked:hover { border-color: var(--line); transform: none; }
 .world.is-done .world-state { color: #7be08a; }
 .note { margin: 22px 0 0; color: var(--muted); font: .72rem/1.6 "DM Mono", monospace; }
+
+.purse { margin: 0 0 16px; color: var(--gold); font: .8rem/1 "DM Mono", monospace; }
+.shop-link { display: inline-block; margin-bottom: 18px; padding: 10px 16px; border: 1px solid var(--gold); border-radius: 11px; background: #2a2313; color: var(--gold); font-size: .8rem; font-weight: 700; text-decoration: none; }
+.shop-link:hover { background: #3a3018; }
+.skins { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.skin { display: flex; align-items: center; gap: 14px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 13px; background: #151d24; }
+.skin.is-worn { border-color: var(--gold); }
+.skin-swatch { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; }
+.skin-text { flex: 1; min-width: 0; }
+.skin-name { margin: 0; font-size: .95rem; font-weight: 700; }
+.skin-blurb { margin: 3px 0 0; color: var(--muted); font-size: .78rem; }
+.skin-tags { margin: 5px 0 0; color: #7fd7a6; font: .62rem/1.4 "DM Mono", monospace; }
+.skin-buy { flex: 0 0 auto; min-width: 96px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #1c262e; color: var(--ink); font: inherit; font-size: .74rem; font-weight: 700; cursor: pointer; }
+.skin-buy:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.skin-buy:disabled { opacity: .55; cursor: default; }
+.skin-buy.is-short { color: var(--muted); }

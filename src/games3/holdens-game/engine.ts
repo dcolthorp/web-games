@@ -32,11 +32,14 @@ export interface WorldSpec {
   patches: { rect: Rect; kind: Terrain; dir?: Vec }[];
   pads: { a: Vec; b: Vec }[];
   checkpoints: Vec[];
+  coinSpots: Vec[];
   start: Vec;
   treasure: Vec;
   playerSpeed: number;
   fog: number;
 }
+
+import { addCoins, wornSkin } from "./shop";
 
 export const MAP_W = 40;
 export const MAP_H = 28;
@@ -79,6 +82,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
   };
   showBanner(false);
 
+  const skin = wornSkin();
   const grid = buildGrid(spec);
   const terrain: (Terrain | null)[][] = Array.from({ length: MAP_H }, () => Array.from({ length: MAP_W }, () => null));
   const winds: (Vec | null)[][] = Array.from({ length: MAP_H }, () => Array.from({ length: MAP_W }, () => null));
@@ -93,6 +97,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
   });
 
   const keys = spec.keys.map((key) => ({ ...key, taken: false }));
+  const coins = spec.coinSpots.map((spot) => ({ ...spot, taken: false }));
+  let shield = skin.shield;
   const enemies = spec.enemies.map((enemy) => ({
     ...enemy,
     dir: 1,
@@ -140,6 +146,17 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
 
   const say = (words: string): void => { if (messageText) messageText.textContent = words; };
 
+  const coinCount = document.querySelector<HTMLElement>("#coin-count");
+  const shieldPip = document.querySelector<HTMLElement>("#shield-pip");
+
+  const updateHud = (): void => {
+    if (coinCount) coinCount.textContent = String(coins.filter((coin) => coin.taken).length);
+    if (shieldPip) {
+      shieldPip.hidden = skin.shield === 0;
+      shieldPip.classList.toggle("is-spent", shield === 0);
+    }
+  };
+
   const refreshKeyHud = (): void => {
     document.querySelectorAll<HTMLElement>(".key-slot").forEach((slot) => {
       const colour = slot.dataset["key"] as KeyColour;
@@ -155,6 +172,15 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     safeSpots.some((spot) => Math.hypot(x - spot.x, y - spot.y) < SAFE_RADIUS);
 
   const sendBack = (reason: string): void => {
+    // A shell soaks the hit and leaves you where you stand.
+    if (shield > 0) {
+      shield -= 1;
+      graceUntil = clock + RESPAWN_GRACE;
+      flashUntil = performance.now() + 400;
+      say(`${reason} Your shell took it.`);
+      updateHud();
+      return;
+    }
     player.x = respawn.x;
     player.y = respawn.y;
     player.vx = 0;
@@ -180,6 +206,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     held.clear();
     openedDoors.clear();
     keys.forEach((key) => { key.taken = false; });
+    coins.forEach((coin) => { coin.taken = false; });
+    shield = skin.shield;
     holes.clear();
     standing.clear();
     litCheckpoints.clear();
@@ -355,15 +383,16 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
     const under = tileAt(player);
-    const speed = spec.playerSpeed * (under === "water" ? 0.5 : 1);
-    const grip = under === "ice" ? 0.045 : 0.34;
+    const wet = under === "water" && !skin.waterProof;
+    const speed = spec.playerSpeed * skin.speed * (wet ? 0.5 : 1);
+    const grip = under === "ice" && !skin.iceGrip ? 0.045 : 0.34;
     player.vx += (dx * speed - player.vx) * grip;
     player.vy += (dy * speed - player.vy) * grip;
 
     let pushX = 0;
     let pushY = 0;
     const gust = winds[Math.floor(player.y)]?.[Math.floor(player.x)];
-    if (gust) { pushX = gust.x * 2.4; pushY = gust.y * 2.4; }
+    if (gust && !skin.windProof) { pushX = gust.x * 2.4; pushY = gust.y * 2.4; }
 
     const nextX = player.x + (player.vx + pushX) * dt;
     if (hitsWall(nextX, player.y, player.r)) player.vx = 0; else player.x = nextX;
@@ -414,6 +443,15 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       break;
     }
 
+    for (const coin of coins) {
+      if (coin.taken) continue;
+      if (Math.hypot(player.x - coin.x, player.y - coin.y) > 0.75) continue;
+      coin.taken = true;
+      addCoins(1);
+      updateHud();
+      say("Coin.");
+    }
+
     for (const key of keys) {
       if (key.taken) continue;
       if (Math.hypot(player.x - (key.x + 0.5), player.y - (key.y + 0.5)) < 0.7) {
@@ -437,7 +475,13 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       if (Math.hypot(player.x - flag.x, player.y - flag.y) > 0.8) return;
       litCheckpoints.add(i);
       respawn = { x: flag.x, y: flag.y };
-      say("Checkpoint reached.");
+      if (skin.shield > 0 && shield < skin.shield) {
+        shield = skin.shield;
+        say("Checkpoint reached. Shell repaired.");
+      } else {
+        say("Checkpoint reached.");
+      }
+      updateHud();
     });
 
     if (under === "spike") sendBack("Spikes.");
@@ -723,6 +767,19 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       context.fillRect(key.x * TILE + 18, key.y * TILE + 23 + bob, 4, 3);
     });
 
+    coins.forEach((coin) => {
+      if (coin.taken) return;
+      const spin = Math.abs(Math.cos(now / 300 + coin.x));
+      context.fillStyle = "#ffcc45";
+      context.beginPath();
+      context.ellipse(coin.x * TILE, coin.y * TILE, 3 + spin * 4, 7, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "rgb(0 0 0 / .25)";
+      context.beginPath();
+      context.ellipse(coin.x * TILE, coin.y * TILE, 1 + spin * 1.6, 3, 0, 0, Math.PI * 2);
+      context.fill();
+    });
+
     const glow = 0.5 + Math.sin(now / 300) * 0.2;
     context.fillStyle = `rgb(255 204 69 / ${glow.toFixed(2)})`;
     context.beginPath();
@@ -736,20 +793,28 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     enemies.forEach((enemy) => drawEnemy(enemy, now));
 
     const hurt = now < flashUntil;
-    context.fillStyle = hurt ? "#ff8a8a" : "#f0efe6";
+    context.fillStyle = hurt ? "#ff8a8a" : skin.colour;
     context.beginPath();
     context.arc(player.x * TILE, player.y * TILE, 11, 0, Math.PI * 2);
     context.fill();
+    if (shield > 0) {
+      context.strokeStyle = "rgb(220 235 245 / .85)";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.arc(player.x * TILE, player.y * TILE, 15, 0, Math.PI * 2);
+      context.stroke();
+    }
     context.fillStyle = "#1b2630";
     context.fillRect(player.x * TILE - 5, player.y * TILE - 3, 3, 4);
     context.fillRect(player.x * TILE + 2, player.y * TILE - 3, 3, 4);
 
     context.restore();
 
-    if (spec.fog > 0) {
+    const fog = spec.fog > 0 ? Math.max(2.5, spec.fog + skin.fogBonus) : 0;
+    if (fog > 0) {
       const px = (player.x - camX) * TILE;
       const py = (player.y - camY) * TILE;
-      const radius = spec.fog * TILE;
+      const radius = fog * TILE;
       const shade = context.createRadialGradient(px, py, radius * 0.35, px, py, radius);
       shade.addColorStop(0, "rgb(0 0 0 / 0)");
       shade.addColorStop(1, "rgb(0 0 0 / .96)");
@@ -765,6 +830,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
   }
 
   refreshKeyHud();
+  updateHud();
   say(spec.gimmick);
   window.requestAnimationFrame(loop);
 }

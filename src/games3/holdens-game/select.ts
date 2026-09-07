@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { clearedWorlds, worlds } from "./worlds";
+import { coins } from "./shop";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -51,5 +52,8 @@ function render(): void {
       : `${cleared} of ${worlds.length} cleared.`;
   }
 }
+
+const purse = document.querySelector<HTMLElement>("#purse-count");
+if (purse) purse.textContent = String(coins());
 
 render();

@@ -7,6 +7,7 @@ export interface Layout {
   keys: { x: number; y: number; colour: KeyColour }[];
   signSpots: { x: number; y: number }[];
   checkpoints: { x: number; y: number }[];
+  coinSpots: { x: number; y: number }[];
   blobSlots: { x: number; y: number; axis: "x" | "y"; low: number; high: number }[];
   start: { x: number; y: number };
   treasure: { x: number; y: number };
@@ -34,6 +35,11 @@ export const sprawl: Layout = {
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 18, y: 22 }, { x: 32, y: 21 }],
   checkpoints: [{ x: 5.5, y: 5.5 }, { x: 17.5, y: 24.5 }, { x: 31.5, y: 21.5 }, { x: 33.5, y: 11.5 }],
+  coinSpots: [
+    { x: 11.5, y: 19.5 }, { x: 3.5, y: 19.5 }, { x: 11.5, y: 4.5 },
+    { x: 25.5, y: 24.5 }, { x: 17.5, y: 4.5 }, { x: 25.5, y: 11.5 },
+    { x: 36.5, y: 24.5 }, { x: 36.5, y: 4.5 },
+  ],
   blobSlots: [
     { x: 21.5, y: 22.5, axis: "x", low: 17.5, high: 25.5 },
     { x: 21.5, y: 6.5, axis: "y", low: 4.5, high: 11.5 },
@@ -56,6 +62,7 @@ export function mirror(layout: Layout): Layout {
     keys: layout.keys.map((k) => ({ ...k, x: flipX(k.x) })),
     signSpots: layout.signSpots.map((s) => ({ ...s, x: flipX(s.x) })),
     checkpoints: layout.checkpoints.map((c) => ({ ...c, x: MAP_W - c.x })),
+    coinSpots: layout.coinSpots.map((c) => ({ ...c, x: MAP_W - c.x })),
     blobSlots: layout.blobSlots.map((b) => ({
       ...b,
       x: MAP_W - b.x,
@@ -87,6 +94,11 @@ export const tower: Layout = {
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 22, y: 22 }, { x: 22, y: 12 }],
   checkpoints: [{ x: 5.5, y: 10.5 }, { x: 21.5, y: 21.5 }, { x: 28.5, y: 14.5 }, { x: 21.5, y: 3.5 }],
+  coinSpots: [
+    { x: 13.5, y: 20.5 }, { x: 3.5, y: 24.5 }, { x: 13.5, y: 10.5 },
+    { x: 4.5, y: 3.5 }, { x: 34.5, y: 20.5 }, { x: 22.5, y: 24.5 },
+    { x: 34.5, y: 10.5 }, { x: 34.5, y: 3.5 },
+  ],
   blobSlots: [
     { x: 8.5, y: 12.5, axis: "x", low: 3.5, high: 14.5 },
     { x: 28.5, y: 22.5, axis: "x", low: 21.5, high: 35.5 },
@@ -120,6 +132,11 @@ export const ring: Layout = {
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 18, y: 21 }, { x: 30, y: 22 }],
   checkpoints: [{ x: 29.5, y: 21.5 }, { x: 32.5, y: 9.5 }, { x: 17.5, y: 6.5 }, { x: 20.5, y: 17.5 }],
+  coinSpots: [
+    { x: 10.5, y: 24.5 }, { x: 3.5, y: 19.5 }, { x: 10.5, y: 4.5 },
+    { x: 3.5, y: 9.5 }, { x: 36.5, y: 4.5 }, { x: 29.5, y: 9.5 },
+    { x: 36.5, y: 24.5 }, { x: 23.5, y: 15.5 },
+  ],
   blobSlots: [
     { x: 20.5, y: 21.5, axis: "x", low: 13.5, high: 26.5 },
     { x: 20.5, y: 6.5, axis: "x", low: 13.5, high: 26.5 },

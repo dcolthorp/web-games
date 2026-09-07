@@ -37,6 +37,7 @@ function makeWorld(index: number, name: string, options: WorldOptions): WorldSpe
     patches: options.patches ?? [],
     pads: options.pads ?? [],
     checkpoints: layout.checkpoints,
+    coinSpots: layout.coinSpots,
     start: layout.start,
     treasure: layout.treasure,
     playerSpeed: options.playerSpeed ?? 5.2,
@@ -115,7 +116,7 @@ export const worldSpecs: WorldSpec[] = [
     hint: "V1D30 game is open.",
     patches: [
       { rect: { x: 15, y: 8, w: 3, h: 3 }, kind: "spike" },
-      { rect: { x: 14, y: 23, w: 3, h: 2 }, kind: "spike" },
+      { rect: { x: 18, y: 23, w: 3, h: 2 }, kind: "spike" },
       { rect: { x: 4, y: 9, w: 2, h: 3 }, kind: "spike" },
       { rect: { x: 27, y: 6, w: 4, h: 3 }, kind: "crumble" },
     ],

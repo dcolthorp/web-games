@@ -14,7 +14,12 @@ body { margin: 0; min-height: 100vh; background: #0f1418; color: var(--ink); fon
 .key-slot[hidden] { display: none; }
 .back-link { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; font-size: .78rem; }
 .back-link:hover { border-color: var(--ink); }
-.keys { display: flex; gap: 8px; }
+.keys { display: flex; align-items: center; gap: 8px; }
+.coins { display: flex; align-items: center; gap: 5px; color: var(--gold); font: .74rem/1 "DM Mono", monospace; }
+.coins::before { content: ""; width: 11px; height: 11px; border-radius: 50%; background: var(--gold); }
+.shield-pip { width: 13px; height: 13px; border: 2px solid #dce9f4; border-radius: 50%; }
+.shield-pip.is-spent { border-color: #3c4a55; }
+.shield-pip[hidden] { display: none; }
 .key-slot { width: 20px; height: 20px; border: 2px dashed #2e3c47; border-radius: 6px; }
 .key-slot.is-found { border-style: solid; }
 .key-slot[data-key="red"].is-found { border-color: var(--red); background: color-mix(in srgb, var(--red) 45%, transparent); }
