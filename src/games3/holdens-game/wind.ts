@@ -19,13 +19,13 @@ export function startWind(): void {
   const gust = (): void => {
     if (!context || !master) return;
     const now = context.currentTime;
-    const strength = 0.06 + Math.random() * 0.22;
+    const strength = 0.45 + Math.random() * 0.95;
     const rise = 0.8 + Math.random() * 2.4;
     const fall = 1.4 + Math.random() * 3.5;
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
     master.gain.linearRampToValueAtTime(strength, now + rise);
-    master.gain.linearRampToValueAtTime(0.05, now + rise + fall);
+    master.gain.linearRampToValueAtTime(0.3, now + rise + fall);
     gustTimer = window.setTimeout(gust, (rise + fall) * 1000);
   };
 
@@ -60,9 +60,18 @@ export function startWind(): void {
     roll.frequency.value = 1400;
 
     master = context.createGain();
-    master.gain.value = 0.05;
+    master.gain.value = 0.3;
 
-    source.connect(band).connect(roll).connect(master).connect(context.destination);
+    // Filtered noise is quiet for its gain, so it is pushed hard and then
+    // held in check rather than allowed to clip on the loudest gusts.
+    const limiter = context.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.004;
+    limiter.release.value = 0.25;
+
+    source.connect(band).connect(roll).connect(master).connect(limiter).connect(context.destination);
     source.start();
     sweep.start();
     gust();
