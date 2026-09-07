@@ -61,11 +61,8 @@ if (purse) purse.textContent = String(coins());
 function paintMood(): void {
   const happy = isHappy();
   document.body.classList.toggle("is-happy", happy);
-  const heading = document.querySelector<HTMLElement>(".dread");
   const kicker = document.querySelector<HTMLElement>(".kicker");
-  if (heading) heading.textContent = happy ? "The Game of Holden" : "The Game of Holden";
   if (kicker) kicker.textContent = happy ? "everything turned out fine" : "it knows you opened this";
-  document.title = happy ? "The Game of Holden" : "The Game of Holden";
 
   const toggle = document.querySelector<HTMLButtonElement>("#mood-toggle");
   if (!toggle) return;

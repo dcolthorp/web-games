@@ -90,6 +90,8 @@ export function startTemple(): void {
 
   const schedule = (): void => {
     if (!context) return;
+    // Only ever one loop running, however many times this is called.
+    window.clearTimeout(timer);
     const beat = 60 / 148 / 2; // eighth notes at 148bpm
     while (nextNote < context.currentTime + 0.25) {
       const at = nextNote;

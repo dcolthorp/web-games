@@ -18,6 +18,8 @@ export function startWind(): void {
 
   const gust = (): void => {
     if (!context || !master) return;
+    // Only ever one gust cycle running, however many times this is called.
+    window.clearTimeout(gustTimer);
     const now = context.currentTime;
     const strength = 0.45 + Math.random() * 0.95;
     const rise = 0.8 + Math.random() * 2.4;

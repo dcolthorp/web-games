@@ -114,7 +114,9 @@ export function startWorld(
   const grid = buildGrid(spec);
 
   // Walls painted in creative mode, kept per world so they survive a reload.
-  const EDIT_KEY = `holdens-game-edits-${spec.name}`;
+  // Keyed by index, not name: world zero renames itself on every visit and
+  // happy mode renames them all, and edits must survive both.
+  const EDIT_KEY = `holdens-game-edits-${spec.index}`;
   const edits = new Map<string, string>();
   try {
     const saved = JSON.parse(localStorage.getItem(EDIT_KEY) ?? "{}") as Record<string, string>;

@@ -62,7 +62,7 @@ export function brighten(spec: WorldSpec, index: number): WorldSpec {
     palette: happyPalettes[index] ?? spec.palette,
     enemies: [],
     patches: spec.patches.filter((p) => p.kind !== "spike" && p.kind !== "crumble"),
-    signs: spec.signs.map((sign) => ({ ...sign, words: "" })),
+    signs: [],
     fog: 0,
     fogStep: 0,
   };
