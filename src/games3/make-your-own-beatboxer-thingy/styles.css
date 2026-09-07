@@ -103,7 +103,24 @@ h1 span { display: inline-block; color: transparent; -webkit-text-stroke: 2px va
 .now-playing { display: flex; flex-direction: column; gap: 7px; }
 .tiny-label { color: var(--muted); font: 500 .67rem/1 "DM Mono", monospace; letter-spacing: .14em; text-transform: uppercase; }
 .now-playing strong { font-size: 1.08rem; }
-#waveform { width: 100%; height: 86px; border-radius: 12px; background: #17131f; }
+.waveform-frame { position: relative; padding: 9px; border: 1px solid #4a4056; border-radius: 15px; background: linear-gradient(#332b40, #272031); box-shadow: inset 0 1px 0 #5b5069, 0 3px 10px rgb(0 0 0 / .35); }
+#waveform { display: block; width: 100%; height: 86px; border-radius: 9px; background: #17131f; box-shadow: inset 0 2px 7px rgb(0 0 0 / .75); }
+
+/* Four screws holding the display onto the front of the machine. */
+.screw {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--slot-angle, 25deg), transparent calc(50% - 1px), #201a29 calc(50% - 1px), #201a29 calc(50% + 1px), transparent calc(50% + 1px)),
+    radial-gradient(circle at 34% 30%, #b9b1c4, #6f6879 62%, #4a4455);
+  box-shadow: 0 1px 1px rgb(0 0 0 / .55), inset 0 0 0 1px rgb(0 0 0 / .3);
+}
+.screw-tl { top: 5px; left: 5px; --slot-angle: 22deg; }
+.screw-tr { top: 5px; right: 5px; --slot-angle: 112deg; }
+.screw-bl { bottom: 5px; left: 5px; --slot-angle: 74deg; }
+.screw-br { bottom: 5px; right: 5px; --slot-angle: 145deg; }
 
 .transport { position: relative; display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 18px; align-items: end; padding: 20px 0 26px; border-top: 1px solid var(--line); }
 .play-button, .utility-buttons button { border: 0; cursor: pointer; font-weight: 700; }
@@ -122,15 +139,56 @@ input[type="range"] { width: 100%; accent-color: var(--yellow); cursor: pointer;
 .utility-buttons button { min-height: 46px; padding: 0 14px; border: 1px solid #5c506b; border-radius: 11px; background: #30283b; font-size: .8rem; }
 .utility-buttons button:hover { border-color: var(--blue); color: var(--blue); }
 
-.beat-numbers { display: grid; grid-template-columns: 150px repeat(16, minmax(28px, 1fr)); gap: 7px; margin-bottom: 7px; }
-.beat-number { color: #746a80; text-align: center; font: .65rem/1 "DM Mono", monospace; }
+.beat-numbers { display: grid; grid-template-columns: 168px repeat(16, minmax(28px, 1fr)); gap: 7px; margin-bottom: 7px; }
+/* The visible spectrum is only the middle of this loop. Either side of it the
+   lane travels through light your screen cannot emit and your eyes cannot
+   receive, so those stretches are rendered as what such light does to things
+   around it: a heat ember below red, a blacklight fringe past violet, and a
+   moment of true dark in between where it is simply gone. */
+@property --lane-color { syntax: "<color>"; inherits: true; initial-value: #ffffff; }
+@property --lane-glow { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --lane-halo { syntax: "<length>"; inherits: true; initial-value: 0px; }
+
+@keyframes spectrum {
+  /* infrared: seen only as the heat coming off it */
+  0%   { --lane-color: #180000; --lane-glow: #ff3c00; --lane-halo: 26px; }
+  7%   { --lane-color: #4a0500; --lane-glow: #ff5a1e; --lane-halo: 20px; }
+  12%  { --lane-color: #a01000; --lane-glow: #ff6a2a; --lane-halo: 14px; }
+  /* visible */
+  17%  { --lane-color: #ff2d2d; --lane-glow: #ff2d2d; --lane-halo: 10px; }
+  25%  { --lane-color: #ff9f2d; --lane-glow: #ff9f2d; --lane-halo: 10px; }
+  33%  { --lane-color: #ffe62d; --lane-glow: #ffe62d; --lane-halo: 10px; }
+  42%  { --lane-color: #4dff5a; --lane-glow: #4dff5a; --lane-halo: 10px; }
+  51%  { --lane-color: #2ddfff; --lane-glow: #2ddfff; --lane-halo: 10px; }
+  60%  { --lane-color: #5a5aff; --lane-glow: #5a5aff; --lane-halo: 10px; }
+  68%  { --lane-color: #c04dff; --lane-glow: #c04dff; --lane-halo: 12px; }
+  /* ultraviolet: seen only as the blacklight fringe it leaves behind */
+  76%  { --lane-color: #4a1a8c; --lane-glow: #d9a6ff; --lane-halo: 24px; }
+  83%  { --lane-color: #26064d; --lane-glow: #b985ff; --lane-halo: 30px; }
+  /* past every receptor you have */
+  90%  { --lane-color: #0d0212; --lane-glow: #2a0d3d; --lane-halo: 8px; }
+  94%  { --lane-color: #050505; --lane-glow: #050505; --lane-halo: 0px; }
+  100% { --lane-color: #180000; --lane-glow: #ff3c00; --lane-halo: 26px; }
+}
+
+.lane-everything { animation: spectrum 11s linear infinite; }
+.lane-everything .lane-name { color: var(--lane-color); text-shadow: 0 0 calc(var(--lane-halo) * .8) var(--lane-glow); }
+.lane-everything .lane-dot { box-shadow: 0 0 var(--lane-halo) var(--lane-glow); }
+.lane-everything .step { border-color: color-mix(in srgb, var(--lane-glow) 45%, #4a4056); }
+.lane-everything .step.is-on { box-shadow: 0 0 var(--lane-halo) var(--lane-glow); }
+@media (prefers-reduced-motion: reduce) { .lane-everything { animation-duration: 44s; } }
+
+.beat-number { padding: 4px 0; border: 0; border-radius: 6px; background: none; color: #746a80; text-align: center; font: .65rem/1 "DM Mono", monospace; cursor: pointer; }
+.beat-number:hover { background: #2a2335; color: var(--blue); }
 .beat-number.bar-start { color: var(--ink); }
 
 .sequencer { position: relative; display: grid; gap: 9px; }
-.lane { display: grid; grid-template-columns: 150px repeat(16, minmax(28px, 1fr)); gap: 7px; align-items: stretch; }
+.lane { display: grid; grid-template-columns: 168px repeat(16, minmax(28px, 1fr)); gap: 7px; align-items: center; }
 .lane-info { display: flex; align-items: center; gap: 11px; min-width: 0; padding-right: 10px; border: 0; background: none; text-align: left; cursor: pointer; }
 .lane-info:hover .lane-name { color: var(--yellow); }
+.lane-info:hover .lane-chop { color: var(--yellow); }
 .lane-dot { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 4px; background: var(--lane-color); box-shadow: 0 0 16px color-mix(in srgb, var(--lane-color) 55%, transparent); }
+.lane-icon { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 14px color-mix(in srgb, var(--lane-color) 55%, transparent); }
 .lane-text { min-width: 0; }
 .lane-name { display: block; font-size: .9rem; font-weight: 700; }
 .lane-chop { display: block; margin-top: 3px; color: var(--muted); font: .58rem/1 "DM Mono", monospace; text-transform: uppercase; }
@@ -161,9 +219,9 @@ input[type="range"] { width: 100%; accent-color: var(--yellow); cursor: pointer;
   .machine-top { grid-template-columns: 1fr; }
   .transport { grid-template-columns: 1fr 1fr; }
   .play-button, .utility-buttons { justify-content: center; }
-  .beat-numbers { grid-template-columns: 100px repeat(16, minmax(34px, 1fr)); width: 820px; }
+  .beat-numbers { grid-template-columns: 118px repeat(16, minmax(34px, 1fr)); width: 820px; }
   .sequencer { width: 820px; }
-  .lane { grid-template-columns: 100px repeat(16, minmax(34px, 1fr)); }
+  .lane { grid-template-columns: 118px repeat(16, minmax(34px, 1fr)); }
   .machine { overflow-x: auto; }
   .machine-top, .transport, .machine-footer { min-width: 0; }
   .lane-chop { display: none; }
@@ -182,4 +240,77 @@ input[type="range"] { width: 100%; accent-color: var(--yellow); cursor: pointer;
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+}
+
+.vault { margin: 0 0 20px; padding: 16px 18px 18px; border: 1px solid #3b3348; border-radius: 15px; background: #201a29; }
+.vault-top { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; justify-content: space-between; }
+.vault-title { display: block; margin-top: 4px; font-size: 1rem; }
+.vault-form { display: flex; gap: 8px; }
+.vault-form input { min-width: 200px; min-height: 44px; padding: 0 12px; border: 1px solid #5c506b; border-radius: 11px; background: #17131f; color: var(--ink); font: inherit; font-size: .85rem; }
+.vault-form input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.vault-form button { min-height: 44px; padding: 0 16px; border: 1px solid #5c506b; border-radius: 11px; background: #30283b; color: var(--ink); font-weight: 700; font-size: .8rem; cursor: pointer; }
+.vault-form button:hover { border-color: var(--yellow); color: var(--yellow); }
+.vault-list { display: flex; flex-wrap: wrap; gap: 9px; margin: 16px 0 0; padding: 0; list-style: none; }
+.vault-list:empty { margin: 0; }
+.vault-chip { display: flex; align-items: center; gap: 2px; border: 1px solid #5c506b; border-radius: 999px; background: #2a2335; }
+.vault-load { max-width: 220px; padding: 9px 6px 9px 15px; overflow: hidden; border: 0; background: none; color: var(--ink); font: inherit; font-size: .82rem; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.vault-chip:hover { border-color: var(--yellow); }
+.vault-chip:hover .vault-load { color: var(--yellow); }
+.vault-delete { padding: 9px 14px 9px 6px; border: 0; background: none; color: var(--muted); font: inherit; font-size: .9rem; line-height: 1; cursor: pointer; }
+.vault-delete:hover { color: var(--pink); }
+.vault-chip.is-confirming { gap: 6px; padding: 0 10px 0 14px; border-color: var(--pink); background: #3a2130; }
+.vault-question { padding: 9px 0; font-size: .8rem; }
+.vault-yes, .vault-no { padding: 6px 11px; border: 1px solid #6b5c78; border-radius: 999px; background: #2a2335; color: var(--ink); font: inherit; font-size: .75rem; font-weight: 700; cursor: pointer; }
+.vault-yes:hover { border-color: var(--pink); color: var(--pink); }
+.vault-no:hover { border-color: var(--blue); color: var(--blue); }
+.vault-empty { margin: 14px 0 0; color: var(--muted); font: .72rem/1.5 "DM Mono", monospace; }
+
+/* Drag a saved beat onto a screw and it works like a screwdriver. */
+.screw { transition: transform .15s ease, box-shadow .15s ease; }
+.screw.is-target { transform: scale(1.35); box-shadow: 0 0 0 3px var(--yellow), 0 1px 1px rgb(0 0 0 / .55); }
+@keyframes unscrew {
+  0%   { transform: rotate(0) translateY(0); opacity: 1; }
+  55%  { transform: rotate(900deg) translateY(2px); opacity: 1; }
+  100% { transform: rotate(1440deg) translateY(70px); opacity: 0; }
+}
+.screw.is-coming-out { animation: unscrew .85s cubic-bezier(.4, 0, .7, 1) forwards; }
+.screw.is-out { display: none; }
+
+@keyframes panel-drop {
+  0%   { transform: rotate(0) translateY(0); opacity: 1; }
+  25%  { transform: rotate(2.5deg) translateY(6px); opacity: 1; }
+  100% { transform: rotate(9deg) translateY(160px); opacity: 0; }
+}
+.waveform-frame.is-falling { animation: panel-drop 1s ease-in forwards; }
+.waveform-frame.is-off { display: none; }
+
+.machine-guts {
+  padding: 16px 18px;
+  border: 1px solid #4a4056;
+  border-radius: 15px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 13px, rgb(122 240 190 / .09) 13px 14px),
+    repeating-linear-gradient(0deg, transparent 0 13px, rgb(122 240 190 / .09) 13px 14px),
+    #101a16;
+  box-shadow: inset 0 2px 10px rgb(0 0 0 / .7);
+}
+.guts-label { margin: 0; color: #4f7d68; font: .58rem/1 "DM Mono", monospace; text-transform: uppercase; letter-spacing: .12em; }
+.guts-text { margin: 8px 0 0; color: #7af0be; font: .8rem/1.5 "DM Mono", monospace; }
+.guts-enter { margin: 12px 10px 0 0; padding: 10px 18px; border: 1px solid #7af0be; border-radius: 10px; background: #17372b; color: #b6ffe0; font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.guts-enter:hover { background: #1e4a39; box-shadow: 0 0 18px rgb(122 240 190 / .35); }
+.guts-reset { margin-top: 12px; padding: 8px 14px; border: 1px solid #35604f; border-radius: 10px; background: #16261f; color: #7af0be; font: inherit; font-size: .72rem; font-weight: 700; cursor: pointer; }
+.guts-reset:hover { border-color: #7af0be; }
+
+.vault-load[draggable="true"] { cursor: grab; }
+.vault-chip.is-cracked { position: relative; border-color: #4a4056; background: #241f2c; opacity: .55; }
+.vault-chip.is-cracked .vault-load { color: var(--muted); text-decoration: line-through; cursor: not-allowed; }
+.vault-chip.is-cracked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(115deg, transparent 47%, rgb(255 255 255 / .35) 47.6%, transparent 48.2%),
+    linear-gradient(72deg, transparent 62%, rgb(255 255 255 / .25) 62.5%, transparent 63.1%);
+  pointer-events: none;
 }

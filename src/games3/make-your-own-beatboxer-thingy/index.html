@@ -27,7 +27,19 @@
             <span class="tiny-label">Now mangling</span>
             <strong id="status-text">Loading Oscar's voice...</strong>
           </div>
-          <canvas id="waveform" width="720" height="86" aria-label="Waveform of Oscar's voice recording"></canvas>
+          <div class="waveform-frame">
+            <canvas id="waveform" width="720" height="86" aria-label="Waveform of Oscar's voice recording"></canvas>
+            <span class="screw screw-tl" aria-hidden="true"></span>
+            <span class="screw screw-tr" aria-hidden="true"></span>
+            <span class="screw screw-bl" aria-hidden="true"></span>
+            <span class="screw screw-br" aria-hidden="true"></span>
+          </div>
+          <div class="machine-guts" id="machine-guts" hidden>
+            <p class="guts-label">Underneath the panel</p>
+            <p class="guts-text" id="guts-text">Enter Holden's Game</p>
+            <button class="guts-enter" id="guts-enter" type="button">Enter Holden's Game</button>
+            <button class="guts-reset" id="guts-reset" type="button">Screw it all back on</button>
+          </div>
         </div>
 
         <div class="transport" aria-label="Playback controls">
@@ -46,15 +58,31 @@
           <div class="utility-buttons">
             <button id="random-button" type="button">Dice it</button>
             <button id="clear-button" type="button">Wipe it</button>
+            <button id="fill-button" type="button">Fill it</button>
           </div>
         </div>
 
-        <div class="beat-numbers" id="beat-numbers" aria-hidden="true"></div>
+        <section class="vault" aria-label="Saved beats">
+          <div class="vault-top">
+            <div>
+              <span class="tiny-label">The beat vault</span>
+              <strong class="vault-title">Save your awesome beats</strong>
+            </div>
+            <form class="vault-form" id="save-form">
+              <input id="save-name" type="text" placeholder="Name this beat" maxlength="40" autocomplete="off" />
+              <button type="submit">Save it</button>
+            </form>
+          </div>
+          <ul class="vault-list" id="vault-list"></ul>
+          <p class="vault-empty" id="vault-empty">Nothing saved yet. Make something sick, then name it.</p>
+        </section>
+
+        <div class="beat-numbers" id="beat-numbers" aria-label="Step numbers"></div>
         <div class="sequencer" id="sequencer" aria-label="Sixteen step beat grid"></div>
 
         <footer class="machine-footer">
-          <p><span>Space</span> play / stop <span>R</span> dice it <span>C</span> wipe it</p>
-          <p class="footer-note">Kick, snare, hi-hat, crash, bass drop. Five voice memos. Nothing synthesized.</p>
+          <p><span>Space</span> play / stop <span>R</span> dice it <span>C</span> wipe it <span>F</span> fill it</p>
+          <p class="footer-note">Every sound here is a voice memo. Nothing synthesized.</p>
         </footer>
       </section>
     </main>
