@@ -45,3 +45,11 @@ h1 { margin: 10px 0 6px; font-size: clamp(2rem, 8vw, 3rem); }
 }
 .dread { color: #efe6e6; animation: dread 7s steps(1, end) infinite; }
 @media (prefers-reduced-motion: reduce) { .dread { animation: none; text-shadow: 0 0 22px rgb(160 20 20 / .35); } }
+
+.intro { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #03040a; }
+.intro[hidden] { display: none; }
+#intro-canvas { width: min(720px, 94vw); height: auto; border-radius: 12px; }
+.intro-skip { padding: 9px 18px; border: 1px solid var(--line); border-radius: 999px; background: #151d24; color: var(--muted); font: inherit; font-size: .75rem; cursor: pointer; }
+.intro-skip:hover { border-color: var(--ink); color: var(--ink); }
+.replay-intro { display: block; margin: 0 0 18px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: #151d24; color: var(--muted); font: inherit; font-size: .72rem; cursor: pointer; }
+.replay-intro:hover { border-color: var(--ink); color: var(--ink); }

@@ -2,6 +2,7 @@ import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { clearedWorlds, worlds } from "./worlds";
 import { coins } from "./shop";
+import { introSeen, playIntro } from "./intro";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -57,3 +58,19 @@ const purse = document.querySelector<HTMLElement>("#purse-count");
 if (purse) purse.textContent = String(coins());
 
 render();
+
+const shell = document.querySelector<HTMLElement>(".select");
+const reveal = (): void => { if (shell) shell.style.visibility = "visible"; };
+
+// First time through, the opening plays before the list appears.
+if (introSeen()) {
+  reveal();
+} else {
+  if (shell) shell.style.visibility = "hidden";
+  playIntro(reveal);
+}
+
+document.querySelector<HTMLButtonElement>("#replay-intro")?.addEventListener("click", () => {
+  if (shell) shell.style.visibility = "hidden";
+  playIntro(reveal);
+});
