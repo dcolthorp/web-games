@@ -31,6 +31,7 @@ export interface WorldSpec {
   enemies: EnemySpec[];
   patches: { rect: Rect; kind: Terrain; dir?: Vec }[];
   pads: { a: Vec; b: Vec }[];
+  checkpoints: Vec[];
   start: Vec;
   treasure: Vec;
   playerSpeed: number;
@@ -106,6 +107,9 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
   const standing = new Map<string, number>();
   const holes = new Map<string, number>();
   let padCooldown = 0;
+  // You come back to the last flag you touched, not the front door.
+  const litCheckpoints = new Set<number>();
+  let respawn: Vec = { x: spec.start.x, y: spec.start.y };
   let won = false;
   let flashUntil = 0;
   let lastSign = "";
@@ -140,13 +144,13 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     });
   };
 
-  const resetToStart = (reason: string): void => {
-    player.x = spec.start.x;
-    player.y = spec.start.y;
+  const sendBack = (reason: string): void => {
+    player.x = respawn.x;
+    player.y = respawn.y;
     player.vx = 0;
     player.vy = 0;
     flashUntil = performance.now() + 400;
-    say(reason);
+    say(litCheckpoints.size > 0 ? `${reason} Back to your last flag.` : reason);
   };
 
   const finish = (): void => {
@@ -166,6 +170,8 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
     keys.forEach((key) => { key.taken = false; });
     holes.clear();
     standing.clear();
+    litCheckpoints.clear();
+    respawn = { x: spec.start.x, y: spec.start.y };
     enemies.forEach((enemy, i) => {
       const source = spec.enemies[i];
       if (!source) return;
@@ -339,7 +345,7 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       if (held >= CRUMBLE_DELAY) {
         standing.delete(footId);
         holes.set(footId, clock + CRUMBLE_REGROW);
-        resetToStart("The floor gave way.");
+        sendBack("The floor gave way.");
       }
     } else {
       standing.forEach((value, id) => {
@@ -393,13 +399,21 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
       lastSign = "";
     }
 
-    if (under === "spike") resetToStart("Spikes. Back to the start.");
+    spec.checkpoints.forEach((flag, i) => {
+      if (litCheckpoints.has(i)) return;
+      if (Math.hypot(player.x - flag.x, player.y - flag.y) > 0.8) return;
+      litCheckpoints.add(i);
+      respawn = { x: flag.x, y: flag.y };
+      say("Checkpoint reached.");
+    });
+
+    if (under === "spike") sendBack("Spikes.");
 
     for (const enemy of enemies) {
       moveEnemy(enemy, dt);
       if (!enemy.visible) continue;
       if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 0.75) {
-        resetToStart(`The ${spec.enemyName} got you. Back to the start.`);
+        sendBack(`The ${spec.enemyName} got you.`);
       }
     }
 
@@ -604,6 +618,28 @@ export function startWorld(spec: WorldSpec, onCleared: () => void): void {
         context.arc(spot.x * TILE, spot.y * TILE, pulse, 0, Math.PI * 2);
         context.fill();
       });
+    });
+
+    spec.checkpoints.forEach((flag, i) => {
+      const lit = litCheckpoints.has(i);
+      const px = flag.x * TILE;
+      const py = flag.y * TILE;
+      context.fillStyle = lit ? "#8a7a5e" : "#4b4740";
+      context.fillRect(px - 1, py - 14, 3, 26);
+      const wave = lit ? Math.sin(now / 220 + i) * 2 : 0;
+      context.fillStyle = lit ? "#ffcc45" : "#5d574d";
+      context.beginPath();
+      context.moveTo(px + 2, py - 14);
+      context.lineTo(px + 16, py - 9 + wave);
+      context.lineTo(px + 2, py - 4);
+      context.fill();
+      if (lit) {
+        context.strokeStyle = "rgb(255 204 69 / .35)";
+        context.lineWidth = 2;
+        context.beginPath();
+        context.arc(px, py + 11, 9, 0, Math.PI * 2);
+        context.stroke();
+      }
     });
 
     spec.signs.forEach((sign) => {

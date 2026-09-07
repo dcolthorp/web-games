@@ -6,6 +6,7 @@ export interface Layout {
   doors: { x: number; y: number; colour: KeyColour }[];
   keys: { x: number; y: number; colour: KeyColour }[];
   signSpots: { x: number; y: number }[];
+  checkpoints: { x: number; y: number }[];
   blobSlots: { x: number; y: number; axis: "x" | "y"; low: number; high: number }[];
   start: { x: number; y: number };
   treasure: { x: number; y: number };
@@ -32,6 +33,7 @@ export const sprawl: Layout = {
     { x: 7, y: 6, colour: "red" }, { x: 21, y: 6, colour: "blue" }, { x: 34, y: 22, colour: "gold" },
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 18, y: 22 }, { x: 32, y: 21 }],
+  checkpoints: [{ x: 5.5, y: 5.5 }, { x: 17.5, y: 24.5 }, { x: 31.5, y: 21.5 }, { x: 33.5, y: 11.5 }],
   blobSlots: [
     { x: 21.5, y: 22.5, axis: "x", low: 17.5, high: 25.5 },
     { x: 21.5, y: 6.5, axis: "y", low: 4.5, high: 11.5 },
@@ -53,6 +55,7 @@ export function mirror(layout: Layout): Layout {
     doors: layout.doors.map((d) => ({ ...d, x: flipX(d.x) })),
     keys: layout.keys.map((k) => ({ ...k, x: flipX(k.x) })),
     signSpots: layout.signSpots.map((s) => ({ ...s, x: flipX(s.x) })),
+    checkpoints: layout.checkpoints.map((c) => ({ ...c, x: MAP_W - c.x })),
     blobSlots: layout.blobSlots.map((b) => ({
       ...b,
       x: MAP_W - b.x,
@@ -83,6 +86,7 @@ export const tower: Layout = {
     { x: 8, y: 12, colour: "red" }, { x: 30, y: 22, colour: "blue" }, { x: 24, y: 12, colour: "gold" },
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 22, y: 22 }, { x: 22, y: 12 }],
+  checkpoints: [{ x: 5.5, y: 10.5 }, { x: 21.5, y: 21.5 }, { x: 28.5, y: 14.5 }, { x: 28.5, y: 5.5 }],
   blobSlots: [
     { x: 8.5, y: 12.5, axis: "x", low: 3.5, high: 14.5 },
     { x: 28.5, y: 22.5, axis: "x", low: 21.5, high: 35.5 },
@@ -115,6 +119,7 @@ export const ring: Layout = {
     { x: 33, y: 22, colour: "red" }, { x: 6, y: 6, colour: "blue" }, { x: 33, y: 6, colour: "gold" },
   ],
   signSpots: [{ x: 4, y: 22 }, { x: 18, y: 21 }, { x: 30, y: 22 }],
+  checkpoints: [{ x: 29.5, y: 21.5 }, { x: 32.5, y: 9.5 }, { x: 17.5, y: 6.5 }, { x: 20.5, y: 17.5 }],
   blobSlots: [
     { x: 20.5, y: 21.5, axis: "x", low: 13.5, high: 26.5 },
     { x: 20.5, y: 6.5, axis: "x", low: 13.5, high: 26.5 },
