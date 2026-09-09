@@ -1,3 +1,4 @@
+import { openGuest, openHost, type Link } from "./net";
 import { installOofShortcut } from "../../shared/oofShortcut";
 
 installOofShortcut();
@@ -79,38 +80,52 @@ const LEVEL_NAMES = Object.keys(LEVELS) as Level[];
 // "All" sits at the bottom of the list and reaches into every level at once.
 const DIFFICULTIES: Difficulty[] = [...LEVEL_NAMES, "All"];
 
-interface Room {
+
+interface RoomInfo {
   name: string;
   privacy: Privacy;
   code: string;
   difficulty: Difficulty;
   mode: Mode;
-  word: string;
+}
+
+type Phase = "recording" | "typing" | "judging" | "done";
+
+interface RoundView {
+  order: string[];
+  index: number;
+  phase: Phase;
+  guess: string;
+  result: string;
+}
+
+interface Message {
+  kind: string;
+  [key: string]: unknown;
 }
 
 const ROOM_KEY = "telephone-room";
-const PLAYERS_KEY = "telephone-players";
-const BANNED_KEY = "telephone-banned";
+// A new key on purpose: the old list was filled under the old rule, where the
+// last guesser took the ban instead of the liar.
+const BANNED_KEY = "telephone-banned-liars";
 const PLAYERS_NEEDED = 5;
-
-interface Round {
-  order: string[];
-  index: number;
-  // One clip per recorded turn; the last player types instead of recording.
-  clips: (string | undefined)[];
-  guess: string;
-  word: string;
-  phase: "recording" | "typing" | "judging" | "done";
-}
+const SELF = "self";
 
 const micStatus = document.getElementById("mic-status");
 const micRetry = document.getElementById("mic-retry");
 const createPanel = document.getElementById("create-panel");
 const createForm = document.getElementById("create-form");
+const createYou = document.getElementById("create-you");
 const groupName = document.getElementById("group-name");
 const createCode = document.getElementById("create-code");
 const createCodeRow = document.getElementById("create-code-row");
 const createDifficulty = document.getElementById("create-difficulty");
+const joinPanel = document.getElementById("join-panel");
+const joinForm = document.getElementById("join-form");
+const joinYou = document.getElementById("join-you");
+const joinGroup = document.getElementById("join-group");
+const joinCode = document.getElementById("join-code");
+const joinLine = document.getElementById("join-line");
 const roomPanel = document.getElementById("room-panel");
 const roomName = document.getElementById("room-name");
 const roomLine = document.getElementById("room-line");
@@ -118,13 +133,12 @@ const roomCode = document.getElementById("room-code");
 const roomCodeRow = document.getElementById("room-code-row");
 const roomDifficulty = document.getElementById("room-difficulty");
 const closeRoom = document.getElementById("close-room");
+const leaveRoomButton = document.getElementById("leave-room");
 const playersPanel = document.getElementById("players-panel");
 const playersLine = document.getElementById("players-line");
 const playersList = document.getElementById("players-list");
-const addPlayerForm = document.getElementById("add-player-form");
-const playerName = document.getElementById("player-name");
 const bannedLine = document.getElementById("banned-line");
-const startRound = document.getElementById("start-round");
+const startRoundButton = document.getElementById("start-round");
 const roundPanel = document.getElementById("round-panel");
 const turnTitle = document.getElementById("turn-title");
 const turnLine = document.getElementById("turn-line");
@@ -141,21 +155,32 @@ const endRound = document.getElementById("end-round");
 fillDifficultyOptions(createDifficulty);
 fillDifficultyOptions(roomDifficulty);
 
-let players = loadNames(PLAYERS_KEY);
+// What this screen knows, whether it is the host's screen or a guest's.
+let link: Link | null = null;
+let isHost = false;
+let me = "";
+let roomInfo: RoomInfo | null = null;
+let players: string[] = [];
 let banned = loadNames(BANNED_KEY);
-let round: Round | null = null;
-// The live mic is held only while a round is running.
-let roundStream: MediaStream | null = null;
-let recorder: MediaRecorder | null = null;
-let recordedChunks: Blob[] = [];
-let pendingClip: string | undefined;
+let roundView: RoundView | null = null;
+let netStatus = "";
+let myWord = "";
+let myClipUrl = "";
+
+// Host-only: the seat chart, and the answer nobody else gets to see.
+const seats = new Map<string, string>();
+let secretWord = "";
 
 let createPrivacy: Privacy = "public";
 let createMode: Mode = "words";
-let room = loadRoom();
+let micStream: MediaStream | null = null;
+let recorder: MediaRecorder | null = null;
+let recordedChunks: Blob[] = [];
+let pendingClip: Blob | undefined;
 
 // The mic question comes first, the way a phone asks before it lets you talk.
 void askForMicrophone();
+restoreHostedRoom();
 
 async function askForMicrophone(): Promise<void> {
   if (!micStatus) return;
@@ -198,72 +223,337 @@ wireToggle("create-mode", (choice) => {
 });
 
 wireToggle("room-privacy", (choice) => {
-  if (!room) return;
-  room = { ...room, privacy: choice === "private" ? "private" : "public" };
-  saveRoom(room);
-  render();
-  if (room.privacy === "private" && roomCode instanceof HTMLInputElement) roomCode.focus();
+  if (!isHost || !roomInfo) return;
+  roomInfo = { ...roomInfo, privacy: choice === "private" ? "private" : "public" };
+  saveHostedRoom();
+  broadcastState();
+  if (roomInfo.privacy === "private" && roomCode instanceof HTMLInputElement) roomCode.focus();
 });
 
-// Swapping words for phrases (or the difficulty) means a new thing to whisper,
-// so you can hear what you just signed up for.
 wireToggle("room-mode", (choice) => {
-  if (!room) return;
-  const mode: Mode = choice === "phrases" ? "phrases" : "words";
-  room = { ...room, mode, word: pickWord(room.difficulty, mode) };
-  saveRoom(room);
-  render();
+  if (!isHost || !roomInfo) return;
+  roomInfo = { ...roomInfo, mode: choice === "phrases" ? "phrases" : "words" };
+  saveHostedRoom();
+  broadcastState();
 });
 
 roomDifficulty?.addEventListener("change", () => {
-  if (!room) return;
-  const difficulty = readDifficulty(roomDifficulty);
-  room = { ...room, difficulty, word: pickWord(difficulty, room.mode) };
-  saveRoom(room);
-  render();
+  if (!isHost || !roomInfo) return;
+  roomInfo = { ...roomInfo, difficulty: readDifficulty(roomDifficulty) };
+  saveHostedRoom();
+  broadcastState();
+});
+
+roomCode?.addEventListener("input", () => {
+  if (!isHost || !roomInfo || !(roomCode instanceof HTMLInputElement)) return;
+  roomInfo = { ...roomInfo, code: roomCode.value.trim() };
+  saveHostedRoom();
+  broadcastState();
 });
 
 createForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!(groupName instanceof HTMLInputElement) || !(createCode instanceof HTMLInputElement)) return;
-  const difficulty = readDifficulty(createDifficulty);
-  room = {
+  startHosting({
     name: groupName.value.trim() || "Untitled Group",
     privacy: createPrivacy,
     code: createPrivacy === "private" ? createCode.value.trim() : "",
-    difficulty,
+    difficulty: readDifficulty(createDifficulty),
     mode: createMode,
-    word: pickWord(difficulty, createMode),
-  };
-  saveRoom(room);
+  }, readName(createYou, "Host"));
+});
+
+joinForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!(joinGroup instanceof HTMLInputElement)) return;
+  const group = joinGroup.value.trim();
+  if (!group) return;
+  startJoining(group, readName(joinYou, "Guest"), joinCode instanceof HTMLInputElement ? joinCode.value.trim() : "");
+});
+
+closeRoom?.addEventListener("click", () => leaveRoom(true));
+leaveRoomButton?.addEventListener("click", () => leaveRoom(true));
+
+function startHosting(room: RoomInfo, name: string): void {
+  isHost = true;
+  me = name;
+  roomInfo = room;
+  seats.clear();
+  seats.set(name, SELF);
+  players = [name];
+  saveHostedRoom();
+  netStatus = "Opening the room…";
+  link = openHost({ roomName: room.name, onMessage: handleHostMessage, onStatus: setNetStatus });
   render();
-});
-
-roomCode?.addEventListener("input", () => {
-  if (!room || !(roomCode instanceof HTMLInputElement)) return;
-  room = { ...room, code: roomCode.value.trim() };
-  saveRoom(room);
-  if (roomLine) roomLine.textContent = describeRoom(room);
-});
-
-closeRoom?.addEventListener("click", () => {
-  finishRound();
-  room = null;
-  localStorage.removeItem(ROOM_KEY);
-  render();
-});
-
-function wireToggle(id: string, onPick: (choice: string) => void): void {
-  document.getElementById(id)?.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-choice]");
-    if (button) onPick(button.dataset["choice"] ?? "");
-  });
 }
+
+function startJoining(group: string, name: string, code: string): void {
+  isHost = false;
+  me = name;
+  roomInfo = null;
+  players = [];
+  roundView = null;
+  netStatus = "Knocking…";
+  link = openGuest({
+    roomName: group,
+    onMessage: (_from, body) => handleFromHost(body),
+    onStatus: setNetStatus,
+    onReady: () => link?.send("", { kind: "hello", name, code }),
+  });
+  render();
+}
+
+function leaveRoom(clearSaved: boolean): void {
+  endRoundLocally();
+  link?.close();
+  link = null;
+  if (isHost && clearSaved) localStorage.removeItem(ROOM_KEY);
+  isHost = false;
+  roomInfo = null;
+  players = [];
+  seats.clear();
+  roundView = null;
+  netStatus = "";
+  render();
+}
+
+function setNetStatus(text: string): void {
+  netStatus = text;
+  render();
+}
+
+// --- host side -------------------------------------------------------------
+
+function handleHostMessage(from: string, value: unknown): void {
+  const message = readMessage(value);
+  if (!message || !roomInfo) return;
+
+  if (message.kind === "hello") {
+    const name = String(message["name"] ?? "").trim() || "Someone";
+    if (banned.includes(name)) return sendTo(from, { kind: "rejected", reason: `${name} is banned forever. Nice try.` });
+    if (roomInfo.privacy === "private" && String(message["code"] ?? "").trim() !== roomInfo.code) {
+      return sendTo(from, { kind: "rejected", reason: "Wrong code." });
+    }
+    if (roundView) return sendTo(from, { kind: "rejected", reason: "They're in the middle of a round. Try again after." });
+    if (seats.has(name) && seats.get(name) !== from) {
+      return sendTo(from, { kind: "rejected", reason: `Somebody in there is already called ${name}.` });
+    }
+    seats.set(name, from);
+    players = [...seats.keys()];
+    sendTo(from, { kind: "welcome" });
+    broadcastState();
+    return;
+  }
+
+  if (message.kind === "clip") {
+    if (!roundView || roundView.phase !== "recording") return;
+    const current = roundView.order[roundView.index];
+    const data = toArrayBuffer(message["data"]);
+    if (!current || seats.get(current) !== from || !data) return;
+    roundView.index += 1;
+    // The last person in the chain types their answer instead of recording.
+    roundView.phase = roundView.index === roundView.order.length - 1 ? "typing" : "recording";
+    const next = roundView.order[roundView.index];
+    // Only the next person in line ever hears it.
+    if (next) sendTo(seats.get(next) ?? "", { kind: "clip", data });
+    broadcastState();
+    return;
+  }
+
+  if (message.kind === "guess") {
+    if (!roundView || roundView.phase !== "typing") return;
+    const last = roundView.order[roundView.order.length - 1];
+    if (!last || seats.get(last) !== from) return;
+    roundView.guess = String(message["text"] ?? "").trim();
+    roundView.phase = "judging";
+    const judge = roundView.order[0];
+    // The judge needs the real word in front of them to rule on it.
+    if (judge) sendTo(seats.get(judge) ?? "", { kind: "secret", word: secretWord });
+    broadcastState();
+    return;
+  }
+
+  if (message.kind === "judge") {
+    if (!roundView || roundView.phase !== "judging") return;
+    const judge = roundView.order[0];
+    if (!judge || seats.get(judge) !== from) return;
+    const saidCorrect = message["verdict"] === "correct";
+    const reallyCorrect = sameAnswer(roundView.guess, secretWord);
+    roundView.phase = "done";
+    if (saidCorrect === reallyCorrect) {
+      roundView.result = reallyCorrect
+        ? `It really was "${secretWord}". Everybody wins!`
+        : `It was "${secretWord}", not "${roundView.guess}". Everybody loses.`;
+    } else {
+      // Oscar's rule: the one who lies about it is the one who is out forever.
+      if (!banned.includes(judge)) banned.push(judge);
+      saveNames(BANNED_KEY, banned);
+      seats.delete(judge);
+      players = [...seats.keys()];
+      roundView.result = `It was "${secretWord}" and the guess was "${roundView.guess}". ${judge} lied about it and is banned forever.`;
+    }
+    broadcastState();
+  }
+}
+
+startRoundButton?.addEventListener("click", () => {
+  if (!isHost || !roomInfo || roundView || players.length < PLAYERS_NEEDED) return;
+  // Shuffled, so whoever goes first is nobody's choice.
+  const order = shuffle(players);
+  secretWord = pickWord(roomInfo.difficulty, roomInfo.mode);
+  roundView = { order, index: 0, phase: "recording", guess: "", result: "" };
+  const starter = order[0];
+  if (starter) sendTo(seats.get(starter) ?? "", { kind: "secret", word: secretWord });
+  broadcastState();
+});
+
+endRound?.addEventListener("click", () => {
+  if (!isHost) return;
+  roundView = null;
+  broadcastState();
+});
+
+function sendTo(route: string, message: Message): void {
+  if (route === SELF) handleFromHost(message);
+  else link?.send(route, message);
+}
+
+function broadcastState(): void {
+  link?.send("*", { kind: "state", room: roomInfo, players, banned, round: roundView });
+  if (!roundView) clearMyRoundSecrets();
+  render();
+}
+
+// --- guest side (and the host's own copy of targeted messages) --------------
+
+function handleFromHost(value: unknown): void {
+  const message = readMessage(value);
+  if (!message) return;
+
+  if (message.kind === "welcome") {
+    netStatus = "You're in.";
+    render();
+    return;
+  }
+  if (message.kind === "rejected") {
+    const reason = String(message["reason"] ?? "They wouldn't let you in.");
+    leaveRoom(false);
+    netStatus = reason;
+    render();
+    return;
+  }
+  if (message.kind === "state") {
+    const room = message["room"] as RoomInfo | null;
+    roomInfo = room ?? null;
+    players = Array.isArray(message["players"]) ? message["players"].map(String) : [];
+    banned = Array.isArray(message["banned"]) ? message["banned"].map(String) : [];
+    const round = (message["round"] ?? null) as RoundView | null;
+    if (!round) clearMyRoundSecrets();
+    roundView = round;
+    render();
+    return;
+  }
+  if (message.kind === "secret") {
+    myWord = String(message["word"] ?? "");
+    render();
+    return;
+  }
+  if (message.kind === "clip") {
+    const data = toArrayBuffer(message["data"]);
+    if (!data) return;
+    if (myClipUrl) URL.revokeObjectURL(myClipUrl);
+    myClipUrl = URL.createObjectURL(new Blob([data], { type: "audio/webm" }));
+    render();
+  }
+}
+
+function sendToHost(message: Message): void {
+  if (isHost) handleHostMessage(SELF, message);
+  else link?.send("", message);
+}
+
+// --- taking your turn ------------------------------------------------------
+
+micButton?.addEventListener("click", () => void toggleRecording());
+
+async function toggleRecording(): Promise<void> {
+  if (!(micButton instanceof HTMLButtonElement)) return;
+  if (recorder && recorder.state === "recording") {
+    recorder.stop();
+    return;
+  }
+  const stream = await ensureMicStream();
+  if (!stream) {
+    setNetStatus("No microphone, no whispering. Let the browser use it first.");
+    return;
+  }
+  recordedChunks = [];
+  recorder = new MediaRecorder(stream);
+  recorder.addEventListener("dataavailable", (event) => recordedChunks.push(event.data));
+  recorder.addEventListener("stop", () => {
+    pendingClip = new Blob(recordedChunks, { type: "audio/webm" });
+    micButton.setAttribute("aria-pressed", "false");
+    micButton.textContent = "🎤";
+    render();
+  });
+  recorder.start();
+  micButton.setAttribute("aria-pressed", "true");
+  micButton.textContent = "◼";
+}
+
+async function ensureMicStream(): Promise<MediaStream | null> {
+  if (micStream) return micStream;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    micStream = null;
+  }
+  return micStream;
+}
+
+sendTurn?.addEventListener("click", () => void sendMyTurn());
+
+async function sendMyTurn(): Promise<void> {
+  if (!roundView) return;
+  if (roundView.phase === "typing") {
+    sendToHost({ kind: "guess", text: finalGuess instanceof HTMLInputElement ? finalGuess.value.trim() : "" });
+    return;
+  }
+  if (!pendingClip) return;
+  const data = await pendingClip.arrayBuffer();
+  pendingClip = undefined;
+  sendToHost({ kind: "clip", data });
+}
+
+judgeRow?.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-judge]");
+  if (!button) return;
+  sendToHost({ kind: "judge", verdict: button.dataset["judge"] });
+});
+
+function clearMyRoundSecrets(): void {
+  if (myClipUrl) URL.revokeObjectURL(myClipUrl);
+  myClipUrl = "";
+  myWord = "";
+  pendingClip = undefined;
+  if (finalGuess instanceof HTMLInputElement) finalGuess.value = "";
+}
+
+function endRoundLocally(): void {
+  clearMyRoundSecrets();
+  for (const track of micStream?.getTracks() ?? []) track.stop();
+  micStream = null;
+  recorder = null;
+}
+
+// --- drawing ---------------------------------------------------------------
 
 function render(): void {
   const micAnswered = Boolean(micStatus && !micStatus.textContent?.startsWith("Asking"));
-  if (createPanel) createPanel.hidden = !micAnswered || room !== null;
-  if (roomPanel) roomPanel.hidden = room === null || round !== null;
+  const inRoom = roomInfo !== null;
+  if (createPanel) createPanel.hidden = !micAnswered || inRoom;
+  if (joinPanel) joinPanel.hidden = !micAnswered || inRoom;
+  if (joinLine && netStatus && !inRoom) joinLine.textContent = netStatus;
 
   setToggle("create-privacy", createPrivacy);
   setToggle("create-mode", createMode);
@@ -272,237 +562,123 @@ function render(): void {
   // asks for one before the form will submit.
   if (createCode instanceof HTMLInputElement) createCode.required = createPrivacy === "private";
 
-  renderPlayers();
+  if (roomPanel) roomPanel.hidden = !inRoom || roundView !== null;
+  if (playersPanel) playersPanel.hidden = !inRoom || roundView !== null;
   renderRound();
+  if (!roomInfo) return;
 
-  if (!room) return;
-  setToggle("room-privacy", room.privacy);
-  setToggle("room-mode", room.mode);
-  if (roomName) roomName.textContent = room.name;
-  if (roomLine) roomLine.textContent = describeRoom(room);
-  if (roomCodeRow) roomCodeRow.hidden = room.privacy !== "private";
-  if (roomCode instanceof HTMLInputElement && roomCode.value !== room.code) roomCode.value = room.code;
-  if (roomDifficulty instanceof HTMLSelectElement) roomDifficulty.value = room.difficulty;
-  renderPlayers();
-  renderRound();
-}
+  setToggle("room-privacy", roomInfo.privacy);
+  setToggle("room-mode", roomInfo.mode);
+  if (roomName) roomName.textContent = roomInfo.name;
+  if (roomLine) roomLine.textContent = netStatus || describeRoom(roomInfo);
+  if (roomCodeRow) roomCodeRow.hidden = roomInfo.privacy !== "private";
+  if (roomCode instanceof HTMLInputElement && roomCode.value !== roomInfo.code) roomCode.value = roomInfo.code;
+  if (roomDifficulty instanceof HTMLSelectElement) roomDifficulty.value = roomInfo.difficulty;
+  // Only the host gets to change the deal; guests just see it.
+  for (const control of [roomCode, roomDifficulty]) {
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) control.disabled = !isHost;
+  }
+  for (const id of ["room-privacy", "room-mode"]) {
+    for (const button of document.getElementById(id)?.querySelectorAll("button") ?? []) button.disabled = !isHost;
+  }
+  if (closeRoom) closeRoom.hidden = !isHost;
+  if (leaveRoomButton) leaveRoomButton.hidden = isHost;
 
-function renderPlayers(): void {
-  if (playersPanel) playersPanel.hidden = room === null || round !== null;
   if (playersLine) {
     const missing = PLAYERS_NEEDED - players.length;
     playersLine.textContent = missing > 0
-      ? `Add ${missing} more ${missing === 1 ? "person" : "people"} to start a whisper.`
-      : `${players.length} people. Ready to whisper.`;
+      ? `${missing} more ${missing === 1 ? "person" : "people"} needed to start a whisper.`
+      : "Enough people. Let's whisper.";
   }
   if (playersList) {
-    playersList.innerHTML = "";
+    playersList.replaceChildren();
     for (const name of players) {
       const item = document.createElement("li");
-      const remove = document.createElement("button");
-      item.textContent = name;
-      remove.type = "button";
-      remove.textContent = "×";
-      remove.setAttribute("aria-label", `Remove ${name}`);
-      remove.addEventListener("click", () => {
-        players = players.filter((player) => player !== name);
-        saveNames(PLAYERS_KEY, players);
-        render();
-      });
-      item.append(remove);
+      item.textContent = name === me ? `${name} (you)` : name;
       playersList.append(item);
     }
   }
   if (bannedLine) {
     bannedLine.hidden = banned.length === 0;
-    bannedLine.textContent = `Banned forever: ${banned.join(", ")}`;
+    bannedLine.textContent = `Banned forever for lying: ${banned.join(", ")}`;
   }
-  if (startRound) startRound.hidden = players.length < PLAYERS_NEEDED;
-}
-
-addPlayerForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (!(playerName instanceof HTMLInputElement)) return;
-  const name = playerName.value.trim();
-  if (!name) return;
-  if (banned.includes(name)) {
-    if (playersLine) playersLine.textContent = `${name} is banned forever. Nice try.`;
-    return;
-  }
-  if (!players.includes(name)) players.push(name);
-  saveNames(PLAYERS_KEY, players);
-  playerName.value = "";
-  render();
-});
-
-startRound?.addEventListener("click", () => void beginRound());
-
-async function beginRound(): Promise<void> {
-  if (!room || players.length < PLAYERS_NEEDED) return;
-  try {
-    roundStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch {
-    if (playersLine) playersLine.textContent = "No microphone, no whispering. Let the browser use it first.";
-    return;
-  }
-  // Shuffled, so whoever goes first is nobody's choice.
-  const order = shuffle(players);
-  round = { order, index: 0, clips: [], guess: "", word: room.word, phase: "recording" };
-  render();
+  if (startRoundButton) startRoundButton.hidden = !isHost || players.length < PLAYERS_NEEDED || roundView !== null;
 }
 
 function renderRound(): void {
-  if (roundPanel) roundPanel.hidden = round === null;
-  if (!round) return;
+  if (roundPanel) roundPanel.hidden = roundView === null;
+  if (!roundView) return;
 
-  const current = round.order[round.index] ?? "";
-  const isFirst = round.index === 0;
-  const isLast = round.index === round.order.length - 1;
-  const judging = round.phase === "judging";
-  const done = round.phase === "done";
+  const current = roundView.order[roundView.index] ?? "";
+  const judge = roundView.order[0] ?? "";
+  const isMyTurn = current === me;
+  const judging = roundView.phase === "judging";
+  const done = roundView.phase === "done";
+  const myJudgement = judging && judge === me;
 
-  if (turnTitle) turnTitle.textContent = judging || done ? round.order[0] ?? "" : `${current}'s turn`;
+  if (turnTitle) turnTitle.textContent = done ? "That's the round" : judging ? `${judge} is judging` : `${current}'s turn`;
   if (turnLine) {
     turnLine.textContent = done
       ? ""
-      : judging
-        ? `They guessed "${round.guess}". Was that it?`
-        : isFirst
-          ? "Hold the mic button and say the word."
-          : isLast
-            ? "Listen, then type what you think it was."
-            : "Listen, then say what you think you heard.";
+      : myJudgement
+        ? `They ended up with "${roundView.guess}". Was that it?`
+        : judging
+          ? `Waiting for ${judge} to rule on "${roundView.guess}".`
+          : !isMyTurn
+            ? `Waiting for ${current}. No peeking.`
+            : roundView.index === 0
+              ? "Hold the mic button and say the word."
+              : roundView.index === roundView.order.length - 1
+                ? "Listen, then type what you think it was."
+                : "Listen, then say what you think you heard.";
   }
 
-  // The real word is only ever shown to the person who starts, and to the
-  // judge at the end.
+  // The word only ever reaches the person who starts and the person judging.
   if (roundWord) {
-    roundWord.hidden = !(isFirst && round.phase === "recording") && !judging && !done;
-    roundWord.textContent = round.word;
+    roundWord.hidden = !myWord || !(isMyTurn || myJudgement);
+    roundWord.textContent = myWord;
   }
 
-  const previous = round.clips[round.index - 1];
   if (previousClip instanceof HTMLAudioElement) {
-    previousClip.hidden = !previous || (round.phase !== "recording" && round.phase !== "typing");
-    if (previous && previousClip.src !== previous) previousClip.src = previous;
+    previousClip.hidden = !myClipUrl || !isMyTurn;
+    if (myClipUrl && previousClip.src !== myClipUrl) previousClip.src = myClipUrl;
   }
 
-  if (micButton) micButton.hidden = round.phase !== "recording";
-  if (guessRow) guessRow.hidden = round.phase !== "typing";
-  if (judgeRow) judgeRow.hidden = !judging;
-  if (roundResult) roundResult.hidden = !done;
-  if (endRound) endRound.hidden = !done;
-  if (sendTurn) {
-    sendTurn.hidden = judging || done;
-    (sendTurn as HTMLButtonElement).disabled = round.phase === "recording" && pendingClip === undefined;
-  }
-}
-
-micButton?.addEventListener("click", () => {
-  if (!roundStream) return;
-  if (recorder && recorder.state === "recording") {
-    recorder.stop();
-    return;
-  }
-  recordedChunks = [];
-  recorder = new MediaRecorder(roundStream);
-  recorder.addEventListener("dataavailable", (event) => recordedChunks.push(event.data));
-  recorder.addEventListener("stop", () => {
-    pendingClip = URL.createObjectURL(new Blob(recordedChunks));
-    micButton.setAttribute("aria-pressed", "false");
-    micButton.textContent = "🎤";
-    renderRound();
-  });
-  recorder.start();
-  micButton.setAttribute("aria-pressed", "true");
-  micButton.textContent = "◼";
-});
-
-sendTurn?.addEventListener("click", () => {
-  if (!round) return;
-  if (round.phase === "typing") {
-    round.guess = finalGuess instanceof HTMLInputElement ? finalGuess.value.trim() : "";
-    round.phase = "judging";
-    renderRound();
-    return;
-  }
-  if (pendingClip === undefined) return;
-  round.clips[round.index] = pendingClip;
-  pendingClip = undefined;
-  round.index += 1;
-  // The last person in the chain types their answer instead of recording.
-  round.phase = round.index === round.order.length - 1 ? "typing" : "recording";
-  renderRound();
-});
-
-judgeRow?.addEventListener("click", (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-judge]");
-  if (!button || !round) return;
-  const correct = button.dataset["judge"] === "correct";
-  const lastPlayer = round.order[round.order.length - 1] ?? "";
-  if (!correct) {
-    // Oscar's rule: get it wrong and you are out of this game forever.
-    if (!banned.includes(lastPlayer)) banned.push(lastPlayer);
-    players = players.filter((player) => player !== lastPlayer);
-    saveNames(BANNED_KEY, banned);
-    saveNames(PLAYERS_KEY, players);
-  }
-  round.phase = "done";
+  if (micButton) micButton.hidden = !(isMyTurn && roundView.phase === "recording");
+  if (guessRow) guessRow.hidden = !(isMyTurn && roundView.phase === "typing");
+  if (judgeRow) judgeRow.hidden = !myJudgement;
   if (roundResult) {
-    roundResult.textContent = correct
-      ? `It was "${round.word}". Everybody wins!`
-      : `It was "${round.word}", not "${round.guess}". ${lastPlayer} is banned forever.`;
+    roundResult.hidden = !done;
+    roundResult.textContent = roundView.result;
   }
-  render();
-});
-
-endRound?.addEventListener("click", () => {
-  finishRound();
-  render();
-});
-
-function finishRound(): void {
-  for (const clip of round?.clips ?? []) if (clip) URL.revokeObjectURL(clip);
-  for (const track of roundStream?.getTracks() ?? []) track.stop();
-  roundStream = null;
-  recorder = null;
-  pendingClip = undefined;
-  round = null;
-  if (finalGuess instanceof HTMLInputElement) finalGuess.value = "";
-}
-
-function shuffle(names: string[]): string[] {
-  const copy = [...names];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const a = copy[i];
-    const b = copy[j];
-    if (a !== undefined && b !== undefined) {
-      copy[i] = b;
-      copy[j] = a;
-    }
-  }
-  return copy;
-}
-
-function loadNames(key: string): string[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? "[]") as unknown;
-    return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === "string") : [];
-  } catch {
-    return [];
+  if (endRound) endRound.hidden = !done || !isHost;
+  if (sendTurn instanceof HTMLButtonElement) {
+    sendTurn.hidden = !isMyTurn || judging || done;
+    sendTurn.disabled = roundView.phase === "recording" && pendingClip === undefined;
   }
 }
 
-function saveNames(key: string, names: string[]): void {
-  localStorage.setItem(key, JSON.stringify(names));
-}
-
-function describeRoom(current: Room): string {
-  if (current.privacy === "public") return "Public room. Anyone can walk in.";
+function describeRoom(current: RoomInfo): string {
+  if (current.privacy === "public") return "Public room. Anyone who knows the name can walk in.";
   return current.code
     ? `Private room. The code is ${current.code}.`
     : "Private room. Pick a code or nobody can get in.";
+}
+
+// --- odds and ends ---------------------------------------------------------
+
+function wireToggle(id: string, onPick: (choice: string) => void): void {
+  document.getElementById(id)?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-choice]");
+    if (button) onPick(button.dataset["choice"] ?? "");
+  });
+}
+
+function setToggle(id: string, choice: string): void {
+  const group = document.getElementById(id);
+  for (const button of group?.querySelectorAll<HTMLButtonElement>("[data-choice]") ?? []) {
+    button.setAttribute("aria-pressed", String(button.dataset["choice"] === choice));
+  }
 }
 
 function fillDifficultyOptions(select: HTMLElement | null): void {
@@ -516,13 +692,6 @@ function fillDifficultyOptions(select: HTMLElement | null): void {
   select.value = "Normal";
 }
 
-function setToggle(id: string, choice: string): void {
-  const group = document.getElementById(id);
-  for (const button of group?.querySelectorAll<HTMLButtonElement>("[data-choice]") ?? []) {
-    button.setAttribute("aria-pressed", String(button.dataset["choice"] === choice));
-  }
-}
-
 function readDifficulty(select: HTMLElement | null): Difficulty {
   const value = select instanceof HTMLSelectElement ? select.value : "";
   return isDifficulty(value) ? value : "Normal";
@@ -530,6 +699,32 @@ function readDifficulty(select: HTMLElement | null): Difficulty {
 
 function isDifficulty(value: string): value is Difficulty {
   return (DIFFICULTIES as string[]).includes(value);
+}
+
+function readName(input: HTMLElement | null, fallback: string): string {
+  const value = input instanceof HTMLInputElement ? input.value.trim() : "";
+  return value || fallback;
+}
+
+function readMessage(value: unknown): Message | null {
+  if (!value || typeof value !== "object") return null;
+  const message = value as Message;
+  return typeof message.kind === "string" ? message : null;
+}
+
+// Peer sends binary as a view over a buffer; the channel sends it whole.
+function toArrayBuffer(value: unknown): ArrayBuffer | null {
+  if (value instanceof ArrayBuffer) return value;
+  if (ArrayBuffer.isView(value)) {
+    return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer;
+  }
+  return null;
+}
+
+// Spelling and punctuation don't decide it; the word does.
+function sameAnswer(a: string, b: string): boolean {
+  const tidy = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return tidy(a) === tidy(b) && tidy(a).length > 0;
 }
 
 // "All" pools every level, so an Auto word and an Extreme Demon word are
@@ -541,31 +736,51 @@ function pickWord(difficulty: Difficulty, mode: Mode): string {
   return pool[Math.floor(Math.random() * pool.length)] ?? "";
 }
 
-function loadRoom(): Room | null {
+function shuffle(names: string[]): string[] {
+  const copy = [...names];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    const held = copy[index] as string;
+    copy[index] = copy[swap] as string;
+    copy[swap] = held;
+  }
+  return copy;
+}
+
+function saveHostedRoom(): void {
+  if (!isHost || !roomInfo) return;
+  localStorage.setItem(ROOM_KEY, JSON.stringify({ ...roomInfo, host: me }));
+}
+
+function restoreHostedRoom(): void {
   const raw = localStorage.getItem(ROOM_KEY);
-  if (!raw) return null;
+  if (!raw) return;
   try {
-    const parsed = JSON.parse(raw) as Partial<Room>;
-    if (typeof parsed.name !== "string") return null;
-    const difficulty = typeof parsed.difficulty === "string" && isDifficulty(parsed.difficulty)
-      ? parsed.difficulty
-      : "Normal";
-    const mode: Mode = parsed.mode === "phrases" ? "phrases" : "words";
-    return {
-      name: parsed.name,
-      privacy: parsed.privacy === "private" ? "private" : "public",
-      code: typeof parsed.code === "string" ? parsed.code : "",
-      difficulty,
-      mode,
-      word: typeof parsed.word === "string" && parsed.word ? parsed.word : pickWord(difficulty, mode),
-    };
+    const saved = JSON.parse(raw) as Partial<RoomInfo> & { host?: string };
+    if (typeof saved.name !== "string" || typeof saved.host !== "string") return;
+    startHosting({
+      name: saved.name,
+      privacy: saved.privacy === "private" ? "private" : "public",
+      code: typeof saved.code === "string" ? saved.code : "",
+      difficulty: typeof saved.difficulty === "string" && isDifficulty(saved.difficulty) ? saved.difficulty : "Normal",
+      mode: saved.mode === "phrases" ? "phrases" : "words",
+    }, saved.host);
   } catch {
-    return null;
+    localStorage.removeItem(ROOM_KEY);
   }
 }
 
-function saveRoom(current: Room): void {
-  localStorage.setItem(ROOM_KEY, JSON.stringify(current));
+function loadNames(key: string): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "[]") as unknown;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveNames(key: string, names: string[]): void {
+  localStorage.setItem(key, JSON.stringify(names));
 }
 
 render();

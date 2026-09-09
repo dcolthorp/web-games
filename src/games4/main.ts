@@ -79,11 +79,51 @@ if (trapFloor4 instanceof HTMLButtonElement) {
     trapFloor4.textContent = "NOPE!";
   });
 
+  let runClicks = 0;
+
   trapFloor4.addEventListener("click", () => {
+    if (caught) {
+      countTowardsRun();
+      return;
+    }
     caught = true;
     trapFloor4.style.transform = "";
     trapFloor4.textContent = "HERE ARE YOUR GAMES";
     localStorage.setItem(GAMES_FOUND_KEY, "true");
     renderGameList();
   });
+
+  // Keep hitting the caught floor and something comes down the wire.
+  function countTowardsRun(): void {
+    if (runClicks >= 5) return;
+    runClicks += 1;
+
+    let counter = document.getElementById("run-counter");
+    if (!counter) {
+      counter = document.createElement("p");
+      counter.id = "run-counter";
+      counter.className = "run-counter";
+      trapFloor4?.after(counter);
+    }
+    counter.textContent = `${runClicks} / 5`;
+
+    if (runClicks < 5) return;
+    counter.remove();
+    dropRunTv();
+  }
+}
+
+function dropRunTv(): void {
+  if (document.querySelector(".run-tv")) return;
+  const tv = document.createElement("div");
+  tv.className = "run-tv";
+  tv.setAttribute("role", "img");
+  tv.setAttribute("aria-label", "A television on a wire showing the word RUN");
+  tv.innerHTML = `
+    <div class="run-tv-wire" aria-hidden="true"></div>
+    <div class="run-tv-body">
+      <div class="run-tv-screen"><span>RUN</span></div>
+    </div>
+  `;
+  document.body.appendChild(tv);
 }

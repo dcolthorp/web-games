@@ -37,6 +37,9 @@
           <p class="section-copy">Name your group, then pick who gets in.</p>
         </div>
         <form class="tele-form" id="create-form">
+          <label class="tele-label" for="create-you">Your name</label>
+          <input class="tele-input" id="create-you" maxlength="20" autocomplete="off" placeholder="Oscar" required />
+
           <label class="tele-label" for="group-name">Group name</label>
           <input class="tele-input" id="group-name" maxlength="24" autocomplete="off" placeholder="The Loud Ones" required />
 
@@ -62,6 +65,25 @@
           </div>
 
           <button class="tele-button" type="submit">Create Room</button>
+        </form>
+      </section>
+
+      <section class="menu-container" id="join-panel" hidden>
+        <div class="section-header">
+          <h2>Or Join One</h2>
+          <p class="section-copy" id="join-line">Type the group name whoever made the room told you.</p>
+        </div>
+        <form class="tele-form" id="join-form">
+          <label class="tele-label" for="join-you">Your name</label>
+          <input class="tele-input" id="join-you" maxlength="20" autocomplete="off" placeholder="Penelope" required />
+
+          <label class="tele-label" for="join-group">Group name</label>
+          <input class="tele-input" id="join-group" maxlength="24" autocomplete="off" placeholder="The Loud Ones" required />
+
+          <label class="tele-label" for="join-code">Secret code</label>
+          <input class="tele-input" id="join-code" maxlength="12" autocomplete="off" placeholder="Only if it's private" />
+
+          <button class="tele-button" type="submit">Join Room</button>
         </form>
       </section>
 
@@ -93,21 +115,15 @@
           </div>
 
           <button class="tele-button tele-button-quiet" id="close-room" type="button">Hang Up the Room</button>
+          <button class="tele-button tele-button-quiet" id="leave-room" type="button" hidden>Leave the Room</button>
         </div>
       </section>
 
       <section class="menu-container" id="players-panel" hidden>
         <div class="section-header">
           <h2>Who's Playing</h2>
-          <p class="section-copy" id="players-line">Add at least 5 people.</p>
+          <p class="section-copy" id="players-line">Waiting for people to join.</p>
         </div>
-        <form class="tele-form" id="add-player-form">
-          <label class="tele-label" for="player-name">Add a person</label>
-          <div class="tele-add-row">
-            <input class="tele-input" id="player-name" maxlength="20" autocomplete="off" placeholder="Oscar" required />
-            <button class="tele-button" type="submit">Add</button>
-          </div>
-        </form>
         <ul class="tele-players" id="players-list"></ul>
         <p class="tele-hint" id="banned-line" hidden></p>
         <button class="tele-button" id="start-round" type="button" hidden>Start the Whisper</button>
