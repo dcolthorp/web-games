@@ -1,3 +1,9 @@
+/* Classes below set `display`, which outranks the browser's own [hidden]
+   rule, so say it once here for every element the page toggles. */
+[hidden] {
+  display: none !important;
+}
+
 .tele-form {
   display: flex;
   flex-direction: column;
@@ -38,10 +44,6 @@
   gap: 10px;
 }
 
-/* The class's display would otherwise outrank the browser's own [hidden]. */
-.tele-code-row[hidden] {
-  display: none;
-}
 
 .tele-toggle {
   display: flex;
@@ -98,4 +100,82 @@
   letter-spacing: 0.04em;
   overflow-wrap: anywhere;
   text-transform: uppercase;
+}
+
+.tele-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tele-add-row .tele-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tele-add-row .tele-button {
+  margin-top: 0;
+}
+
+.tele-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  list-style: none;
+}
+
+.tele-players li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 3px solid #0f0f14;
+  background: var(--panel-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tele-players button {
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tele-mic {
+  align-self: center;
+  width: 170px;
+  height: 170px;
+  border: 6px solid #0f0f14;
+  border-radius: 50%;
+  background: var(--danger);
+  font-size: 3.6rem;
+  cursor: pointer;
+}
+
+.tele-mic[aria-pressed="true"] {
+  background: var(--warn);
+  animation: tele-mic-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tele-mic-pulse {
+  50% { transform: scale(1.07); }
+}
+
+.tele-audio {
+  width: 100%;
+}
+
+.tele-result {
+  color: var(--warn);
+  font-size: 1.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tele-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
 }

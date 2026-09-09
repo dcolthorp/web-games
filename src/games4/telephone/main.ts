@@ -89,6 +89,19 @@ interface Room {
 }
 
 const ROOM_KEY = "telephone-room";
+const PLAYERS_KEY = "telephone-players";
+const BANNED_KEY = "telephone-banned";
+const PLAYERS_NEEDED = 5;
+
+interface Round {
+  order: string[];
+  index: number;
+  // One clip per recorded turn; the last player types instead of recording.
+  clips: (string | undefined)[];
+  guess: string;
+  word: string;
+  phase: "recording" | "typing" | "judging" | "done";
+}
 
 const micStatus = document.getElementById("mic-status");
 const micRetry = document.getElementById("mic-retry");
@@ -104,11 +117,38 @@ const roomLine = document.getElementById("room-line");
 const roomCode = document.getElementById("room-code");
 const roomCodeRow = document.getElementById("room-code-row");
 const roomDifficulty = document.getElementById("room-difficulty");
-const roomWord = document.getElementById("room-word");
 const closeRoom = document.getElementById("close-room");
+const playersPanel = document.getElementById("players-panel");
+const playersLine = document.getElementById("players-line");
+const playersList = document.getElementById("players-list");
+const addPlayerForm = document.getElementById("add-player-form");
+const playerName = document.getElementById("player-name");
+const bannedLine = document.getElementById("banned-line");
+const startRound = document.getElementById("start-round");
+const roundPanel = document.getElementById("round-panel");
+const turnTitle = document.getElementById("turn-title");
+const turnLine = document.getElementById("turn-line");
+const roundWord = document.getElementById("round-word");
+const previousClip = document.getElementById("previous-clip");
+const micButton = document.getElementById("mic-button");
+const guessRow = document.getElementById("guess-row");
+const finalGuess = document.getElementById("final-guess");
+const judgeRow = document.getElementById("judge-row");
+const roundResult = document.getElementById("round-result");
+const sendTurn = document.getElementById("send-turn");
+const endRound = document.getElementById("end-round");
 
 fillDifficultyOptions(createDifficulty);
 fillDifficultyOptions(roomDifficulty);
+
+let players = loadNames(PLAYERS_KEY);
+let banned = loadNames(BANNED_KEY);
+let round: Round | null = null;
+// The live mic is held only while a round is running.
+let roundStream: MediaStream | null = null;
+let recorder: MediaRecorder | null = null;
+let recordedChunks: Blob[] = [];
+let pendingClip: string | undefined;
 
 let createPrivacy: Privacy = "public";
 let createMode: Mode = "words";
@@ -207,6 +247,7 @@ roomCode?.addEventListener("input", () => {
 });
 
 closeRoom?.addEventListener("click", () => {
+  finishRound();
   room = null;
   localStorage.removeItem(ROOM_KEY);
   render();
@@ -222,7 +263,7 @@ function wireToggle(id: string, onPick: (choice: string) => void): void {
 function render(): void {
   const micAnswered = Boolean(micStatus && !micStatus.textContent?.startsWith("Asking"));
   if (createPanel) createPanel.hidden = !micAnswered || room !== null;
-  if (roomPanel) roomPanel.hidden = room === null;
+  if (roomPanel) roomPanel.hidden = room === null || round !== null;
 
   setToggle("create-privacy", createPrivacy);
   setToggle("create-mode", createMode);
@@ -230,6 +271,9 @@ function render(): void {
   // A private room without its code would lock everyone out, so the browser
   // asks for one before the form will submit.
   if (createCode instanceof HTMLInputElement) createCode.required = createPrivacy === "private";
+
+  renderPlayers();
+  renderRound();
 
   if (!room) return;
   setToggle("room-privacy", room.privacy);
@@ -239,7 +283,219 @@ function render(): void {
   if (roomCodeRow) roomCodeRow.hidden = room.privacy !== "private";
   if (roomCode instanceof HTMLInputElement && roomCode.value !== room.code) roomCode.value = room.code;
   if (roomDifficulty instanceof HTMLSelectElement) roomDifficulty.value = room.difficulty;
-  if (roomWord) roomWord.textContent = room.word;
+  renderPlayers();
+  renderRound();
+}
+
+function renderPlayers(): void {
+  if (playersPanel) playersPanel.hidden = room === null || round !== null;
+  if (playersLine) {
+    const missing = PLAYERS_NEEDED - players.length;
+    playersLine.textContent = missing > 0
+      ? `Add ${missing} more ${missing === 1 ? "person" : "people"} to start a whisper.`
+      : `${players.length} people. Ready to whisper.`;
+  }
+  if (playersList) {
+    playersList.innerHTML = "";
+    for (const name of players) {
+      const item = document.createElement("li");
+      const remove = document.createElement("button");
+      item.textContent = name;
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", `Remove ${name}`);
+      remove.addEventListener("click", () => {
+        players = players.filter((player) => player !== name);
+        saveNames(PLAYERS_KEY, players);
+        render();
+      });
+      item.append(remove);
+      playersList.append(item);
+    }
+  }
+  if (bannedLine) {
+    bannedLine.hidden = banned.length === 0;
+    bannedLine.textContent = `Banned forever: ${banned.join(", ")}`;
+  }
+  if (startRound) startRound.hidden = players.length < PLAYERS_NEEDED;
+}
+
+addPlayerForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!(playerName instanceof HTMLInputElement)) return;
+  const name = playerName.value.trim();
+  if (!name) return;
+  if (banned.includes(name)) {
+    if (playersLine) playersLine.textContent = `${name} is banned forever. Nice try.`;
+    return;
+  }
+  if (!players.includes(name)) players.push(name);
+  saveNames(PLAYERS_KEY, players);
+  playerName.value = "";
+  render();
+});
+
+startRound?.addEventListener("click", () => void beginRound());
+
+async function beginRound(): Promise<void> {
+  if (!room || players.length < PLAYERS_NEEDED) return;
+  try {
+    roundStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    if (playersLine) playersLine.textContent = "No microphone, no whispering. Let the browser use it first.";
+    return;
+  }
+  // Shuffled, so whoever goes first is nobody's choice.
+  const order = shuffle(players);
+  round = { order, index: 0, clips: [], guess: "", word: room.word, phase: "recording" };
+  render();
+}
+
+function renderRound(): void {
+  if (roundPanel) roundPanel.hidden = round === null;
+  if (!round) return;
+
+  const current = round.order[round.index] ?? "";
+  const isFirst = round.index === 0;
+  const isLast = round.index === round.order.length - 1;
+  const judging = round.phase === "judging";
+  const done = round.phase === "done";
+
+  if (turnTitle) turnTitle.textContent = judging || done ? round.order[0] ?? "" : `${current}'s turn`;
+  if (turnLine) {
+    turnLine.textContent = done
+      ? ""
+      : judging
+        ? `They guessed "${round.guess}". Was that it?`
+        : isFirst
+          ? "Hold the mic button and say the word."
+          : isLast
+            ? "Listen, then type what you think it was."
+            : "Listen, then say what you think you heard.";
+  }
+
+  // The real word is only ever shown to the person who starts, and to the
+  // judge at the end.
+  if (roundWord) {
+    roundWord.hidden = !(isFirst && round.phase === "recording") && !judging && !done;
+    roundWord.textContent = round.word;
+  }
+
+  const previous = round.clips[round.index - 1];
+  if (previousClip instanceof HTMLAudioElement) {
+    previousClip.hidden = !previous || (round.phase !== "recording" && round.phase !== "typing");
+    if (previous && previousClip.src !== previous) previousClip.src = previous;
+  }
+
+  if (micButton) micButton.hidden = round.phase !== "recording";
+  if (guessRow) guessRow.hidden = round.phase !== "typing";
+  if (judgeRow) judgeRow.hidden = !judging;
+  if (roundResult) roundResult.hidden = !done;
+  if (endRound) endRound.hidden = !done;
+  if (sendTurn) {
+    sendTurn.hidden = judging || done;
+    (sendTurn as HTMLButtonElement).disabled = round.phase === "recording" && pendingClip === undefined;
+  }
+}
+
+micButton?.addEventListener("click", () => {
+  if (!roundStream) return;
+  if (recorder && recorder.state === "recording") {
+    recorder.stop();
+    return;
+  }
+  recordedChunks = [];
+  recorder = new MediaRecorder(roundStream);
+  recorder.addEventListener("dataavailable", (event) => recordedChunks.push(event.data));
+  recorder.addEventListener("stop", () => {
+    pendingClip = URL.createObjectURL(new Blob(recordedChunks));
+    micButton.setAttribute("aria-pressed", "false");
+    micButton.textContent = "🎤";
+    renderRound();
+  });
+  recorder.start();
+  micButton.setAttribute("aria-pressed", "true");
+  micButton.textContent = "◼";
+});
+
+sendTurn?.addEventListener("click", () => {
+  if (!round) return;
+  if (round.phase === "typing") {
+    round.guess = finalGuess instanceof HTMLInputElement ? finalGuess.value.trim() : "";
+    round.phase = "judging";
+    renderRound();
+    return;
+  }
+  if (pendingClip === undefined) return;
+  round.clips[round.index] = pendingClip;
+  pendingClip = undefined;
+  round.index += 1;
+  // The last person in the chain types their answer instead of recording.
+  round.phase = round.index === round.order.length - 1 ? "typing" : "recording";
+  renderRound();
+});
+
+judgeRow?.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-judge]");
+  if (!button || !round) return;
+  const correct = button.dataset["judge"] === "correct";
+  const lastPlayer = round.order[round.order.length - 1] ?? "";
+  if (!correct) {
+    // Oscar's rule: get it wrong and you are out of this game forever.
+    if (!banned.includes(lastPlayer)) banned.push(lastPlayer);
+    players = players.filter((player) => player !== lastPlayer);
+    saveNames(BANNED_KEY, banned);
+    saveNames(PLAYERS_KEY, players);
+  }
+  round.phase = "done";
+  if (roundResult) {
+    roundResult.textContent = correct
+      ? `It was "${round.word}". Everybody wins!`
+      : `It was "${round.word}", not "${round.guess}". ${lastPlayer} is banned forever.`;
+  }
+  render();
+});
+
+endRound?.addEventListener("click", () => {
+  finishRound();
+  render();
+});
+
+function finishRound(): void {
+  for (const clip of round?.clips ?? []) if (clip) URL.revokeObjectURL(clip);
+  for (const track of roundStream?.getTracks() ?? []) track.stop();
+  roundStream = null;
+  recorder = null;
+  pendingClip = undefined;
+  round = null;
+  if (finalGuess instanceof HTMLInputElement) finalGuess.value = "";
+}
+
+function shuffle(names: string[]): string[] {
+  const copy = [...names];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const a = copy[i];
+    const b = copy[j];
+    if (a !== undefined && b !== undefined) {
+      copy[i] = b;
+      copy[j] = a;
+    }
+  }
+  return copy;
+}
+
+function loadNames(key: string): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "[]") as unknown;
+    return Array.isArray(parsed) ? parsed.filter((name): name is string => typeof name === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveNames(key: string, names: string[]): void {
+  localStorage.setItem(key, JSON.stringify(names));
 }
 
 function describeRoom(current: Room): string {

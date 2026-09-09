@@ -92,9 +92,47 @@
             <p class="tele-hint" id="room-code-hint">Anyone who wants in has to type this in.</p>
           </div>
 
-          <span class="tele-label">Word to whisper</span>
-          <p class="tele-word" id="room-word">—</p>
           <button class="tele-button tele-button-quiet" id="close-room" type="button">Hang Up the Room</button>
+        </div>
+      </section>
+
+      <section class="menu-container" id="players-panel" hidden>
+        <div class="section-header">
+          <h2>Who's Playing</h2>
+          <p class="section-copy" id="players-line">Add at least 5 people.</p>
+        </div>
+        <form class="tele-form" id="add-player-form">
+          <label class="tele-label" for="player-name">Add a person</label>
+          <div class="tele-add-row">
+            <input class="tele-input" id="player-name" maxlength="20" autocomplete="off" placeholder="Oscar" required />
+            <button class="tele-button" type="submit">Add</button>
+          </div>
+        </form>
+        <ul class="tele-players" id="players-list"></ul>
+        <p class="tele-hint" id="banned-line" hidden></p>
+        <button class="tele-button" id="start-round" type="button" hidden>Start the Whisper</button>
+      </section>
+
+      <section class="menu-container" id="round-panel" hidden>
+        <div class="section-header">
+          <h2 id="turn-title">Turn</h2>
+          <p class="section-copy" id="turn-line"></p>
+        </div>
+        <div class="tele-form">
+          <p class="tele-word" id="round-word" hidden>—</p>
+          <audio class="tele-audio" id="previous-clip" controls hidden></audio>
+          <button class="tele-mic" id="mic-button" type="button" aria-pressed="false" aria-label="Record your voice" hidden>🎤</button>
+          <div class="tele-code-row" id="guess-row" hidden>
+            <label class="tele-label" for="final-guess">What do you think it was?</label>
+            <input class="tele-input" id="final-guess" maxlength="80" autocomplete="off" />
+          </div>
+          <div class="tele-toggle" id="judge-row" hidden>
+            <button class="tele-toggle-option" type="button" data-judge="correct">Correct</button>
+            <button class="tele-toggle-option" type="button" data-judge="incorrect">Incorrect</button>
+          </div>
+          <p class="tele-result" id="round-result" hidden></p>
+          <button class="tele-button" id="send-turn" type="button" hidden>Send</button>
+          <button class="tele-button tele-button-quiet" id="end-round" type="button" hidden>Back to the Room</button>
         </div>
       </section>
     </main>
