@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Telephone</title>
     <link rel="stylesheet" href="../../styles/main.css" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="games4-hub">
     <main class="menu-shell">
@@ -18,16 +19,65 @@
             </svg>
           </a>
         </div>
-        <p class="subtitle">RING RING. NOBODY HAS PICKED UP YET.</p>
+        <p class="subtitle" id="tagline">PICK UP. IT'S FOR YOU.</p>
         <div class="hero-stripes games4-stripes" aria-hidden="true"></div>
       </section>
 
       <section class="menu-container">
         <div class="section-header">
-          <h2>Not Built Yet</h2>
-          <p class="section-copy">Oscar knows the name. The game is next.</p>
+          <h2>Microphone</h2>
+          <p class="section-copy" id="mic-status" role="status">Asking your browser for the microphone…</p>
+        </div>
+        <button class="tele-button tele-button-quiet" id="mic-retry" type="button" hidden>Ask Again</button>
+      </section>
+
+      <section class="menu-container" id="create-panel" hidden>
+        <div class="section-header">
+          <h2>Make a Room</h2>
+          <p class="section-copy">Name your group, then pick who gets in.</p>
+        </div>
+        <form class="tele-form" id="create-form">
+          <label class="tele-label" for="group-name">Group name</label>
+          <input class="tele-input" id="group-name" maxlength="24" autocomplete="off" placeholder="The Loud Ones" required />
+
+          <span class="tele-label">Who can join</span>
+          <div class="tele-toggle" id="create-privacy" role="group" aria-label="Who can join">
+            <button class="tele-toggle-option" type="button" data-privacy="public" aria-pressed="true">Public</button>
+            <button class="tele-toggle-option" type="button" data-privacy="private" aria-pressed="false">Private</button>
+          </div>
+
+          <div class="tele-code-row" id="create-code-row" hidden>
+            <label class="tele-label" for="create-code">Secret code</label>
+            <input class="tele-input" id="create-code" maxlength="12" autocomplete="off" placeholder="1234" />
+            <p class="tele-hint">Anyone who wants in has to type this in.</p>
+          </div>
+
+          <button class="tele-button" type="submit">Create Room</button>
+        </form>
+      </section>
+
+      <section class="menu-container" id="room-panel" hidden>
+        <div class="section-header">
+          <h2 id="room-name">Your Room</h2>
+          <p class="section-copy" id="room-line">Nobody has dialled in yet.</p>
+        </div>
+        <div class="tele-form">
+          <span class="tele-label">Who can join</span>
+          <div class="tele-toggle" id="room-privacy" role="group" aria-label="Who can join">
+            <button class="tele-toggle-option" type="button" data-privacy="public" aria-pressed="true">Public</button>
+            <button class="tele-toggle-option" type="button" data-privacy="private" aria-pressed="false">Private</button>
+          </div>
+
+          <div class="tele-code-row" id="room-code-row" hidden>
+            <label class="tele-label" for="room-code">Secret code</label>
+            <input class="tele-input" id="room-code" maxlength="12" autocomplete="off" placeholder="1234" />
+            <p class="tele-hint" id="room-code-hint">Anyone who wants in has to type this in.</p>
+          </div>
+
+          <button class="tele-button tele-button-quiet" id="close-room" type="button">Hang Up the Room</button>
         </div>
       </section>
     </main>
+    <script type="module" src="./main.ts"></script>
   </body>
 </html>
