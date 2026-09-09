@@ -36,6 +36,7 @@ export default defineConfig({
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
         games3: resolve(__dirname, "src/games3/index.html"),
+        games4: resolve(__dirname, "src/games4/index.html"),
         makeYourOwnBeatboxerThingy: resolve(
           __dirname,
           "src/games3/make-your-own-beatboxer-thingy/index.html"

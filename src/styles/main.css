@@ -638,6 +638,39 @@ h1.is-glitching::after {
     linear-gradient(180deg, #0b5a73, #06354f);
 }
 
+.games4-hub {
+  --bg: #0a0820;
+  --bg-accent: #1a1146;
+  --panel: #140f33;
+  --panel-2: #211a52;
+  --ink: #f4f0ff;
+  --muted: #b3a9e0;
+  --danger: #ff3d81;
+  --danger-dark: #8a1240;
+  --warn: #ffd23f;
+  background:
+    radial-gradient(circle at 15% 9%, rgba(255, 210, 63, 0.2), transparent 25%),
+    radial-gradient(circle at 85% 74%, rgba(255, 61, 129, 0.22), transparent 22%),
+    linear-gradient(180deg, #2b1b6b, #150e3a 70%, #0a0820);
+}
+
+.games4-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(255, 61, 129, 0.22), transparent 20%),
+    linear-gradient(135deg, #3a2489, #150e3a 68%);
+}
+
+.games4-stripes {
+  background: repeating-linear-gradient(-45deg, #ffd23f 0 22px, #241a5c 22px 44px);
+}
+
+/* Scoped to the hub so it outranks the plain .game-card background below. */
+.games4-hub .games4-game-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(255, 210, 63, 0.13), transparent 25%),
+    linear-gradient(180deg, #33236f, #180f3d);
+}
+
 .games3-hub .paper-game-item {
   display: flex;
 }
@@ -1196,6 +1229,12 @@ h1.is-glitching::after {
 .trap-floor:hover {
   transform: translateY(2px);
   filter: saturate(1.1);
+}
+
+.games4-trap-floor {
+  background: repeating-linear-gradient(-45deg, #ffd23f 0 22px, #241a5c 22px 44px);
+  color: #1a1146;
+  transition: transform 0.12s ease, filter 0.18s ease;
 }
 
 .games3-trap-floor {
