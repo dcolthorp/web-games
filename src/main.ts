@@ -123,7 +123,10 @@ interface Game {
   path: string;
   menuLabel?: string;
   genre: string;
-  blurb: string;
+  blurb?: string;
+  // A shortcut to a game that lives on another hub: drawn as a plain green
+  // dotted link box instead of a full card.
+  link?: true;
 }
 
 interface TrophyDropTarget {
@@ -163,6 +166,13 @@ const games: Game[] = [
     genre: "Pet Chaos",
     blurb: "Raise a weird little creature and keep its glitchy little life on track.",
   },
+  {
+    id: "a-kids-life",
+    name: "A Kid's Life",
+    path: "./games/a-kids-life/index.html",
+    genre: "Link",
+    link: true,
+  },
 ];
 
 function renderGameList(): void {
@@ -187,13 +197,13 @@ function renderGameList(): void {
     `
           : `
       <li>
-        <a class="game-card hub-asset" data-asset-id="card-${game.id}" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
+        <a class="game-card${game.link ? " game-card-link" : ""} hub-asset" data-asset-id="card-${game.id}" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
           <span class="game-card-top hub-asset" data-asset-id="card-top-${game.id}">
             <span class="game-tag hub-asset" data-asset-id="card-tag-${game.id}">${game.genre}</span>
             <span class="game-arrow hub-asset" data-asset-id="card-arrow-${game.id}" aria-hidden="true">→</span>
           </span>
           <span class="game-title hub-asset" data-asset-id="card-title-${game.id}">${game.menuLabel ?? game.name}</span>
-          <span class="game-blurb hub-asset" data-asset-id="card-blurb-${game.id}">${game.blurb}</span>
+          ${game.blurb ? `<span class="game-blurb hub-asset" data-asset-id="card-blurb-${game.id}">${game.blurb}</span>` : ""}
         </a>
       </li>
     `

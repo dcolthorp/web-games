@@ -866,6 +866,31 @@ h1.is-glitching::after {
   box-shadow: 10px 16px 0 #000;
 }
 
+/* A shortcut to a game that lives on another hub: a green dotted box with a
+   gray middle, so it reads as a link rather than one of Oscar's own games. */
+.game-card-link {
+  border: 3px dashed #3fbf5a;
+  background: #a3a3aa;
+  color: #0f0f14;
+  box-shadow: none;
+}
+
+.game-card-link:hover {
+  border-color: #6cf089;
+  box-shadow: 8px 12px 0 #000;
+}
+
+.game-card-link .game-tag {
+  padding: 0;
+  background: none;
+  color: #0b5f28;
+}
+
+.game-card-link .game-arrow,
+.game-card-link .game-title {
+  color: #0f0f14;
+}
+
 .mod-card {
   display: flex;
   flex-direction: column;
