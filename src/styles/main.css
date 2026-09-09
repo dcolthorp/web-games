@@ -660,6 +660,11 @@ h1.is-glitching::after {
     linear-gradient(135deg, #3a2489, #150e3a 68%);
 }
 
+/* One lonely game shouldn't stretch across the whole hub. */
+.games4-hub .game-list {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
 .games4-stripes {
   background: repeating-linear-gradient(-45deg, #ffd23f 0 22px, #241a5c 22px 44px);
 }

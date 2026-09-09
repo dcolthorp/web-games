@@ -14,15 +14,24 @@ interface Game {
 }
 
 const games: Game[] = [
-  // Add Games 4 entries here, then register the game's index.html in vite.config.ts
+  {
+    id: "telephone",
+    name: "Telephone",
+    path: "./telephone/index.html",
+    genre: "???",
+    blurb: "The only game down here so far.",
+  },
 ];
 
+const GAMES_FOUND_KEY = "games4-games-found";
+
+// The games are hiding under the floor until you catch it.
 function renderGameList(): void {
   const list = document.getElementById("game-list");
   if (!list) return;
 
-  if (games.length === 0) {
-    list.innerHTML = '<li class="empty-state">No games yet. Oscar is still cooking.</li>';
+  if (localStorage.getItem(GAMES_FOUND_KEY) !== "true") {
+    list.innerHTML = '<li class="empty-state">No games yet. (Try catching the floor.)</li>';
     return;
   }
 
@@ -73,6 +82,8 @@ if (trapFloor4 instanceof HTMLButtonElement) {
   trapFloor4.addEventListener("click", () => {
     caught = true;
     trapFloor4.style.transform = "";
-    trapFloor4.textContent = "YOU GOT ME. THERE IS NOTHING DOWN HERE YET.";
+    trapFloor4.textContent = "HERE ARE YOUR GAMES";
+    localStorage.setItem(GAMES_FOUND_KEY, "true");
+    renderGameList();
   });
 }
