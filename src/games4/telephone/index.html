@@ -46,6 +46,9 @@
             <button class="tele-toggle-option" type="button" data-privacy="private" aria-pressed="false">Private</button>
           </div>
 
+          <label class="tele-label" for="create-difficulty">How hard are the words</label>
+          <select class="tele-input" id="create-difficulty"></select>
+
           <div class="tele-code-row" id="create-code-row" hidden>
             <label class="tele-label" for="create-code">Secret code</label>
             <input class="tele-input" id="create-code" maxlength="12" autocomplete="off" placeholder="1234" />
@@ -68,11 +71,18 @@
             <button class="tele-toggle-option" type="button" data-privacy="private" aria-pressed="false">Private</button>
           </div>
 
+          <label class="tele-label" for="room-difficulty">How hard are the words</label>
+          <select class="tele-input" id="room-difficulty"></select>
+
           <div class="tele-code-row" id="room-code-row" hidden>
             <label class="tele-label" for="room-code">Secret code</label>
             <input class="tele-input" id="room-code" maxlength="12" autocomplete="off" placeholder="1234" />
             <p class="tele-hint" id="room-code-hint">Anyone who wants in has to type this in.</p>
           </div>
+
+          <span class="tele-label">Word to whisper</span>
+          <p class="tele-word" id="room-word">—</p>
+          <button class="tele-button" id="new-word" type="button">New Word</button>
 
           <button class="tele-button tele-button-quiet" id="close-room" type="button">Hang Up the Room</button>
         </div>
