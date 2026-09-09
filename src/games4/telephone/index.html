@@ -42,11 +42,17 @@
 
           <span class="tele-label">Who can join</span>
           <div class="tele-toggle" id="create-privacy" role="group" aria-label="Who can join">
-            <button class="tele-toggle-option" type="button" data-privacy="public" aria-pressed="true">Public</button>
-            <button class="tele-toggle-option" type="button" data-privacy="private" aria-pressed="false">Private</button>
+            <button class="tele-toggle-option" type="button" data-choice="public" aria-pressed="true">Public</button>
+            <button class="tele-toggle-option" type="button" data-choice="private" aria-pressed="false">Private</button>
           </div>
 
-          <label class="tele-label" for="create-difficulty">How hard are the words</label>
+          <span class="tele-label">Words or phrases</span>
+          <div class="tele-toggle" id="create-mode" role="group" aria-label="Words or phrases">
+            <button class="tele-toggle-option" type="button" data-choice="words" aria-pressed="true">Words</button>
+            <button class="tele-toggle-option" type="button" data-choice="phrases" aria-pressed="false">Phrases</button>
+          </div>
+
+          <label class="tele-label" for="create-difficulty">How hard are they</label>
           <select class="tele-input" id="create-difficulty"></select>
 
           <div class="tele-code-row" id="create-code-row" hidden>
@@ -67,11 +73,17 @@
         <div class="tele-form">
           <span class="tele-label">Who can join</span>
           <div class="tele-toggle" id="room-privacy" role="group" aria-label="Who can join">
-            <button class="tele-toggle-option" type="button" data-privacy="public" aria-pressed="true">Public</button>
-            <button class="tele-toggle-option" type="button" data-privacy="private" aria-pressed="false">Private</button>
+            <button class="tele-toggle-option" type="button" data-choice="public" aria-pressed="true">Public</button>
+            <button class="tele-toggle-option" type="button" data-choice="private" aria-pressed="false">Private</button>
           </div>
 
-          <label class="tele-label" for="room-difficulty">How hard are the words</label>
+          <span class="tele-label">Words or phrases</span>
+          <div class="tele-toggle" id="room-mode" role="group" aria-label="Words or phrases">
+            <button class="tele-toggle-option" type="button" data-choice="words" aria-pressed="true">Words</button>
+            <button class="tele-toggle-option" type="button" data-choice="phrases" aria-pressed="false">Phrases</button>
+          </div>
+
+          <label class="tele-label" for="room-difficulty">How hard are they</label>
           <select class="tele-input" id="room-difficulty"></select>
 
           <div class="tele-code-row" id="room-code-row" hidden>
