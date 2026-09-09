@@ -105,7 +105,6 @@ const roomCode = document.getElementById("room-code");
 const roomCodeRow = document.getElementById("room-code-row");
 const roomDifficulty = document.getElementById("room-difficulty");
 const roomWord = document.getElementById("room-word");
-const newWord = document.getElementById("new-word");
 const closeRoom = document.getElementById("close-room");
 
 fillDifficultyOptions(createDifficulty);
@@ -180,13 +179,6 @@ roomDifficulty?.addEventListener("change", () => {
   if (!room) return;
   const difficulty = readDifficulty(roomDifficulty);
   room = { ...room, difficulty, word: pickWord(difficulty, room.mode) };
-  saveRoom(room);
-  render();
-});
-
-newWord?.addEventListener("click", () => {
-  if (!room) return;
-  room = { ...room, word: pickWord(room.difficulty, room.mode) };
   saveRoom(room);
   render();
 });
