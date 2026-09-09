@@ -52,15 +52,22 @@ const trapFloor4 = document.getElementById("trap-floor-4");
 if (trapFloor4 instanceof HTMLButtonElement) {
   let dodges = 0;
   let caught = false;
+  let givenUp = false;
 
   trapFloor4.addEventListener("pointermove", (event) => {
-    if (caught || dodges >= 6) return;
+    if (caught || givenUp) return;
+    // One dodge in a hundred, it gets tired and holds still for you.
+    if (Math.random() < 0.01) {
+      givenUp = true;
+      trapFloor4.textContent = "OK FINE, CATCH ME";
+      return;
+    }
     const bounds = trapFloor4.getBoundingClientRect();
     // Shove it away from whichever side the pointer came in on.
     const away = event.clientX < bounds.left + bounds.width / 2 ? 1 : -1;
     dodges += 1;
-    trapFloor4.style.transform = `translate(${away * (20 + dodges * 12)}px, ${dodges % 2 ? 10 : -10}px)`;
-    trapFloor4.textContent = dodges >= 6 ? "OK FINE, CATCH ME" : "NOPE!";
+    trapFloor4.style.transform = `translate(${away * (20 + (dodges % 6) * 12)}px, ${dodges % 2 ? 10 : -10}px)`;
+    trapFloor4.textContent = "NOPE!";
   });
 
   trapFloor4.addEventListener("click", () => {
