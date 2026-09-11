@@ -125,12 +125,60 @@ function dropRunTv(): void {
   const tv = document.createElement("div");
   tv.className = "run-tv";
   tv.setAttribute("role", "img");
-  tv.setAttribute("aria-label", "A television on a wire showing the word RUN");
   tv.innerHTML = `
     <div class="run-tv-wire" aria-hidden="true"></div>
     <div class="run-tv-body">
-      <div class="run-tv-screen"><span>RUN</span></div>
+      <div class="run-tv-screen"><span></span></div>
     </div>
   `;
+  showTvText(tv, tvText);
   document.body.appendChild(tv);
 }
+
+// What the TV says. Type "tvrename" anywhere on this page, or call
+// TVRename("...") in the browser console, to change it. It stays changed.
+const TV_TEXT_KEY = "games4-tv-text";
+const TV_CODE = "tvrename";
+let tvText = readTvText();
+
+function readTvText(): string {
+  try {
+    return localStorage.getItem(TV_TEXT_KEY) || "RUN";
+  } catch {
+    return "RUN";
+  }
+}
+
+// Smaller letters the longer it is, so it fits on the screen.
+function showTvText(tv: Element, text: string): void {
+  const screen = tv.querySelector<HTMLElement>(".run-tv-screen span");
+  if (!screen) return;
+  screen.textContent = text;
+  screen.style.fontSize = text.length > 14 ? "1.4rem" : text.length > 5 ? "2.2rem" : "";
+  tv.setAttribute("aria-label", `A television on a wire showing ${text}`);
+}
+
+function setTvText(text: string): void {
+  tvText = text.trim().slice(0, 40) || "RUN";
+  try {
+    localStorage.setItem(TV_TEXT_KEY, tvText);
+  } catch {
+    // It'll only say it until the page reloads.
+  }
+  const tv = document.querySelector(".run-tv");
+  if (tv) showTvText(tv, tvText);
+}
+
+let typedCode = "";
+window.addEventListener("keydown", (event) => {
+  if (event.key.length !== 1 || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+    return;
+  }
+  typedCode = (typedCode + event.key.toLowerCase()).slice(-TV_CODE.length);
+  if (typedCode !== TV_CODE) return;
+  typedCode = "";
+  const text = window.prompt("What should the TV say?", tvText);
+  if (text !== null) setTvText(text);
+});
+
+Object.assign(window, { TVRename: setTvText });

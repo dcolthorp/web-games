@@ -1285,9 +1285,13 @@ h1.is-glitching::after {
 }
 
 .run-tv-screen span {
+  padding: 0 10px;
   color: #04220d;
   font-size: clamp(3rem, 9vw, 6rem);
+  line-height: 1.05;
   letter-spacing: 0.14em;
+  text-align: center;
+  overflow-wrap: anywhere;
   text-shadow: 0 3px 0 rgba(255, 255, 255, 0.35);
 }
 

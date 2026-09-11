@@ -148,6 +148,71 @@ export function drawDust(dust: Dust[], color: string): void {
   ctx.globalAlpha = 1;
 }
 
+// The saw from The Room With Nothing, handle on the right.
+export function drawSaw(x: number, y: number, angle: number, scale = 1): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(scale, scale);
+
+  // Blade: tall at the handle, narrowing to the tip, with teeth underneath.
+  const blade = ctx.createLinearGradient(0, -18, 0, 14);
+  blade.addColorStop(0, "#eef2f5");
+  blade.addColorStop(1, "#9aa5ad");
+  ctx.fillStyle = blade;
+  ctx.beginPath();
+  ctx.moveTo(-70, 2);
+  ctx.lineTo(-70, -6);
+  ctx.lineTo(32, -18);
+  ctx.lineTo(32, 12);
+  const teeth = 14;
+  for (let i = 0; i <= teeth; i += 1) {
+    const tx = 32 - (102 * i) / teeth;
+    const ty = 12 - (10 * i) / teeth;
+    ctx.lineTo(tx, ty + (i % 2 === 0 ? 0 : 6));
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#5d666c";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = "#b5552b";
+  roundRect(28, -24, 40, 44, 12);
+  ctx.fill();
+  ctx.fillStyle = "#3a2a22";
+  roundRect(40, -14, 18, 22, 7);
+  ctx.fill();
+  ctx.fillStyle = "#d9d9d9";
+  for (const by of [-16, 12]) {
+    ctx.beginPath();
+    ctx.arc(34, by, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// Where every secret way goes for now: nobody has built the bonus levels yet.
+export function drawBonusCard(secondsIn: number): void {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = clamp(secondsIn / 0.4, 0, 1);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#c77dff";
+  ctx.font = "bold 26px 'Trebuchet MS', sans-serif";
+  ctx.fillText("YOU FOUND A SECRET WAY", W / 2, H / 2 - 80);
+  ctx.fillStyle = "#f5efe6";
+  ctx.font = "64px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+  ctx.fillText("BONUS LEVEL", W / 2, H / 2 - 10);
+  ctx.fillStyle = "#b9adc4";
+  ctx.font = "20px 'Trebuchet MS', sans-serif";
+  ctx.fillText("Nobody has built this one yet.", W / 2, H / 2 + 55);
+  ctx.fillText("Click to go back.", W / 2, H / 2 + 90);
+  ctx.globalAlpha = 1;
+}
+
 export function poly(...points: [number, number][]): void {
   ctx.beginPath();
   points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));

@@ -4,9 +4,11 @@ import {
   clamp,
   ctx,
   diveInto,
+  drawBonusCard,
   drawCaption,
   drawDust,
   drawRoomBox,
+  drawSaw,
   drawVignette,
   inRect,
   lerp,
@@ -19,11 +21,14 @@ import {
   type Room,
 } from "./engine";
 import { sounds } from "./sound";
+import { selectedTool } from "./tools";
 
 // Escape Room 2: Workbench. Take the five sheets of plywood off the workbench
 // and stand them up in the 5 × 5 space on the wall. Each one is one block wide
 // and five blocks tall, so five of them fill it. Then whack the finished wall
 // with the door knob lying on the floor, and it falls over to show a way out.
+// With the saw from room 1 you can cut a doorway out of the finished wall
+// instead, and behind it is a secret way to a bonus level.
 
 type Stage =
   | "build" // carrying plywood and the knob around
@@ -31,6 +36,8 @@ type Stage =
   | "toppling" // the wall falls over
   | "open" // the escape route is showing
   | "leaving" // crawling into it
+  | "bonusIn" // going through the secret doorway
+  | "bonus" // the bonus level card
   | "escaped";
 
 type Held = "none" | "plank" | "knob";
@@ -68,6 +75,11 @@ const BONK_MS = 450;
 const TOPPLE_MS = 750;
 const LEAVE_MS = 1500;
 
+// The secret doorway the saw cuts in the middle of the finished wall.
+const DOOR = { x: GRID.x + 80, y: GRID.y + 70, w: 80, h: GRID.size - 70 };
+const DOOR_CUT_MS = 1600;
+const BONUS_IN_MS = 900;
+
 export function createWorkbenchRoom(escape: () => void): Room {
   let stage: Stage = "build";
   let stageStart = 0;
@@ -81,6 +93,9 @@ export function createWorkbenchRoom(escape: () => void): Room {
   let wobbleStart = -Infinity;
   let swingStart = -Infinity;
   let swingAt: Point = { ...KNOB_HOME };
+  let doorCutAt: number | null = null;
+  let doorOpened = false;
+  let lastStroke = 0;
 
   function setStage(next: Stage, now: number): void {
     stage = next;
@@ -98,9 +113,12 @@ export function createWorkbenchRoom(escape: () => void): Room {
     dust = [];
     wobbleStart = -Infinity;
     swingStart = -Infinity;
+    doorCutAt = null;
+    doorOpened = false;
   }
 
   const wallComplete = (): boolean => placed.every(Boolean);
+  const overDoor = (p: Point): boolean => doorOpened && inRect(p, DOOR.x, DOOR.y, DOOR.w, DOOR.h);
 
   // ---------- hit tests ----------
 
@@ -136,12 +154,26 @@ export function createWorkbenchRoom(escape: () => void): Room {
     pointer = p;
     const now = performance.now();
 
+    if (stage === "bonus") {
+      setStage("build", now);
+      return;
+    }
     if (stage === "open" && overWall(p)) {
       sounds.whoosh(LEAVE_MS / 1000);
       setStage("leaving", now);
       return;
     }
     if (stage !== "build") return;
+
+    if (held === "none" && overDoor(p)) {
+      sounds.whoosh(BONUS_IN_MS / 1000);
+      setStage("bonusIn", now);
+      return;
+    }
+    if (held === "none" && selectedTool() === "saw") {
+      sawAt(p, now);
+      return;
+    }
 
     if (held === "none") {
       if (overStack(p)) {
@@ -178,6 +210,16 @@ export function createWorkbenchRoom(escape: () => void): Room {
     }
   }
 
+  // The saw only really cuts the finished wall. Anything else just gets sawdust.
+  function sawAt(p: Point, now: number): void {
+    if (overWall(p) && wallComplete() && doorCutAt === null) {
+      doorCutAt = now;
+    } else if (overWall(p) || overStack(p)) {
+      sounds.stroke();
+      puff(p, 10);
+    }
+  }
+
   function pointerMove(p: Point): void {
     pointer = p;
   }
@@ -185,8 +227,10 @@ export function createWorkbenchRoom(escape: () => void): Room {
   function pointerUp(): void {}
 
   function cursor(p: Point): string {
+    if (stage === "bonus") return "pointer";
     if (stage === "build") {
-      if (held !== "none") return "none";
+      if (held === "none" && overDoor(p)) return "pointer";
+      if (held !== "none" || selectedTool() === "saw") return "none";
       return overStack(p) || overKnob(p) ? "pointer" : "default";
     }
     if (stage === "open" && overWall(p)) return "pointer";
@@ -215,6 +259,30 @@ export function createWorkbenchRoom(escape: () => void): Room {
     } else if (stage === "leaving" && elapsed >= LEAVE_MS) {
       setStage("escaped", now);
       escape();
+    } else if (stage === "bonusIn" && elapsed >= BONUS_IN_MS) {
+      setStage("bonus", now);
+    }
+
+    if (doorCutAt !== null && !doorOpened) {
+      if (now - doorCutAt < DOOR_CUT_MS) {
+        if (now - lastStroke > 300) {
+          lastStroke = now;
+          sounds.stroke();
+        }
+        puff(doorCutPoint((now - doorCutAt) / DOOR_CUT_MS), 1);
+      } else {
+        doorOpened = true;
+        sounds.crash();
+        for (let i = 0; i < 30; i += 1) {
+          dust.push({
+            x: lerp(DOOR.x, DOOR.x + DOOR.w, Math.random()),
+            y: lerp(DOOR.y, DOOR.y + DOOR.h, Math.random()),
+            vx: (Math.random() - 0.5) * 260,
+            vy: -Math.random() * 200,
+            life: 1,
+          });
+        }
+      }
     }
     dust = updateDust(dust, dt);
   }
@@ -346,7 +414,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
   }
 
   function drawWall(now: number): void {
-    if (stage === "build" || stage === "bonk") {
+    if (stage === "build" || stage === "bonk" || stage === "bonusIn") {
       let shake = 0;
       const elapsed = now - stageStart;
       const wobble = now - wobbleStart;
@@ -355,6 +423,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
       placed.forEach((isPlaced, c) => {
         if (isPlaced) drawUprightPlank(GRID.x + c * BLOCK + shake, GRID.y, c + 1);
       });
+      drawSecretDoor(now);
       return;
     }
     const t = stage === "toppling" ? Math.min(1, (now - stageStart) / TOPPLE_MS) : 1;
@@ -442,6 +511,55 @@ export function createWorkbenchRoom(escape: () => void): Room {
     ctx.strokeStyle = "#2c3134";
     ctx.lineWidth = 6;
     ctx.strokeRect(L, T, R - L, B - T);
+  }
+
+  // Where the saw is along the doorway: up the left side, across the top, and
+  // down the right.
+  function doorCutPoint(t: number): Point {
+    let d = clamp(t, 0, 1) * (DOOR.h * 2 + DOOR.w);
+    if (d < DOOR.h) return { x: DOOR.x, y: DOOR.y + DOOR.h - d };
+    d -= DOOR.h;
+    if (d < DOOR.w) return { x: DOOR.x + d, y: DOOR.y };
+    return { x: DOOR.x + DOOR.w, y: DOOR.y + d - DOOR.w };
+  }
+
+  function drawSecretDoor(now: number): void {
+    if (doorCutAt === null) return;
+    if (!doorOpened) {
+      const t = (now - doorCutAt) / DOOR_CUT_MS;
+      ctx.strokeStyle = "#3a2410";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(DOOR.x, DOOR.y + DOOR.h);
+      for (let i = 1; i <= 60; i += 1) {
+        const q = doorCutPoint((t * i) / 60);
+        ctx.lineTo(q.x, q.y);
+      }
+      ctx.stroke();
+      const q = doorCutPoint(t);
+      drawSaw(q.x + 30 + Math.sin(now / 45) * 12, q.y, -0.3);
+      return;
+    }
+
+    const inside = ctx.createLinearGradient(0, DOOR.y, 0, DOOR.y + DOOR.h);
+    inside.addColorStop(0, "#12051f");
+    inside.addColorStop(1, "#3a1063");
+    ctx.fillStyle = inside;
+    ctx.fillRect(DOOR.x, DOOR.y, DOOR.w, DOOR.h);
+    // Glowing steps going down
+    ctx.fillStyle = `rgba(199, 125, 255, ${0.35 + 0.2 * Math.sin(now / 300)})`;
+    for (let i = 0; i < 4; i += 1) {
+      const w = DOOR.w - 16 - i * 12;
+      ctx.fillRect(DOOR.x + (DOOR.w - w) / 2, DOOR.y + DOOR.h - 12 - i * 22, w, 8);
+    }
+    ctx.fillStyle = "#f0e0ff";
+    ctx.font = "bold 14px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("BONUS", DOOR.x + DOOR.w / 2, DOOR.y + 20);
+    ctx.strokeStyle = "#8a6536";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(DOOR.x, DOOR.y, DOOR.w, DOOR.h);
   }
 
   function drawBench(): void {
@@ -562,16 +680,22 @@ export function createWorkbenchRoom(escape: () => void): Room {
   }
 
   function draw(now: number): void {
+    if (stage === "bonus") {
+      drawBonusCard((now - stageStart) / 1000);
+      return;
+    }
     ctx.save();
     let fade = 0;
     if (stage === "leaving") {
       fade = diveInto(TUNNEL_CENTER.x, TUNNEL_CENTER.y, Math.min(1, (now - stageStart) / LEAVE_MS));
+    } else if (stage === "bonusIn") {
+      fade = diveInto(DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h / 2, Math.min(1, (now - stageStart) / BONUS_IN_MS));
     }
 
     drawRoomBox(PALETTE);
     drawTubeLight();
     drawPegboard();
-    if (stage === "build" || stage === "bonk") drawOutline();
+    if (stage === "build" || stage === "bonk" || stage === "bonusIn") drawOutline();
     else drawTunnel(now);
     drawWall(now);
     drawBench();
@@ -579,6 +703,8 @@ export function createWorkbenchRoom(escape: () => void): Room {
     drawDust(dust, "#d7ae72");
     drawKnobForStage(now);
     drawHeldPlank();
+    const cutting = doorCutAt !== null && !doorOpened;
+    if (stage === "build" && held === "none" && selectedTool() === "saw" && !cutting) drawSaw(pointer.x, pointer.y, -0.35);
     ctx.restore();
 
     drawVignette();

@@ -7,6 +7,7 @@ import {
   drawCaption,
   drawDust,
   drawRoomBox,
+  drawSaw,
   drawVignette,
   inRect,
   lerp,
@@ -18,10 +19,12 @@ import {
   type Room,
 } from "./engine";
 import { sounds } from "./sound";
+import { findTool, hasFound } from "./tools";
 
 // Escape Room 1: a room with no door, no window, no nothing. The way out makes
 // no sense on purpose: click the mirror, wait, take the saw that pops out, saw
 // the table in half, push the halves back together, and they make a hole.
+// Click the mirror again after that and there's another saw you can keep.
 
 type Stage =
   | "mirror" // nothing has happened yet
@@ -79,6 +82,9 @@ export function createNothingRoom(escape: () => void): Room {
   let sliding: Half | null = null;
   let dust: Dust[] = [];
   let lastStroke = 0;
+  // The second saw, the one you get to take with you.
+  let spareSaw: "none" | "out" | "taken" = "none";
+  let spareSawAt = 0;
 
   function setStage(next: Stage): void {
     stage = next;
@@ -95,6 +101,7 @@ export function createNothingRoom(escape: () => void): Room {
     dragging = null;
     sliding = null;
     dust = [];
+    spareSaw = "none";
   }
 
   // ---------- hit tests ----------
@@ -143,6 +150,15 @@ export function createNothingRoom(escape: () => void): Room {
         dragging = { half, lastX: p.x, moved: 0 };
         sliding = null;
       }
+    } else if (stage === "hole" && spareSaw === "none" && !hasFound("saw") && overMirror(p)) {
+      sounds.pop();
+      spareSaw = "out";
+      spareSawAt = performance.now();
+    } else if (stage === "hole" && spareSaw === "out" && overSaw(p)) {
+      sounds.chime();
+      spareSaw = "taken";
+      spareSawAt = performance.now();
+      findTool("saw");
     } else if (stage === "hole" && overHole(p)) {
       sounds.whoosh(FALL_MS / 1000);
       setStage("falling");
@@ -181,6 +197,8 @@ export function createNothingRoom(escape: () => void): Room {
     if (stage === "saw" && overSaw(p)) return "grab";
     if (stage === "holding" || stage === "sawing") return "none";
     if (stage === "halves") return dragging ? "grabbing" : overHalf(p) ? "grab" : "default";
+    if (stage === "hole" && spareSaw === "out" && overSaw(p)) return "grab";
+    if (stage === "hole" && spareSaw === "none" && !hasFound("saw") && overMirror(p)) return "pointer";
     if (stage === "hole" && overHole(p)) return "pointer";
     return "default";
   }
@@ -305,58 +323,20 @@ export function createNothingRoom(escape: () => void): Room {
     ctx.restore();
   }
 
-  function drawSaw(x: number, y: number, angle: number, scale = 1): void {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.scale(scale, scale);
-
-    // Blade: tall at the handle, narrowing to the tip, with teeth underneath.
-    const blade = ctx.createLinearGradient(0, -18, 0, 14);
-    blade.addColorStop(0, "#eef2f5");
-    blade.addColorStop(1, "#9aa5ad");
-    ctx.fillStyle = blade;
-    ctx.beginPath();
-    ctx.moveTo(-70, 2);
-    ctx.lineTo(-70, -6);
-    ctx.lineTo(32, -18);
-    ctx.lineTo(32, 12);
-    const teeth = 14;
-    for (let i = 0; i <= teeth; i += 1) {
-      const tx = 32 - (102 * i) / teeth;
-      const ty = 12 - (10 * i) / teeth;
-      ctx.lineTo(tx, ty + (i % 2 === 0 ? 0 : 6));
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#5d666c";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = "#b5552b";
-    roundRect(28, -24, 40, 44, 12);
-    ctx.fill();
-    ctx.fillStyle = "#3a2a22";
-    roundRect(40, -14, 18, 22, 7);
-    ctx.fill();
-    ctx.fillStyle = "#d9d9d9";
-    for (const by of [-16, 12]) {
-      ctx.beginPath();
-      ctx.arc(34, by, 2.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
+  // Pops up out of the mirror, spins, and lands on top of the frame.
+  function drawPoppingSaw(elapsed: number, now: number): void {
+    const t = Math.min(1, elapsed / SAW_POP_MS);
+    const y = lerp(MIRROR.y + MIRROR.h / 2, SAW_REST.y, t) - 150 * Math.sin(Math.PI * t);
+    const bob = t >= 1 ? Math.sin(now / 300) * 2 : 0;
+    drawSaw(SAW_REST.x, y + bob, Math.PI * 2 * t, Math.min(1, t * 3));
   }
 
   function drawSawForStage(now: number): void {
     const elapsed = now - stageStart;
     if (stage === "saw") {
-      // Pops up out of the mirror, spins, and lands on top of the frame.
-      const t = Math.min(1, elapsed / SAW_POP_MS);
-      const y = lerp(MIRROR.y + MIRROR.h / 2, SAW_REST.y, t) - 150 * Math.sin(Math.PI * t);
-      const bob = t >= 1 ? Math.sin(now / 300) * 2 : 0;
-      drawSaw(SAW_REST.x, y + bob, Math.PI * 2 * t, Math.min(1, t * 3));
+      drawPoppingSaw(elapsed, now);
+    } else if (stage === "hole" && spareSaw === "out") {
+      drawPoppingSaw(now - spareSawAt, now);
     } else if (stage === "holding") {
       drawSaw(pointer.x, pointer.y, -0.35);
     } else if (stage === "sawing") {
@@ -467,6 +447,7 @@ export function createNothingRoom(escape: () => void): Room {
 
     drawVignette();
     if (stage === "mirror") drawCaption("No door. No window. No nothing.", (now - roomStart) / 1000);
+    if (stage === "hole" && spareSaw === "taken") drawCaption("You took the saw with you.", (now - spareSawAt) / 1000);
 
     if (fade > 0 || stage === "escaped") {
       ctx.fillStyle = `rgba(0, 0, 0, ${stage === "escaped" ? 1 : fade})`;

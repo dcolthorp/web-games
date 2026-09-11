@@ -6,7 +6,7 @@ import { createWorkbenchRoom } from "./room2";
 import { createComicalRoom } from "./room3";
 import { createChalkboardRoom } from "./room4";
 import { ensureAudio } from "./sound";
-import { TOOLBAR_SLOTS, TOOLS, selectedTool, toggleTool, type Tool } from "./tools";
+import { TOOLBAR_SLOTS, TOOLS, ownsTool, selectedTool, toggleTool, whenToolFound, type Tool } from "./tools";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -110,7 +110,7 @@ function renderPicker(): void {
 
 function ownedTools(): Tool[] {
   const unlocked = readUnlocked();
-  return TOOLS.filter((tool) => unlocked >= tool.unlockedAtRoom);
+  return TOOLS.filter((tool) => ownsTool(tool, unlocked));
 }
 
 function readSeenTools(): string[] {
@@ -168,6 +168,9 @@ function renderToolbar(): void {
   }
   toolbarSlots.replaceChildren(...slots);
 }
+
+// Tools found inside a room, like the saw, show up straight away.
+whenToolFound(renderToolbar);
 
 // Number keys pick tools too, 1 for the first slot and so on.
 window.addEventListener("keydown", (event) => {

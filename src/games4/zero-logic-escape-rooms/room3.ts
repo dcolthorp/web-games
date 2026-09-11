@@ -3,8 +3,11 @@ import {
   W,
   clamp,
   ctx,
+  diveInto,
+  drawBonusCard,
   drawCaption,
   drawRoomBox,
+  drawSaw,
   drawVignette,
   inRect,
   lerp,
@@ -21,8 +24,10 @@ import { selectedTool } from "./tools";
 // them around a bedroom, inside some of the shoes, phones and other junk. The
 // rest are decoys. Find all six, then glue them back onto the page with the
 // glue from the tool bar. The last panel is a black hole, and that's the exit.
+// With the saw from room 1 you can cut up the posters on the wall, and there's
+// a secret way to a bonus level behind each one.
 
-type Scene = "search" | "toDesk" | "desk" | "leaving" | "escaped";
+type Scene = "search" | "toDesk" | "desk" | "leaving" | "bonusIn" | "bonus" | "escaped";
 type SpotKind = "shoe" | "phone" | "trash" | "pizza" | "cushion";
 
 interface Spot {
@@ -121,6 +126,26 @@ const GLUE_FLY_MS = 450;
 const BUMP_MS = 200;
 const FLOAT_MS = 1400;
 const LEAVE_MS = 1600;
+const SHRED_MS = 900;
+const BONUS_IN_MS = 900;
+
+interface Poster {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: string;
+  word: string;
+  burst: string;
+  ink: string;
+  r: number;
+  cutAt: number | null;
+}
+
+const POSTER_LAYOUT: Omit<Poster, "cutAt">[] = [
+  { x: 170, y: 95, w: 110, h: 150, color: "#ffd23f", word: "POW!", burst: "#e63946", ink: "#fff", r: 44 },
+  { x: 320, y: 85, w: 100, h: 140, color: "#4cc9f0", word: "ZAP!", burst: "#ffd23f", ink: "#1d3557", r: 40 },
+];
 
 function slotPos(slot: number): Point {
   return {
@@ -149,6 +174,8 @@ export function createComicalRoom(escape: () => void): Room {
   let collected = 0;
   let pageBump = -Infinity;
   let pointer: Point = { x: W / 2, y: H / 2 };
+  let posters: Poster[] = [];
+  let bonusAt: Point = { x: W / 2, y: H / 2 };
 
   function setScene(next: Scene, now: number): void {
     scene = next;
@@ -164,6 +191,7 @@ export function createComicalRoom(escape: () => void): Room {
     found = 0;
     collected = 0;
     pageBump = -Infinity;
+    posters = POSTER_LAYOUT.map((poster) => ({ ...poster, cutAt: null }));
 
     // Every play hides the pieces somewhere new. At least one shoe and one
     // phone are always decoys, plus two more of anything.
@@ -224,6 +252,11 @@ export function createComicalRoom(escape: () => void): Room {
     return Math.hypot(p.x - BLACK_HOLE.x, p.y - BLACK_HOLE.y) < 55;
   }
 
+  // A poster still on the wall, or with cut true, the secret hole where one was.
+  function posterAt(p: Point, cut: boolean): Poster | null {
+    return posters.find((poster) => (poster.cutAt !== null) === cut && inRect(p, poster.x, poster.y, poster.w, poster.h)) ?? null;
+  }
+
   // ---------- input ----------
 
   function float(text: string, x: number, y: number, now: number): void {
@@ -234,7 +267,25 @@ export function createComicalRoom(escape: () => void): Room {
     pointer = p;
     const now = performance.now();
 
+    if (scene === "bonus") {
+      setScene("search", now);
+      return;
+    }
     if (scene === "search") {
+      const hole = posterAt(p, true);
+      if (hole) {
+        sounds.whoosh(BONUS_IN_MS / 1000);
+        bonusAt = { x: hole.x + hole.w / 2, y: hole.y + hole.h / 2 + 10 };
+        setScene("bonusIn", now);
+        return;
+      }
+      const poster = posterAt(p, false);
+      if (poster && selectedTool() === "saw") {
+        poster.cutAt = now;
+        sounds.crack();
+        sounds.paper();
+        return;
+      }
       const spot = spotAt(p);
       if (!spot) return;
       spot.searchedAt = now;
@@ -274,7 +325,12 @@ export function createComicalRoom(escape: () => void): Room {
   function pointerUp(): void {}
 
   function cursor(p: Point): string {
-    if (scene === "search") return spotAt(p) ? "pointer" : "default";
+    if (scene === "bonus") return "pointer";
+    if (scene === "search") {
+      if (posterAt(p, true)) return "pointer";
+      if (selectedTool() === "saw") return "none";
+      return spotAt(p) ? "pointer" : "default";
+    }
     if (scene !== "desk") return "default";
     if (selectedTool() === "glue") return "none";
     if (pieceAt(p) || (allGlued() && overBlackHole(p))) return "pointer";
@@ -294,6 +350,8 @@ export function createComicalRoom(escape: () => void): Room {
       }
       flyers = flyers.filter((flyer) => now - flyer.start < POP_MS);
       if (collected === PIECE_COUNT) setScene("toDesk", now);
+    } else if (scene === "bonusIn" && elapsed >= BONUS_IN_MS) {
+      setScene("bonus", now);
     } else if (scene === "toDesk" && elapsed >= TO_DESK_MS) {
       setScene("desk", now);
     } else if (scene === "desk") {
@@ -622,28 +680,63 @@ export function createComicalRoom(escape: () => void): Room {
 
   // ---------- search scene ----------
 
-  function drawPosters(): void {
-    ctx.fillStyle = "#ffd23f";
-    ctx.fillRect(170, 95, 110, 150);
-    ctx.strokeStyle = "#1d1d1d";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(170, 95, 110, 150);
-    burst(225, 170, 44, "POW!", "#e63946", "#fff");
-
-    ctx.fillStyle = "#4cc9f0";
-    ctx.fillRect(320, 85, 100, 140);
-    ctx.strokeRect(320, 85, 100, 140);
-    burst(370, 155, 40, "ZAP!", "#ffd23f", "#1d3557");
-
-    ctx.fillStyle = "rgba(255, 255, 240, 0.7)";
-    for (const [x, y] of [
-      [164, 89],
-      [274, 89],
-      [314, 79],
-      [414, 79],
-    ] as const) {
-      ctx.fillRect(x, y, 14, 10);
+  function drawPosters(now: number): void {
+    for (const poster of posters) {
+      if (poster.cutAt === null) {
+        ctx.fillStyle = poster.color;
+        ctx.fillRect(poster.x, poster.y, poster.w, poster.h);
+        ctx.strokeStyle = "#1d1d1d";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(poster.x, poster.y, poster.w, poster.h);
+        burst(poster.x + poster.w / 2, poster.y + poster.h / 2, poster.r, poster.word, poster.burst, poster.ink);
+      } else {
+        drawSecretHole(poster, now);
+        drawShreds(poster, now - poster.cutAt);
+      }
+      // The tape stays on the wall either way.
+      ctx.fillStyle = "rgba(255, 255, 240, 0.7)";
+      ctx.fillRect(poster.x - 6, poster.y - 6, 14, 10);
+      ctx.fillRect(poster.x + poster.w - 6, poster.y - 6, 14, 10);
     }
+  }
+
+  // What was behind the poster: a hole in the wall to a secret bonus level.
+  function drawSecretHole(poster: Poster, now: number): void {
+    const cx = poster.x + poster.w / 2;
+    const cy = poster.y + poster.h / 2 + 10;
+    const rx = poster.w * 0.36;
+    ctx.fillStyle = "#12051f";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, poster.h * 0.34, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, rx);
+    glow.addColorStop(0, `rgba(199, 125, 255, ${0.45 + 0.25 * Math.sin(now / 300)})`);
+    glow.addColorStop(1, "rgba(199, 125, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fill();
+    ctx.fillStyle = "#f0e0ff";
+    ctx.font = `bold 14px ${COMIC_FONT}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("BONUS", cx, poster.y + 12);
+  }
+
+  // Strips of the cut-up poster falling off the wall.
+  function drawShreds(poster: Poster, elapsed: number): void {
+    if (elapsed > SHRED_MS) return;
+    const t = elapsed / 1000;
+    const strips = 6;
+    const stripW = poster.w / strips;
+    ctx.globalAlpha = 1 - elapsed / SHRED_MS;
+    ctx.fillStyle = poster.color;
+    for (let i = 0; i < strips; i += 1) {
+      ctx.save();
+      ctx.translate(poster.x + (i + 0.5) * stripW + (i - 2.5) * 60 * t, poster.y + poster.h / 2 + 700 * t * t);
+      ctx.rotate((i % 2 === 0 ? 1 : -1) * t * (3 + i));
+      ctx.fillRect(-stripW / 2 + 1, -poster.h / 2, stripW - 2, poster.h);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
   }
 
   function drawCeilingLight(): void {
@@ -929,7 +1022,7 @@ export function createComicalRoom(escape: () => void): Room {
   function drawSearch(now: number): void {
     drawRoomBox(PALETTE);
     drawCeilingLight();
-    drawPosters();
+    drawPosters(now);
     drawCouch();
     for (const spot of spots) drawSpot(spot, now);
     drawVignette();
@@ -1095,6 +1188,14 @@ export function createComicalRoom(escape: () => void): Room {
 
     if (scene === "search") {
       drawSearch(now);
+      if (selectedTool() === "saw") drawSaw(pointer.x, pointer.y, -0.35);
+    } else if (scene === "bonusIn") {
+      ctx.save();
+      dark = diveInto(bonusAt.x, bonusAt.y, Math.min(1, elapsed / BONUS_IN_MS));
+      drawSearch(now);
+      ctx.restore();
+    } else if (scene === "bonus") {
+      drawBonusCard(elapsed / 1000);
     } else if (scene === "toDesk") {
       // Fade out of the bedroom and into the desk.
       const t = Math.min(1, elapsed / TO_DESK_MS);
