@@ -154,12 +154,12 @@ function showTvText(tv: Element, text: string): void {
   const screen = tv.querySelector<HTMLElement>(".run-tv-screen span");
   if (!screen) return;
   screen.textContent = text;
-  screen.style.fontSize = text.length > 14 ? "1.4rem" : text.length > 5 ? "2.2rem" : "";
+  screen.style.fontSize = text.length > 30 ? "1.1rem" : text.length > 14 ? "1.4rem" : text.length > 5 ? "2.2rem" : "";
   tv.setAttribute("aria-label", `A television on a wire showing ${text}`);
 }
 
 function setTvText(text: string): void {
-  tvText = text.trim().slice(0, 40) || "RUN";
+  tvText = text.trim().slice(0, 60) || "RUN";
   try {
     localStorage.setItem(TV_TEXT_KEY, tvText);
   } catch {
