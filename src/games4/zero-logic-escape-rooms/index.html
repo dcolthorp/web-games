@@ -17,10 +17,29 @@
       <section class="game-frame" aria-label="Escape room">
         <canvas id="game" width="960" height="600" aria-label="An escape room with no door and no window"></canvas>
         <div class="escape-overlay" id="escape-overlay" hidden>
-          <p class="escape-title">YOU ESCAPED</p>
-          <p class="escape-note" id="escape-note"></p>
-          <p class="escape-next" id="escape-next"></p>
-          <p class="escape-soon">Coming soon.</p>
+          <div class="credits">
+            <p class="escape-title">YOU ESCAPED</p>
+            <p class="escape-note" id="escape-note"></p>
+            <p class="credits-game">Zero Logic Escape Rooms</p>
+
+            <p class="credits-heading">Rooms</p>
+            <div class="credits-rooms" id="credits-rooms"></div>
+
+            <p class="credits-heading">Made by</p>
+            <p class="credits-name">Someone with zero logic</p>
+            <p class="credits-heading">Code help</p>
+            <p class="credits-name">Claude</p>
+            <p class="credits-heading">Doors</p>
+            <p class="credits-name">0</p>
+            <p class="credits-heading">Windows</p>
+            <p class="credits-name">2 (one chalk, one real)</p>
+            <p class="credits-heading">Logic</p>
+            <p class="credits-name">None</p>
+            <p class="credits-heading">Special thanks</p>
+            <p class="credits-name">You, for clicking things</p>
+
+            <p class="the-end">THE END</p>
+          </div>
           <button type="button" data-action="restart">Start Over From Room 1</button>
         </div>
       </section>

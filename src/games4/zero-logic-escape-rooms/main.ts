@@ -21,7 +21,7 @@ const TITLE_MS = 2400;
 const roomLabel = document.getElementById("room-name") as HTMLParagraphElement;
 const overlay = document.getElementById("escape-overlay") as HTMLDivElement;
 const overlayNote = document.getElementById("escape-note") as HTMLParagraphElement;
-const overlayNext = document.getElementById("escape-next") as HTMLParagraphElement;
+const creditsRooms = document.getElementById("credits-rooms") as HTMLDivElement;
 const picker = document.getElementById("room-picker") as HTMLElement;
 const toolbar = document.getElementById("toolbar") as HTMLElement;
 const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
@@ -33,13 +33,21 @@ const rooms: Room[] = [
   createChalkboardRoom(roomEscaped),
 ];
 
+creditsRooms.replaceChildren(
+  ...rooms.map((room, index) => {
+    const line = document.createElement("p");
+    line.textContent = `${index + 1} · ${room.name}`;
+    return line;
+  })
+);
+
 let current = 0;
 let title: { start: number; lead: string } | null = null;
 let pointer: Point = { x: W / 2, y: H / 2 };
 let lastFrame = performance.now();
 
-// How many rooms you are allowed into. Can be bigger than the number of rooms
-// that exist yet, so beating the last one unlocks the next as soon as it's built.
+// How many rooms you are allowed into. Beating the last room makes this one
+// more than the number of rooms, which just means you've seen the credits.
 function readUnlocked(): number {
   try {
     const value = Number(localStorage.getItem(UNLOCKED_KEY));
@@ -76,8 +84,8 @@ function roomEscaped(): void {
     enterRoom(next, lead);
     return;
   }
+  // That was the last room. Roll the credits.
   overlayNote.textContent = lead;
-  overlayNext.textContent = `ESCAPE ROOM ${next + 1}`;
   overlay.hidden = false;
   renderPicker();
   renderToolbar();
