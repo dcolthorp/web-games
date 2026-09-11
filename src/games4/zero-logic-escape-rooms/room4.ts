@@ -27,8 +27,11 @@ import { sounds } from "./sound";
 // tap the curl to straighten it into a line, tap the line to shrink it into a
 // dot, tap both dots to make them bigger, and drag one onto the other to make a button.
 // Press the button and the chalkboard explodes. Behind it is a real window.
+// Click it and you fly into the sun and out into a cutscene of walking through
+// the grass where nothing happens, except spikes. Jump them (click or Space)
+// until it ends. Hit one and the walk starts over.
 
-type Scene = "room" | "zoom" | "board" | "boom" | "window" | "leaving" | "escaped";
+type Scene = "room" | "zoom" | "board" | "boom" | "window" | "leaving" | "walk" | "escaped";
 type Kind = "one" | "plus" | "bar" | "curl" | "line" | "dot" | "bigDot" | "button";
 
 interface Piece {
@@ -113,6 +116,19 @@ const WIGGLE_MS = 400;
 const BOOM_MS = 1300;
 const LEAVE_MS = 1500;
 
+// The walk: a side view of the grass, with spikes coming at you.
+const GROUND_Y = 440;
+const PLAYER_X = 220;
+const WALK_SPEED = 320;
+const JUMP_V = 620;
+const GRAVITY = 1800;
+const SPIKE_W = 40;
+const SPIKE_H = 44;
+const LETTERBOX = 50;
+const WALK_MS = 15000;
+const SPIKES_FROM_MS = 2500; // nothing happens for a bit first
+const CALM_END_MS = 2500; // and nothing at the end either
+
 function hookPoints(): [number, number][] {
   const points: [number, number][] = [];
   // Over the top of a circle, from the left side round to the bottom right...
@@ -148,6 +164,16 @@ export function createChalkboardRoom(escape: () => void): Room {
   let dragging: { piece: Piece; offX: number; offY: number; moved: number } | null = null;
   let chunks: Chunk[] = [];
   let dust: Dust[] = [];
+  let jumpY = 0;
+  let jumpV = 0;
+  let spikes: number[] = [];
+  let nextSpikeAt = 0;
+
+  window.addEventListener("keydown", (event) => {
+    if (scene !== "walk" || (event.key !== " " && event.key !== "ArrowUp")) return;
+    event.preventDefault();
+    jump();
+  });
 
   function setScene(next: Scene, now: number): void {
     scene = next;
@@ -196,6 +222,10 @@ export function createChalkboardRoom(escape: () => void): Room {
 
   function pointerDown(p: Point): void {
     const now = performance.now();
+    if (scene === "walk") {
+      jump();
+      return;
+    }
     if (scene === "room") {
       if (overBoard(p)) {
         sounds.whoosh(ZOOM_MS / 1000);
@@ -369,10 +399,51 @@ export function createChalkboardRoom(escape: () => void): Room {
     } else if (scene === "boom" && elapsed >= BOOM_MS) {
       setScene("window", now);
     } else if (scene === "leaving" && elapsed >= LEAVE_MS) {
-      setScene("escaped", now);
-      escape();
+      startWalk(now);
+    } else if (scene === "walk") {
+      updateWalk(now, dt);
     }
     dust = updateDust(dust, dt);
+  }
+
+  // ---------- the walk ----------
+
+  function startWalk(now: number): void {
+    setScene("walk", now);
+    jumpY = 0;
+    jumpV = 0;
+    spikes = [];
+    nextSpikeAt = SPIKES_FROM_MS;
+  }
+
+  function jump(): void {
+    if (jumpY > 0 || jumpV > 0) return;
+    jumpV = JUMP_V;
+    sounds.grab();
+  }
+
+  function updateWalk(now: number, dt: number): void {
+    const elapsed = now - sceneStart;
+    if (elapsed >= WALK_MS) {
+      setScene("escaped", now);
+      escape();
+      return;
+    }
+    if (jumpY > 0 || jumpV > 0) {
+      jumpV -= GRAVITY * dt;
+      jumpY = Math.max(0, jumpY + jumpV * dt);
+      if (jumpY === 0) jumpV = 0;
+    }
+    spikes = spikes.map((x) => x - WALK_SPEED * dt).filter((x) => x > -SPIKE_W);
+    if (elapsed >= nextSpikeAt && elapsed < WALK_MS - CALM_END_MS) {
+      spikes.push(W + SPIKE_W);
+      nextSpikeAt = elapsed + lerp(900, 1700, Math.random());
+    }
+    // A spike is a triangle, so near its edges you only need to be a little off the ground.
+    if (spikes.some((x) => jumpY < SPIKE_H * (1 - Math.abs(x - PLAYER_X) / (SPIKE_W / 2 + 8)))) {
+      sounds.bonk();
+      startWalk(now);
+    }
   }
 
   // ---------- drawing ----------
@@ -552,17 +623,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.fill();
 
     // One cloud drifting past
-    const cloudX = WIN.x - 100 + ((now / 30) % (WIN.w + 200));
-    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-    for (const [dx, dy, r] of [
-      [0, 0, 26],
-      [30, -12, 32],
-      [62, 0, 24],
-    ] as const) {
-      ctx.beginPath();
-      ctx.arc(cloudX + dx, WIN.y + 150 + dy, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawCloud(WIN.x - 100 + ((now / 30) % (WIN.w + 200)), WIN.y + 150);
 
     ctx.fillStyle = "#4fa84b";
     ctx.beginPath();
@@ -595,6 +656,121 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.fillRect(WIN.x - F - 20, WIN.y + WIN.h + F, WIN.w + F * 2 + 40, 16);
     ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
     ctx.fillRect(WIN.x - F - 20, WIN.y + WIN.h + F + 16, WIN.w + F * 2 + 40, 8);
+  }
+
+  function drawCloud(x: number, y: number): void {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    for (const [dx, dy, r] of [
+      [0, 0, 26],
+      [30, -12, 32],
+      [62, 0, 24],
+    ] as const) {
+      ctx.beginPath();
+      ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawSpike(x: number): void {
+    // Pokes up out of the grass as it comes.
+    const h = SPIKE_H * clamp((760 - x) / 100, 0, 1);
+    if (h <= 0) return;
+    ctx.fillStyle = "#9aa3ab";
+    poly([x - SPIKE_W / 2, GROUND_Y + 4], [x, GROUND_Y - h], [x + SPIKE_W / 2, GROUND_Y + 4]);
+    ctx.strokeStyle = "#4b5359";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function drawWalker(scroll: number): void {
+    const feet = GROUND_Y - jumpY;
+    const hip = feet - 34;
+    const neck = hip - 36;
+    const swing = jumpY > 0 ? 0.6 : Math.sin(scroll / 22) * 0.55;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ctx.beginPath();
+    ctx.ellipse(PLAYER_X, GROUND_Y + 6, Math.max(8, 26 - jumpY / 6), 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#222";
+    ctx.fillStyle = "#222";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    const limb = (x: number, y: number, angle: number, len: number): void =>
+      line(x, y, x + Math.sin(angle) * len, y + Math.cos(angle) * len);
+    limb(PLAYER_X, hip, swing, 36);
+    limb(PLAYER_X, hip, -swing, 36);
+    line(PLAYER_X, hip, PLAYER_X, neck);
+    limb(PLAYER_X, neck + 6, -swing * 0.8, 30);
+    limb(PLAYER_X, neck + 6, swing * 0.8, 30);
+    ctx.beginPath();
+    ctx.arc(PLAYER_X, neck - 14, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineCap = "butt";
+  }
+
+  function drawWalk(now: number): void {
+    const elapsed = now - sceneStart;
+    const scroll = (elapsed / 1000) * WALK_SPEED;
+
+    const sky = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    sky.addColorStop(0, "#5eaef7");
+    sky.addColorStop(1, "#cde9ff");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, GROUND_Y);
+    ctx.fillStyle = "#fff4b0";
+    ctx.beginPath();
+    ctx.arc(780, 130, 40, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Clouds and hills go by slower than the grass, so they look far away.
+    const wrap = W + 200;
+    for (let i = 0; i < 3; i += 1) {
+      drawCloud(((((i * 380 - scroll * 0.15) % wrap) + wrap) % wrap) - 100, 110 + i * 45);
+    }
+    ctx.fillStyle = "#5fbf5a";
+    for (let i = -1; i < 3; i += 1) {
+      ctx.beginPath();
+      ctx.ellipse(i * 520 + 260 - ((scroll * 0.4) % 520), GROUND_Y + 30, 300, 120, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "#4fa84b";
+    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    for (const x of spikes) drawSpike(x);
+    ctx.fillStyle = "#6fcf5f";
+    ctx.fillRect(0, GROUND_Y - 2, W, 10);
+    ctx.strokeStyle = "#3f8f3c";
+    ctx.lineWidth = 3;
+    for (const [row, gap] of [
+      [30, 36],
+      [85, 52],
+    ] as const) {
+      for (let x = -(scroll % gap); x < W; x += gap) {
+        line(x, GROUND_Y + row, x + 6, GROUND_Y + row - 12);
+        line(x + 8, GROUND_Y + row, x + 10, GROUND_Y + row - 14);
+      }
+    }
+
+    drawWalker(scroll);
+
+    // Black bars, because it's a cutscene.
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, W, LETTERBOX);
+    ctx.fillRect(0, H - LETTERBOX, W, LETTERBOX);
+    drawCaption("Nothing happens.", elapsed / 1000);
+
+    const whiteIn = 1 - elapsed / 600;
+    if (whiteIn > 0) {
+      ctx.fillStyle = `rgba(255, 252, 235, ${whiteIn})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    const blackOut = (elapsed - (WALK_MS - 800)) / 800;
+    if (blackOut > 0) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(1, blackOut)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
   }
 
   function drawBoom(now: number): void {
@@ -655,21 +831,32 @@ export function createChalkboardRoom(escape: () => void): Room {
       return;
     }
 
+    if (scene === "walk") {
+      drawWalk(now);
+      return;
+    }
+    if (scene === "escaped") {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, W, H);
+      return;
+    }
+
     ctx.save();
-    let fade = 0;
-    if (scene === "leaving") fade = diveInto(EXIT.x, EXIT.y, clamp(elapsed / LEAVE_MS, 0, 1));
+    let glare = 0;
+    if (scene === "leaving") glare = diveInto(EXIT.x, EXIT.y, clamp(elapsed / LEAVE_MS, 0, 1));
     drawWindowScene(now);
     ctx.restore();
     if (scene === "window") drawCaption("A real window.", elapsed / 1000);
-    if (fade > 0 || scene === "escaped") {
-      ctx.fillStyle = `rgba(0, 0, 0, ${scene === "escaped" ? 1 : fade})`;
+    // Flying into the sun goes white, not dark.
+    if (glare > 0) {
+      ctx.fillStyle = `rgba(255, 252, 235, ${glare})`;
       ctx.fillRect(0, 0, W, H);
     }
   }
 
   return {
     name: "Chalkboard",
-    exitLine: "You climbed out the real window and landed in…",
+    exitLine: "You made it across the spiky grass and ended up in…",
     reset,
     update,
     draw,
