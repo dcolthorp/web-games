@@ -15,15 +15,17 @@
       </header>
 
       <section class="game-frame" aria-label="Escape room">
-        <canvas id="game" width="960" height="600" aria-label="A room with no door, no window, no nothing"></canvas>
+        <canvas id="game" width="960" height="600" aria-label="An escape room with no door and no window"></canvas>
         <div class="escape-overlay" id="escape-overlay" hidden>
           <p class="escape-title">YOU ESCAPED</p>
-          <p class="escape-note">You fell down the table hole and landed in…</p>
-          <p class="escape-next">ESCAPE ROOM 2</p>
+          <p class="escape-note" id="escape-note"></p>
+          <p class="escape-next" id="escape-next"></p>
           <p class="escape-soon">Coming soon.</p>
-          <button type="button" data-action="restart">Play Room 1 Again</button>
+          <button type="button" data-action="restart">Start Over From Room 1</button>
         </div>
       </section>
+
+      <nav class="room-picker" id="room-picker" aria-label="Rooms you have reached" hidden></nav>
 
       <p class="instructions">There is no door. There is no window. There is no logic. Click things.</p>
     </main>

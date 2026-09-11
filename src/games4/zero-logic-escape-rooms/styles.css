@@ -133,6 +133,34 @@ canvas {
   color: #000;
 }
 
+.room-picker {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.room-picker[hidden] {
+  display: none;
+}
+
+.room-picker button {
+  padding: 6px 12px;
+  border: 2px solid rgba(255, 207, 90, 0.5);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.room-picker button:hover,
+.room-picker button[aria-current="true"] {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
 .instructions {
   margin: 14px 0 0;
   color: var(--muted);
