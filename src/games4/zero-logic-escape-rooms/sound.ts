@@ -69,4 +69,12 @@ export const sounds = {
     noise(0.7, 500, 70, 0.8);
     tone(110, 40, 0.5, "sine", 0.6);
   },
+  womp: () => tone(300, 110, 0.35, "sawtooth", 0.08),
+  chime: () => tone(880, 1320, 0.18, "sine", 0.12),
+  squish: () => noise(0.2, 800, 300, 0.3),
+  splat: () => {
+    noise(0.15, 1500, 400, 0.4);
+    tone(200, 90, 0.15, "sine", 0.3);
+  },
+  paper: () => noise(0.12, 3000, 2000, 0.25),
 };

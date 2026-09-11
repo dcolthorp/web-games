@@ -3,7 +3,9 @@ import { installOofShortcut } from "../../shared/oofShortcut";
 import { H, W, canvas, ctx, type Point, type Room } from "./engine";
 import { createNothingRoom } from "./room1";
 import { createWorkbenchRoom } from "./room2";
+import { createComicalRoom } from "./room3";
 import { ensureAudio } from "./sound";
+import { TOOLBAR_SLOTS, TOOLS, selectedTool, toggleTool, type Tool } from "./tools";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -12,6 +14,7 @@ installForceRefreshHotkey();
 // the furthest room you have reached is remembered so you can go back to it.
 
 const UNLOCKED_KEY = "zero-logic-escape-rooms-unlocked";
+const TOOLS_SEEN_KEY = "zero-logic-escape-rooms-tools-seen";
 const TITLE_MS = 2400;
 
 const roomLabel = document.getElementById("room-name") as HTMLParagraphElement;
@@ -19,8 +22,10 @@ const overlay = document.getElementById("escape-overlay") as HTMLDivElement;
 const overlayNote = document.getElementById("escape-note") as HTMLParagraphElement;
 const overlayNext = document.getElementById("escape-next") as HTMLParagraphElement;
 const picker = document.getElementById("room-picker") as HTMLElement;
+const toolbar = document.getElementById("toolbar") as HTMLElement;
+const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
 
-const rooms: Room[] = [createNothingRoom(roomEscaped), createWorkbenchRoom(roomEscaped)];
+const rooms: Room[] = [createNothingRoom(roomEscaped), createWorkbenchRoom(roomEscaped), createComicalRoom(roomEscaped)];
 
 let current = 0;
 let title: { start: number; lead: string } | null = null;
@@ -54,6 +59,7 @@ function enterRoom(index: number, lead = ""): void {
   overlay.hidden = true;
   roomLabel.textContent = `Escape Room ${index + 1} · ${rooms[index]?.name ?? ""}`;
   renderPicker();
+  renderToolbar();
 }
 
 function roomEscaped(): void {
@@ -68,6 +74,7 @@ function roomEscaped(): void {
   overlayNext.textContent = `ESCAPE ROOM ${next + 1}`;
   overlay.hidden = false;
   renderPicker();
+  renderToolbar();
 }
 
 function renderPicker(): void {
@@ -84,6 +91,80 @@ function renderPicker(): void {
   );
   picker.hidden = reachable < 2;
 }
+
+// ---------- tool bar ----------
+
+function ownedTools(): Tool[] {
+  const unlocked = readUnlocked();
+  return TOOLS.filter((tool) => unlocked >= tool.unlockedAtRoom);
+}
+
+function readSeenTools(): string[] {
+  try {
+    const seen: unknown = JSON.parse(localStorage.getItem(TOOLS_SEEN_KEY) ?? "[]");
+    return Array.isArray(seen) ? seen.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function markToolSeen(id: string): void {
+  const seen = readSeenTools();
+  if (seen.includes(id)) return;
+  try {
+    localStorage.setItem(TOOLS_SEEN_KEY, JSON.stringify([...seen, id]));
+  } catch {
+    // The NEW badge will just keep showing.
+  }
+}
+
+function useTool(tool: Tool): void {
+  ensureAudio();
+  toggleTool(tool.id);
+  markToolSeen(tool.id);
+  renderToolbar();
+}
+
+// Hidden until you own a tool. Empty slots show where later tools will go.
+function renderToolbar(): void {
+  const owned = ownedTools();
+  toolbar.hidden = owned.length === 0;
+  const seen = readSeenTools();
+  const slots: HTMLElement[] = [];
+  for (let i = 0; i < TOOLBAR_SLOTS; i += 1) {
+    const tool = owned[i];
+    if (!tool) {
+      const empty = document.createElement("span");
+      empty.className = "tool-slot is-empty";
+      empty.textContent = "?";
+      empty.setAttribute("aria-hidden", "true");
+      slots.push(empty);
+      continue;
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tool-slot";
+    button.title = `${tool.name} (press ${i + 1})`;
+    button.setAttribute("aria-pressed", String(selectedTool() === tool.id));
+    button.innerHTML = `${tool.icon}<span class="tool-name">${tool.name}</span>${
+      seen.includes(tool.id) ? "" : '<span class="tool-new">NEW</span>'
+    }`;
+    button.addEventListener("click", () => useTool(tool));
+    slots.push(button);
+  }
+  toolbarSlots.replaceChildren(...slots);
+}
+
+// Number keys pick tools too, 1 for the first slot and so on.
+window.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const index = Number(event.key) - 1;
+  if (!Number.isInteger(index) || index < 0 || index >= TOOLBAR_SLOTS) return;
+  const tool = ownedTools()[index];
+  if (tool) useTool(tool);
+});
+
+// ---------- title card ----------
 
 // Black card between rooms: how you got out, then where you are now.
 function drawTitleCard(now: number): void {
@@ -114,6 +195,8 @@ function drawTitleCard(now: number): void {
   ctx.fillText((rooms[current]?.name ?? "").toUpperCase(), W / 2, H / 2 + 30);
   ctx.globalAlpha = 1;
 }
+
+// ---------- input ----------
 
 function toCanvas(event: PointerEvent): Point {
   const rect = canvas.getBoundingClientRect();

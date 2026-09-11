@@ -35,7 +35,7 @@ export interface RoomPalette {
   floorBack: string;
   floorFront: string;
   skirting: string;
-  floor: "boards" | "concrete";
+  floor: "boards" | "concrete" | "carpet";
 }
 
 export const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -69,7 +69,8 @@ export function drawRoomBox(palette: RoomPalette): void {
 
   ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
   ctx.lineWidth = 2;
-  const lanes = palette.floor === "boards" ? 8 : 6;
+  // Carpet gets no lines at all.
+  const lanes = palette.floor === "boards" ? 8 : palette.floor === "concrete" ? 6 : 0;
   for (let i = 1; i < lanes; i += 1) {
     line(BACK.left + ((BACK.right - BACK.left) * i) / lanes, BACK.bottom, (W * i) / lanes, H);
   }

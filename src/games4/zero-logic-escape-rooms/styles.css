@@ -133,6 +133,97 @@ canvas {
   color: #000;
 }
 
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 3px solid var(--edge);
+  background: linear-gradient(180deg, #2e2536, #1b1620);
+}
+
+.toolbar[hidden] {
+  display: none;
+}
+
+.toolbar-label {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 1.3rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.toolbar-slots {
+  display: flex;
+  gap: 8px;
+}
+
+.tool-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tool-slot svg {
+  width: 30px;
+  height: 30px;
+}
+
+.tool-slot:hover {
+  border-color: rgba(255, 207, 90, 0.6);
+}
+
+.tool-slot[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(255, 207, 90, 0.2);
+  box-shadow: 0 0 0 2px rgba(255, 207, 90, 0.35);
+}
+
+.tool-slot.is-empty {
+  border-style: dashed;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 1.2rem;
+  cursor: default;
+}
+
+.tool-new {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  padding: 1px 5px;
+  background: #ff5a3d;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  animation: tool-new-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes tool-new-pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.18);
+  }
+}
+
 .room-picker {
   display: flex;
   flex-wrap: wrap;
