@@ -113,6 +113,7 @@ const ZOOM_MS = 1100;
 const TURN_MS = 180;
 const MORPH_MS = 350;
 const WIGGLE_MS = 400;
+const DUCK_MS = 1700;
 const BOOM_MS = 1300;
 const LEAVE_MS = 1500;
 
@@ -161,6 +162,12 @@ function blinkScale(now: number): number {
   return phase < 0 ? 1 : Math.max(0.12, Math.abs(Math.cos((phase / 160) * Math.PI)));
 }
 
+// Where the peeking eyes are looking: a quick glance one way, a hold, then the other way.
+function lookX(now: number): number {
+  const s = Math.sin(now / 1100);
+  return 7 * Math.sign(s) * Math.min(1, Math.abs(s) * 3);
+}
+
 const isQuestionPart = (kind: Kind): boolean => kind !== "one" && kind !== "plus" && kind !== "bar";
 
 export function createChalkboardRoom(escape: () => void): Room {
@@ -176,6 +183,7 @@ export function createChalkboardRoom(escape: () => void): Room {
   let jumpV = 0;
   let spikes: number[] = [];
   let nextSpikeAt = 0;
+  let duckAt = -Infinity;
 
   window.addEventListener("keydown", (event) => {
     if (scene !== "walk" || (event.key !== " " && event.key !== "ArrowUp")) return;
@@ -194,6 +202,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     roomStart = startAt;
     windowDone = false;
     dragging = null;
+    duckAt = -Infinity;
     chunks = [];
     dust = [];
     // 1 + 1 = ?
@@ -282,6 +291,14 @@ export function createChalkboardRoom(escape: () => void): Room {
   }
 
   function tap(piece: Piece, now: number): void {
+    // Clicking the peeking eyes makes them duck instead of growing.
+    if (peekingEyes().includes(piece)) {
+      if (now - duckAt > DUCK_MS) {
+        duckAt = now;
+        sounds.whoosh(0.25);
+      }
+      return;
+    }
     switch (piece.kind) {
       case "one":
       case "bar":
@@ -469,7 +486,7 @@ export function createChalkboardRoom(escape: () => void): Room {
   }
 
   // Two dots in the top two panes of the chalk window look like someone
-  // peeking in, so they blink.
+  // peeking in, so they blink and look around, and duck when you click them.
   function peekingEyes(): Piece[] {
     const plus = pieces.find((piece) => piece.kind === "plus");
     if (!plus || !windowDone) return [];
@@ -483,8 +500,27 @@ export function createChalkboardRoom(escape: () => void): Room {
     return leftEye && rightEye ? [leftEye, rightEye] : [];
   }
 
-  function drawPiece(piece: Piece, now: number, blinking: boolean): void {
+  // How far down the eyes have ducked: quickly down out of sight, a wait, then
+  // slowly back up.
+  function duckOffset(now: number): number {
+    const t = now - duckAt;
+    if (t < 0 || t > DUCK_MS) return 0;
+    const down = L / 2 + BIG_R;
+    if (t < 150) return down * (t / 150);
+    if (t < 1300) return down;
+    return down * (1 - easeOut(1300, t, 400));
+  }
+
+  // eyeFloor is the middle of the window when this piece is a peeking eye.
+  function drawPiece(piece: Piece, now: number, eyeFloor: number | null): void {
     ctx.save();
+    if (eyeFloor !== null) {
+      // Ducking below the middle bar of the window hides them.
+      ctx.beginPath();
+      ctx.rect(0, 0, W, eyeFloor - CHALK_W / 2);
+      ctx.clip();
+      ctx.translate(lookX(now), duckOffset(now));
+    }
     ctx.translate(piece.x, piece.y);
     let angle = (piece.turns * Math.PI) / 2;
     if (!isQuestionPart(piece.kind)) angle -= (1 - easeOut(piece.changedAt, now, TURN_MS)) * (Math.PI / 2);
@@ -498,7 +534,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     const e = easeOut(piece.changedAt, now, MORPH_MS);
-    if (blinking) ctx.scale(1, blinkScale(now));
+    if (eyeFloor !== null) ctx.scale(1, blinkScale(now));
 
     switch (piece.kind) {
       case "one":
@@ -605,7 +641,8 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.fill();
 
     const eyes = peekingEyes();
-    for (const piece of pieces) drawPiece(piece, now, eyes.includes(piece));
+    const middle = pieces.find((piece) => piece.kind === "plus")?.y ?? 0;
+    for (const piece of pieces) drawPiece(piece, now, eyes.includes(piece) ? middle : null);
   }
 
   function drawRoomView(now: number): void {
