@@ -4,6 +4,7 @@ import { H, W, canvas, ctx, type Point, type Room } from "./engine";
 import { createNothingRoom } from "./room1";
 import { createWorkbenchRoom } from "./room2";
 import { createComicalRoom } from "./room3";
+import { createChalkboardRoom } from "./room4";
 import { ensureAudio } from "./sound";
 import { TOOLBAR_SLOTS, TOOLS, selectedTool, toggleTool, type Tool } from "./tools";
 
@@ -25,7 +26,12 @@ const picker = document.getElementById("room-picker") as HTMLElement;
 const toolbar = document.getElementById("toolbar") as HTMLElement;
 const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
 
-const rooms: Room[] = [createNothingRoom(roomEscaped), createWorkbenchRoom(roomEscaped), createComicalRoom(roomEscaped)];
+const rooms: Room[] = [
+  createNothingRoom(roomEscaped),
+  createWorkbenchRoom(roomEscaped),
+  createComicalRoom(roomEscaped),
+  createChalkboardRoom(roomEscaped),
+];
 
 let current = 0;
 let title: { start: number; lead: string } | null = null;
