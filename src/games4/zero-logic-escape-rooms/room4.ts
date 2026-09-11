@@ -153,6 +153,14 @@ function easeOut(from: number, now: number, ms: number): number {
   return 1 - (1 - t) ** 3;
 }
 
+// How open an eye is: a blink every 3 seconds, and a double blink every third time.
+function blinkScale(now: number): number {
+  const t = now % 3000;
+  const double = Math.floor(now / 3000) % 3 === 0;
+  const phase = t < 160 ? t : double && t > 320 && t < 480 ? t - 320 : -1;
+  return phase < 0 ? 1 : Math.max(0.12, Math.abs(Math.cos((phase / 160) * Math.PI)));
+}
+
 const isQuestionPart = (kind: Kind): boolean => kind !== "one" && kind !== "plus" && kind !== "bar";
 
 export function createChalkboardRoom(escape: () => void): Room {
@@ -460,7 +468,22 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.stroke();
   }
 
-  function drawPiece(piece: Piece, now: number): void {
+  // Two dots in the top two panes of the chalk window look like someone
+  // peeking in, so they blink.
+  function peekingEyes(): Piece[] {
+    const plus = pieces.find((piece) => piece.kind === "plus");
+    if (!plus || !windowDone) return [];
+    const { x, y } = plus;
+    const dotIn = (left: number): Piece | undefined =>
+      pieces.find(
+        (p) => (p.kind === "dot" || p.kind === "bigDot") && p.x > left && p.x < left + L / 2 && p.y > y - L / 2 && p.y < y
+      );
+    const leftEye = dotIn(x - L / 2);
+    const rightEye = dotIn(x);
+    return leftEye && rightEye ? [leftEye, rightEye] : [];
+  }
+
+  function drawPiece(piece: Piece, now: number, blinking: boolean): void {
     ctx.save();
     ctx.translate(piece.x, piece.y);
     let angle = (piece.turns * Math.PI) / 2;
@@ -475,6 +498,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     const e = easeOut(piece.changedAt, now, MORPH_MS);
+    if (blinking) ctx.scale(1, blinkScale(now));
 
     switch (piece.kind) {
       case "one":
@@ -580,7 +604,8 @@ export function createChalkboardRoom(escape: () => void): Room {
     roundRect(720, TRAY_TOP + 6, 110, 12, 3);
     ctx.fill();
 
-    for (const piece of pieces) drawPiece(piece, now);
+    const eyes = peekingEyes();
+    for (const piece of pieces) drawPiece(piece, now, eyes.includes(piece));
   }
 
   function drawRoomView(now: number): void {
