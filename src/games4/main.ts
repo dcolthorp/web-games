@@ -21,6 +21,13 @@ const games: Game[] = [
     genre: "???",
     blurb: "The only game down here so far.",
   },
+  {
+    id: "zero-logic-escape-rooms",
+    name: "Zero Logic Escape Rooms",
+    path: "./zero-logic-escape-rooms/index.html",
+    genre: "Escape Room",
+    blurb: "No door. No window. No nothing. The way out makes absolutely no sense.",
+  },
 ];
 
 const GAMES_FOUND_KEY = "games4-games-found";
