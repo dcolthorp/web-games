@@ -56,17 +56,17 @@ function flipEscapeSwitch(): void {
 }
 
 // Putting the four Earth fragments from Hundred Logic Escape Rooms together
-// unlocks World Sandbox. It isn't built yet, so for now its card just waits.
+// unlocks World Sandbox.
 const WORLD_SANDBOX_CARD = `
   <li>
-    <div class="game-card games4-game-card is-coming-soon" aria-disabled="true">
+    <a class="game-card games4-game-card" data-game-id="world-sandbox" href="./world-sandbox/index.html" aria-label="World Sandbox">
       <span class="game-card-top">
         <span class="game-tag">Sandbox</span>
         <span class="game-arrow" aria-hidden="true">🌍</span>
       </span>
       <span class="game-title">World Sandbox</span>
-      <span class="game-blurb">Coming soon. You put the whole Earth back together.</span>
-    </div>
+      <span class="game-blurb">You put the whole Earth back together. The possibilities are endless.</span>
+    </a>
   </li>
 `;
 

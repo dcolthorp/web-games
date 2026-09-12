@@ -1,6 +1,6 @@
 # World Sandbox
 
-A game on the Games 4 hub. It isn't built yet. This note has everything decided so far.
+A game on the Games 4 hub. The first version is built. This note has everything decided so far.
 
 ## What it is
 
@@ -21,6 +21,16 @@ A create-your-own-world sandbox. In the designer's words: "The possibilities are
 ## Decisions made
 
 - **View: top-down map.** You look down from space at a map of land and ocean, which makes it easy to see lots of tribes and villages spread out. Caves open in their own zoomed-in view when you click a mountain. (Side view was the other option; top-down was chosen.)
+- **Land things go on land.** Trees, hills, mountains, and volcanoes can only be placed on land. Tsunamis can only be placed in water.
+- **Life fits where you put it.** Click land and you get a land animal (sheep, cow, rabbit, fox, elephant, giraffe, pig, or deer). Click water and you get a sea creature (fish, octopus, whale, turtle, crab, or dolphin). They wander around and stay on their own kind of ground.
+- **Tsunamis roll out from where you click.** The wave spreads out in a ring over the water and pushes a little way up onto the land. It washes away trees and land animals near the shore. Hills, mountains, volcanoes, and sea creatures stay. A big island in the way blocks the wave.
+- **Your world is saved.** It's still there when you come back. **New World** makes a different map and clears everything off it.
+
+## Still to decide
+
+- Can you erase one thing without making a whole new world?
+- Should volcanoes erupt and do something, or just smoke?
+- Can you paint new land into the ocean, or dig water into the land?
 
 ## How you unlock it
 
@@ -32,22 +42,25 @@ A create-your-own-world sandbox. In the designer's words: "The possibilities are
    4. **Number pool:** use the door key on the secret keyhole in the Chalkboard's chalkboard.
 3. **Put the Earth together:** back on the Games 4 hub with all four fragments, you put the Earth together. That unlocks World Sandbox.
 
-## What's already in the code
+## What's in the code
 
+- **`src/games4/world-sandbox/`:** the game (Canvas 2D, no game engine).
+  - `world.ts` makes the land and sea from a seed number, and works out where a tsunami can reach.
+  - `world.test.ts` checks those. Run it with `npm test`.
+  - `main.ts` has the toolbar, placing things, wandering animals, tsunamis, drawing, and saving.
 - **`src/games4/earthAssembly.ts`:** the Put the Earth Together screen, plus `hasAllEarthFragments()` and `earthIsBuilt()`.
-- **localStorage keys:** `zero-logic-escape-rooms-earth-fragment-1` … `-4` for the fragments, and `zero-logic-escape-rooms-earth-built` once the Earth is put together.
-- **`src/games4/main.ts`:** `WORLD_SANDBOX_CARD` is a "Coming soon" card that only shows up when `earthIsBuilt()` is true. It isn't a link yet.
-- **`src/styles/main.css`:** the `.is-coming-soon` card style.
+- **`src/games4/main.ts`:** `WORLD_SANDBOX_CARD` links to the game. It only shows up when `earthIsBuilt()` is true.
+- **localStorage keys:**
+  - `zero-logic-escape-rooms-earth-fragment-1` … `-4` for the fragments
+  - `zero-logic-escape-rooms-earth-built` once the Earth is put together
+  - `world-sandbox-world` for the saved world: its seed and everything placed on it
 
-## Plan for building it
+## Plan
 
-- **Files:** put the game in `src/games4/world-sandbox/` (`index.html`, `main.ts`, `styles.css`), like the other Games 4 games. Add it to `vite.config.ts` under `build.rollupOptions.input`.
-- **Hub card:** turn the World Sandbox card into a real link to the game, still only when `earthIsBuilt()`.
-- **Tech:** Canvas 2D, no game engine, same as the rest of the repo.
-- **First version:**
+- **Done, first version:**
   - a top-down world map of ocean and land
   - a toolbar of things to place: trees, hills, mountains, volcanoes, tsunamis (water only), and life forms
-- **Add after that:**
+- **Add next:**
   - caves with ores (a zoomed-in view from a mountain)
   - tribes and fighting
   - named people with traits

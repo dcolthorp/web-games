@@ -39,6 +39,7 @@ export default defineConfig({
         games4: resolve(__dirname, "src/games4/index.html"),
         telephone: resolve(__dirname, "src/games4/telephone/index.html"),
         zeroLogicEscapeRooms: resolve(__dirname, "src/games4/zero-logic-escape-rooms/index.html"),
+        worldSandbox: resolve(__dirname, "src/games4/world-sandbox/index.html"),
         makeYourOwnBeatboxerThingy: resolve(
           __dirname,
           "src/games3/make-your-own-beatboxer-thingy/index.html"
