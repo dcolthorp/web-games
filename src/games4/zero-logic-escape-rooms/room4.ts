@@ -23,8 +23,9 @@ import { sounds } from "./sound";
 
 // Escape Room 4: Chalkboard. All there is is a chalkboard that says 1 + 1 = ?.
 // Click it to zoom in (Back, or Esc, zooms out again). Drag the 1s, the + and the two bars of the = into a
-// window: the 1s are the sides, the bars go top and bottom, and the + is the
-// cross in the middle. Tap a piece to turn it. Then the leftover goes ? ! : —
+// window: the + is the cross in the middle, the two bars go above and below it,
+// and the 1s get turned sideways and laid on each end of its arms, making them
+// longer. Tap a piece to turn it. Then the leftover goes ? ! : —
 // tap the curl to straighten it into a line, tap the line to shrink it into a
 // dot, tap both dots to make them bigger, and drag one onto the other to make a button.
 // Press the button and the chalkboard explodes. Behind it is a real window.
@@ -99,7 +100,9 @@ const CHALK_W = 11;
 const L = 130; // how long the strokes of the 1, + and = are
 const DOT_R = 9;
 const BIG_R = 24;
-const SNAP = 40;
+// Generous, so a piece dropped roughly in place still clicks in. The slots are
+// 130 apart, so it can't click into the wrong one.
+const SNAP = 72;
 
 // Half the size of what you can grab on each kind of piece, before turning.
 const HIT: Record<Kind, [number, number]> = {
@@ -426,21 +429,26 @@ export function createChalkboardRoom(escape: () => void): Room {
     piece.changedAt = now;
   }
 
-  // The window is built around the +: a 1 standing up on each side of it, and
-  // a bar lying across the top and bottom. Anything close enough clicks in.
+  // The window is built around the +: a 1 turned sideways on each side of it,
+  // making its arms longer, and a bar across the top and bottom. A piece close
+  // enough, and turned the right way, clicks in.
   function snapPieces(): void {
     const plus = pieces.find((piece) => piece.kind === "plus");
     if (!plus || windowDone) return;
-    const slots: { kind: Kind; x: number; y: number }[] = [
-      { kind: "one", x: plus.x - L / 2, y: plus.y },
-      { kind: "one", x: plus.x + L / 2, y: plus.y },
-      { kind: "bar", x: plus.x, y: plus.y - L / 2 },
-      { kind: "bar", x: plus.x, y: plus.y + L / 2 },
+    const slots: { kind: Kind; x: number; y: number; sideways: boolean }[] = [
+      { kind: "one", x: plus.x - L, y: plus.y, sideways: true },
+      { kind: "one", x: plus.x + L, y: plus.y, sideways: true },
+      { kind: "bar", x: plus.x, y: plus.y - L / 2, sideways: false },
+      { kind: "bar", x: plus.x, y: plus.y + L / 2, sideways: false },
     ];
     for (const slot of slots) {
       if (pieces.some((p) => p.snapped && p.x === slot.x && p.y === slot.y)) continue;
       const piece = pieces.find(
-        (p) => !p.snapped && p.kind === slot.kind && p.turns % 2 === 0 && Math.hypot(p.x - slot.x, p.y - slot.y) < SNAP
+        (p) =>
+          !p.snapped &&
+          p.kind === slot.kind &&
+          (p.turns % 2 === 1) === slot.sideways &&
+          Math.hypot(p.x - slot.x, p.y - slot.y) < SNAP
       );
       if (!piece) continue;
       piece.x = slot.x;
@@ -455,9 +463,10 @@ export function createChalkboardRoom(escape: () => void): Room {
   }
 
   function boom(button: Piece, now: number): void {
-    // Underneath the chalk window means below its bottom bar, and not off to one side.
+    // Underneath the chalk window means below its bottom bar, and not past the
+    // ends of the sideways 1s.
     const plus = pieces.find((piece) => piece.kind === "plus");
-    secretBoom = !!plus && windowDone && Math.abs(button.x - plus.x) <= L / 2 + 20 && button.y > plus.y + L / 2 + 10;
+    secretBoom = !!plus && windowDone && Math.abs(button.x - plus.x) <= L * 1.5 && button.y > plus.y + L / 2 + 10;
     sounds.crash();
     sounds.crack();
     chunks = [];
