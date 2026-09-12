@@ -283,6 +283,13 @@ canvas {
   }
 }
 
+/* Switch pieces sit in slots like tools, but they aren't buttons. */
+.switch-slot,
+.switch-slot:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  cursor: default;
+}
+
 .room-picker {
   display: flex;
   flex-wrap: wrap;

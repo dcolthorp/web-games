@@ -17,6 +17,7 @@ import {
   type Point,
 } from "./engine";
 import { sounds } from "./sound";
+import { collectSwitchPiece, drawSwitchPiece, hasSwitchPiece } from "./switchPieces";
 import { selectedTool } from "./tools";
 
 // Workbench's bonus level, behind the doorway the saw cuts in the plywood wall.
@@ -24,7 +25,8 @@ import { selectedTool } from "./tools";
 // a slot in each side wall. Press Start and every second two boards shoot out
 // of the slots, one smiley and one frowny. Saw the frowny ones before they hit
 // you. Let a frowny one hit you, or saw a smiley one (it turns sad), and it's
-// back to the start. Saw enough frowny ones and you beat it.
+// back to the start. Saw enough frowny ones and you beat it, and get switch
+// piece 1.
 
 export interface BonusLevel {
   reset(now: number): void;
@@ -92,6 +94,7 @@ export function createBoardBonus(leave: () => void): BonusLevel {
   let dust: Dust[] = [];
   let sawn = 0;
   let nextSpawn = 0;
+  let pieceWasNew = true;
   let pointer: Point = { x: W / 2, y: H / 2 };
 
   function setPhase(next: Phase, now: number): void {
@@ -207,6 +210,8 @@ export function createBoardBonus(leave: () => void): BonusLevel {
     sawn += 1;
     if (sawn >= TO_WIN) {
       sounds.chime();
+      pieceWasNew = !hasSwitchPiece(1);
+      collectSwitchPiece(1);
       boards = boards.filter((b) => b.sawnAt !== null);
       setPhase("won", now);
     }
@@ -505,9 +510,10 @@ export function createBoardBonus(leave: () => void): BonusLevel {
     } else if (phase === "won") {
       ctx.fillStyle = `rgba(0, 0, 0, ${Math.min(0.65, inPhase / 600)})`;
       ctx.fillRect(0, 0, W, H);
-      shout("BONUS LEVEL BEATEN!", H / 2 - 30, 64, "#ffcf5a");
-      shout("You sawed every frowny board.", H / 2 + 30, 26, "#f5efe6");
-      shout("Click to go back.", H / 2 + 70, 22, "#b9adc4");
+      shout("BONUS LEVEL BEATEN!", H / 2 - 110, 64, "#ffcf5a");
+      drawSwitchPiece(1, W / 2, H / 2 - 5, 1);
+      shout(pieceWasNew ? "You got switch piece 1!" : "You already have switch piece 1.", H / 2 + 80, 28, "#f5efe6");
+      shout("Click to go back.", H / 2 + 125, 22, "#b9adc4");
     }
 
     drawFloaters(now);

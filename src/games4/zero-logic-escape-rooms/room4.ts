@@ -21,7 +21,7 @@ import {
 import { sounds } from "./sound";
 
 // Escape Room 4: Chalkboard. All there is is a chalkboard that says 1 + 1 = ?.
-// Click it to zoom in. Drag the 1s, the + and the two bars of the = into a
+// Click it to zoom in (Back, or Esc, zooms out again). Drag the 1s, the + and the two bars of the = into a
 // window: the 1s are the sides, the bars go top and bottom, and the + is the
 // cross in the middle. Tap a piece to turn it. Then the leftover goes ? ! : —
 // tap the curl to straighten it into a line, tap the line to shrink it into a
@@ -31,7 +31,7 @@ import { sounds } from "./sound";
 // the grass where nothing happens, except spikes. Jump them (click or Space)
 // until it ends. Hit one and the walk starts over.
 
-type Scene = "room" | "zoom" | "board" | "boom" | "window" | "leaving" | "walk" | "escaped";
+type Scene = "room" | "zoom" | "board" | "unzoom" | "boom" | "window" | "leaving" | "walk" | "escaped";
 type Kind = "one" | "plus" | "bar" | "curl" | "line" | "dot" | "bigDot" | "button";
 
 interface Piece {
@@ -72,6 +72,8 @@ const PALETTE = {
 const BOARD = { x: 280, y: 90, w: 400, h: 250 };
 const FRAME = 26;
 const TRAY_TOP = H - 44;
+// Sits on the chalk tray past the eraser, where no chalk piece can be dragged.
+const BACK_BUTTON = { x: W - 118, y: TRAY_TOP + 8, w: 100, h: 30 };
 
 const CHALK = "rgba(246, 246, 240, 0.93)";
 const RED_CHALK = "#ef6f6c";
@@ -110,6 +112,7 @@ const CHUNK_W = W / CHUNK_COLS;
 const CHUNK_H = H / CHUNK_ROWS;
 
 const ZOOM_MS = 1100;
+const ZOOM_OUT_MS = 800;
 const TURN_MS = 180;
 const MORPH_MS = 350;
 const WIGGLE_MS = 400;
@@ -186,6 +189,10 @@ export function createChalkboardRoom(escape: () => void): Room {
   let duckAt = -Infinity;
 
   window.addEventListener("keydown", (event) => {
+    if (scene === "board" && event.key === "Escape") {
+      zoomOut(performance.now());
+      return;
+    }
     if (scene !== "walk" || (event.key !== " " && event.key !== "ArrowUp")) return;
     event.preventDefault();
     jump();
@@ -234,6 +241,15 @@ export function createChalkboardRoom(escape: () => void): Room {
 
   const overBoard = (p: Point): boolean => inRect(p, BOARD.x, BOARD.y, BOARD.w, BOARD.h);
   const overWindow = (p: Point): boolean => inRect(p, WIN.x, WIN.y, WIN.w, WIN.h);
+  const overBack = (p: Point): boolean => inRect(p, BACK_BUTTON.x, BACK_BUTTON.y, BACK_BUTTON.w, BACK_BUTTON.h);
+
+  // Step back from the chalkboard into the room. The pieces stay where they
+  // are, so clicking the board again carries on where you left off.
+  function zoomOut(now: number): void {
+    dragging = null;
+    sounds.whoosh(ZOOM_OUT_MS / 1000);
+    setScene("unzoom", now);
+  }
 
   // ---------- input ----------
 
@@ -258,6 +274,10 @@ export function createChalkboardRoom(escape: () => void): Room {
       return;
     }
     if (scene !== "board") return;
+    if (overBack(p)) {
+      zoomOut(now);
+      return;
+    }
 
     const piece = pieceAt(p);
     if (!piece) return;
@@ -410,6 +430,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     if (scene === "window") return overWindow(p) ? "pointer" : "default";
     if (scene !== "board") return "default";
     if (dragging) return "grabbing";
+    if (overBack(p)) return "pointer";
     const piece = pieceAt(p);
     if (!piece) return "default";
     return piece.kind === "button" ? "pointer" : "grab";
@@ -421,6 +442,8 @@ export function createChalkboardRoom(escape: () => void): Room {
     const elapsed = now - sceneStart;
     if (scene === "zoom" && elapsed >= ZOOM_MS) {
       setScene("board", now);
+    } else if (scene === "unzoom" && elapsed >= ZOOM_OUT_MS) {
+      setScene("room", now);
     } else if (scene === "boom" && elapsed >= BOOM_MS) {
       setScene("window", now);
     } else if (scene === "leaving" && elapsed >= LEAVE_MS) {
@@ -869,8 +892,10 @@ export function createChalkboardRoom(escape: () => void): Room {
   function draw(now: number): void {
     const elapsed = now - sceneStart;
 
-    if (scene === "room" || scene === "zoom") {
-      const t = scene === "zoom" ? clamp(elapsed / ZOOM_MS, 0, 1) : 0;
+    if (scene === "room" || scene === "zoom" || scene === "unzoom") {
+      // Zooming out is zooming in played backwards.
+      const t =
+        scene === "zoom" ? clamp(elapsed / ZOOM_MS, 0, 1) : scene === "unzoom" ? 1 - clamp(elapsed / ZOOM_OUT_MS, 0, 1) : 0;
       const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
       const k = lerp(1, W / BOARD.w, e);
       ctx.save();
@@ -886,6 +911,15 @@ export function createChalkboardRoom(escape: () => void): Room {
     }
     if (scene === "board") {
       drawBoard(now);
+      // Only close up. The little chalkboard in the room doesn't get one.
+      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      roundRect(BACK_BUTTON.x, BACK_BUTTON.y, BACK_BUTTON.w, BACK_BUTTON.h, 7);
+      ctx.fill();
+      ctx.fillStyle = "#f4f4ee";
+      ctx.font = "bold 15px 'Trebuchet MS', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("← Back", BACK_BUTTON.x + BACK_BUTTON.w / 2, BACK_BUTTON.y + BACK_BUTTON.h / 2 + 1);
       return;
     }
     if (scene === "boom") {

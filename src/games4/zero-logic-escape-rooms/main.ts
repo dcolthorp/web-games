@@ -6,6 +6,7 @@ import { createWorkbenchRoom } from "./room2";
 import { createComicalRoom } from "./room3";
 import { createChalkboardRoom } from "./room4";
 import { ensureAudio } from "./sound";
+import { SWITCH_PIECES_BUILT, SWITCH_PIECE_ICONS, collectedSwitchPieces, whenSwitchPiecesChange } from "./switchPieces";
 import { TOOLBAR_SLOTS, TOOLS, ownsTool, selectedTool, toggleTool, whenToolFound, type Tool } from "./tools";
 
 installOofShortcut();
@@ -25,6 +26,8 @@ const creditsRooms = document.getElementById("credits-rooms") as HTMLDivElement;
 const picker = document.getElementById("room-picker") as HTMLElement;
 const toolbar = document.getElementById("toolbar") as HTMLElement;
 const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
+const switchPanel = document.getElementById("switch-pieces") as HTMLElement;
+const switchSlots = document.getElementById("switch-slots") as HTMLDivElement;
 
 const rooms: Room[] = [
   createNothingRoom(roomEscaped),
@@ -171,6 +174,33 @@ function renderToolbar(): void {
 
 // Tools found inside a room, like the saw, show up straight away.
 whenToolFound(renderToolbar);
+
+// ---------- switch pieces ----------
+
+// Hidden until you find a piece. There's always one more empty slot, because
+// more pieces are coming.
+function renderSwitchPieces(): void {
+  const collected = collectedSwitchPieces();
+  switchPanel.hidden = collected.length === 0;
+  const slots: HTMLElement[] = [];
+  for (let n = 1; n <= SWITCH_PIECES_BUILT + 1; n += 1) {
+    const slot = document.createElement("span");
+    slot.className = "tool-slot switch-slot";
+    if (collected.includes(n)) {
+      slot.title = `Switch piece ${n}`;
+      slot.innerHTML = `${SWITCH_PIECE_ICONS[n] ?? ""}<span class="tool-name">Piece ${n}</span>`;
+    } else {
+      slot.classList.add("is-empty");
+      slot.textContent = "?";
+      slot.setAttribute("aria-hidden", "true");
+    }
+    slots.push(slot);
+  }
+  switchSlots.replaceChildren(...slots);
+}
+
+whenSwitchPiecesChange(renderSwitchPieces);
+renderSwitchPieces();
 
 // Number keys pick tools too, 1 for the first slot and so on.
 window.addEventListener("keydown", (event) => {

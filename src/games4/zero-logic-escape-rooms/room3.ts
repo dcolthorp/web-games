@@ -4,7 +4,6 @@ import {
   clamp,
   ctx,
   diveInto,
-  drawBonusCard,
   drawCaption,
   drawRoomBox,
   drawSaw,
@@ -17,6 +16,7 @@ import {
   type Point,
   type Room,
 } from "./engine";
+import { createPosterBonus } from "./bonus3";
 import { sounds } from "./sound";
 import { selectedTool } from "./tools";
 
@@ -24,8 +24,9 @@ import { selectedTool } from "./tools";
 // them around a bedroom, inside some of the shoes, phones and other junk. The
 // rest are decoys. Find all six, then glue them back onto the page with the
 // glue from the tool bar. The last panel is a black hole, and that's the exit.
-// With the saw from room 1 you can cut up the posters on the wall, and there's
-// a secret way to a bonus level behind each one.
+// With the saw from room 1 you can cut up one of the posters on the wall, and
+// there's a secret way to a bonus level (bonus3.ts) behind it. Which poster will cut is
+// picked at random every time; the other one won't.
 
 type Scene = "search" | "toDesk" | "desk" | "leaving" | "bonusIn" | "bonus" | "escaped";
 type SpotKind = "shoe" | "phone" | "trash" | "pizza" | "cushion";
@@ -140,9 +141,11 @@ interface Poster {
   ink: string;
   r: number;
   cutAt: number | null;
+  // Only one poster per visit hides the bonus way. The saw won't go through the other.
+  sawable: boolean;
 }
 
-const POSTER_LAYOUT: Omit<Poster, "cutAt">[] = [
+const POSTER_LAYOUT: Omit<Poster, "cutAt" | "sawable">[] = [
   { x: 170, y: 95, w: 110, h: 150, color: "#ffd23f", word: "POW!", burst: "#e63946", ink: "#fff", r: 44 },
   { x: 320, y: 85, w: 100, h: 140, color: "#4cc9f0", word: "ZAP!", burst: "#ffd23f", ink: "#1d3557", r: 40 },
 ];
@@ -176,6 +179,8 @@ export function createComicalRoom(escape: () => void): Room {
   let pointer: Point = { x: W / 2, y: H / 2 };
   let posters: Poster[] = [];
   let bonusAt: Point = { x: W / 2, y: H / 2 };
+  // Leaving the bonus level puts you back in the bedroom.
+  const bonus = createPosterBonus(() => setScene("search", performance.now()));
 
   function setScene(next: Scene, now: number): void {
     scene = next;
@@ -191,7 +196,8 @@ export function createComicalRoom(escape: () => void): Room {
     found = 0;
     collected = 0;
     pageBump = -Infinity;
-    posters = POSTER_LAYOUT.map((poster) => ({ ...poster, cutAt: null }));
+    const sawableIndex = Math.floor(Math.random() * POSTER_LAYOUT.length);
+    posters = POSTER_LAYOUT.map((poster, i) => ({ ...poster, cutAt: null, sawable: i === sawableIndex }));
 
     // Every play hides the pieces somewhere new. At least one shoe and one
     // phone are always decoys, plus two more of anything.
@@ -268,7 +274,7 @@ export function createComicalRoom(escape: () => void): Room {
     const now = performance.now();
 
     if (scene === "bonus") {
-      setScene("search", now);
+      bonus.pointerDown(p);
       return;
     }
     if (scene === "search") {
@@ -281,9 +287,14 @@ export function createComicalRoom(escape: () => void): Room {
       }
       const poster = posterAt(p, false);
       if (poster && selectedTool() === "saw") {
-        poster.cutAt = now;
-        sounds.crack();
-        sounds.paper();
+        if (poster.sawable) {
+          poster.cutAt = now;
+          sounds.crack();
+          sounds.paper();
+        } else {
+          sounds.stroke();
+          float("This one won't cut.", poster.x + poster.w / 2, poster.y + poster.h + 24, now);
+        }
         return;
       }
       const spot = spotAt(p);
@@ -320,12 +331,13 @@ export function createComicalRoom(escape: () => void): Room {
 
   function pointerMove(p: Point): void {
     pointer = p;
+    if (scene === "bonus") bonus.pointerMove(p);
   }
 
   function pointerUp(): void {}
 
   function cursor(p: Point): string {
-    if (scene === "bonus") return "pointer";
+    if (scene === "bonus") return bonus.cursor(p);
     if (scene === "search") {
       if (posterAt(p, true)) return "pointer";
       if (selectedTool() === "saw") return "none";
@@ -340,6 +352,10 @@ export function createComicalRoom(escape: () => void): Room {
   // ---------- update ----------
 
   function update(now: number): void {
+    if (scene === "bonus") {
+      bonus.update(now, 0);
+      return;
+    }
     const elapsed = now - sceneStart;
     if (scene === "search") {
       for (const flyer of flyers) {
@@ -352,6 +368,7 @@ export function createComicalRoom(escape: () => void): Room {
       if (collected === PIECE_COUNT) setScene("toDesk", now);
     } else if (scene === "bonusIn" && elapsed >= BONUS_IN_MS) {
       setScene("bonus", now);
+      bonus.reset(now);
     } else if (scene === "toDesk" && elapsed >= TO_DESK_MS) {
       setScene("desk", now);
     } else if (scene === "desk") {
@@ -1251,7 +1268,7 @@ export function createComicalRoom(escape: () => void): Room {
       drawSearch(now);
       ctx.restore();
     } else if (scene === "bonus") {
-      drawBonusCard(elapsed / 1000);
+      bonus.draw(now);
     } else if (scene === "toDesk") {
       // Fade out of the bedroom and into the desk.
       const t = Math.min(1, elapsed / TO_DESK_MS);
