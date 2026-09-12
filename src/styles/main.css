@@ -676,6 +676,17 @@ h1.is-glitching::after {
     linear-gradient(180deg, #33236f, #180f3d);
 }
 
+/* World Sandbox, unlocked by putting the Earth together but not built yet. */
+.games4-hub .games4-game-card.is-coming-soon {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.games4-hub .games4-game-card.is-coming-soon:hover {
+  transform: none;
+  border-color: #0f0f14;
+}
+
 /* The light switch built from Zero Logic Escape Rooms' switch pieces, stuck on
    top of its card. Lever down is Zero Logic, up is Hundred Logic. */
 .has-escape-switch {

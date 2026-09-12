@@ -1,8 +1,9 @@
 import { ctx } from "./engine";
 
 // Earth fragments come after the three switch pieces. Each is a quarter of the
-// Earth, and all four together will unlock a new game, World Sandbox. The
-// mirror maze gives out the first one.
+// Earth, and all four together unlock a new game, World Sandbox (see
+// ../earthAssembly.ts). They come from Hundred Logic's secret bonus levels: the
+// mirror maze, the Tool Wall, the comic box, and the number pool.
 
 export const EARTH_FRAGMENT_COUNT = 4;
 
@@ -80,7 +81,8 @@ export function drawEarthFragment(n: number, x: number, y: number, scale = 1): v
   ocean.addColorStop(1, "#1d5fb8");
   ctx.fillStyle = ocean;
   ctx.fillRect(-r, -r, r * 2, r * 2);
-  // The same land for every fragment, so the three fit together into one Earth.
+  // The same land for every fragment, so the four fit together into one Earth.
+  // ../earthAssembly.ts draws this same land.
   ctx.fillStyle = "#4fbf5a";
   for (const [lx, ly, lr] of [
     [-18, -22, 14],

@@ -1,5 +1,6 @@
 import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
+import { earthIsBuilt, hasAllEarthFragments, openEarthAssembly } from "./earthAssembly";
 import { hasAllSwitchPieces, openSwitchAssembly, switchIsBuilt } from "./switchAssembly";
 
 installOofShortcut();
@@ -54,6 +55,21 @@ function flipEscapeSwitch(): void {
   renderGameList();
 }
 
+// Putting the four Earth fragments from Hundred Logic Escape Rooms together
+// unlocks World Sandbox. It isn't built yet, so for now its card just waits.
+const WORLD_SANDBOX_CARD = `
+  <li>
+    <div class="game-card games4-game-card is-coming-soon" aria-disabled="true">
+      <span class="game-card-top">
+        <span class="game-tag">Sandbox</span>
+        <span class="game-arrow" aria-hidden="true">🌍</span>
+      </span>
+      <span class="game-title">World Sandbox</span>
+      <span class="game-blurb">Coming soon. You put the whole Earth back together.</span>
+    </div>
+  </li>
+`;
+
 // The games are hiding under the floor until you catch it.
 function renderGameList(): void {
   const list = document.getElementById("game-list");
@@ -87,14 +103,16 @@ function renderGameList(): void {
       </li>
     `;
     })
-    .join("");
+    .join("") + (earthIsBuilt() ? WORLD_SANDBOX_CARD : "");
   list.querySelector(".escape-switch")?.addEventListener("click", flipEscapeSwitch);
 }
 
 renderGameList();
 
 // Back out of Zero Logic Escape Rooms with every switch piece: time to build the switch.
+// Back out of Hundred Logic with every Earth fragment: time to put the Earth together.
 if (hasAllSwitchPieces() && !switchIsBuilt()) openSwitchAssembly(renderGameList);
+else if (hasAllEarthFragments() && !earthIsBuilt()) openEarthAssembly(renderGameList);
 
 // This hub's floor will not be stood on: it slides out from under the pointer
 // until you finally corner it.

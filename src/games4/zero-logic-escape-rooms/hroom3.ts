@@ -15,6 +15,7 @@ import {
   type Room,
 } from "./engine";
 import { FLOAT_MS, drawDoor, drawFloaters, drawKey, drawNotes, type Floater } from "./hundred";
+import { createComicBoxBonus } from "./comicBox";
 import { sounds } from "./sound";
 
 // Hundred Logic Escape Room 3: Comical. Somebody tore up a comic book, and the
@@ -22,8 +23,22 @@ import { sounds } from "./sound";
 // glue is on the desk. Glue the comic back together and it tells you how to get
 // out: the door has a key lock and a code lock, the key is in the pizza box,
 // and the code is in the comic.
+// Open the drawer a second time and there's a shrinker machine in it. Zap
+// yourself down to the size of a comic page, climb into the comic book box,
+// and that's a bonus level (comicBox.ts).
 
-type Scene = "room" | "toDesk" | "desk" | "toRoom" | "opening" | "open" | "leaving" | "escaped";
+type Scene =
+  | "room"
+  | "toDesk"
+  | "desk"
+  | "toRoom"
+  | "opening"
+  | "open"
+  | "leaving"
+  | "escaped"
+  | "zap" // the shrinker machine going off
+  | "bonusIn" // climbing into the comic box
+  | "bonus";
 
 interface Rect {
   x: number;
@@ -102,6 +117,10 @@ const GLUE_FLY_MS = 450;
 const RESULT_MS = 700;
 const OPEN_MS = 700;
 const LEAVE_MS = 1500;
+const ZAP_MS = 1300;
+const BONUS_IN_MS = 900;
+// Where you stand when the shrinker zaps you.
+const YOU: Point = { x: 560, y: 470 };
 
 const over = (p: Point, r: Rect): boolean => inRect(p, r.x, r.y, r.w, r.h);
 
@@ -141,6 +160,15 @@ export function createHundredComicalRoom(escape: () => void): Room {
   let resultGood = false;
   let floaters: Floater[] = [];
   let pointer: Point = { x: W / 2, y: H / 2 };
+  let shrinkerFound = false;
+  let tiny = false;
+  // Coming back out of the comic box, you're back to your normal size.
+  const comicBox = createComicBoxBonus(() => {
+    const now = performance.now();
+    tiny = false;
+    setScene("room", now);
+    say("You're back to your normal size.", W / 2, 140, now);
+  });
 
   function setScene(next: Scene, now: number): void {
     scene = next;
@@ -164,6 +192,8 @@ export function createHundredComicalRoom(escape: () => void): Room {
     entry = "";
     resultAt = -Infinity;
     resultGood = false;
+    shrinkerFound = false;
+    tiny = false;
     floaters = [];
     const order = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5);
     pieces = SCATTER.map(([x, y], i) => ({
@@ -236,7 +266,10 @@ export function createHundredComicalRoom(escape: () => void): Room {
 
   function roomDown(p: Point, now: number): void {
     if (over(p, BOX)) {
-      if (boxEmpty) {
+      if (tiny) {
+        sounds.whoosh(BONUS_IN_MS / 1000);
+        setScene("bonusIn", now);
+      } else if (boxEmpty) {
         sounds.tink();
         say("The comic box is empty now.", BOX.x + BOX.w / 2, BOX.y - 30, now);
       } else {
@@ -244,9 +277,17 @@ export function createHundredComicalRoom(escape: () => void): Room {
         releasePieces(BOX, now);
       }
     } else if (over(p, DRAWER)) {
-      if (drawerOpen) {
+      if (tiny) {
         sounds.tink();
-        say("The drawer is empty now.", DRAWER.x + DRAWER.w / 2, DRESSER.y - 20, now);
+        say("You're too small to reach the drawer now.", DRAWER.x + DRAWER.w / 2, DRESSER.y - 20, now);
+      } else if (shrinkerFound) {
+        sounds.pop();
+        setScene("zap", now);
+      } else if (drawerOpen) {
+        // The second time you open it, there's something at the back.
+        shrinkerFound = true;
+        sounds.clack();
+        say("There's a shrinker machine in here!", DRAWER.x + DRAWER.w / 2, DRESSER.y - 20, now);
       } else {
         drawerOpen = true;
         sounds.clack();
@@ -335,6 +376,10 @@ export function createHundredComicalRoom(escape: () => void): Room {
   function pointerDown(p: Point): void {
     pointer = p;
     const now = performance.now();
+    if (scene === "bonus") {
+      comicBox.pointerDown(p);
+      return;
+    }
     if (scene === "room") {
       if (keypadOpen) keypadDown(p, now);
       else roomDown(p, now);
@@ -348,11 +393,15 @@ export function createHundredComicalRoom(escape: () => void): Room {
 
   function pointerMove(p: Point): void {
     pointer = p;
+    if (scene === "bonus") comicBox.pointerMove(p);
   }
 
-  function pointerUp(): void {}
+  function pointerUp(p: Point): void {
+    if (scene === "bonus") comicBox.pointerUp?.(p);
+  }
 
   function cursor(p: Point): string {
+    if (scene === "bonus") return comicBox.cursor(p);
     if (scene === "room") {
       if (keypadOpen) return over(p, PAD_CLOSE) || !over(p, PAD) || PAD_KEYS.some((_, i) => over(p, padKeyRect(i))) ? "pointer" : "default";
       return [BOX, DRAWER, DRESSER, PIZZA, SHOE, PHONE, KEYPAD, DOOR].some((r) => over(p, r)) ? "pointer" : "default";
@@ -369,6 +418,10 @@ export function createHundredComicalRoom(escape: () => void): Room {
   // ---------- update ----------
 
   function update(now: number): void {
+    if (scene === "bonus") {
+      comicBox.update(now, 0);
+      return;
+    }
     const elapsed = now - sceneStart;
     for (const flyer of flyers) if (now - flyer.start >= POP_MS) collected += 1;
     flyers = flyers.filter((flyer) => now - flyer.start < POP_MS);
@@ -381,6 +434,12 @@ export function createHundredComicalRoom(escape: () => void): Room {
         resultAt = -Infinity;
         tryOpenDoor(now);
       }
+    } else if (scene === "zap" && elapsed >= ZAP_MS) {
+      tiny = true;
+      setScene("room", now);
+    } else if (scene === "bonusIn" && elapsed >= BONUS_IN_MS) {
+      setScene("bonus", now);
+      comicBox.reset(now);
     } else if (scene === "toDesk" && elapsed >= SWAP_MS) {
       setScene("desk", now);
     } else if (scene === "desk") {
@@ -407,6 +466,59 @@ export function createHundredComicalRoom(escape: () => void): Room {
   }
 
   // ---------- drawing: the bedroom ----------
+
+  // The shrinker machine, sitting in the pulled-out drawer.
+  function drawShrinker(now: number): void {
+    const x = DRAWER.x + 28;
+    const y = DRAWER.y + 14;
+    ctx.fillStyle = "#7d8a91";
+    roundRect(x, y, 58, 26, 5);
+    ctx.fill();
+    ctx.strokeStyle = "#3f4649";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#aab3b8";
+    ctx.fillRect(x + 58, y + 10, 8, 6);
+    ctx.fillStyle = "#c9d1d6";
+    ctx.beginPath();
+    ctx.ellipse(x + 72, y + 13, 7, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = Math.floor(now / 400) % 2 === 0 ? "#ff5a5a" : "#b52a2a";
+    ctx.beginPath();
+    ctx.arc(x + 12, y + 13, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 8px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("SHRINK", x + 36, y + 13);
+  }
+
+  // You, standing on the floor. Normal size is about 110 tall; tiny is 16.
+  function drawYou(x: number, y: number, height: number): void {
+    const s = height / 110;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(0, -40);
+    ctx.lineTo(14, 0);
+    ctx.stroke();
+    ctx.fillStyle = "#3d7bd9";
+    roundRect(-16, -80, 32, 44, 10);
+    ctx.fill();
+    ctx.fillStyle = "#f1c27d";
+    ctx.beginPath();
+    ctx.arc(0, -94, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineCap = "butt";
+    ctx.restore();
+  }
 
   function drawRoomObjects(now: number): void {
     drawRoomBox(PALETTE);
@@ -444,6 +556,7 @@ export function createHundredComicalRoom(escape: () => void): Room {
       ctx.fillStyle = "#b8834d";
       roundRect(DRAWER.x - 10, DRAWER.y + 18, DRAWER.w + 20, DRAWER.h + 8, 4);
       ctx.fill();
+      if (shrinkerFound) drawShrinker(now);
     } else {
       ctx.fillStyle = "#a8733f";
       ctx.fillRect(DRAWER.x, DRAWER.y, DRAWER.w, DRAWER.h);
@@ -566,6 +679,7 @@ export function createHundredComicalRoom(escape: () => void): Room {
 
   function drawRoom(now: number): void {
     drawRoomObjects(now);
+    if (tiny) drawYou(YOU.x, YOU.y, 16);
     drawVignette();
     for (const flyer of flyers) {
       const t = (now - flyer.start) / POP_MS;
@@ -708,6 +822,10 @@ export function createHundredComicalRoom(escape: () => void): Room {
   // ---------- draw ----------
 
   function draw(now: number): void {
+    if (scene === "bonus") {
+      comicBox.draw(now);
+      return;
+    }
     const elapsed = now - sceneStart;
     let dark = 0;
     if (scene === "toDesk" || scene === "toRoom") {
@@ -723,11 +841,38 @@ export function createHundredComicalRoom(escape: () => void): Room {
       ctx.save();
       if (scene === "leaving" || scene === "escaped") {
         dark = scene === "escaped" ? 1 : diveInto(DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h / 2, Math.min(1, elapsed / LEAVE_MS));
+      } else if (scene === "bonusIn") {
+        dark = diveInto(BOX.x + BOX.w / 2, BOX.y + BOX.h / 2, Math.min(1, elapsed / BONUS_IN_MS));
       }
       drawRoom(now);
       ctx.restore();
+      if (scene === "zap") {
+        // A beam from the shrinker, and you shrinking down to comic page size.
+        const t = Math.min(1, elapsed / ZAP_MS);
+        const size = 110 - 94 * (1 - (1 - t) ** 3);
+        ctx.strokeStyle = `rgba(120, 255, 200, ${0.9 - 0.6 * t})`;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(DRAWER.x + 106, DRAWER.y + 27);
+        ctx.lineTo(YOU.x, YOU.y - size / 2);
+        ctx.stroke();
+        drawYou(YOU.x, YOU.y, size);
+        if (t < 0.25) {
+          ctx.fillStyle = `rgba(200, 255, 230, ${0.6 * (1 - t / 0.25)})`;
+          ctx.fillRect(0, 0, W, H);
+        }
+        ctx.fillStyle = "#78ffc8";
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 5;
+        ctx.font = "bold 54px 'Comic Sans MS', 'Chalkboard SE', 'Trebuchet MS', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.strokeText("ZAP!", YOU.x - 120, YOU.y - 150);
+        ctx.fillText("ZAP!", YOU.x - 120, YOU.y - 150);
+      }
       if (scene === "room" && !keypadOpen) {
-        if (comicDone) drawCaption("Now you know how to get out.", elapsed / 1000);
+        if (tiny) drawCaption("You're as small as a comic page now. Climb into the comic box!", elapsed / 1000);
+        else if (comicDone) drawCaption("Now you know how to get out.", elapsed / 1000);
         else if (collected === 0) drawCaption("Somebody tore up a comic book.", (now - roomStart) / 1000);
       }
       if (scene === "room" && keypadOpen) drawKeypad(now);

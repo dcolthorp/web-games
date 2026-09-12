@@ -13,13 +13,26 @@ import {
   type Room,
 } from "./engine";
 import { FLOAT_MS, drawDoor, drawFloaters, drawKey, drawNotes, type Floater } from "./hundred";
+import { createNumberPool } from "./numberPool";
 import { sounds } from "./sound";
 
 // Hundred Logic Escape Room 4: Chalkboard. The door next to the chalkboard is
 // locked, and the key is sitting right there in the chalk tray. Take the key,
 // unlock the door, and walk out.
+// There's also a tiny secret keyhole in the corner of the chalkboard. The same
+// key opens it, and behind it is a bonus level as big as the chalkboard
+// (numberPool.ts).
 
-type Stage = "find" | "holding" | "opening" | "open" | "leaving" | "escaped";
+type Stage =
+  | "find"
+  | "holding"
+  | "unlocking" // the key turning in the chalkboard's keyhole
+  | "bonusIn"
+  | "bonus"
+  | "opening"
+  | "open"
+  | "leaving"
+  | "escaped";
 
 interface Rect {
   x: number;
@@ -44,12 +57,16 @@ const TRAY: Rect = { x: 190, y: 340, w: 420, h: 16 };
 const KEY_HOME: Point = { x: 520, y: 334 };
 const DOOR: Rect = { x: 680, y: 170, w: 120, h: 230 };
 const KEYHOLE: Point = { x: DOOR.x + DOOR.w - 20, y: DOOR.y + 136 };
+const BOARD_KEYHOLE: Point = { x: BOARD.x + BOARD.w - 30, y: BOARD.y + BOARD.h - 32 };
 
 const RATTLE_MS = 300;
 const OPEN_MS = 700;
 const LEAVE_MS = 1500;
+const UNLOCK_MS = 900;
+const BONUS_IN_MS = 900;
 
 const over = (p: Point, r: Rect): boolean => inRect(p, r.x, r.y, r.w, r.h);
+const overBoardKeyhole = (p: Point): boolean => Math.hypot(p.x - BOARD_KEYHOLE.x, p.y - BOARD_KEYHOLE.y) < 18;
 
 export function createHundredChalkboardRoom(escape: () => void): Room {
   let stage: Stage = "find";
@@ -58,6 +75,12 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
   let rattleAt = -Infinity;
   let floaters: Floater[] = [];
   let pointer: Point = { x: W / 2, y: H / 2 };
+  // Coming back out of the chalkboard, you take the key back out with you.
+  const pool = createNumberPool(() => {
+    const now = performance.now();
+    setStage("holding", now);
+    say("You took the key back out of the chalkboard.", BOARD.x + BOARD.w / 2, BOARD.y - 20, now);
+  });
 
   function setStage(next: Stage, now: number): void {
     stage = next;
@@ -83,6 +106,10 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
   function pointerDown(p: Point): void {
     pointer = p;
     const now = performance.now();
+    if (stage === "bonus") {
+      pool.pointerDown(p);
+      return;
+    }
     if (stage === "find") {
       if (overKey(p)) {
         sounds.tink();
@@ -91,6 +118,9 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
         rattleAt = now;
         sounds.thunk();
         say("It's locked.", DOOR.x + DOOR.w / 2, DOOR.y - 20, now);
+      } else if (overBoardKeyhole(p)) {
+        sounds.tink();
+        say("There's a tiny keyhole in the chalkboard.", BOARD.x + BOARD.w / 2, BOARD.y - 20, now);
       } else if (over(p, BOARD)) {
         say("1 + 1 = 2. That makes sense.", BOARD.x + BOARD.w / 2, BOARD.y - 20, now);
       }
@@ -101,6 +131,9 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
         sounds.clack();
         sounds.creak();
         setStage("opening", now);
+      } else if (overBoardKeyhole(p)) {
+        sounds.clack();
+        setStage("unlocking", now);
       }
       return;
     }
@@ -112,11 +145,15 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
 
   function pointerMove(p: Point): void {
     pointer = p;
+    if (stage === "bonus") pool.pointerMove(p);
   }
 
-  function pointerUp(): void {}
+  function pointerUp(p: Point): void {
+    if (stage === "bonus") pool.pointerUp?.(p);
+  }
 
   function cursor(p: Point): string {
+    if (stage === "bonus") return pool.cursor(p);
     if (stage === "find") return overKey(p) || over(p, DOOR) || over(p, BOARD) ? "pointer" : "default";
     if (stage === "holding") return "none";
     if (stage === "open" && over(p, DOOR)) return "pointer";
@@ -126,9 +163,19 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
   // ---------- update ----------
 
   function update(now: number): void {
+    if (stage === "bonus") {
+      pool.update(now, 0);
+      return;
+    }
     const elapsed = now - stageStart;
     if (stage === "opening" && elapsed >= OPEN_MS) {
       setStage("open", now);
+    } else if (stage === "unlocking" && elapsed >= UNLOCK_MS) {
+      sounds.whoosh(BONUS_IN_MS / 1000);
+      setStage("bonusIn", now);
+    } else if (stage === "bonusIn" && elapsed >= BONUS_IN_MS) {
+      setStage("bonus", now);
+      pool.reset(now);
     } else if (stage === "leaving" && elapsed >= LEAVE_MS) {
       setStage("escaped", now);
       escape();
@@ -138,7 +185,7 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
 
   // ---------- drawing ----------
 
-  function drawChalkboard(): void {
+  function drawChalkboard(now: number): void {
     ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
     ctx.fillRect(BOARD.x - 6, BOARD.y - 4, BOARD.w + 28, BOARD.h + 28);
     ctx.fillStyle = "#7b5230";
@@ -151,6 +198,21 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("1 + 1 = 2", BOARD.x + BOARD.w / 2, BOARD.y + BOARD.h / 2);
+
+    // The secret keyhole, dark green on dark green
+    ctx.fillStyle = "#1f3328";
+    ctx.beginPath();
+    ctx.arc(BOARD_KEYHOLE.x, BOARD_KEYHOLE.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(BOARD_KEYHOLE.x - 1.5, BOARD_KEYHOLE.y, 3, 9);
+    if (stage === "unlocking" || stage === "bonusIn") {
+      // The chalkboard turns out to be a door.
+      const t = stage === "unlocking" ? Math.min(1, (now - stageStart) / UNLOCK_MS) : 1;
+      ctx.strokeStyle = `rgba(255, 236, 150, ${t})`;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(BOARD.x + 2, BOARD.y + 2, BOARD.w - 4, BOARD.h - 4);
+      drawKey(BOARD_KEYHOLE.x + 14, BOARD_KEYHOLE.y + 2, -0.6 + t * (Math.PI / 2), 1);
+    }
 
     ctx.fillStyle = "#6a4526";
     ctx.fillRect(TRAY.x, TRAY.y, TRAY.w, TRAY.h);
@@ -168,18 +230,25 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
   }
 
   function draw(now: number): void {
+    if (stage === "bonus") {
+      pool.draw(now);
+      return;
+    }
     const elapsed = now - stageStart;
     ctx.save();
     let fade = 0;
     if (stage === "leaving") {
       fade = diveInto(DOOR.x + DOOR.w / 2, DOOR.y + DOOR.h / 2, Math.min(1, elapsed / LEAVE_MS));
+    } else if (stage === "bonusIn") {
+      fade = diveInto(BOARD.x + BOARD.w / 2, BOARD.y + BOARD.h / 2, Math.min(1, elapsed / BONUS_IN_MS));
     }
     drawRoomBox(PALETTE);
-    drawChalkboard();
+    drawChalkboard(now);
     if (stage === "find") drawKey(KEY_HOME.x, KEY_HOME.y, 0.1, 1);
 
     const rattle = now - rattleAt < RATTLE_MS ? Math.sin((now - rattleAt) / 20) * 3 : 0;
-    const open = stage === "opening" ? 1 - (1 - Math.min(1, elapsed / OPEN_MS)) ** 3 : stage === "find" || stage === "holding" ? 0 : 1;
+    const locked = stage === "find" || stage === "holding" || stage === "unlocking" || stage === "bonusIn";
+    const open = stage === "opening" ? 1 - (1 - Math.min(1, elapsed / OPEN_MS)) ** 3 : locked ? 0 : 1;
     drawDoor(DOOR.x + rattle, DOOR.y, DOOR.w, DOOR.h, open);
     if (open < 0.3) {
       ctx.fillStyle = "#222";
