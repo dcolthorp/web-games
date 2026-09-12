@@ -700,25 +700,81 @@ export function createComicalRoom(escape: () => void): Room {
     }
   }
 
-  // What was behind the poster: a hole in the wall to a secret bonus level.
+  // What was behind the poster: a doorway sawn into the wall, with a passage
+  // and glowing steps going back to a secret bonus level. Scraps of the poster
+  // stay stuck under the tape.
   function drawSecretHole(poster: Poster, now: number): void {
-    const cx = poster.x + poster.w / 2;
-    const cy = poster.y + poster.h / 2 + 10;
-    const rx = poster.w * 0.36;
-    ctx.fillStyle = "#12051f";
+    const L = poster.x + 8;
+    const R = poster.x + poster.w - 8;
+    const T = poster.y + 14;
+    const B = poster.y + poster.h;
+    const cx = (L + R) / 2;
+    // The far end of the passage, smaller and a little higher.
+    const iL = cx - (R - L) * 0.22;
+    const iR = cx + (R - L) * 0.22;
+    const iT = T + (B - T) * 0.28;
+    const iB = T + (B - T) * 0.62;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+
+    // The cut edge of the wall, lighter than the paint.
+    ctx.fillStyle = "#9fb3c8";
+    ctx.fillRect(L - 4, T - 4, R - L + 8, B - T + 8);
+
+    ctx.save();
     ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, poster.h * 0.34, 0, 0, Math.PI * 2);
-    ctx.fill();
-    const glow = ctx.createRadialGradient(cx, cy, 4, cx, cy, rx);
-    glow.addColorStop(0, `rgba(199, 125, 255, ${0.45 + 0.25 * Math.sin(now / 300)})`);
+    ctx.rect(L, T, R - L, B - T);
+    ctx.clip();
+    ctx.fillStyle = "#1a0b2e";
+    poly([L, T], [R, T], [iR, iT], [iL, iT]);
+    ctx.fillStyle = "#24103f";
+    poly([L, T], [iL, iT], [iL, iB], [L, B]);
+    ctx.fillStyle = "#1f0d37";
+    poly([R, T], [iR, iT], [iR, iB], [R, B]);
+    ctx.fillStyle = "#2e1450";
+    poly([L, B], [R, B], [iR, iB], [iL, iB]);
+
+    const glowY = (iT + iB) / 2;
+    const glow = ctx.createRadialGradient(cx, glowY, 2, cx, glowY, (R - L) * 0.75);
+    glow.addColorStop(0, `rgba(214, 160, 255, ${0.55 + 0.25 * pulse})`);
     glow.addColorStop(1, "rgba(199, 125, 255, 0)");
     ctx.fillStyle = glow;
+    ctx.fillRect(L, T, R - L, B - T);
+    ctx.fillStyle = "#e9d2ff";
+    ctx.fillRect(iL, iT, iR - iL, iB - iT);
+
+    // Glowing steps along the passage floor, getting smaller toward the light.
+    ctx.fillStyle = `rgba(199, 125, 255, ${0.45 + 0.25 * pulse})`;
+    for (let i = 0; i < 4; i += 1) {
+      const s = (i + 0.5) / 4;
+      const half = lerp((R - L) / 2, (iR - iL) / 2, s) - 4;
+      ctx.fillRect(cx - half, lerp(B, iB, s) - 2, half * 2, Math.max(2, 5 * (1 - s)));
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = "#3a2a4a";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(L, T, R - L, B - T);
+
+    // A little sign at the top of the doorway
+    ctx.fillStyle = "rgba(20, 8, 36, 0.85)";
+    roundRect(cx - 30, T + 4, 60, 18, 4);
     ctx.fill();
     ctx.fillStyle = "#f0e0ff";
-    ctx.font = `bold 14px ${COMIC_FONT}`;
+    ctx.font = `bold 12px ${COMIC_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("BONUS", cx, poster.y + 12);
+    ctx.fillText("BONUS", cx, T + 13.5);
+
+    // Torn scraps of the poster still stuck under the tape
+    ctx.fillStyle = poster.color;
+    poly([poster.x - 4, poster.y - 2], [poster.x + 18, poster.y - 2], [poster.x + 13, T + 7], [poster.x + 5, poster.y + 26], [poster.x - 2, T + 3]);
+    poly(
+      [poster.x + poster.w - 18, poster.y - 2],
+      [poster.x + poster.w + 4, poster.y - 2],
+      [poster.x + poster.w + 2, T + 4],
+      [poster.x + poster.w - 5, poster.y + 28],
+      [poster.x + poster.w - 13, T + 9]
+    );
   }
 
   // Strips of the cut-up poster falling off the wall.

@@ -4,7 +4,6 @@ import {
   clamp,
   ctx,
   diveInto,
-  drawBonusCard,
   drawCaption,
   drawDust,
   drawRoomBox,
@@ -20,6 +19,7 @@ import {
   type Point,
   type Room,
 } from "./engine";
+import { createBoardBonus } from "./bonus2";
 import { sounds } from "./sound";
 import { selectedTool } from "./tools";
 
@@ -28,7 +28,7 @@ import { selectedTool } from "./tools";
 // and five blocks tall, so five of them fill it. Then whack the finished wall
 // with the door knob lying on the floor, and it falls over to show a way out.
 // With the saw from room 1 you can cut a doorway out of the finished wall
-// instead, and behind it is a secret way to a bonus level.
+// instead, and behind it is a secret way to a bonus level (see bonus2.ts).
 
 type Stage =
   | "build" // carrying plywood and the knob around
@@ -37,7 +37,7 @@ type Stage =
   | "open" // the escape route is showing
   | "leaving" // crawling into it
   | "bonusIn" // going through the secret doorway
-  | "bonus" // the bonus level card
+  | "bonus" // playing the bonus level
   | "escaped";
 
 type Held = "none" | "plank" | "knob";
@@ -96,6 +96,8 @@ export function createWorkbenchRoom(escape: () => void): Room {
   let doorCutAt: number | null = null;
   let doorOpened = false;
   let lastStroke = 0;
+  // Leaving the bonus level puts you back in the workbench room.
+  const bonus = createBoardBonus(() => setStage("build", performance.now()));
 
   function setStage(next: Stage, now: number): void {
     stage = next;
@@ -155,7 +157,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
     const now = performance.now();
 
     if (stage === "bonus") {
-      setStage("build", now);
+      bonus.pointerDown(p);
       return;
     }
     if (stage === "open" && overWall(p)) {
@@ -222,12 +224,13 @@ export function createWorkbenchRoom(escape: () => void): Room {
 
   function pointerMove(p: Point): void {
     pointer = p;
+    if (stage === "bonus") bonus.pointerMove(p);
   }
 
   function pointerUp(): void {}
 
   function cursor(p: Point): string {
-    if (stage === "bonus") return "pointer";
+    if (stage === "bonus") return bonus.cursor(p);
     if (stage === "build") {
       if (held === "none" && overDoor(p)) return "pointer";
       if (held !== "none" || selectedTool() === "saw") return "none";
@@ -240,6 +243,10 @@ export function createWorkbenchRoom(escape: () => void): Room {
   // ---------- update ----------
 
   function update(now: number, dt: number): void {
+    if (stage === "bonus") {
+      bonus.update(now, dt);
+      return;
+    }
     const elapsed = now - stageStart;
     if (stage === "bonk" && elapsed >= BONK_MS) {
       sounds.creak();
@@ -261,6 +268,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
       escape();
     } else if (stage === "bonusIn" && elapsed >= BONUS_IN_MS) {
       setStage("bonus", now);
+      bonus.reset(now);
     }
 
     if (doorCutAt !== null && !doorOpened) {
@@ -681,7 +689,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
 
   function draw(now: number): void {
     if (stage === "bonus") {
-      drawBonusCard((now - stageStart) / 1000);
+      bonus.draw(now);
       return;
     }
     ctx.save();
