@@ -224,8 +224,18 @@ export function createChalkboardRoom(escape: () => void): Room {
   // Whether the button was underneath the chalk window when it was pressed.
   let secretBoom = false;
   let secretSpot: Point = { x: 130, y: 470 };
-  // Leaving the bonus level starts Chalkboard over from the beginning.
-  const bonus = createMathBonus(() => reset(performance.now()));
+  // Back from the bonus level returns to the open flap and keeps your place in
+  // the equations. Finishing it (switch piece 3) starts Chalkboard over.
+  let bonusInProgress = false;
+  const bonus = createMathBonus((done) => {
+    const now = performance.now();
+    if (done) {
+      reset(now);
+    } else {
+      // Already open, so the flap doesn't swing open all over again.
+      setScene("secret", now - HATCH_MS);
+    }
+  });
 
   window.addEventListener("keydown", (event) => {
     if (scene === "board" && event.key === "Escape") {
@@ -250,6 +260,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     dragging = null;
     duckAt = -Infinity;
     secretBoom = false;
+    bonusInProgress = false;
     secretSpot = SECRET_SPOTS[Math.floor(Math.random() * SECRET_SPOTS.length)] ?? { x: 130, y: 470 };
     chunks = [];
     dust = [];
@@ -528,7 +539,10 @@ export function createChalkboardRoom(escape: () => void): Room {
       setScene(secretBoom ? "blank" : "window", now);
     } else if (scene === "bonusIn" && elapsed >= BONUS_IN_MS) {
       setScene("bonus", now);
-      bonus.reset(now);
+      if (!bonusInProgress) {
+        bonus.reset(now);
+        bonusInProgress = true;
+      }
     } else if (scene === "leaving" && elapsed >= LEAVE_MS) {
       startWalk(now);
     } else if (scene === "walk") {

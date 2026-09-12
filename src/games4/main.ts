@@ -1,5 +1,6 @@
 import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
+import { hasAllSwitchPieces, openSwitchAssembly, switchIsBuilt } from "./switchAssembly";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -32,6 +33,27 @@ const games: Game[] = [
 
 const GAMES_FOUND_KEY = "games4-games-found";
 
+// The switch built from Zero Logic Escape Rooms' switch pieces sits on its
+// card and flips it between Zero Logic and Hundred Logic Escape Rooms.
+const HUNDRED_KEY = "zero-logic-escape-rooms-hundred";
+
+function isHundred(): boolean {
+  try {
+    return localStorage.getItem(HUNDRED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function flipEscapeSwitch(): void {
+  try {
+    localStorage.setItem(HUNDRED_KEY, String(!isHundred()));
+  } catch {
+    // Can't remember it, so the flip won't stick.
+  }
+  renderGameList();
+}
+
 // The games are hiding under the floor until you catch it.
 function renderGameList(): void {
   const list = document.getElementById("game-list");
@@ -43,24 +65,36 @@ function renderGameList(): void {
   }
 
   list.innerHTML = games
-    .map(
-      (game) => `
-      <li>
-        <a class="game-card games4-game-card" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
+    .map((game) => {
+      const hasSwitch = game.id === "zero-logic-escape-rooms" && switchIsBuilt();
+      const hundred = hasSwitch && isHundred();
+      const name = hundred ? "Hundred Logic Escape Rooms" : game.name;
+      // The switch sits outside the card's link, so flipping it doesn't open the game.
+      const switchButton = hasSwitch
+        ? `<button class="escape-switch${hundred ? " is-on" : ""}" type="button" aria-pressed="${hundred}" aria-label="Switch between Zero Logic and Hundred Logic Escape Rooms"><span class="escape-switch-lever" aria-hidden="true"></span></button>`
+        : "";
+      return `
+      <li class="${hasSwitch ? "has-escape-switch" : ""}">
+        ${switchButton}
+        <a class="game-card games4-game-card" data-game-id="${game.id}" href="${game.path}" aria-label="${name}">
           <span class="game-card-top">
             <span class="game-tag">${game.genre}</span>
             <span class="game-arrow" aria-hidden="true">→</span>
           </span>
-          <span class="game-title">${game.menuLabel ?? game.name}</span>
-          <span class="game-blurb">${game.blurb}</span>
+          <span class="game-title">${game.menuLabel ?? name}</span>
+          <span class="game-blurb">${hundred ? "Every room has a way out, and every way out makes sense." : game.blurb}</span>
         </a>
       </li>
-    `
-    )
+    `;
+    })
     .join("");
+  list.querySelector(".escape-switch")?.addEventListener("click", flipEscapeSwitch);
 }
 
 renderGameList();
+
+// Back out of Zero Logic Escape Rooms with every switch piece: time to build the switch.
+if (hasAllSwitchPieces() && !switchIsBuilt()) openSwitchAssembly(renderGameList);
 
 // This hub's floor will not be stood on: it slides out from under the pointer
 // until you finally corner it.

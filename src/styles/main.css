@@ -676,6 +676,134 @@ h1.is-glitching::after {
     linear-gradient(180deg, #33236f, #180f3d);
 }
 
+/* The light switch built from Zero Logic Escape Rooms' switch pieces, stuck on
+   top of its card. Lever down is Zero Logic, up is Hundred Logic. */
+.has-escape-switch {
+  position: relative;
+}
+
+.escape-switch {
+  position: absolute;
+  z-index: 2;
+  top: -24px;
+  left: 50%;
+  width: 36px;
+  height: 54px;
+  padding: 0;
+  border: 3px solid #8d8778;
+  border-radius: 7px;
+  background: #f4f1ea;
+  box-shadow: 0 4px 0 #000;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+/* The two screws */
+.escape-switch::before,
+.escape-switch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8d8778;
+  transform: translateX(-50%);
+}
+
+.escape-switch::before {
+  top: 3px;
+}
+
+.escape-switch::after {
+  bottom: 3px;
+}
+
+.escape-switch-lever {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 20px;
+  border: 2px solid #8d8778;
+  border-radius: 4px;
+  background: #fffdf6;
+  box-shadow: 0 0 0 3px #3a3a3a;
+  transform: translate(-50%, -10%);
+  transition: transform 0.12s ease;
+}
+
+.escape-switch.is-on .escape-switch-lever {
+  transform: translate(-50%, -90%);
+}
+
+.escape-switch:hover {
+  border-color: var(--warn);
+}
+
+.escape-switch:focus-visible {
+  outline: 3px solid var(--warn);
+  outline-offset: 3px;
+}
+
+/* Putting the switch together, over the whole hub. */
+.switch-assembly {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 5, 20, 0.86);
+}
+
+.switch-assembly-panel {
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px;
+  border: 3px solid #0f0f14;
+  background: linear-gradient(180deg, #33236f, #180f3d);
+  color: #f4f0ff;
+  text-align: center;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+
+.switch-assembly-eyebrow {
+  margin: 0;
+  color: #ffd23f;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.switch-assembly-title {
+  margin: 4px 0 8px;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.switch-assembly-step {
+  min-height: 1.5em;
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+
+.switch-assembly-step.is-warning {
+  color: #ff9a7a;
+}
+
+.switch-assembly-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 3px solid #0f0f14;
+  touch-action: none;
+}
+
 .games3-hub .paper-game-item {
   display: flex;
 }

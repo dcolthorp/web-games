@@ -8,6 +8,7 @@ import { collectSwitchPiece, drawSwitchPiece, hasSwitchPiece } from "./switchPie
 // giant equation times zero with a ÷ 0 hiding inside it. Each one has chalk
 // answers to pick from, and a wrong pick gets crossed out. Picking any answer
 // for the giant one breaks the chalkboard, and behind it is switch piece 3.
+// Back steps out without losing your place in the equations.
 
 type Phase = "solving" | "breaking" | "reward";
 type Kind = "easy" | "hard" | "imaginary" | "giant";
@@ -151,7 +152,8 @@ function choiceRect(i: number): Rect {
 
 const overRect = (p: Point, r: Rect): boolean => inRect(p, r.x, r.y, r.w, r.h);
 
-export function createMathBonus(leave: () => void): BonusLevel {
+// leave(true) after getting switch piece 3; leave(false) from the Back button.
+export function createMathBonus(leave: (done: boolean) => void): BonusLevel {
   let phase: Phase = "solving";
   let phaseStart = 0;
   let levelStart = 0;
@@ -212,13 +214,13 @@ export function createMathBonus(leave: () => void): BonusLevel {
   function pointerDown(p: Point): void {
     const now = performance.now();
     if (phase === "reward") {
-      leave();
+      leave(true);
       return;
     }
     if (phase === "breaking") return;
     if (overRect(p, BACK_BUTTON)) {
       sounds.tink();
-      leave();
+      leave(false);
       return;
     }
     if (solvedAt !== null) return;

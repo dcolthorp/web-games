@@ -5,12 +5,39 @@ import { createNothingRoom } from "./room1";
 import { createWorkbenchRoom } from "./room2";
 import { createComicalRoom } from "./room3";
 import { createChalkboardRoom } from "./room4";
+import { createHundredNothingRoom } from "./hroom1";
+import { createHundredWorkbenchRoom } from "./hroom2";
+import { createHundredComicalRoom } from "./hroom3";
+import { createHundredChalkboardRoom } from "./hroom4";
+import { isHundred } from "./hundred";
 import { ensureAudio } from "./sound";
 import { SWITCH_PIECES_BUILT, SWITCH_PIECE_ICONS, collectedSwitchPieces, whenSwitchPiecesChange } from "./switchPieces";
 import { TOOLBAR_SLOTS, TOOLS, ownsTool, selectedTool, toggleTool, whenToolFound, type Tool } from "./tools";
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+// Flipped with the switch on this game's card on the Games 4 hub. Hundred
+// Logic has the same rooms, but every way out makes sense, and the words on
+// the page say so too.
+const hundred = isHundred();
+if (hundred) {
+  const name = "Hundred Logic Escape Rooms";
+  document.title = name;
+  for (const element of document.querySelectorAll(".hero h1, .credits-game")) element.textContent = name;
+  const instructions = document.querySelector(".instructions");
+  if (instructions) instructions.textContent = "Every room has a way out, and it makes sense. Think it through.";
+  const credits: Record<string, string> = {
+    "Made by": "Someone with a hundred logic",
+    Doors: "2",
+    Windows: "0",
+    Logic: "100",
+  };
+  for (const heading of document.querySelectorAll(".credits-heading")) {
+    const value = credits[heading.textContent ?? ""];
+    if (value !== undefined && heading.nextElementSibling) heading.nextElementSibling.textContent = value;
+  }
+}
 
 // Runs the rooms in order. Escaping one drops you straight into the next, and
 // the furthest room you have reached is remembered so you can go back to it.
@@ -29,12 +56,19 @@ const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
 const switchPanel = document.getElementById("switch-pieces") as HTMLElement;
 const switchSlots = document.getElementById("switch-slots") as HTMLDivElement;
 
-const rooms: Room[] = [
-  createNothingRoom(roomEscaped),
-  createWorkbenchRoom(roomEscaped),
-  createComicalRoom(roomEscaped),
-  createChalkboardRoom(roomEscaped),
-];
+const rooms: Room[] = hundred
+  ? [
+      createHundredNothingRoom(roomEscaped),
+      createHundredWorkbenchRoom(roomEscaped),
+      createHundredComicalRoom(roomEscaped),
+      createHundredChalkboardRoom(roomEscaped),
+    ]
+  : [
+      createNothingRoom(roomEscaped),
+      createWorkbenchRoom(roomEscaped),
+      createComicalRoom(roomEscaped),
+      createChalkboardRoom(roomEscaped),
+    ];
 
 creditsRooms.replaceChildren(
   ...rooms.map((room, index) => {
