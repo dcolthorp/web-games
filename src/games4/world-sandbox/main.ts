@@ -1,305 +1,456 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import {
-  CELL,
-  COLS,
-  H,
-  KINDS,
-  LAND_LEVEL,
-  ROWS,
-  TSUNAMI_MS,
-  W,
-  isLand,
-  makeHeights,
-  tsunamiRadius,
-  waveReaches,
-  type Kind,
-  type Thing,
-} from "./world";
+import { MATERIALS, ROCK, decodeCave, encodeCave, makeCave, paint } from "./caves";
+import { CATEGORIES, CHOICES, MOVERS } from "./catalog";
+import { drawCave, drawWorld } from "./draw";
+import { LAWS, drawMatrix, physics } from "./matrix";
+import { CAVE_TOOLS } from "./ores";
+import { PERSON, personSprite, villageSprite } from "./folk";
+import { act, canBe, nameOf, updateWavesAndEffects, wander } from "./nature";
+import { TRAITS, TRIBE_COLORS, createTribe, makePerson, maxHp, personAt, randomName, setWar, updatePeople } from "./people";
+import { spriteIcon, type Choice, type Sprite } from "./sprites";
+import { currentNote, loadWorld, newWorld, reshape, save, say, world, type Tribe } from "./state";
+import { H, W, type Thing } from "./world";
 
 installOofShortcut();
 installForceRefreshHotkey();
 
-// You look down on your world from space and click to add things to it. The
-// world and everything on it is saved, so it's still there next time.
+// You look down on your world from space. Pick a kind of thing, pick which
+// one, and click the map to add it. The world is saved, so it's still there
+// next time.
 
-type Tool = Kind | "tsunami";
+loadWorld();
 
-interface Wave {
-  x: number;
-  y: number;
-  born: number;
-}
-
-const TOOLS: { tool: Tool; label: string; icon: string; hint: string }[] = [
-  { tool: "tree", label: "Tree", icon: "🌳", hint: "Click the land to plant a tree." },
-  { tool: "hill", label: "Hill", icon: "⛰️", hint: "Click the land to make a hill." },
-  { tool: "mountain", label: "Mountain", icon: "🏔️", hint: "Click the land to push up a mountain." },
-  { tool: "volcano", label: "Volcano", icon: "🌋", hint: "Click the land to start a volcano." },
-  {
-    tool: "tsunami",
-    label: "Tsunami",
-    icon: "🌊",
-    hint: "Click the water to send out a tsunami. It washes away trees and animals near the shore.",
-  },
-  { tool: "life", label: "Life", icon: "🐾", hint: "Click anywhere to spawn life. Animals on land, sea creatures in the water." },
-];
-
-const LAND_LIFE = ["🐑", "🐄", "🐇", "🦊", "🐘", "🦒", "🐖", "🦌"];
-const SEA_LIFE = ["🐟", "🐙", "🐳", "🐢", "🦀", "🐬"];
-const SAVE_KEY = "world-sandbox-world";
-const NOTE_MS = 2600;
-
-const canvas = document.getElementById("world") as HTMLCanvasElement;
+const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const canvas = $<HTMLCanvasElement>("world");
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
-const newWorldButton = document.getElementById("new-world") as HTMLButtonElement;
-const statusLine = document.getElementById("status") as HTMLParagraphElement;
+const categoriesEl = $<HTMLDivElement>("categories");
+const choicesEl = $<HTMLDivElement>("choices");
+const statusLine = $<HTMLParagraphElement>("status");
 
-let { seed, things } = loadWorld();
-let heights = makeHeights(seed);
-let terrain = drawTerrain(heights);
-let waves: Wave[] = [];
-let tool: Tool = "tree";
-let note = "";
-let noteAt = -Infinity;
+const escapeHtml = (text: string): string => text.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
+const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)] as T;
 
-// ---------- saving ----------
+let categoryIndex = 0;
+// The last thing picked in each category, so switching back remembers it.
+const picked = CATEGORIES.map((c) => c.choices[0] as Choice);
+// The tribe new people and villages join. "" is no tribe.
+let tribeId = world.tribes[0]?.id ?? "";
 
-function newSeed(): number {
-  return Math.floor(Math.random() * 2 ** 31);
+const choice = (): Choice => picked[categoryIndex] as Choice;
+const currentTribe = (): Tribe | undefined => world.tribes.find((t) => t.id === tribeId);
+
+// While you're inside a mountain, the map shows its cave instead of the world.
+let caveMountain: Thing | null = null;
+let caveGrid: Uint8Array | null = null;
+let caveMaterial = MATERIALS.findIndex((m) => m.name === "Diamond");
+
+// ---------- toolbar ----------
+
+function slot(attr: string, value: string | number, sprite: Sprite, label: string, pressed: boolean): string {
+  return `<button class="tool-slot" type="button" ${attr}="${value}" aria-pressed="${pressed}">${spriteIcon(sprite)}<span>${escapeHtml(label)}</span></button>`;
 }
 
-function isThing(value: unknown): value is Thing {
-  const t = value as Partial<Thing> | null;
-  return !!t && KINDS.includes(t.kind as Kind) && Number.isFinite(t.x) && Number.isFinite(t.y);
+function setPressed(group: HTMLElement, pressed: Element): void {
+  for (const button of group.querySelectorAll("button[aria-pressed]:not([data-law])")) button.setAttribute("aria-pressed", String(button === pressed));
 }
 
-function loadWorld(): { seed: number; things: Thing[] } {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "null") as { seed?: unknown; things?: unknown } | null;
-    if (saved && Number.isFinite(saved.seed) && Array.isArray(saved.things)) {
-      return { seed: saved.seed as number, things: saved.things.filter(isThing) };
-    }
-  } catch {
-    // Nothing saved, or it got scrambled. Start a fresh world.
+// People and Tribes show the tribes to pick from instead of a list of things.
+function renderChoices(): void {
+  if (caveGrid) {
+    choicesEl.innerHTML =
+      `<button class="tool-action" type="button" data-action="leave-cave">Back to the World</button>` +
+      CAVE_TOOLS.map((t) => slot("data-material", t.material, t.sprite, t.name, t.material === caveMaterial)).join("");
+    return;
   }
-  return { seed: newSeed(), things: [] };
-}
-
-function save(): void {
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ seed, things }));
-  } catch {
-    // Can't save, so this world only lasts until the page closes.
+  const c = choice();
+  if (c.id === "copy") {
+    choicesEl.innerHTML =
+      slot("data-choice", c.id, c.sprite, c.name, true) +
+      LAWS.map((l) => slot("data-law", l.law, l.sprite, l.name, physics[l.law])).join("");
+    return;
   }
+  if (c.id === "person" || c.id === "village") {
+    const icon = c.id === "person" ? personSprite : villageSprite;
+    const none = c.id === "person" ? [slot("data-tribe", "", PERSON.sprite, "No Tribe", tribeId === "")] : [];
+    const tribes = world.tribes.map((t) => slot("data-tribe", t.id, icon(t.color), t.name, t.id === tribeId));
+    const actions =
+      c.id === "village"
+        ? `<button class="tool-action" type="button" data-action="new-tribe">New Tribe</button>` +
+          (currentTribe() ? `<button class="tool-action" type="button" data-action="edit-tribe">Edit Tribe and Wars</button>` : "")
+        : "";
+    choicesEl.innerHTML = [...none, ...tribes].join("") + actions;
+    return;
+  }
+  const { choices } = CATEGORIES[categoryIndex] as { choices: Choice[] };
+  choicesEl.innerHTML = choices.map((o) => slot("data-choice", o.id, o.sprite, o.name, o === c)).join("");
 }
 
-window.addEventListener("pagehide", save);
+categoriesEl.innerHTML = CATEGORIES.map((c, i) => slot("data-category", i, c.icon ?? (c.choices[0] as Choice).sprite, c.name, i === 0)).join("");
+renderChoices();
 
-function say(text: string): void {
-  note = text;
-  noteAt = performance.now();
-}
-
-// ---------- tools ----------
-
-toolbarSlots.innerHTML = TOOLS.map(
-  (t) =>
-    `<button class="tool-slot" type="button" data-tool="${t.tool}" aria-pressed="${t.tool === tool}"><span class="tool-icon" aria-hidden="true">${t.icon}</span>${t.label}</button>`,
-).join("");
-
-toolbarSlots.addEventListener("click", (event) => {
-  const button = (event.target as Element).closest<HTMLElement>("[data-tool]");
+categoriesEl.addEventListener("click", (event) => {
+  const button = (event.target as Element).closest<HTMLElement>("[data-category]");
   if (!button) return;
-  tool = button.dataset["tool"] as Tool;
-  for (const slot of toolbarSlots.querySelectorAll("[data-tool]")) slot.setAttribute("aria-pressed", String(slot === button));
+  categoryIndex = Number(button.dataset["category"]);
+  setPressed(categoriesEl, button);
+  renderChoices();
+});
+
+choicesEl.addEventListener("click", (event) => {
+  const target = event.target as Element;
+  const action = target.closest<HTMLElement>("[data-action]")?.dataset["action"];
+  if (action === "new-tribe") return openTribeDialog();
+  if (action === "edit-tribe") return openTribeDialog(currentTribe());
+  if (action === "leave-cave") return leaveCave();
+
+  const lawButton = target.closest<HTMLElement>("[data-law]");
+  const law = LAWS.find((l) => l.law === lawButton?.dataset["law"]);
+  if (lawButton && law) {
+    physics[law.law] = !physics[law.law];
+    lawButton.setAttribute("aria-pressed", String(physics[law.law]));
+    say(physics[law.law] ? law.on : law.off);
+    return;
+  }
+
+  const materialButton = target.closest<HTMLElement>("[data-material]");
+  if (materialButton) {
+    caveMaterial = Number(materialButton.dataset["material"]);
+    setPressed(choicesEl, materialButton);
+    return;
+  }
+
+  const tribeButton = target.closest<HTMLElement>("[data-tribe]");
+  if (tribeButton) {
+    tribeId = tribeButton.dataset["tribe"] ?? "";
+    renderChoices();
+    choicesEl.querySelector<HTMLElement>(`[data-tribe="${tribeId}"]`)?.focus();
+    return;
+  }
+
+  const button = target.closest<HTMLElement>("[data-choice]");
+  const c = CHOICES.get(button?.dataset["choice"] ?? "");
+  if (!button || !c) return;
+  picked[categoryIndex] = c;
+  setPressed(choicesEl, button);
+});
+
+function hint(): string {
+  if (caveGrid) {
+    const m = MATERIALS[caveMaterial];
+    if (m?.name === "Dig") return "Click and drag to dig tunnels.";
+    if (m?.name === "Rock") return "Click and drag to fill tunnels back in with rock.";
+    return `${m?.name}: click and drag ${m?.goesIn === "rock" ? "on the rock walls" : "in the tunnels"}.`;
+  }
+  const c = choice();
+  const tribe = currentTribe();
+  if (c.id === "cave") return "Click a mountain to go inside it and fill its cave with ores.";
+  if (c.id === "copy") return "Click anything to make a copy of it. Flip the switches to break physics.";
+  if (c.id === "raise") return "Click and drag to raise new land up out of the sea.";
+  if (c.id === "sink") return "Click and drag to sink land down into the sea.";
+  if (c.id === "person") {
+    return `Click the land to add a person${tribe ? ` to ${tribe.name}` : ""}. Click a person to change their name and traits.`;
+  }
+  if (c.id === "village") {
+    return tribe ? `Click the land to build a village for ${tribe.name}.` : "Make a new tribe, then click the land to build its village.";
+  }
+  if (c.id === "tsunami") return "Click the water to send out a tsunami. It washes away plants, animals, and people near the shore.";
+  const where = c.habitat === "land" ? "the land" : c.habitat === "sea" ? "the water" : "anywhere";
+  return `${c.name}: click ${where} to add one.`;
+}
+
+function toMap(event: PointerEvent): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: Math.floor(((event.clientX - rect.left) * W) / rect.width),
+    y: Math.floor(((event.clientY - rect.top) * H) / rect.height),
+  };
+}
+
+function describePerson(p: Thing): string {
+  const tribe = world.tribes.find((t) => t.id === p.tribe);
+  const traits = TRAITS.filter((trait) => p.traits?.includes(trait.id)).map((trait) => trait.name);
+  return `${p.name}${tribe ? ` of ${tribe.name}` : ""}: ${traits.length > 0 ? traits.join(", ") : "no traits"}. Health ${p.hp ?? maxHp(p)}/${maxHp(p)}.`;
+}
+
+// Point at a person to see who they are.
+let hoverText: string | null = null;
+canvas.addEventListener("pointermove", (event) => {
+  const { x, y } = toMap(event);
+  if (caveGrid) {
+    if (painting) paintCave(x, y, false);
+    return;
+  }
+  if (painting) {
+    brushLand(x, y);
+    return;
+  }
+  const person = personAt(x, y);
+  hoverText = person ? describePerson(person) : null;
+});
+canvas.addEventListener("pointerleave", () => {
+  hoverText = null;
 });
 
 canvas.addEventListener("pointerdown", (event) => {
-  const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) * W) / rect.width;
-  const y = ((event.clientY - rect.top) * H) / rect.height;
-  const land = isLand(heights, x, y);
+  const { x, y } = toMap(event);
+  const c = choice();
 
-  if (tool === "tsunami") {
-    if (land) say("Tsunamis can only go in water.");
-    else waves.push({ x, y, born: performance.now() });
+  if (caveGrid) {
+    painting = null;
+    paintCave(x, y, true);
+    canvas.setPointerCapture(event.pointerId);
     return;
   }
-  if (tool === "life") {
-    const kinds = land ? LAND_LIFE : SEA_LIFE;
-    things.push({ kind: "life", x, y, emoji: kinds[Math.floor(Math.random() * kinds.length)] });
-  } else if (land) {
-    things.push({ kind: tool, x, y });
-  } else {
-    say("That has to go on land.");
+  if (c.id === "cave") {
+    const mountain = world.things.filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 6 && y <= t.y && y >= t.y - 9).at(-1);
+    return mountain ? enterCave(mountain) : say("Click a mountain to go inside it.");
+  }
+  if (c.id === "raise" || c.id === "sink") {
+    painting = null;
+    brushLand(x, y);
+    canvas.setPointerCapture(event.pointerId);
     return;
+  }
+  if (c.id === "copy") {
+    const original = world.things.filter((t) => Math.abs(t.x - x) <= 6 && y <= t.y + 2 && y >= t.y - 12).at(-1);
+    if (!original) return say("Click something to copy it.");
+    world.things.push({ ...structuredClone(original), x: original.x + 5, y: original.y + 1 });
+    say(`You copied ${nameOf(original)}. Physics is broken!`);
+    return save();
+  }
+
+  const existing = c.id === "person" ? personAt(x, y) : undefined;
+  if (existing) return openPersonDialog(existing);
+  if (!canBe(c.habitat, x, y)) return say(`${c.name} has to go ${c.habitat === "land" ? "on land" : "in the water"}.`);
+
+  if (c.id === "tsunami") {
+    world.waves.push({ x, y, born: clock });
+  } else if (c.id === "village") {
+    if (!tribeId) return say("Make a new tribe first, then build its village.");
+    world.things.push({ type: "village", x, y, tribe: tribeId, hp: 20 });
+  } else if (c.id === "person") {
+    const person = makePerson(x, y, tribeId || undefined);
+    world.things.push(person);
+    openPersonDialog(person);
+  } else {
+    world.things.push({ type: c.id, x, y });
   }
   save();
 });
 
-newWorldButton.addEventListener("click", () => {
-  if (things.length > 0 && !window.confirm("Make a new world? Everything on this one will be gone.")) return;
-  seed = newSeed();
-  heights = makeHeights(seed);
-  terrain = drawTerrain(heights);
-  things = [];
-  waves = [];
+// ---------- caves ----------
+
+// Where the last bit of paint went, while the mouse button is held down.
+let painting: { x: number; y: number } | null = null;
+
+// Paints a line from the last spot to this one, so fast drags don't leave gaps.
+function paintCave(x: number, y: number, first: boolean): void {
+  if (!caveGrid) return;
+  const from = painting ?? { x, y };
+  const distance = Math.hypot(x - from.x, y - from.y);
+  const radius = caveMaterial <= ROCK ? 4 : 3;
+  let changed = 0;
+  for (let s = 0; s <= distance; s += 2) {
+    const t = distance === 0 ? 1 : s / distance;
+    changed += paint(caveGrid, from.x + (x - from.x) * t, from.y + (y - from.y) * t, radius, caveMaterial);
+  }
+  changed += paint(caveGrid, x, y, radius, caveMaterial);
+  painting = { x, y };
+  if (first && changed === 0) {
+    say(MATERIALS[caveMaterial]?.goesIn === "tunnel" ? "That goes in the tunnels." : "Ores go in the rock walls.");
+  }
+}
+
+function saveCave(): void {
+  if (!caveMountain || !caveGrid) return;
+  caveMountain.cave = encodeCave(caveGrid);
+  save();
+}
+
+// Raise Land and Sink Land, filling in the gaps when the mouse moves fast.
+function brushLand(x: number, y: number): void {
+  const from = painting ?? { x, y };
+  const distance = Math.hypot(x - from.x, y - from.y);
+  if (painting && distance < 2) return;
+  const amount = choice().id === "raise" ? 0.08 : -0.08;
+  for (let s = 2; s < distance; s += 2) {
+    reshape(from.x + ((x - from.x) * s) / distance, from.y + ((y - from.y) * s) / distance, amount);
+  }
+  reshape(x, y, amount);
+  painting = { x, y };
+}
+
+const stopPainting = (): void => {
+  if (!painting) return;
+  painting = null;
+  if (caveGrid) saveCave();
+  else save();
+};
+canvas.addEventListener("pointerup", stopPainting);
+canvas.addEventListener("pointercancel", stopPainting);
+
+function enterCave(mountain: Thing): void {
+  const found = mountain.cave === undefined;
+  caveGrid = (mountain.cave && decodeCave(mountain.cave)) || makeCave(Math.floor(mountain.x * 1000 + mountain.y));
+  caveMountain = mountain;
+  categoriesEl.hidden = true;
+  $("new-world").hidden = true;
+  hoverText = null;
+  renderChoices();
+  if (found) {
+    saveCave();
+    say("You found a cave inside the mountain!");
+  }
+}
+
+function leaveCave(): void {
+  saveCave();
+  caveMountain = null;
+  caveGrid = null;
+  categoriesEl.hidden = false;
+  $("new-world").hidden = false;
+  renderChoices();
+}
+
+$<HTMLButtonElement>("new-world").addEventListener("click", () => {
+  if (world.things.length > 0 && !window.confirm("Make a new world? Everything on this one will be gone.")) return;
+  newWorld();
+  tribeId = "";
+  renderChoices();
+});
+
+window.addEventListener("pagehide", save);
+
+// ---------- naming people ----------
+
+const personDialog = $<HTMLDialogElement>("person-dialog");
+const personName = $<HTMLInputElement>("person-name");
+const personTribe = $<HTMLSelectElement>("person-tribe");
+const personTraits = $<HTMLDivElement>("person-traits");
+let editingPerson: Thing | null = null;
+
+function openPersonDialog(person: Thing): void {
+  editingPerson = person;
+  personName.value = person.name ?? randomName();
+  personTribe.innerHTML =
+    `<option value="">No tribe</option>` + world.tribes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  personTribe.value = person.tribe ?? "";
+  personTraits.innerHTML = TRAITS.map(
+    (trait) =>
+      `<label class="check"><input type="checkbox" value="${trait.id}" ${person.traits?.includes(trait.id) ? "checked" : ""} /> <b>${trait.name}</b> <span>${trait.about}</span></label>`,
+  ).join("");
+  personDialog.showModal();
+}
+
+$<HTMLFormElement>("person-form").addEventListener("submit", () => {
+  const person = editingPerson;
+  if (!person) return;
+  person.name = personName.value.trim() || person.name;
+  person.tribe = personTribe.value || undefined;
+  person.traits = [...personTraits.querySelectorAll<HTMLInputElement>("input:checked")].map((input) => input.value);
+  person.hp = Math.min(person.hp ?? maxHp(person), maxHp(person));
   save();
 });
 
-// ---------- what happens on its own ----------
-
-// Life wanders around. Land animals stay on land and sea creatures stay in the water.
-function wander(t: Thing): void {
-  const inSea = !isLand(heights, t.x, t.y);
-  t.heading ??= Math.random() * Math.PI * 2;
-  if (Math.random() < 0.02) t.heading += (Math.random() - 0.5) * 2;
-  const nx = t.x + Math.cos(t.heading) * 0.35;
-  const ny = t.y + Math.sin(t.heading) * 0.35;
-  if (nx < 8 || ny < 8 || nx > W - 8 || ny > H - 8 || isLand(heights, nx, ny) === inSea) {
-    t.heading += Math.PI;
-    return;
-  }
-  t.x = nx;
-  t.y = ny;
-}
-
-// Trees and land animals the wave rolls over get washed away. Hills, mountains,
-// volcanoes, and sea creatures stay put.
-function washAway(wave: Wave, now: number): void {
-  const r = tsunamiRadius(now - wave.born);
-  const before = things.length;
-  things = things.filter((t) => {
-    const washable = t.kind === "tree" || (t.kind === "life" && isLand(heights, t.x, t.y));
-    if (!washable) return true;
-    const d = Math.hypot(t.x - wave.x, t.y - wave.y);
-    return !(d <= r && d > r - 12 && waveReaches(heights, wave.x, wave.y, t.x, t.y));
-  });
-  if (things.length === before) return;
-  say("The tsunami washed things away!");
+$<HTMLButtonElement>("person-remove").addEventListener("click", () => {
+  world.things = world.things.filter((t) => t !== editingPerson);
   save();
+  personDialog.close();
+});
+
+// ---------- making tribes ----------
+
+const tribeDialog = $<HTMLDialogElement>("tribe-dialog");
+const tribeName = $<HTMLInputElement>("tribe-name");
+const tribeColors = $<HTMLDivElement>("tribe-colors");
+const tribeWars = $<HTMLDivElement>("tribe-wars");
+let editingTribe: Tribe | undefined;
+let tribeColor = "";
+
+function openTribeDialog(tribe?: Tribe): void {
+  editingTribe = tribe;
+  $("tribe-title").textContent = tribe ? "Edit Tribe" : "New Tribe";
+  tribeName.value = tribe?.name ?? `The ${pick(["Rock", "River", "Sun", "Moon", "Wolf", "Fire", "Leaf", "Storm"])} Tribe`;
+  const used = new Set(world.tribes.map((t) => t.color));
+  tribeColor = tribe?.color ?? (TRIBE_COLORS.find((c) => !used.has(c.color)) ?? pick(TRIBE_COLORS)).color;
+  tribeColors.innerHTML = TRIBE_COLORS.map(
+    (c) =>
+      `<button class="swatch" type="button" data-color="${c.color}" style="background: ${c.color}" aria-label="${c.name}" aria-pressed="${c.color === tribeColor}"></button>`,
+  ).join("");
+  const others = world.tribes.filter((t) => t !== tribe);
+  $("tribe-wars-field").hidden = others.length === 0;
+  tribeWars.innerHTML = others
+    .map(
+      (o) =>
+        `<label class="check"><input type="checkbox" value="${o.id}" ${tribe?.enemies.includes(o.id) ? "checked" : ""} /> ${escapeHtml(o.name)}</label>`,
+    )
+    .join("");
+  tribeDialog.showModal();
 }
 
-// ---------- drawing ----------
+tribeColors.addEventListener("click", (event) => {
+  const button = (event.target as Element).closest<HTMLElement>("[data-color]");
+  if (!button) return;
+  tribeColor = button.dataset["color"] ?? tribeColor;
+  setPressed(tribeColors, button);
+});
 
-// The land and sea never change until you make a new world, so draw them once.
-function drawTerrain(heights: Float32Array): HTMLCanvasElement {
-  const layer = document.createElement("canvas");
-  layer.width = W;
-  layer.height = H;
-  const g = layer.getContext("2d") as CanvasRenderingContext2D;
-  for (let row = 0; row < ROWS; row += 1) {
-    for (let col = 0; col < COLS; col += 1) {
-      const h = heights[row * COLS + col] ?? 0;
-      g.fillStyle =
-        h > 1.6 ? "#3f8f3c" : h > 0.62 ? "#4fbf5a" : h > LAND_LEVEL ? "#e9d48f" : h > 0.3 ? "#3b8fd9" : "#1d5fb8";
-      g.fillRect(col * CELL, row * CELL, CELL, CELL);
+$("tribe-cancel").addEventListener("click", () => tribeDialog.close());
+
+$<HTMLFormElement>("tribe-form").addEventListener("submit", () => {
+  const name = tribeName.value.trim();
+  if (!name) return;
+  const tribe = editingTribe ?? createTribe(name, tribeColor);
+  tribe.name = name;
+  tribe.color = tribeColor;
+  const wars = new Set([...tribeWars.querySelectorAll<HTMLInputElement>("input:checked")].map((input) => input.value));
+  for (const other of world.tribes) {
+    if (other !== tribe && tribe.enemies.includes(other.id) !== wars.has(other.id)) setWar(tribe, other, wars.has(other.id));
+  }
+  if (!editingTribe && wars.size === 0) say(`${name} is ready. Click the land to build its first village.`);
+  tribeId = tribe.id;
+  save();
+  renderChoices();
+});
+
+// ---------- every frame ----------
+
+// The world's own clock. It stops when time is frozen and runs five times
+// over when time is fast.
+let clock = 0;
+let lastFrame = performance.now();
+
+function simulate(now: number): void {
+  for (const t of world.things) {
+    const c = CHOICES.get(t.type);
+    if (!c || !MOVERS.has(c.id)) continue;
+    wander(t, c.habitat);
+    act(t, now);
+  }
+  if (physics.float) {
+    for (const t of world.things) {
+      t.y -= 0.15;
+      if (t.y < 0) t.y = H + 10;
     }
   }
-  return layer;
+  updatePeople(now);
+  updateWavesAndEffects(now);
 }
 
-function circle(x: number, y: number, r: number): void {
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// (x, y) is where it sits on the ground.
-function drawThing(t: Thing, now: number): void {
-  const { x, y } = t;
-  if (t.kind === "tree") {
-    ctx.fillStyle = "#6b4a2a";
-    ctx.fillRect(x - 1.5, y - 5, 3, 6);
-    ctx.fillStyle = "#1f6b2a";
-    circle(x, y - 9, 6);
-  } else if (t.kind === "hill") {
-    ctx.fillStyle = "#7ccf6a";
-    ctx.strokeStyle = "#3f8f3c";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(x, y, 16, 10, 0, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  } else if (t.kind === "mountain") {
-    ctx.fillStyle = "#8a8f98";
-    ctx.beginPath();
-    ctx.moveTo(x - 18, y);
-    ctx.lineTo(x, y - 30);
-    ctx.lineTo(x + 18, y);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.moveTo(x - 6, y - 20);
-    ctx.lineTo(x, y - 30);
-    ctx.lineTo(x + 6, y - 20);
-    ctx.fill();
-  } else if (t.kind === "volcano") {
-    ctx.fillStyle = "#5a3b22";
-    ctx.beginPath();
-    ctx.moveTo(x - 20, y);
-    ctx.lineTo(x - 5, y - 24);
-    ctx.lineTo(x + 5, y - 24);
-    ctx.lineTo(x + 20, y);
-    ctx.fill();
-    const glow = Math.round(110 + 60 * Math.sin(now / 250 + x));
-    ctx.fillStyle = `rgb(255, ${glow}, 40)`;
-    ctx.beginPath();
-    ctx.ellipse(x, y - 24, 5, 2.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Smoke puffs drift up and fade. Each volcano is a little out of step with the others.
-    for (let i = 0; i < 3; i += 1) {
-      const p = (now / 2400 + i / 3 + x / 97) % 1;
-      ctx.fillStyle = `rgba(80, 80, 80, ${0.55 * (1 - p)})`;
-      circle(x + Math.sin(p * 6 + i) * 4, y - 30 - p * 30, 4 + p * 8);
-    }
-  } else {
-    ctx.fillText(t.emoji ?? "🐑", x, y);
-  }
-}
-
-function drawWave(wave: Wave, now: number): void {
-  const age = now - wave.born;
-  const r = tsunamiRadius(age);
-  const steps = Math.max(16, Math.ceil(r / 2));
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, ((TSUNAMI_MS - age) / TSUNAMI_MS) * 3);
-  ctx.lineCap = "round";
+function frame(realNow: number): void {
+  const dt = Math.min(50, realNow - lastFrame);
+  lastFrame = realNow;
+  const steps = physics.frozen ? 0 : physics.fast ? 5 : 1;
   for (let i = 0; i < steps; i += 1) {
-    const a0 = (i / steps) * Math.PI * 2;
-    const a1 = ((i + 1) / steps) * Math.PI * 2;
-    const mid = (a0 + a1) / 2;
-    // Only draw the parts of the ring the water can actually get to.
-    if (!waveReaches(heights, wave.x, wave.y, wave.x + Math.cos(mid) * r, wave.y + Math.sin(mid) * r)) continue;
-    ctx.beginPath();
-    ctx.arc(wave.x, wave.y, r, a0, a1);
-    ctx.strokeStyle = "#bfe8ff";
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    clock += dt;
+    simulate(clock);
   }
-  ctx.restore();
-}
+  if (caveGrid) drawCave(ctx, caveGrid, clock);
+  else drawWorld(ctx, clock);
+  if (physics.matrix) drawMatrix(ctx, realNow);
 
-function frame(now: number): void {
-  for (const t of things) if (t.kind === "life") wander(t);
-  for (const wave of waves) washAway(wave, now);
-  waves = waves.filter((wave) => now - wave.born < TSUNAMI_MS);
-
-  ctx.drawImage(terrain, 0, 0);
-  ctx.font = "16px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  // Things further down the map are in front.
-  for (const t of [...things].sort((a, b) => a.y - b.y)) drawThing(t, now);
-  for (const wave of waves) drawWave(wave, now);
-
-  const text = now - noteAt < NOTE_MS ? note : (TOOLS.find((t) => t.tool === tool)?.hint ?? "");
+  const text = currentNote(realNow) ?? hoverText ?? hint();
   if (statusLine.textContent !== text) statusLine.textContent = text;
   requestAnimationFrame(frame);
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { COLS, ROWS, makeHeights, waveReaches } from "./world";
+import { COLS, ROWS, applyStroke, isLand, makeHeights, waveReaches } from "./world";
 
-// All water, with a thin strip of land at x 200–212 and a wide one at x 400–480.
+// All water, with a thin strip of land at x 50–52 and a wide one at x 100–119.
 function stripsMap(): Float32Array {
   const heights = new Float32Array(COLS * ROWS);
   for (let row = 0; row < ROWS; row += 1) {
@@ -18,13 +18,22 @@ describe("world", () => {
 
   it("sends a tsunami over thin land but not through a continent", () => {
     const heights = stripsMap();
-    expect(waveReaches(heights, 100, 300, 300, 300)).toBe(true);
-    expect(waveReaches(heights, 100, 300, 600, 300)).toBe(false);
+    expect(waveReaches(heights, 30, 100, 80, 100)).toBe(true);
+    expect(waveReaches(heights, 30, 100, 200, 100)).toBe(false);
+  });
+
+  it("raises land out of the sea and sinks it again, only near the brush", () => {
+    const heights = new Float32Array(COLS * ROWS);
+    for (let i = 0; i < 4; i += 1) applyStroke(heights, 60, 60, 0.15);
+    expect(isLand(heights, 60, 60)).toBe(true);
+    expect(isLand(heights, 60, 70)).toBe(false);
+    for (let i = 0; i < 8; i += 1) applyStroke(heights, 60, 60, -0.15);
+    expect(isLand(heights, 60, 60)).toBe(false);
   });
 
   it("lets a tsunami push a little way up onto land", () => {
     const heights = stripsMap();
-    expect(waveReaches(heights, 300, 300, 410, 300)).toBe(true);
-    expect(waveReaches(heights, 300, 300, 440, 300)).toBe(false);
+    expect(waveReaches(heights, 80, 100, 104, 100)).toBe(true);
+    expect(waveReaches(heights, 80, 100, 110, 100)).toBe(false);
   });
 });
