@@ -4,7 +4,6 @@ import {
   clamp,
   ctx,
   diveInto,
-  drawBonusCard,
   drawCaption,
   drawDust,
   drawRoomBox,
@@ -19,6 +18,7 @@ import {
   type Point,
   type Room,
 } from "./engine";
+import { createMathBonus } from "./bonus4";
 import { sounds } from "./sound";
 
 // Escape Room 4: Chalkboard. All there is is a chalkboard that says 1 + 1 = ?.
@@ -35,7 +35,7 @@ import { sounds } from "./sound";
 // The secret way: drag the button underneath the chalk window before pressing
 // it. Then there's no window behind the chalkboard at all, only a faint black
 // line somewhere on the wall. Click the section above the line and it opens up
-// into a secret place that leads to a bonus level.
+// into a secret place that leads to a bonus level (bonus4.ts).
 
 type Scene =
   | "room"
@@ -224,6 +224,8 @@ export function createChalkboardRoom(escape: () => void): Room {
   // Whether the button was underneath the chalk window when it was pressed.
   let secretBoom = false;
   let secretSpot: Point = { x: 130, y: 470 };
+  // Leaving the bonus level starts Chalkboard over from the beginning.
+  const bonus = createMathBonus(() => reset(performance.now()));
 
   window.addEventListener("keydown", (event) => {
     if (scene === "board" && event.key === "Escape") {
@@ -296,8 +298,7 @@ export function createChalkboardRoom(escape: () => void): Room {
   function pointerDown(p: Point): void {
     const now = performance.now();
     if (scene === "bonus") {
-      // Nothing is built past the secret way yet, so it's back to the chalkboard.
-      reset(now);
+      bonus.pointerDown(p);
       return;
     }
     if (scene === "blank") {
@@ -351,6 +352,10 @@ export function createChalkboardRoom(escape: () => void): Room {
   }
 
   function pointerMove(p: Point): void {
+    if (scene === "bonus") {
+      bonus.pointerMove(p);
+      return;
+    }
     if (!dragging) return;
     const { piece } = dragging;
     const x = clamp(p.x - dragging.offX, FRAME + 30, W - FRAME - 30);
@@ -495,7 +500,7 @@ export function createChalkboardRoom(escape: () => void): Room {
 
   function cursor(p: Point): string {
     if (scene === "room") return overBoard(p) ? "pointer" : "default";
-    if (scene === "bonus") return "pointer";
+    if (scene === "bonus") return bonus.cursor(p);
     // No hint on the blank wall: the line has to be found by looking.
     if (scene === "secret") return overSecret(p) ? "pointer" : "default";
     if (scene === "window") return overWindow(p) ? "pointer" : "default";
@@ -510,6 +515,10 @@ export function createChalkboardRoom(escape: () => void): Room {
   // ---------- update ----------
 
   function update(now: number, dt: number): void {
+    if (scene === "bonus") {
+      bonus.update(now, dt);
+      return;
+    }
     const elapsed = now - sceneStart;
     if (scene === "zoom" && elapsed >= ZOOM_MS) {
       setScene("board", now);
@@ -519,6 +528,7 @@ export function createChalkboardRoom(escape: () => void): Room {
       setScene(secretBoom ? "blank" : "window", now);
     } else if (scene === "bonusIn" && elapsed >= BONUS_IN_MS) {
       setScene("bonus", now);
+      bonus.reset(now);
     } else if (scene === "leaving" && elapsed >= LEAVE_MS) {
       startWalk(now);
     } else if (scene === "walk") {
@@ -1094,7 +1104,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     }
 
     if (scene === "bonus") {
-      drawBonusCard(elapsed / 1000);
+      bonus.draw(now);
       return;
     }
     if (scene === "blank" || scene === "secret" || scene === "bonusIn") {
