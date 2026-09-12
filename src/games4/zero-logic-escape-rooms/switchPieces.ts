@@ -1,10 +1,10 @@
 import { ctx, roundRect } from "./engine";
 
-// Switch pieces are hidden in the bonus levels, one in each. All together they
-// make a secret switch. How many there are and what the switch opens hasn't
-// been decided yet, so for now they're just collected and shown under the game.
+// Switch pieces are hidden in the bonus levels, one in each. All three together
+// get built into the switch on the Games 4 hub that turns this game into
+// Hundred Logic Escape Rooms. After them come Earth fragments (earthFragments.ts).
 
-// Pieces that have a bonus level giving them out so far.
+// All the pieces the switch takes.
 export const SWITCH_PIECES_BUILT = 3;
 
 // Piece 1 is the plate the switch sits in, piece 2 is the lever that flips, and

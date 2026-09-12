@@ -34,6 +34,8 @@ export interface BonusLevel {
   draw(now: number): void;
   pointerDown(p: Point): void;
   pointerMove(p: Point): void;
+  // Only bonus levels you drag things around in need this one.
+  pointerUp?(p: Point): void;
   cursor(p: Point): string;
 }
 

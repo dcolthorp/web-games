@@ -12,6 +12,12 @@ import { createHundredChalkboardRoom } from "./hroom4";
 import { isHundred } from "./hundred";
 import { ensureAudio } from "./sound";
 import { SWITCH_PIECES_BUILT, SWITCH_PIECE_ICONS, collectedSwitchPieces, whenSwitchPiecesChange } from "./switchPieces";
+import {
+  EARTH_FRAGMENT_COUNT,
+  EARTH_FRAGMENT_ICONS,
+  collectedEarthFragments,
+  whenEarthFragmentsChange,
+} from "./earthFragments";
 import { TOOLBAR_SLOTS, TOOLS, ownsTool, selectedTool, toggleTool, whenToolFound, type Tool } from "./tools";
 
 installOofShortcut();
@@ -55,6 +61,8 @@ const toolbar = document.getElementById("toolbar") as HTMLElement;
 const toolbarSlots = document.getElementById("toolbar-slots") as HTMLDivElement;
 const switchPanel = document.getElementById("switch-pieces") as HTMLElement;
 const switchSlots = document.getElementById("switch-slots") as HTMLDivElement;
+const earthPanel = document.getElementById("earth-fragments") as HTMLElement;
+const earthSlots = document.getElementById("earth-slots") as HTMLDivElement;
 
 const rooms: Room[] = hundred
   ? [
@@ -211,13 +219,12 @@ whenToolFound(renderToolbar);
 
 // ---------- switch pieces ----------
 
-// Hidden until you find a piece. There's always one more empty slot, because
-// more pieces are coming.
+// Hidden until you find a piece. The switch takes exactly three.
 function renderSwitchPieces(): void {
   const collected = collectedSwitchPieces();
   switchPanel.hidden = collected.length === 0;
   const slots: HTMLElement[] = [];
-  for (let n = 1; n <= SWITCH_PIECES_BUILT + 1; n += 1) {
+  for (let n = 1; n <= SWITCH_PIECES_BUILT; n += 1) {
     const slot = document.createElement("span");
     slot.className = "tool-slot switch-slot";
     if (collected.includes(n)) {
@@ -235,6 +242,33 @@ function renderSwitchPieces(): void {
 
 whenSwitchPiecesChange(renderSwitchPieces);
 renderSwitchPieces();
+
+// ---------- earth fragments ----------
+
+// The three pieces of the Earth that will unlock World Sandbox. Hidden until
+// you find one.
+function renderEarthFragments(): void {
+  const collected = collectedEarthFragments();
+  earthPanel.hidden = collected.length === 0;
+  const slots: HTMLElement[] = [];
+  for (let n = 1; n <= EARTH_FRAGMENT_COUNT; n += 1) {
+    const slot = document.createElement("span");
+    slot.className = "tool-slot switch-slot";
+    if (collected.includes(n)) {
+      slot.title = `Earth Fragment ${n}`;
+      slot.innerHTML = `${EARTH_FRAGMENT_ICONS[n] ?? ""}<span class="tool-name">Fragment ${n}</span>`;
+    } else {
+      slot.classList.add("is-empty");
+      slot.textContent = "?";
+      slot.setAttribute("aria-hidden", "true");
+    }
+    slots.push(slot);
+  }
+  earthSlots.replaceChildren(...slots);
+}
+
+whenEarthFragmentsChange(renderEarthFragments);
+renderEarthFragments();
 
 // Number keys pick tools too, 1 for the first slot and so on.
 window.addEventListener("keydown", (event) => {

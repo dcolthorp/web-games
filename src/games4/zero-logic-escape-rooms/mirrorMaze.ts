@@ -1,5 +1,6 @@
 import { H, W, clamp, ctx, drawCaption, inRect, lerp, roundRect, type Point } from "./engine";
 import type { BonusLevel } from "./bonus2";
+import { collectEarthFragment, drawEarthFragment, hasEarthFragment } from "./earthFragments";
 import { sounds } from "./sound";
 
 // The mirror maze behind the mirror in Hundred Logic's The Room With Nothing.
@@ -11,6 +12,7 @@ import { sounds } from "./sound";
 // straight line, so they're never just the other side of a mirror. New mazes
 // every visit. Walk with the arrow keys, WASD, or by clicking the next square.
 // Go half a minute without getting any closer and glowing arrows show the way.
+// Walking out gives you Earth Fragment 1.
 
 type Phase = "walking" | "stairs" | "done";
 
@@ -178,6 +180,7 @@ export function createMirrorMaze(leave: () => void): BonusLevel {
   let closestToGoal = Infinity;
   let closerAt = 0;
   let hintAt: number | null = null;
+  let fragmentWasNew = true;
 
   const floor = (): Floor => floors[floorIndex] ?? makeFloor([3, 3, 56], { col: 0, row: 0 });
   const onTopFloor = (): boolean => floorIndex === FLOOR_SIZES.length - 1;
@@ -250,6 +253,8 @@ export function createMirrorMaze(leave: () => void): BonusLevel {
     if (player.col !== goal.col || player.row !== goal.row) return;
     if (onTopFloor()) {
       sounds.chime();
+      fragmentWasNew = !hasEarthFragment(1);
+      collectEarthFragment(1);
       setPhase("done", now);
     } else {
       sounds.whoosh(STAIRS_MS / 1000);
@@ -522,12 +527,19 @@ export function createMirrorMaze(leave: () => void): BonusLevel {
       ctx.lineWidth = 6;
       ctx.strokeStyle = "#000";
       ctx.font = "54px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
-      ctx.strokeText("YOU GOT THROUGH THE MIRROR MAZE!", W / 2, H / 2 - 20);
+      ctx.strokeText("YOU GOT THROUGH THE MIRROR MAZE!", W / 2, H / 2 - 130);
       ctx.fillStyle = "#ffcf5a";
-      ctx.fillText("YOU GOT THROUGH THE MIRROR MAZE!", W / 2, H / 2 - 20);
-      ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
+      ctx.fillText("YOU GOT THROUGH THE MIRROR MAZE!", W / 2, H / 2 - 130);
+      drawEarthFragment(1, W / 2, H / 2 - 5 + Math.sin(now / 400) * 6, 1.4);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "bold 26px 'Trebuchet MS', sans-serif";
+      ctx.strokeText(fragmentWasNew ? "You found Earth Fragment 1!" : "You already have Earth Fragment 1.", W / 2, H / 2 + 100);
       ctx.fillStyle = "#f5efe6";
-      ctx.fillText("All three floors. Click to go back.", W / 2, H / 2 + 40);
+      ctx.fillText(fragmentWasNew ? "You found Earth Fragment 1!" : "You already have Earth Fragment 1.", W / 2, H / 2 + 100);
+      ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
+      ctx.fillStyle = "#b9adc4";
+      ctx.fillText("Click to go back.", W / 2, H / 2 + 140);
     }
   }
 
