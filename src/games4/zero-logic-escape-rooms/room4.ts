@@ -4,6 +4,7 @@ import {
   clamp,
   ctx,
   diveInto,
+  drawBonusCard,
   drawCaption,
   drawDust,
   drawRoomBox,
@@ -30,8 +31,25 @@ import { sounds } from "./sound";
 // Click it and you fly into the sun and out into a cutscene of walking through
 // the grass where nothing happens, except spikes. Jump them (click or Space)
 // until it ends. Hit one and the walk starts over.
+// The secret way: drag the button underneath the chalk window before pressing
+// it. Then there's no window behind the chalkboard at all, only a faint black
+// line somewhere on the wall. Click the section above the line and it opens up
+// into a secret place that leads to a bonus level.
 
-type Scene = "room" | "zoom" | "board" | "unzoom" | "boom" | "window" | "leaving" | "walk" | "escaped";
+type Scene =
+  | "room"
+  | "zoom"
+  | "board"
+  | "unzoom"
+  | "boom"
+  | "window"
+  | "leaving"
+  | "walk"
+  | "escaped"
+  | "blank" // blown up with the button under the chalk window: no window
+  | "secret" // the section above the faint line has opened
+  | "bonusIn" // going into the secret place
+  | "bonus"; // the bonus level card
 type Kind = "one" | "plus" | "bar" | "curl" | "line" | "dot" | "bigDot" | "button";
 
 interface Piece {
@@ -105,6 +123,19 @@ const COLON_SHIFT = 30;
 // The real window behind the chalkboard, and the pane you climb out through.
 const WIN = { x: 260, y: 70, w: 440, h: 400 };
 const EXIT: Point = { x: WIN.x + WIN.w * 0.75, y: WIN.y + WIN.h * 0.25 };
+
+// Where the faint line can be (its left end). A different one each visit, and
+// the section of wall above it is what opens.
+const SECRET_SPOTS: Point[] = [
+  { x: 130, y: 470 },
+  { x: 740, y: 200 },
+  { x: 600, y: 520 },
+  { x: 150, y: 190 },
+];
+const SECRET_W = 110;
+const SECRET_H = 90;
+const HATCH_MS = 600;
+const BONUS_IN_MS = 900;
 
 const CHUNK_COLS = 6;
 const CHUNK_ROWS = 4;
@@ -187,6 +218,9 @@ export function createChalkboardRoom(escape: () => void): Room {
   let spikes: number[] = [];
   let nextSpikeAt = 0;
   let duckAt = -Infinity;
+  // Whether the button was underneath the chalk window when it was pressed.
+  let secretBoom = false;
+  let secretSpot: Point = { x: 130, y: 470 };
 
   window.addEventListener("keydown", (event) => {
     if (scene === "board" && event.key === "Escape") {
@@ -210,6 +244,8 @@ export function createChalkboardRoom(escape: () => void): Room {
     windowDone = false;
     dragging = null;
     duckAt = -Infinity;
+    secretBoom = false;
+    secretSpot = SECRET_SPOTS[Math.floor(Math.random() * SECRET_SPOTS.length)] ?? { x: 130, y: 470 };
     chunks = [];
     dust = [];
     // 1 + 1 = ?
@@ -242,6 +278,7 @@ export function createChalkboardRoom(escape: () => void): Room {
   const overBoard = (p: Point): boolean => inRect(p, BOARD.x, BOARD.y, BOARD.w, BOARD.h);
   const overWindow = (p: Point): boolean => inRect(p, WIN.x, WIN.y, WIN.w, WIN.h);
   const overBack = (p: Point): boolean => inRect(p, BACK_BUTTON.x, BACK_BUTTON.y, BACK_BUTTON.w, BACK_BUTTON.h);
+  const overSecret = (p: Point): boolean => inRect(p, secretSpot.x, secretSpot.y - SECRET_H, SECRET_W, SECRET_H);
 
   // Step back from the chalkboard into the room. The pieces stay where they
   // are, so clicking the board again carries on where you left off.
@@ -255,6 +292,25 @@ export function createChalkboardRoom(escape: () => void): Room {
 
   function pointerDown(p: Point): void {
     const now = performance.now();
+    if (scene === "bonus") {
+      // Nothing is built past the secret way yet, so it's back to the chalkboard.
+      reset(now);
+      return;
+    }
+    if (scene === "blank") {
+      if (overSecret(p)) {
+        sounds.creak();
+        setScene("secret", now);
+      }
+      return;
+    }
+    if (scene === "secret") {
+      if (overSecret(p) && now - sceneStart >= HATCH_MS) {
+        sounds.whoosh(BONUS_IN_MS / 1000);
+        setScene("bonusIn", now);
+      }
+      return;
+    }
     if (scene === "walk") {
       jump();
       return;
@@ -399,6 +455,9 @@ export function createChalkboardRoom(escape: () => void): Room {
   }
 
   function boom(button: Piece, now: number): void {
+    // Underneath the chalk window means below its bottom bar, and not off to one side.
+    const plus = pieces.find((piece) => piece.kind === "plus");
+    secretBoom = !!plus && windowDone && Math.abs(button.x - plus.x) <= L / 2 + 20 && button.y > plus.y + L / 2 + 10;
     sounds.crash();
     sounds.crack();
     chunks = [];
@@ -427,6 +486,9 @@ export function createChalkboardRoom(escape: () => void): Room {
 
   function cursor(p: Point): string {
     if (scene === "room") return overBoard(p) ? "pointer" : "default";
+    if (scene === "bonus") return "pointer";
+    // No hint on the blank wall: the line has to be found by looking.
+    if (scene === "secret") return overSecret(p) ? "pointer" : "default";
     if (scene === "window") return overWindow(p) ? "pointer" : "default";
     if (scene !== "board") return "default";
     if (dragging) return "grabbing";
@@ -445,7 +507,9 @@ export function createChalkboardRoom(escape: () => void): Room {
     } else if (scene === "unzoom" && elapsed >= ZOOM_OUT_MS) {
       setScene("room", now);
     } else if (scene === "boom" && elapsed >= BOOM_MS) {
-      setScene("window", now);
+      setScene(secretBoom ? "blank" : "window", now);
+    } else if (scene === "bonusIn" && elapsed >= BONUS_IN_MS) {
+      setScene("bonus", now);
     } else if (scene === "leaving" && elapsed >= LEAVE_MS) {
       startWalk(now);
     } else if (scene === "walk") {
@@ -743,6 +807,88 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.fillRect(WIN.x - F - 20, WIN.y + WIN.h + F + 16, WIN.w + F * 2 + 40, 8);
   }
 
+  // Behind the chalkboard when the button was under the chalk window: no window
+  // at all. Just the nail holes it hung from, and a faint line somewhere.
+  function drawBlankWall(now: number): void {
+    const wall = ctx.createLinearGradient(0, 0, 0, H);
+    wall.addColorStop(0, PALETTE.wallTop);
+    wall.addColorStop(1, PALETTE.wallBottom);
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "rgba(60, 50, 30, 0.45)";
+    for (const nx of [WIN.x + 60, WIN.x + WIN.w - 60]) {
+      ctx.beginPath();
+      ctx.arc(nx, WIN.y + 20, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const { x, y } = secretSpot;
+    if (scene === "secret" || scene === "bonusIn") {
+      drawSecretPlace(now);
+      // The section above the line swings up out of the way like a flap.
+      const open = scene === "secret" ? easeOut(sceneStart, now, HATCH_MS) : 1;
+      const flap = Math.max(4, SECRET_H * (1 - open));
+      ctx.fillStyle = wall;
+      ctx.fillRect(x, y - SECRET_H, SECRET_W, flap);
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y - SECRET_H, SECRET_W, flap);
+    }
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.22)";
+    ctx.lineWidth = 2;
+    line(x, y, x + SECRET_W, y);
+  }
+
+  // What the section above the line was hiding: a little glowing passage.
+  function drawSecretPlace(now: number): void {
+    const left = secretSpot.x;
+    const right = secretSpot.x + SECRET_W;
+    const top = secretSpot.y - SECRET_H;
+    const bottom = secretSpot.y;
+    const cx = (left + right) / 2;
+    const iL = cx - 14;
+    const iR = cx + 14;
+    const iT = top + 28;
+    const iB = top + 58;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(left, top, SECRET_W, SECRET_H);
+    ctx.clip();
+    ctx.fillStyle = "#1a0b2e";
+    poly([left, top], [right, top], [iR, iT], [iL, iT]);
+    ctx.fillStyle = "#24103f";
+    poly([left, top], [iL, iT], [iL, iB], [left, bottom]);
+    ctx.fillStyle = "#1f0d37";
+    poly([right, top], [iR, iT], [iR, iB], [right, bottom]);
+    ctx.fillStyle = "#2e1450";
+    poly([left, bottom], [right, bottom], [iR, iB], [iL, iB]);
+    const glow = ctx.createRadialGradient(cx, (iT + iB) / 2, 2, cx, (iT + iB) / 2, 70);
+    glow.addColorStop(0, `rgba(214, 160, 255, ${0.55 + 0.25 * pulse})`);
+    glow.addColorStop(1, "rgba(199, 125, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(left, top, SECRET_W, SECRET_H);
+    ctx.fillStyle = "#e9d2ff";
+    ctx.fillRect(iL, iT, iR - iL, iB - iT);
+    ctx.fillStyle = `rgba(199, 125, 255, ${0.45 + 0.25 * pulse})`;
+    for (let i = 0; i < 3; i += 1) {
+      const s = (i + 0.5) / 3;
+      const half = lerp(SECRET_W / 2, 14, s) - 4;
+      ctx.fillRect(cx - half, lerp(bottom, iB, s) - 2, half * 2, Math.max(2, 4 * (1 - s)));
+    }
+    ctx.restore();
+
+    ctx.fillStyle = "rgba(20, 8, 36, 0.85)";
+    roundRect(cx - 26, top + 4, 52, 16, 4);
+    ctx.fill();
+    ctx.fillStyle = "#f0e0ff";
+    ctx.font = "bold 11px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("BONUS", cx, top + 12.5);
+  }
+
   function drawCloud(x: number, y: number): void {
     ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
     for (const [dx, dy, r] of [
@@ -863,7 +1009,8 @@ export function createChalkboardRoom(escape: () => void): Room {
     const shake = Math.max(0, 1 - t / 0.4) * 14;
     ctx.save();
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
-    drawWindowScene(now);
+    if (secretBoom) drawBlankWall(now);
+    else drawWindowScene(now);
 
     ctx.globalAlpha = clamp((BOOM_MS / 1000 - t) / 0.5, 0, 1);
     for (const c of chunks) {
@@ -934,6 +1081,26 @@ export function createChalkboardRoom(escape: () => void): Room {
     if (scene === "escaped") {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
+      return;
+    }
+
+    if (scene === "bonus") {
+      drawBonusCard(elapsed / 1000);
+      return;
+    }
+    if (scene === "blank" || scene === "secret" || scene === "bonusIn") {
+      ctx.save();
+      let dark = 0;
+      if (scene === "bonusIn") {
+        dark = diveInto(secretSpot.x + SECRET_W / 2, secretSpot.y - SECRET_H / 2, clamp(elapsed / BONUS_IN_MS, 0, 1));
+      }
+      drawBlankWall(now);
+      ctx.restore();
+      if (scene === "blank") drawCaption("No window this time.", elapsed / 1000);
+      if (dark > 0) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${dark})`;
+        ctx.fillRect(0, 0, W, H);
+      }
       return;
     }
 
