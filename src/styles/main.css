@@ -273,7 +273,7 @@ h1.is-glitching::after {
 }
 
 .hub-dropdown.is-open {
-  max-height: 400px;
+  max-height: 520px;
   opacity: 1;
 }
 
@@ -685,6 +685,79 @@ h1.is-glitching::after {
 .games4-hub .games4-game-card.is-coming-soon:hover {
   transform: none;
   border-color: #0f0f14;
+}
+
+.games5-hub {
+  --bg: #2e0f2c;
+  --bg-accent: #5a2356;
+  --panel: #4a1c47;
+  --panel-2: #6e2c68;
+  --ink: #fff0f8;
+  --muted: #ffc2e2;
+  --danger: #7dffc8;
+  --danger-dark: #1f8a63;
+  --warn: #ff9ad5;
+  background:
+    radial-gradient(circle at 15% 9%, rgba(255, 154, 213, 0.3), transparent 25%),
+    radial-gradient(circle at 85% 74%, rgba(125, 255, 200, 0.16), transparent 22%),
+    linear-gradient(180deg, #8a3a7e, #4a1c47 70%, #2e0f2c);
+}
+
+.games5-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(125, 255, 200, 0.18), transparent 20%),
+    linear-gradient(135deg, #a8468f, #4a1c47 68%);
+}
+
+.games5-hub .game-list {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* The caution tape is a synthesizer: each stripe is a key, built in
+   games5/main.ts. The side padding matches how far the tape hangs past the
+   panel, so every key is somewhere you can actually tap. Scoped to the hub so
+   it outranks the plain .hero-stripes background below. */
+.games5-hub .games5-stripes {
+  display: flex;
+  padding: 0 8%;
+  background: #4a1c47;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.games5-stripes .tape-key {
+  position: relative;
+  flex: 1 1 0;
+  background: #ff9ad5;
+  transform: skewX(-45deg);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.games5-stripes .tape-key:nth-child(even) {
+  background: #4a1c47;
+}
+
+/* Lit while held, then fades back out when you let go, like a synth's key lights. */
+.games5-stripes .tape-key.is-pressed {
+  z-index: 1;
+  background: #fff0f8;
+  box-shadow: 0 0 18px 6px rgba(255, 154, 213, 0.9);
+  transition: none;
+}
+
+.games5-stripes .tape-key:nth-child(even).is-pressed {
+  background: #c25aa8;
+}
+
+/* Scoped to the hub so it outranks the plain .game-card background below. */
+.games5-hub .games5-game-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(255, 154, 213, 0.18), transparent 25%),
+    linear-gradient(180deg, #7a3172, #4a1c47);
 }
 
 /* The light switch built from Zero Logic Escape Rooms' switch pieces, stuck on
@@ -1447,6 +1520,64 @@ h1.is-glitching::after {
   background: repeating-linear-gradient(-45deg, #ffd23f 0 22px, #241a5c 22px 44px);
   color: #1a1146;
   transition: transform 0.12s ease, filter 0.18s ease;
+}
+
+.games5-trap-floor {
+  position: relative;
+  overflow: hidden;
+  background: repeating-linear-gradient(-45deg, #ff9ad5 0 22px, #4a1c47 22px 44px);
+  color: #2e0f2c;
+  transition: transform 0.12s ease, filter 0.18s ease;
+}
+
+/* Crack lines, a little darker with every hit. */
+.games5-trap-floor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 80' preserveAspectRatio='none'%3E%3Cpath d='M0 38 L60 44 L95 30 L140 48 L180 36 L200 40 L230 12 L250 0 M200 40 L215 62 L205 80 M200 40 L260 50 L310 34 L350 46 L400 40 M95 30 L110 8 M310 34 L325 80' fill='none' stroke='%23000' stroke-width='3' stroke-linejoin='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  transition: opacity 0.15s ease;
+}
+
+.games5-trap-floor[data-cracks="1"]::after { opacity: 0.3; }
+.games5-trap-floor[data-cracks="2"]::after { opacity: 0.55; }
+.games5-trap-floor[data-cracks="3"]::after { opacity: 0.8; }
+.games5-trap-floor[data-cracks="4"]::after { opacity: 1; }
+
+.games5-trap-floor.is-hit {
+  animation: games5-floor-wobble 0.3s ease;
+}
+
+.games5-trap-floor.is-broken {
+  cursor: default;
+  animation: games5-floor-fall 1.1s cubic-bezier(0.5, 0, 0.9, 0.4) forwards;
+}
+
+/* Done falling: keep its spot so the page doesn't jump, but stop drawing it. */
+.games5-trap-floor.is-gone {
+  animation: none;
+  visibility: hidden;
+}
+
+@keyframes games5-floor-wobble {
+  25% { transform: translateX(-6px) rotate(-0.6deg); }
+  75% { transform: translateX(6px) rotate(0.6deg); }
+}
+
+@keyframes games5-floor-fall {
+  0% { transform: none; opacity: 1; }
+  15% { transform: translateY(-8px) rotate(-2deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(18deg); opacity: 0; }
+}
+
+.floor-gone-note {
+  margin-top: 10px;
+  color: var(--warn);
+  font-size: 1.4rem;
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
 .games3-trap-floor {
