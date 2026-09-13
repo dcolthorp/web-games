@@ -1,8 +1,17 @@
-import type { GrowthStage, PetState } from "../model/types";
+import type { GrowthStage, PetMood, PetState } from "../model/types";
 import { getTextColor, getAccentColor, getCurrentTheme } from "../systems/theme";
 import { getHungerStatus, getHungerColor } from "../systems/feeding";
 import { getDentalHealthStatus, getDentalHealthColor } from "../systems/dental";
 import { getStageName, getEvolutionThreshold } from "../systems/growth";
+import { getMoodBars } from "../systems/pet";
+
+// Faceless is a mystery, so its name never shows.
+const WORSE_MOOD_LABELS: Record<PetMood, string> = {
+  happy: "Happy",
+  mehh: "Mehh",
+  sad: "Sad",
+  faceless: "???",
+};
 import { rgb } from "../systems/utils";
 
 class StatusBar {
@@ -58,6 +67,8 @@ export class HUD {
   private hungerBar: StatusBar;
   private dentalBar: StatusBar;
   private evolutionBar: StatusBar;
+  private happyBar: StatusBar;
+  private worseMoodBar: StatusBar;
 
   constructor() {
     const barX = 20;
@@ -66,11 +77,17 @@ export class HUD {
     this.hungerBar = new StatusBar({ x: barX, y: barY, label: "Hunger" });
     this.dentalBar = new StatusBar({ x: barX, y: barY + spacing, label: "Dental Health" });
     this.evolutionBar = new StatusBar({ x: barX, y: barY + spacing * 2, label: "Evolution" });
+    this.happyBar = new StatusBar({ x: barX, y: barY + spacing * 3, label: "Happy" });
+    this.worseMoodBar = new StatusBar({ x: barX, y: barY + spacing * 4, label: WORSE_MOOD_LABELS.mehh });
   }
 
   update(pet: PetState, themeStage: GrowthStage): void {
     this.hungerBar.setValue(100 - pet.hunger);
     this.dentalBar.setValue(pet.dentalHealth);
+    const moodBars = getMoodBars(pet);
+    this.happyBar.setValue(moodBars.happy * 100);
+    this.worseMoodBar.setValue(moodBars.worse * 100);
+    this.worseMoodBar.label = WORSE_MOOD_LABELS[moodBars.nextWorse];
     const threshold = getEvolutionThreshold(pet.stage);
     if (Number.isFinite(threshold) && threshold > 0) {
       this.evolutionBar.maxValue = threshold;
@@ -98,6 +115,10 @@ export class HUD {
     this.hungerBar.draw(ctx, stage, hungerColor);
     this.dentalBar.draw(ctx, stage, dentalColor);
     this.evolutionBar.draw(ctx, stage, getAccentColor(stage));
+    if (pet.stage !== "egg") {
+      this.happyBar.draw(ctx, stage, [255, 200, 60]);
+      this.worseMoodBar.draw(ctx, stage, [130, 90, 160]);
+    }
 
     ctx.fillStyle = rgb(textColor);
     const statusX = 180;

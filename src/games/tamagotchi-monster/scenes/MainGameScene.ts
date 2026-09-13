@@ -26,7 +26,7 @@ import { brushTeeth } from "../systems/dental";
 import { outcomeToCondition, getOutcomeCarePoints } from "../systems/play";
 import { checkEvolution } from "../systems/growth";
 import { applyMetabolism } from "../systems/metabolism";
-import { applyBandAid, completeDoctorVisit, completeDentistVisit, canPlay, interactEgg, setCondition } from "../systems/pet";
+import { applyBandAid, completeDoctorVisit, completeDentistVisit, canPlay, getPetMood, interactEgg, setCondition } from "../systems/pet";
 import { rgb } from "../systems/utils";
 
 export class MainGameScene implements Scene {
@@ -469,6 +469,7 @@ export class MainGameScene implements Scene {
         wobble: this.animation.getWobble(),
         blink: this.animation.getIsBlinking(),
         theme: getCurrentTheme(),
+        mood: getPetMood(this.profile.pet),
       });
     }
     if (transformed) ctx.restore();

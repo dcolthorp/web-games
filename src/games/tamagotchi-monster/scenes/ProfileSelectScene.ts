@@ -1,11 +1,18 @@
 import type { Scene } from "../app/Scene";
-import type { Profile } from "../model/types";
+import type { ColorTheme, Profile } from "../model/types";
 import { LESCHAT_PROFILE_NAME, ProfileStore } from "../model/ProfileStore";
-import { getBackgroundColor, getTextColor, isNu11Mode } from "../systems/theme";
+import { getBackgroundColor, getButtonColor, getButtonHoverColor, getTextColor, isNu11Mode } from "../systems/theme";
+import { getPetMood } from "../systems/pet";
 import { rgb } from "../systems/utils";
 import { Button, IconButton } from "../ui/Button";
+import { roundRectPath } from "../ui/roundRect";
 import { drawPet } from "../graphics/Sprites";
 import { drawNu11Background } from "../graphics/Nu11Background";
+
+const COLOR_CHOICES: { theme: ColorTheme; label: string }[] = [
+  { theme: "blue", label: "Blue" },
+  { theme: "pink", label: "Pink" },
+];
 
 export class ProfileSelectScene implements Scene {
   private profileStore: ProfileStore;
@@ -14,6 +21,7 @@ export class ProfileSelectScene implements Scene {
 
   private isCreating = false;
   private newProfileName = "";
+  private newProfileColor: ColorTheme = "blue";
   private errorMessage = "";
   private statusMessage = "";
 
@@ -22,6 +30,7 @@ export class ProfileSelectScene implements Scene {
   private createButton: Button | null = null;
   private backButton: Button | null = null;
   private confirmButton: Button | null = null;
+  private colorButtons: { theme: ColorTheme; label: string; button: Button }[] = [];
 
   constructor(opts: {
     profileStore: ProfileStore;
@@ -102,11 +111,31 @@ export class ProfileSelectScene implements Scene {
       stage: "baby",
       onClick: () => this.confirmCreate(),
     });
+
+    const swatchWidth = 150;
+    const swatchHeight = 150;
+    const swatchGap = 40;
+    const swatchesLeft = 400 - swatchWidth - swatchGap / 2;
+    this.colorButtons = COLOR_CHOICES.map((choice, index) => ({
+      ...choice,
+      button: new Button({
+        x: swatchesLeft + index * (swatchWidth + swatchGap),
+        y: 325,
+        width: swatchWidth,
+        height: swatchHeight,
+        text: choice.label,
+        stage: "baby",
+        onClick: () => {
+          this.newProfileColor = choice.theme;
+        },
+      }),
+    }));
   }
 
   private startCreating(): void {
     this.isCreating = true;
     this.newProfileName = "";
+    this.newProfileColor = "blue";
     this.errorMessage = "";
     this.statusMessage = "";
   }
@@ -140,7 +169,7 @@ export class ProfileSelectScene implements Scene {
       return;
     }
     try {
-      const profile = this.profileStore.createProfile(name);
+      const profile = this.profileStore.createProfile(name, this.newProfileColor);
       this.isCreating = false;
       this.statusMessage = "";
       this.refreshProfiles();
@@ -174,6 +203,14 @@ export class ProfileSelectScene implements Scene {
         ctx.fillStyle = "rgb(255,100,100)";
         ctx.fillText(this.errorMessage, 400, 270);
       }
+      ctx.fillStyle = rgb(getTextColor(stage));
+      ctx.font = "20px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("Pick a color", 400, 295);
+      this.colorButtons.forEach((choice) => {
+        drawColorSwatch(ctx, choice.button, choice.theme, choice.theme === this.newProfileColor);
+      });
       this.backButton?.draw(ctx);
       this.confirmButton?.draw(ctx);
       return;
@@ -192,6 +229,7 @@ export class ProfileSelectScene implements Scene {
       if (profile) {
         drawPet(ctx, profile.pet.stage, button.x + button.width + 50, button.y + button.height / 2, 40, {
           theme: profile.colorTheme,
+          mood: getPetMood(profile.pet),
         });
       }
     });
@@ -207,6 +245,7 @@ export class ProfileSelectScene implements Scene {
     if (this.isCreating) {
       this.backButton?.handlePointerMove(x, y);
       this.confirmButton?.handlePointerMove(x, y);
+      this.colorButtons.forEach((c) => c.button.handlePointerMove(x, y));
       return;
     }
     this.profileButtons.forEach((b) => b.handlePointerMove(x, y));
@@ -218,6 +257,7 @@ export class ProfileSelectScene implements Scene {
     if (this.isCreating) {
       this.backButton?.handlePointerDown(x, y);
       this.confirmButton?.handlePointerDown(x, y);
+      this.colorButtons.forEach((c) => c.button.handlePointerDown(x, y));
       return;
     }
     this.profileButtons.forEach((b) => b.handlePointerDown(x, y));
@@ -229,6 +269,7 @@ export class ProfileSelectScene implements Scene {
     if (this.isCreating) {
       this.backButton?.handlePointerUp(x, y);
       this.confirmButton?.handlePointerUp(x, y);
+      this.colorButtons.forEach((c) => c.button.handlePointerUp(x, y));
       return;
     }
     this.profileButtons.forEach((b) => b.handlePointerUp(x, y));
@@ -257,6 +298,30 @@ export class ProfileSelectScene implements Scene {
       }
     }
   }
+}
+
+function drawColorSwatch(
+  ctx: CanvasRenderingContext2D,
+  button: Button,
+  theme: ColorTheme,
+  selected: boolean
+): void {
+  const { x, y, width, height } = button;
+  const highlighted = selected || button.isHovered || button.isPressed;
+  ctx.fillStyle = rgb(highlighted ? getButtonHoverColor("baby", theme) : getButtonColor("baby", theme));
+  ctx.strokeStyle = rgb(getTextColor("baby", theme));
+  ctx.lineWidth = selected ? 5 : 2;
+  roundRectPath(ctx, x, y, width, height, 14);
+  ctx.fill();
+  ctx.stroke();
+
+  drawPet(ctx, "baby", x + width / 2, y + height / 2 - 12, 70, { theme });
+
+  ctx.fillStyle = rgb(getTextColor("baby", theme));
+  ctx.font = `${selected ? "bold " : ""}22px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(selected ? `✓ ${button.text}` : button.text, x + width / 2, y + height - 24);
 }
 
 function drawInputBox(ctx: CanvasRenderingContext2D, value: string, y: number): void {

@@ -65,7 +65,7 @@ export class DoctorVisitScene implements Scene {
     ctx.fillText(this.doctorTheme.name, 400, 40);
     ctx.font = "18px system-ui, sans-serif";
     ctx.fillText(this.doctorTheme.description, 400, 80);
-    drawPet(ctx, this.stage, 400, 260, 110, { theme: this.theme });
+    drawPet(ctx, this.stage, 400, 260, 110, { theme: this.theme, mood: this.isComplete ? "happy" : "sad" });
     ctx.fillStyle = rgb(this.doctorTheme.accent);
     ctx.font = "20px system-ui, sans-serif";
     const stepText = this.isComplete ? "Feeling better!" : this.steps[this.currentStep] ?? "";

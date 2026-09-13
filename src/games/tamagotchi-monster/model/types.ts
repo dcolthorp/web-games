@@ -38,6 +38,8 @@ export const NU11_STAGE_ORDER: GrowthStage[] = [
 
 export type PetCondition = "none" | "minor_ouchie" | "bigger_injury" | "dental_problem";
 
+export type PetMood = "happy" | "mehh" | "sad" | "faceless";
+
 export type PlayOutcome = "success" | "minor_ouchie" | "bigger_injury" | "dental_problem";
 
 export type ColorTheme = "blue" | "pink" | "green" | "purple" | "orange" | "black";

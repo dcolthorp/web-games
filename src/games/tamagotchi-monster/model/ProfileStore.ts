@@ -89,7 +89,10 @@ export class ProfileStore {
 
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
-    const colorTheme = theme ?? getThemeForName(upperName);
+    // Secret names (NU11, MILLIONAIRE) keep their special look no matter which color was picked.
+    const nameTheme = getThemeForName(upperName);
+    const isSecretTheme = nameTheme === "black" || nameTheme === "green";
+    const colorTheme = isSecretTheme ? nameTheme : (theme ?? nameTheme);
     const profile: Profile = {
       id,
       name: upperName,

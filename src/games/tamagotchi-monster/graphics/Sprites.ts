@@ -1,4 +1,4 @@
-import type { ColorTheme, GrowthStage } from "../model/types";
+import type { ColorTheme, GrowthStage, PetMood } from "../model/types";
 import { getPetColors, isMillionaireMode, isNu11Mode, type PetColors } from "../systems/theme";
 import { rgb, clamp, lerpColor, type Rgb } from "../systems/utils";
 import { roundRectPath } from "../ui/roundRect";
@@ -8,6 +8,7 @@ type DrawOptions = {
   wobble?: number;
   blink?: boolean;
   theme?: ColorTheme;
+  mood?: PetMood;
 };
 
 export function drawPet(
@@ -139,14 +140,43 @@ function drawMoneyMouth(
   y: number,
   width: number,
   curvature: number,
-  strokeStyle: string
+  strokeStyle: string,
+  mood: PetMood
 ): void {
+  const moodCurvature = mood === "happy" ? curvature : mood === "sad" ? -Math.abs(curvature) : 0;
   ctx.strokeStyle = strokeStyle;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(-width / 2, y);
-  ctx.quadraticCurveTo(0, y + curvature, width / 2, y);
+  ctx.quadraticCurveTo(0, y + moodCurvature, width / 2, y);
   ctx.stroke();
+}
+
+function drawMoneySunglasses(ctx: CanvasRenderingContext2D, size: number): void {
+  const lensW = size * 0.3;
+  const lensH = size * 0.16;
+  const lensY = -size * 0.18;
+  const gap = size * 0.08;
+  ctx.fillStyle = "rgb(25,25,30)";
+  ctx.strokeStyle = "rgb(70,70,80)";
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, -gap / 2 - lensW, lensY, lensW, lensH, 6);
+  ctx.fill();
+  ctx.stroke();
+  roundRectPath(ctx, gap / 2, lensY, lensW, lensH, 6);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = "rgb(40,40,45)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-gap / 2, lensY + lensH / 2);
+  ctx.lineTo(gap / 2, lensY + lensH / 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  roundRectPath(ctx, -gap / 2 - lensW + 5, lensY + 3, lensW - 12, 6, 3);
+  ctx.fill();
+  roundRectPath(ctx, gap / 2 + 5, lensY + 3, lensW - 12, 6, 3);
+  ctx.fill();
 }
 
 function drawMoneyEgg(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, opts: DrawOptions): void {
@@ -225,8 +255,11 @@ function drawMoneyBaby(ctx: CanvasRenderingContext2D, x: number, y: number, size
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  drawMoneyEyes(ctx, 0, -size * 0.1, size * 0.075, size * 0.17, opts.blink ?? false);
-  drawMoneyMouth(ctx, size * 0.18, size * 0.34, -size * 0.12, "rgb(90,75,60)");
+  const mood = opts.mood ?? "happy";
+  if (mood !== "faceless") {
+    drawMoneyEyes(ctx, 0, -size * 0.1, size * 0.075, size * 0.17, opts.blink ?? false);
+    drawMoneyMouth(ctx, size * 0.18, size * 0.34, size * 0.06, "rgb(90,75,60)", mood);
+  }
   ctx.restore();
 }
 
@@ -271,8 +304,11 @@ function drawMoneyChild(ctx: CanvasRenderingContext2D, x: number, y: number, siz
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  drawMoneyEyes(ctx, 0, -size * 0.1, size * 0.08, size * 0.18, opts.blink ?? false);
-  drawMoneyMouth(ctx, size * 0.18, size * 0.36, size * 0.04, "rgb(80,65,50)");
+  const mood = opts.mood ?? "happy";
+  if (mood !== "faceless") {
+    drawMoneyEyes(ctx, 0, -size * 0.1, size * 0.08, size * 0.18, opts.blink ?? false);
+    drawMoneyMouth(ctx, size * 0.18, size * 0.36, size * 0.09, "rgb(80,65,50)", mood);
+  }
   ctx.restore();
 }
 
@@ -294,30 +330,8 @@ function drawMoneyTeen(ctx: CanvasRenderingContext2D, x: number, y: number, size
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  const lensW = size * 0.3;
-  const lensH = size * 0.16;
-  const lensY = -size * 0.18;
-  const gap = size * 0.08;
-  ctx.fillStyle = "rgb(25,25,30)";
-  ctx.strokeStyle = "rgb(70,70,80)";
-  ctx.lineWidth = 2;
-  roundRectPath(ctx, -gap / 2 - lensW, lensY, lensW, lensH, 6);
-  ctx.fill();
-  ctx.stroke();
-  roundRectPath(ctx, gap / 2, lensY, lensW, lensH, 6);
-  ctx.fill();
-  ctx.stroke();
-  ctx.strokeStyle = "rgb(40,40,45)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(-gap / 2, lensY + lensH / 2);
-  ctx.lineTo(gap / 2, lensY + lensH / 2);
-  ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.18)";
-  roundRectPath(ctx, -gap / 2 - lensW + 5, lensY + 3, lensW - 12, 6, 3);
-  ctx.fill();
-  roundRectPath(ctx, gap / 2 + 5, lensY + 3, lensW - 12, 6, 3);
-  ctx.fill();
+  const mood = opts.mood ?? "happy";
+  if (mood !== "faceless") drawMoneySunglasses(ctx, size);
 
   ctx.strokeStyle = rgb(palette.gold);
   ctx.lineWidth = 4;
@@ -337,7 +351,7 @@ function drawMoneyTeen(ctx: CanvasRenderingContext2D, x: number, y: number, size
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  drawMoneyMouth(ctx, size * 0.18, size * 0.38, size * 0.1, "rgb(70,55,40)");
+  if (mood !== "faceless") drawMoneyMouth(ctx, size * 0.18, size * 0.38, size * 0.1, "rgb(70,55,40)", mood);
   ctx.restore();
 }
 
@@ -359,8 +373,11 @@ function drawMoneyMonster(ctx: CanvasRenderingContext2D, x: number, y: number, s
   ctx.lineWidth = 4;
   ctx.stroke();
 
-  drawMoneyEyes(ctx, 0, -size * 0.12, size * 0.095, size * 0.22, opts.blink ?? false);
-  drawMoneyMouth(ctx, size * 0.22, size * 0.44, size * 0.14, "rgb(70,50,30)");
+  const mood = opts.mood ?? "happy";
+  if (mood !== "faceless") {
+    drawMoneyEyes(ctx, 0, -size * 0.12, size * 0.095, size * 0.22, opts.blink ?? false);
+    drawMoneyMouth(ctx, size * 0.22, size * 0.44, size * 0.14, "rgb(70,50,30)", mood);
+  }
 
   ctx.fillStyle = rgb(palette.gold);
   ctx.strokeStyle = rgb(palette.goldDark);
@@ -435,6 +452,8 @@ function drawBaby(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
   ctx.beginPath();
   ctx.arc(x, y, size / 2, 0, Math.PI * 2);
   ctx.fill();
+  const mood = opts.mood ?? "happy";
+  if (mood === "faceless") return;
   drawEyes(ctx, x, y - size / 8, size / 4, opts.blink ?? false, colors);
   ctx.fillStyle = rgb(colors.cheeks ?? [255, 180, 180]);
   ctx.beginPath();
@@ -443,9 +462,7 @@ function drawBaby(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
   ctx.fill();
   ctx.strokeStyle = rgb(colors.mouth ?? [200, 80, 80]);
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(x, y + size / 6, size / 6, Math.PI, Math.PI * 2);
-  ctx.stroke();
+  drawMoodMouth(ctx, x, y + size / 12, size / 6, size / 6, mood);
 }
 
 function drawChild(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, opts: DrawOptions): void {
@@ -454,6 +471,8 @@ function drawChild(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   ctx.beginPath();
   ctx.ellipse(x, y, size / 2, size * 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
+  const mood = opts.mood ?? "happy";
+  if (mood === "faceless") return;
   drawEyes(ctx, x, y - size / 6, size / 5, opts.blink ?? false, colors);
   ctx.fillStyle = rgb(colors.cheeks ?? [255, 170, 170]);
   ctx.beginPath();
@@ -462,12 +481,14 @@ function drawChild(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   ctx.fill();
   ctx.strokeStyle = rgb(colors.mouth ?? [150, 70, 70]);
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(x, y + size / 4, size / 4, Math.PI, Math.PI * 2);
-  ctx.stroke();
+  const mouthTop = y + size / 10;
+  const mouthDepth = size / 4;
+  drawMoodMouth(ctx, x, mouthTop, size / 4, mouthDepth, mood);
   if (colors.teeth) {
     ctx.fillStyle = rgb(colors.teeth);
-    ctx.fillRect(x - size / 16, y + size / 4 - 4, size / 8, 6);
+    const toothY =
+      mood === "happy" ? mouthTop + mouthDepth - 7 : mood === "mehh" ? mouthTop + mouthDepth / 2 + 1 : mouthTop + 1;
+    ctx.fillRect(x - size / 16, toothY, size / 8, 6);
   }
 }
 
@@ -483,6 +504,8 @@ function drawTeen(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
   ctx.lineTo(x - size * 0.5, y - size * 0.2);
   ctx.closePath();
   ctx.fill();
+  const mood = opts.mood ?? "happy";
+  if (mood === "faceless") return;
   if (!(opts.blink ?? false)) {
     ctx.fillStyle = rgb(colors.eyes ?? [60, 20, 20]);
     ctx.beginPath();
@@ -500,9 +523,7 @@ function drawTeen(ctx: CanvasRenderingContext2D, x: number, y: number, size: num
   }
   ctx.strokeStyle = rgb(colors.mouth ?? [120, 40, 40]);
   ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(x, y + size / 4, size / 3, Math.PI, Math.PI * 2);
-  ctx.stroke();
+  drawMoodMouth(ctx, x, y + size / 5, size * 0.3, size * 0.18, mood);
 }
 
 function drawMonster(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, opts: DrawOptions): void {
@@ -517,6 +538,8 @@ function drawMonster(ctx: CanvasRenderingContext2D, x: number, y: number, size: 
   ctx.lineTo(x - size * 0.6, y - size * 0.3);
   ctx.closePath();
   ctx.fill();
+  const mood = opts.mood ?? "happy";
+  if (mood === "faceless") return;
   ctx.fillStyle = rgb(colors.eyes ?? [255, 50, 50]);
   if (!(opts.blink ?? false)) {
     ctx.beginPath();
@@ -526,8 +549,29 @@ function drawMonster(ctx: CanvasRenderingContext2D, x: number, y: number, size: 
   }
   ctx.strokeStyle = rgb(colors.mouth ?? [100, 20, 20]);
   ctx.lineWidth = 3;
+  drawMoodMouth(ctx, x, y + size / 4, size * 0.3, size * 0.18, mood);
+}
+
+// The mouth fits in a band from `top` down to `top + depth`: a smile dips down, a frown bulges up.
+function drawMoodMouth(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  top: number,
+  halfWidth: number,
+  depth: number,
+  mood: PetMood
+): void {
   ctx.beginPath();
-  ctx.arc(x, y + size / 3, size / 3, Math.PI, Math.PI * 2);
+  if (mood === "happy") {
+    ctx.moveTo(x - halfWidth, top);
+    ctx.quadraticCurveTo(x, top + depth * 2, x + halfWidth, top);
+  } else if (mood === "sad") {
+    ctx.moveTo(x - halfWidth, top + depth);
+    ctx.quadraticCurveTo(x, top - depth, x + halfWidth, top + depth);
+  } else {
+    ctx.moveTo(x - halfWidth * 0.8, top + depth / 2);
+    ctx.lineTo(x + halfWidth * 0.8, top + depth / 2);
+  }
   ctx.stroke();
 }
 

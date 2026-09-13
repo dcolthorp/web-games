@@ -79,7 +79,7 @@ export class BandAidScene implements Scene {
     ctx.font = "32px system-ui, sans-serif";
     const title = isSpookyMedical(this.stage, this.theme) ? "Patch It Up!" : "Time for a Band-Aid!";
     ctx.fillText(title, 400, 40);
-    drawPet(ctx, this.stage, 400, 240, 100, { theme: this.theme });
+    drawPet(ctx, this.stage, 400, 240, 100, { theme: this.theme, mood: this.isComplete ? "happy" : "sad" });
     if (!this.isComplete) drawOuchie(ctx, 450, 200);
     if (this.currentStep >= 1 || this.isComplete) drawBandaid(ctx, 450, 200, this.bandaidStyle.color);
 
