@@ -20,8 +20,8 @@ const games: Game[] = [
     id: "telephone",
     name: "Telephone",
     path: "./telephone/index.html",
-    genre: "???",
-    blurb: "The only game down here so far.",
+    genre: "Voice Chain",
+    blurb: "Whisper a word down a line of recordings. Guess it wrong at the end and you're banned forever.",
   },
   {
     id: "zero-logic-escape-rooms",
