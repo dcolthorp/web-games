@@ -676,17 +676,6 @@ h1.is-glitching::after {
     linear-gradient(180deg, #33236f, #180f3d);
 }
 
-/* World Sandbox, unlocked by putting the Earth together but not built yet. */
-.games4-hub .games4-game-card.is-coming-soon {
-  cursor: default;
-  opacity: 0.8;
-}
-
-.games4-hub .games4-game-card.is-coming-soon:hover {
-  transform: none;
-  border-color: #0f0f14;
-}
-
 .games5-hub {
   --bg: #2e0f2c;
   --bg-accent: #5a2356;
