@@ -25,15 +25,16 @@ import { sounds } from "./sound";
 // Click it to zoom in (Back, or Esc, zooms out again). Drag the 1s, the + and the two bars of the = into a
 // window: the + is the cross in the middle, the two bars go above and below it,
 // and the 1s get turned sideways and laid on each end of its arms, making them
-// longer. Tap a piece to turn it. Then the leftover goes ? ! : —
+// longer. (The old window, with the 1s left standing up at the ends of its arms,
+// works too, but it has no secret way.) Tap a piece to turn it. Then the leftover goes ? ! : —
 // tap the curl to straighten it into a line, tap the line to shrink it into a
 // dot, tap both dots to make them bigger, and drag one onto the other to make a button.
 // Press the button and the chalkboard explodes. Behind it is a real window.
 // Click it and you fly into the sun and out into a cutscene of walking through
 // the grass where nothing happens, except spikes. Jump them (click or Space)
 // until it ends. Hit one and the walk starts over.
-// The secret way: drag the button underneath the chalk window before pressing
-// it. Then there's no window behind the chalkboard at all, only a faint black
+// The secret way: build the long-arms window, and drag the button underneath it
+// before pressing it. Then there's no window behind the chalkboard at all, only a faint black
 // line somewhere on the wall. Click the section above the line and it opens up
 // into a secret place that leads to a bonus level (bonus4.ts).
 
@@ -52,6 +53,9 @@ type Scene =
   | "bonusIn" // going into the secret place
   | "bonus"; // the bonus level card
 type Kind = "one" | "plus" | "bar" | "curl" | "line" | "dot" | "bigDot" | "button";
+// Which way the 1s went into the chalk window: sideways on the ends of the +'s
+// arms (the long-arms window), or standing up at the ends of them (the old window).
+type WindowStyle = "arms" | "sides";
 
 interface Piece {
   kind: Kind;
@@ -100,8 +104,9 @@ const CHALK_W = 11;
 const L = 130; // how long the strokes of the 1, + and = are
 const DOT_R = 9;
 const BIG_R = 24;
-// Generous, so a piece dropped roughly in place still clicks in. The slots are
-// 130 apart, so it can't click into the wrong one.
+// Generous, so a piece dropped roughly in place still clicks in. Slots for the
+// same kind of piece turned the same way are at least 130 apart, so it can't
+// click into the wrong one.
 const SNAP = 72;
 
 // Half the size of what you can grab on each kind of piece, before turning.
@@ -213,6 +218,7 @@ export function createChalkboardRoom(escape: () => void): Room {
   let roomStart = 0;
   let pieces: Piece[] = [];
   let windowDone = false;
+  let windowStyle: WindowStyle | null = null;
   let dragging: { piece: Piece; offX: number; offY: number; moved: number } | null = null;
   let chunks: Chunk[] = [];
   let dust: Dust[] = [];
@@ -257,6 +263,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     sceneStart = startAt;
     roomStart = startAt;
     windowDone = false;
+    windowStyle = null;
     dragging = null;
     duckAt = -Infinity;
     secretBoom = false;
@@ -445,19 +452,25 @@ export function createChalkboardRoom(escape: () => void): Room {
     piece.changedAt = now;
   }
 
-  // The window is built around the +: a 1 turned sideways on each side of it,
-  // making its arms longer, and a bar across the top and bottom. A piece close
+  // The window is built around the +: a bar across the top and bottom, and a 1
+  // on each side. The 1s can go either way as long as they match: turned
+  // sideways on the ends of its arms, making them longer (the long-arms window),
+  // or standing up at the ends of its arms (the old window). A piece close
   // enough, and turned the right way, clicks in.
   function snapPieces(): void {
     const plus = pieces.find((piece) => piece.kind === "plus");
     if (!plus || windowDone) return;
-    const slots: { kind: Kind; x: number; y: number; sideways: boolean }[] = [
-      { kind: "one", x: plus.x - L, y: plus.y, sideways: true },
-      { kind: "one", x: plus.x + L, y: plus.y, sideways: true },
+    const slots: { kind: Kind; x: number; y: number; sideways: boolean; style?: WindowStyle }[] = [
+      { kind: "one", x: plus.x - L, y: plus.y, sideways: true, style: "arms" },
+      { kind: "one", x: plus.x + L, y: plus.y, sideways: true, style: "arms" },
+      { kind: "one", x: plus.x - L / 2, y: plus.y, sideways: false, style: "sides" },
+      { kind: "one", x: plus.x + L / 2, y: plus.y, sideways: false, style: "sides" },
       { kind: "bar", x: plus.x, y: plus.y - L / 2, sideways: false },
       { kind: "bar", x: plus.x, y: plus.y + L / 2, sideways: false },
     ];
     for (const slot of slots) {
+      // Once the first 1 is in, the other one has to go in the same way.
+      if (slot.style && windowStyle && slot.style !== windowStyle) continue;
       if (pieces.some((p) => p.snapped && p.x === slot.x && p.y === slot.y)) continue;
       const piece = pieces.find(
         (p) =>
@@ -470,9 +483,11 @@ export function createChalkboardRoom(escape: () => void): Room {
       piece.x = slot.x;
       piece.y = slot.y;
       piece.snapped = true;
+      if (slot.style) windowStyle = slot.style;
       sounds.clack();
     }
-    if (pieces.filter((p) => p.snapped).length === slots.length) {
+    // Two 1s and two bars.
+    if (pieces.filter((p) => p.snapped).length === 4) {
       windowDone = true;
       sounds.chime();
     }
@@ -480,9 +495,10 @@ export function createChalkboardRoom(escape: () => void): Room {
 
   function boom(button: Piece, now: number): void {
     // Underneath the chalk window means below its bottom bar, and not past the
-    // ends of the sideways 1s.
+    // ends of the sideways 1s. Only the long-arms window hides the secret way:
+    // the old window always has a real window behind it.
     const plus = pieces.find((piece) => piece.kind === "plus");
-    secretBoom = !!plus && windowDone && Math.abs(button.x - plus.x) <= L * 1.5 && button.y > plus.y + L / 2 + 10;
+    secretBoom = !!plus && windowDone && windowStyle === "arms" && Math.abs(button.x - plus.x) <= L * 1.5 && button.y > plus.y + L / 2 + 10;
     sounds.crash();
     sounds.crack();
     chunks = [];
