@@ -30,6 +30,13 @@ const games: Game[] = [
     genre: "Escape Room",
     blurb: "No door. No window. No nothing. The way out makes absolutely no sense.",
   },
+  {
+    id: "teleporting-ping-pong",
+    name: "Teleporting Ping Pong",
+    path: "./teleporting-ping-pong/index.html",
+    genre: "Physics Breaking",
+    blurb: "Smash the ball hard enough and it deletes itself and pops up somewhere else.",
+  },
 ];
 
 const GAMES_FOUND_KEY = "games4-games-found";

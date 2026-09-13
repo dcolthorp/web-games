@@ -58,6 +58,7 @@ export default defineConfig({
         aKidsLife: resolve(__dirname, "src/games/a-kids-life/index.html"),
         tamagotchiMonster: resolve(__dirname, "src/games/tamagotchi-monster/index.html"),
         theSettingsGame: resolve(__dirname, "src/games/the-settings-game/index.html"),
+        teleportingPingPong: resolve(__dirname, "src/games4/teleporting-ping-pong/index.html"),
         feedYourFire: resolve(__dirname, "src/games2/feed-your-fire/index.html"),
         sharksInTheWater: resolve(__dirname, "src/games3/sharks-in-the-water/index.html"),
         zeroPlayerGame: resolve(__dirname, "src/games3/zero-player-game/index.html"),

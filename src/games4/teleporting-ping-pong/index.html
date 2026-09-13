@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teleporting Ping Pong</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Games 4</a>
+      <header class="hero">
+        <h1>Teleporting Ping Pong</h1>
+        <p>Based on a true story from a block party. Smash the ball while it's low and bouncing, and it might just delete itself.</p>
+      </header>
+
+      <div class="stage">
+        <canvas id="game" width="960" height="600" tabindex="0" aria-label="Teleporting Ping Pong"></canvas>
+        <button id="pause-button" class="corner-button" type="button" hidden>⏸ Pause</button>
+        <button id="leave-button" class="corner-button" type="button" hidden>Leave match</button>
+
+        <div id="pause-menu" class="overlay" hidden>
+          <div class="panel">
+            <h2>Paused</h2>
+            <button id="resume-button" class="big-button" type="button">▶ Resume</button>
+            <button id="lobby-button" class="big-button" type="button">Go into the lobby</button>
+          </div>
+        </div>
+
+        <div id="lobby" class="overlay" hidden>
+          <div class="panel">
+            <h2>Lobby</h2>
+            <p id="lobby-notice" class="notice" hidden></p>
+            <p class="player-line">
+              You are <strong id="player-name"></strong><span id="player-badge"></span>
+              <button id="rename-button" class="small-button" type="button">🎲 New name</button>
+            </p>
+            <p id="player-stats" class="stats-line"></p>
+            <p class="bio-line">
+              <span id="player-bio"></span>
+              <button id="edit-bio-button" class="small-button" type="button">📝 Edit bio</button>
+            </p>
+            <p id="player-powers" class="powers-line" hidden></p>
+            <label id="creator-badge-row" class="creator-row" hidden>
+              👑 You're the Creator. Show your badge as
+              <select id="creator-badge-select"></select>
+            </label>
+            <button id="messages-button" class="big-button messages-button" type="button" hidden>📬 Messages</button>
+            <button id="back-to-game-button" class="big-button" type="button">▶ Back to your game</button>
+            <button id="play-cpu-button" class="big-button" type="button">🏓 New game vs CPU</button>
+            <button id="tournament-button" class="big-button" type="button">🏆 Tournament</button>
+            <button id="leaderboards-button" class="big-button" type="button">📊 Leaderboards</button>
+            <button id="search-button" class="big-button" type="button">🔎 Search players</button>
+          </div>
+        </div>
+
+        <div id="tournament" class="overlay" hidden>
+          <div class="panel">
+            <h2>Tournament</h2>
+            <div class="banana-spinner" aria-hidden="true">🍌</div>
+            <p id="tournament-status" class="stats-line" role="status"></p>
+            <p class="fine-print">You'll play someone else who is looking for a tournament right now. First to 7 wins.</p>
+            <button id="cancel-tournament-button" class="big-button" type="button">Cancel</button>
+          </div>
+        </div>
+
+        <div id="leaderboards" class="overlay" hidden>
+          <div class="panel wide">
+            <h2>Leaderboards</h2>
+            <p id="leaderboards-notice" class="notice" hidden></p>
+            <div class="boards">
+              <section>
+                <h3>🌀 Top Teleports</h3>
+                <ol id="board-teleports"></ol>
+              </section>
+              <section>
+                <h3>🏓 Top Games Won</h3>
+                <ol id="board-games-won"></ol>
+              </section>
+              <section>
+                <h3>🏆 Top Tournaments</h3>
+                <ol id="board-tournaments-won"></ol>
+              </section>
+            </div>
+            <p class="fine-print">Shows you and everyone you've played in a tournament.</p>
+            <p id="moderator-help" class="fine-print" hidden></p>
+            <button id="leaderboards-back-button" class="big-button" type="button">Back to the lobby</button>
+          </div>
+        </div>
+
+        <div id="search" class="overlay" hidden>
+          <div class="panel">
+            <h2>Search Players</h2>
+            <input
+              id="search-input"
+              class="search-input"
+              type="search"
+              placeholder="Type a name, like Cosmic"
+              autocomplete="off"
+              aria-label="Search for a player"
+            />
+            <ul id="search-suggestions" class="suggestions"></ul>
+            <p id="search-empty" class="fine-print" hidden>No players with that name yet. You can find yourself and anyone you've played in a tournament.</p>
+            <div id="player-card" class="player-card" hidden>
+              <p id="player-card-name" class="player-card-name"></p>
+              <p id="player-card-role" class="stats-line"></p>
+              <ul id="player-card-bio" class="bio-list" hidden></ul>
+              <p id="player-card-stats" class="stats-line"></p>
+              <p id="player-card-flags" class="notice" hidden></p>
+              <div id="invite-controls" hidden>
+                <label class="invite-row">
+                  Invite them to be
+                  <select id="invite-role"></select>
+                </label>
+                <button id="send-invite-button" class="big-button" type="button">📨 Send moderator invite</button>
+              </div>
+              <p id="invite-status" class="notice"></p>
+            </div>
+            <button id="search-back-button" class="big-button" type="button">Back to the lobby</button>
+          </div>
+        </div>
+
+        <div id="bio" class="overlay" hidden>
+          <div class="panel wide">
+            <h2>Your Bio</h2>
+            <p id="bio-count" class="stats-line"></p>
+            <div id="bio-choices" class="bio-choices"></div>
+            <p class="fine-print">
+              Everyone you play in a tournament sees your bio. You pick it from this list, so nobody can share private stuff like real names or where they live.
+            </p>
+            <button id="bio-done-button" class="big-button" type="button">Done</button>
+          </div>
+        </div>
+
+        <div id="messages" class="overlay" hidden>
+          <div class="panel">
+            <h2>Messages</h2>
+            <p id="messages-notice" class="notice" hidden></p>
+            <ul id="inbox-list" class="inbox"></ul>
+            <p id="inbox-empty" class="fine-print" hidden>No messages right now.</p>
+            <button id="messages-back-button" class="big-button" type="button">Back to the lobby</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
