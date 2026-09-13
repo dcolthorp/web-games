@@ -7,6 +7,20 @@
       "runtimeArgs": ["run", "dev"],
       "url": "http://localhost:5173",
       "port": 5173
+    },
+    {
+      "name": "games-dev-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5199", "--strictPort"],
+      "url": "http://localhost:5199",
+      "port": 5199
+    },
+    {
+      "name": "games-dev-3",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5211", "--strictPort"],
+      "url": "http://localhost:5211",
+      "port": 5211
     }
   ]
 }
