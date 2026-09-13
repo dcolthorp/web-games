@@ -760,6 +760,40 @@ h1.is-glitching::after {
     linear-gradient(180deg, #7a3172, #4a1c47);
 }
 
+/* The Simulation's card: a sheet of brushed stainless steel (painted in
+   games5/simulationCard.ts and set as the background image), with a black
+   calculator screen for a title. */
+.games5-hub .games5-game-card.simulation-card {
+  background-color: #b9bec2;
+  background-position: center;
+  background-size: cover;
+  color: #1c2124;
+}
+
+.simulation-card .game-tag {
+  background: #0b0b0d;
+  color: #43ff7e;
+}
+
+.simulation-card .game-arrow {
+  color: #1c2124;
+}
+
+.simulation-card .game-blurb {
+  color: #2a3034;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.simulation-screen {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 5px solid #2a2e32;
+  border-radius: 8px;
+  background: #000;
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.45), 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
 /* The light switch built from Zero Logic Escape Rooms' switch pieces, stuck on
    top of its card. Lever down is Zero Logic, up is Hundred Logic. */
 .has-escape-switch {

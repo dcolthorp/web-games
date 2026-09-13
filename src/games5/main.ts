@@ -1,5 +1,6 @@
 import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
+import { paintBrushedSteel, typeOnCalculatorScreen } from "./simulationCard";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -14,8 +15,13 @@ interface Game {
 }
 
 const games: Game[] = [
-  // Add Games 5 games here, like:
-  // { id: "my-game", name: "My Game", path: "./my-game/index.html", genre: "???", blurb: "..." },
+  {
+    id: "the-simulation",
+    name: "The Simulation",
+    path: "./the-simulation/index.html",
+    genre: "???",
+    blurb: "Nobody knows what it is yet. Not even the calculator.",
+  },
 ];
 
 function renderGameList(): void {
@@ -28,21 +34,38 @@ function renderGameList(): void {
   }
 
   list.innerHTML = games
-    .map(
-      (game) => `
+    .map((game) => {
+      const isSimulation = game.id === "the-simulation";
+      // The Simulation's title is a calculator screen instead of words.
+      const title = isSimulation
+        ? '<canvas class="simulation-screen" width="960" height="200" aria-hidden="true"></canvas>'
+        : `<span class="game-title">${game.menuLabel ?? game.name}</span>`;
+      return `
       <li>
-        <a class="game-card games5-game-card" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
+        <a class="game-card games5-game-card${isSimulation ? " simulation-card" : ""}" data-game-id="${game.id}" href="${game.path}" aria-label="${game.name}">
           <span class="game-card-top">
             <span class="game-tag">${game.genre}</span>
             <span class="game-arrow" aria-hidden="true">→</span>
           </span>
-          <span class="game-title">${game.menuLabel ?? game.name}</span>
+          ${title}
           <span class="game-blurb">${game.blurb}</span>
         </a>
       </li>
-    `
-    )
+    `;
+    })
     .join("");
+  decorateSimulationCard(list);
+}
+
+// The Simulation's card is a sheet of brushed stainless steel, and its
+// calculator screen punches the name in one key at a time.
+function decorateSimulationCard(list: HTMLElement): void {
+  const card = list.querySelector<HTMLElement>(".simulation-card");
+  const screen = card?.querySelector("canvas");
+  if (!card || !screen) return;
+  const steel = paintBrushedSteel(600, 400);
+  if (steel) card.style.backgroundImage = `url(${steel})`;
+  typeOnCalculatorScreen(screen, "THE SIMULATION");
 }
 
 renderGameList();
