@@ -42,7 +42,46 @@ const LINE_MS = 180;
 const OPEN_MS = 420;
 const SETTLE_MS = 900;
 
+// What drops in once the screen is on, one letter at a time, each hanging from
+// its own rope.
+const TITLE_ROWS = [
+  { text: "THE SIMULATION", font: "bold 64px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif", size: 64, rest: 240 },
+  { text: "666", font: "bold 78px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif", size: 78, rest: 395 },
+];
+const LETTER_GAP = 5;
+// The wait after the screen is on, and between one letter and the next.
+const FIRST_DROP_MS = 700;
+const DROP_GAP_MS = 170;
+const FALL_SPEED = 2600;
+// How much of its speed a letter keeps when the rope catches it.
+const ROPE_BOUNCE = 0.42;
+// How far a hanging letter drifts up and back down. The rope means it never
+// goes below where it was caught.
+const BOB = 7;
+
+// The START button drops in after the last letter has landed, hanging from two
+// ropes, one at each end, so it hangs level instead of spinning on one.
+const START_BUTTON = { width: 260, height: 78, rest: 505, label: "START" };
+const BUTTON_AFTER_LAST_MS = 2000;
+const BUTTON_ROPE_INSET = 22;
+const PRESS_MS = 140;
+
 type Phase = "waiting" | "talking" | "on";
+
+interface Hanging {
+  letter: string;
+  font: string;
+  size: number;
+  x: number;
+  // Where the rope stops it.
+  rest: number;
+  y: number;
+  falling: number;
+  dropAt: number;
+  hung: boolean;
+  // So they don't all bob together.
+  bobFrom: number;
+}
 
 interface Subtitle {
   line: Line;
@@ -61,6 +100,9 @@ const caption = document.getElementById("caption");
 let phase: Phase = "waiting";
 let subtitle: Subtitle | null = null;
 let onAt = 0;
+let hanging: Hanging[] = [];
+let startButton = newStartButton();
+let lastFrame = performance.now();
 let audio: AudioContext | null = null;
 let voiceOut: AudioNode | null = null;
 
@@ -119,6 +161,7 @@ async function runIntro(): Promise<void> {
 function turnOn(): void {
   phase = "on";
   onAt = performance.now();
+  layOutTitle();
   if (caption) caption.textContent = "The screen turns on.";
   playTurnOnSound();
 }
@@ -210,6 +253,203 @@ function drawGlowingScreen(now: number): void {
   ctx.fillRect(0, 0, W, H);
 }
 
+// Works out where every letter hangs, and when its turn to drop is.
+function layOutTitle(): void {
+  hanging = [];
+  startButton = newStartButton();
+  let order = 0;
+  for (const row of TITLE_ROWS) {
+    ctx.font = row.font;
+    const widths = [...row.text].map((letter) => ctx.measureText(letter).width);
+    const rowWidth = widths.reduce((total, width) => total + width + LETTER_GAP, -LETTER_GAP);
+    let x = W / 2 - rowWidth / 2;
+    [...row.text].forEach((letter, i) => {
+      const width = widths[i] ?? 0;
+      if (letter !== " ") {
+        hanging.push({
+          letter,
+          font: row.font,
+          size: row.size,
+          x: x + width / 2,
+          rest: row.rest,
+          // Starts above the screen, out of sight.
+          y: -row.size,
+          falling: 0,
+          dropAt: FIRST_DROP_MS + order * DROP_GAP_MS,
+          hung: false,
+          bobFrom: Math.random() * 1000,
+        });
+        order += 1;
+      }
+      x += width + LETTER_GAP;
+    });
+  }
+}
+
+function updateTitle(now: number, dt: number): void {
+  const since = now - onAt;
+  for (const letter of hanging) {
+    if (letter.hung || since < letter.dropAt) continue;
+    letter.falling += FALL_SPEED * dt;
+    letter.y += letter.falling * dt;
+    if (letter.y < letter.rest) continue;
+    // The rope goes tight.
+    letter.y = letter.rest;
+    if (Math.abs(letter.falling) > 260) {
+      letter.falling = -letter.falling * ROPE_BOUNCE;
+    } else {
+      letter.falling = 0;
+      letter.hung = true;
+      playThunk(letter.size > 70 ? 70 : 95);
+      if (hanging.every((other) => other.hung)) {
+        if (caption) caption.textContent = `${TITLE_ROWS.map((row) => row.text).join(" ")} · START`;
+        startButton.dropAt = now - onAt + BUTTON_AFTER_LAST_MS;
+      }
+    }
+  }
+}
+
+// Where a letter is right now: falling, or hanging and bobbing gently.
+function letterY(letter: Hanging, now: number): number {
+  if (!letter.hung) return letter.y;
+  return letter.rest - BOB * (0.5 + 0.5 * Math.sin((now - letter.bobFrom) / 520));
+}
+
+function drawTitle(now: number): void {
+  const since = now - onAt;
+  const shown = hanging.filter((letter) => since >= letter.dropAt);
+
+  // Ropes first, so the letters hang in front of them.
+  ctx.strokeStyle = "#6f6450";
+  ctx.lineWidth = 3;
+  for (const letter of shown) {
+    ctx.beginPath();
+    ctx.moveTo(letter.x, 0);
+    ctx.lineTo(letter.x, letterY(letter, now) - letter.size * 0.44);
+    ctx.stroke();
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  for (const letter of shown) {
+    const y = letterY(letter, now);
+    ctx.font = letter.font;
+    ctx.shadowColor = "#5bff7a";
+    ctx.shadowBlur = 22;
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = "#0a3d1c";
+    ctx.strokeText(letter.letter, letter.x, y);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#a6ff9b";
+    ctx.fillText(letter.letter, letter.x, y);
+  }
+}
+
+function newStartButton(): {
+  y: number;
+  falling: number;
+  // Set once the last letter has landed, counting from when the screen came on.
+  dropAt: number | null;
+  hung: boolean;
+  bobFrom: number;
+  pressedAt: number;
+} {
+  return {
+    y: -START_BUTTON.height,
+    falling: 0,
+    dropAt: null,
+    hung: false,
+    bobFrom: Math.random() * 1000,
+    pressedAt: -Infinity,
+  };
+}
+
+function updateStartButton(now: number, dt: number): void {
+  const since = now - onAt;
+  if (startButton.dropAt === null || startButton.hung || since < startButton.dropAt) return;
+  startButton.falling += FALL_SPEED * dt;
+  startButton.y += startButton.falling * dt;
+  if (startButton.y < START_BUTTON.rest) return;
+  // Both ropes go tight together.
+  startButton.y = START_BUTTON.rest;
+  if (Math.abs(startButton.falling) > 260) {
+    startButton.falling = -startButton.falling * ROPE_BOUNCE;
+    return;
+  }
+  startButton.falling = 0;
+  startButton.hung = true;
+  playThunk(60);
+}
+
+function buttonY(now: number): number {
+  if (!startButton.hung) return startButton.y;
+  return START_BUTTON.rest - BOB * (0.5 + 0.5 * Math.sin((now - startButton.bobFrom) / 560));
+}
+
+// Only once it's hanging there can it be pressed.
+function overStartButton(x: number, y: number, now: number): boolean {
+  if (!startButton.hung) return false;
+  return Math.abs(x - W / 2) <= START_BUTTON.width / 2 && Math.abs(y - buttonY(now)) <= START_BUTTON.height / 2;
+}
+
+function pressStartButton(): void {
+  startButton.pressedAt = performance.now();
+  playThunk(150);
+  // What pressing START actually starts hasn't been decided yet.
+}
+
+function drawStartButton(now: number): void {
+  if (startButton.dropAt === null || now - onAt < startButton.dropAt) return;
+  const pressed = now - startButton.pressedAt < PRESS_MS;
+  const y = buttonY(now) + (pressed ? 4 : 0);
+  const left = W / 2 - START_BUTTON.width / 2;
+  const top = y - START_BUTTON.height / 2;
+
+  // A rope at each end, drawn behind the button.
+  ctx.strokeStyle = "#6f6450";
+  ctx.lineWidth = 3;
+  for (const ropeX of [left + BUTTON_ROPE_INSET, left + START_BUTTON.width - BUTTON_ROPE_INSET]) {
+    ctx.beginPath();
+    ctx.moveTo(ropeX, 0);
+    ctx.lineTo(ropeX, top);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.roundRect(left, top, START_BUTTON.width, START_BUTTON.height, 16);
+  ctx.shadowColor = "#5bff7a";
+  ctx.shadowBlur = pressed ? 10 : 24;
+  ctx.fillStyle = pressed ? "#7fe077" : "#a6ff9b";
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = "#0a3d1c";
+  ctx.stroke();
+
+  ctx.font = "bold 42px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#0a3d1c";
+  ctx.fillText(START_BUTTON.label, W / 2, y + 2);
+}
+
+// A soft thunk as a rope catches something: lower for the heavy ones.
+function playThunk(pitch: number): void {
+  if (!audio || !voiceOut) return;
+  const now = audio.currentTime;
+  const thunk = audio.createOscillator();
+  thunk.type = "triangle";
+  thunk.frequency.setValueAtTime(pitch * 2, now);
+  thunk.frequency.exponentialRampToValueAtTime(pitch, now + 0.12);
+  const level = audio.createGain();
+  level.gain.setValueAtTime(0.18, now);
+  level.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  thunk.connect(level).connect(voiceOut);
+  thunk.start(now);
+  thunk.stop(now + 0.25);
+}
+
 // Browsers only let a page make sound after you've clicked or pressed a key.
 function start(): void {
   if (phase !== "waiting") return;
@@ -218,7 +458,28 @@ function start(): void {
   void runIntro();
 }
 
-canvas.addEventListener("pointerdown", start);
+// Where a click landed on the canvas, in the canvas's own coordinates.
+function canvasPoint(event: PointerEvent): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) * W) / rect.width,
+    y: ((event.clientY - rect.top) * H) / rect.height,
+  };
+}
+
+canvas.addEventListener("pointerdown", (event) => {
+  const point = canvasPoint(event);
+  if (overStartButton(point.x, point.y, performance.now())) {
+    pressStartButton();
+    return;
+  }
+  start();
+});
+
+canvas.addEventListener("pointermove", (event) => {
+  const point = canvasPoint(event);
+  canvas.style.cursor = overStartButton(point.x, point.y, performance.now()) ? "pointer" : "default";
+});
 window.addEventListener("keydown", (event) => {
   // Enter or Space on a button (like Full screen) is for that button.
   if (event.target instanceof HTMLButtonElement) return;
@@ -262,7 +523,16 @@ function draw(now: number): void {
   ctx.fillRect(0, 0, W, H);
   ctx.textBaseline = "middle";
 
-  if (phase === "on") drawScreenOn(now);
+  const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
+  lastFrame = now;
+
+  if (phase === "on") {
+    drawScreenOn(now);
+    updateTitle(now, dt);
+    updateStartButton(now, dt);
+    drawTitle(now);
+    drawStartButton(now);
+  }
 
   if (phase === "waiting") {
     ctx.globalAlpha = 0.35 + 0.2 * Math.sin(now / 500);
