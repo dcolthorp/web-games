@@ -7,8 +7,8 @@ installForceRefreshHotkey();
 
 // The Simulation. It opens on a blank screen with two people you can't see
 // talking about you. Their words type out as they say them, in made-up
-// sound-effect voices (babble.ts). When they're done, the simulation starts
-// (what happens after that hasn't been decided yet). Its steel card with the
+// sound-effect voices (babble.ts). When they're done, the screen turns on like
+// an old TV (what shows up on it hasn't been decided yet). Its steel card with the
 // calculator title is on the Games 5 hub (simulationCard.ts).
 
 interface Line {
@@ -35,7 +35,14 @@ const PAUSE_MS: Record<string, number> = { ",": 220 };
 
 const TEXT_FONT = "30px 'Trebuchet MS', sans-serif";
 
-type Phase = "waiting" | "talking";
+// Turning the screen on: a dot stretches into a line, the line opens up into a
+// white flash, and the flash settles into the glowing screen.
+const BEFORE_ON_MS = 900;
+const LINE_MS = 180;
+const OPEN_MS = 420;
+const SETTLE_MS = 900;
+
+type Phase = "waiting" | "talking" | "on";
 
 interface Subtitle {
   line: Line;
@@ -53,6 +60,7 @@ const caption = document.getElementById("caption");
 
 let phase: Phase = "waiting";
 let subtitle: Subtitle | null = null;
+let onAt = 0;
 let audio: AudioContext | null = null;
 let voiceOut: AudioNode | null = null;
 
@@ -103,7 +111,103 @@ async function runIntro(): Promise<void> {
     await sayLine(line);
     await sleep(GAP_MS);
   }
-  if (caption) caption.textContent = "";
+  await sleep(BEFORE_ON_MS);
+  turnOn();
+}
+
+// "Fine, start The Simulation." The screen turns on.
+function turnOn(): void {
+  phase = "on";
+  onAt = performance.now();
+  if (caption) caption.textContent = "The screen turns on.";
+  playTurnOnSound();
+}
+
+// A click, then an electric hum that swells up and fades, like an old TV.
+function playTurnOnSound(): void {
+  if (!audio || !voiceOut) return;
+  const now = audio.currentTime;
+
+  const noise = audio.createBuffer(1, Math.round(audio.sampleRate * 0.05), audio.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
+  const click = audio.createBufferSource();
+  click.buffer = noise;
+  const snap = audio.createBiquadFilter();
+  snap.type = "bandpass";
+  snap.frequency.value = 2200;
+  const clickLevel = audio.createGain();
+  clickLevel.gain.setValueAtTime(0.8, now);
+  clickLevel.gain.linearRampToValueAtTime(0, now + 0.05);
+  click.connect(snap).connect(clickLevel).connect(voiceOut);
+  click.start(now);
+
+  const hum = audio.createOscillator();
+  hum.type = "sawtooth";
+  hum.frequency.setValueAtTime(45, now);
+  hum.frequency.exponentialRampToValueAtTime(120, now + 0.5);
+  const soften = audio.createBiquadFilter();
+  soften.type = "lowpass";
+  soften.frequency.setValueAtTime(300, now);
+  soften.frequency.exponentialRampToValueAtTime(1800, now + 0.4);
+  soften.frequency.exponentialRampToValueAtTime(400, now + 1.6);
+  const humLevel = audio.createGain();
+  humLevel.gain.setValueAtTime(0, now);
+  humLevel.gain.linearRampToValueAtTime(0.35, now + 0.35);
+  humLevel.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+  hum.connect(soften).connect(humLevel).connect(voiceOut);
+  hum.start(now);
+  hum.stop(now + 1.9);
+}
+
+const easeOut = (t: number): number => 1 - (1 - Math.min(1, Math.max(0, t))) ** 3;
+
+function drawScreenOn(now: number): void {
+  const t = now - onAt;
+
+  // A dot in the middle stretching into a bright line...
+  if (t < LINE_MS) {
+    const width = Math.max(4, W * easeOut(t / LINE_MS));
+    ctx.shadowColor = "#dff1ff";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(W / 2 - width / 2, H / 2 - 2, width, 4);
+    ctx.shadowBlur = 0;
+    return;
+  }
+
+  // ...that opens up and down into a white flash...
+  if (t < OPEN_MS) {
+    const height = Math.max(4, H * easeOut((t - LINE_MS) / (OPEN_MS - LINE_MS)));
+    ctx.fillStyle = "#f4f9ff";
+    ctx.fillRect(0, H / 2 - height / 2, W, height);
+    return;
+  }
+
+  // ...that settles down into the glowing screen.
+  drawGlowingScreen(now);
+  const flash = 1 - Math.min(1, (t - OPEN_MS) / SETTLE_MS);
+  if (flash > 0) {
+    ctx.fillStyle = `rgba(244, 249, 255, ${flash ** 2})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+// The screen once it's on: brightest in the middle, darker at the edges, with
+// faint lines across it and a little flicker, like an old TV with nothing on.
+function drawGlowingScreen(now: number): void {
+  const glow = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.65);
+  glow.addColorStop(0, "#2d3d4b");
+  glow.addColorStop(0.6, "#15202a");
+  glow.addColorStop(1, "#05080c");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+  for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+
+  ctx.fillStyle = `rgba(200, 225, 255, ${0.015 + 0.02 * Math.random() + 0.01 * Math.sin(now / 90)})`;
+  ctx.fillRect(0, 0, W, H);
 }
 
 // Browsers only let a page make sound after you've clicked or pressed a key.
@@ -157,6 +261,8 @@ function draw(now: number): void {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, W, H);
   ctx.textBaseline = "middle";
+
+  if (phase === "on") drawScreenOn(now);
 
   if (phase === "waiting") {
     ctx.globalAlpha = 0.35 + 0.2 * Math.sin(now / 500);
