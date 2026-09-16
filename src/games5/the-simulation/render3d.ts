@@ -15,7 +15,8 @@ export interface Sprite {
   x: number;
   y: number;
   z: number;
-  kind: "fragment" | "glitch";
+  // A mimic that's still pretending is drawn as a fragment, because that's the point.
+  kind: "fragment" | "stalker" | "stopframe" | "flicker" | "mimic";
   size: number;
 }
 
@@ -188,6 +189,9 @@ export function renderWorld(
       depth: middle.z,
       paint: () => {
         if (sprite.kind === "fragment") paintFragment(ctx, screenX, screenY, size, fade, now);
+        else if (sprite.kind === "stopframe") paintStopframe(ctx, screenX, screenY, size, fade, now);
+        else if (sprite.kind === "flicker") paintFlicker(ctx, screenX, screenY, size, fade, now);
+        else if (sprite.kind === "mimic") paintMimic(ctx, screenX, screenY, size, fade, now);
         else paintGlitch(ctx, screenX, screenY, size, fade, now);
       },
     });
@@ -216,19 +220,100 @@ function paintFragment(ctx: CanvasRenderingContext2D, x: number, y: number, size
   ctx.globalAlpha = 1;
 }
 
-// A glitch: a tall torn-up shape that never stops flickering.
-function paintGlitch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
+// A flicker: barely there, strobing, with afterimages of where it just was.
+function paintFlicker(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
+  const width = size * 0.45;
+  for (let ghost = 2; ghost >= 0; ghost -= 1) {
+    const slip = Math.sin(now / 110 + ghost * 1.7) * width * (0.8 + ghost);
+    ctx.globalAlpha = Math.max(0.1, fade) * (ghost === 0 ? 0.9 : 0.22);
+    ctx.fillStyle = ghost === 0 ? "#8ffcff" : "#27b7c9";
+    ctx.fillRect(x - width / 2 + slip, y - size / 2, width, size);
+  }
+  ctx.globalAlpha = Math.max(0.2, fade);
+  ctx.fillStyle = "#04121a";
+  ctx.fillRect(x - width * 0.18, y - size * 0.3, width * 0.36, size * 0.18);
+  ctx.globalAlpha = 1;
+}
+
+// A mimic, once it stops pretending: fragment green gone wrong.
+function paintMimic(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
+  const width = size * 0.5;
+  ctx.globalAlpha = Math.max(0.25, fade);
+  ctx.fillStyle = "#0b2413";
+  ctx.fillRect(x - width / 2, y - size / 2, width, size);
+  ctx.strokeStyle = "#7dff9c";
+  ctx.lineWidth = Math.max(1, size * 0.04);
+  ctx.strokeRect(x - width / 2, y - size / 2, width, size);
+  // A mouthful of teeth that chatters.
+  ctx.fillStyle = "#a6ff9b";
+  const teeth = 6;
+  for (let tooth = 0; tooth < teeth; tooth += 1) {
+    const toothX = x - width / 2 + (tooth / teeth) * width;
+    const height = size * (0.06 + 0.05 * Math.abs(Math.sin(now / 90 + tooth)));
+    ctx.fillRect(toothX + width * 0.02, y - size * 0.06, width / teeth - width * 0.04, height);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A glitch: a tall torn-up shape that never stops flickering. The colours are
+// what tell the kinds apart.
+function paintTornGlitch(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  fade: number,
+  now: number,
+  body: string,
+  bandOne: string,
+  bandTwo: string
+): void {
   const width = size * 0.55;
   ctx.globalAlpha = Math.max(0.2, fade);
-  ctx.fillStyle = "#05060a";
+  ctx.fillStyle = body;
   ctx.fillRect(x - width / 2, y - size / 2, width, size);
   const bands = 7;
   for (let band = 0; band < bands; band += 1) {
     const bandY = y - size / 2 + (band / bands) * size;
     const slip = Math.sin(now / 70 + band * 2.3) * width * 0.45;
-    ctx.fillStyle = band % 2 === 0 ? "#ff2f6d" : "#39ffd0";
+    ctx.fillStyle = band % 2 === 0 ? bandOne : bandTwo;
     ctx.globalAlpha = Math.max(0.2, fade) * (0.25 + 0.55 * Math.abs(Math.sin(now / 90 + band)));
     ctx.fillRect(x - width / 2 + slip, bandY, width, Math.max(1, size / bands / 2));
   }
   ctx.globalAlpha = 1;
+}
+
+function paintGlitch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
+  paintTornGlitch(ctx, x, y, size, fade, now, "#05060a", "#ff2f6d", "#39ffd0");
+}
+
+// A stopframe: the same torn-up shape, but all white and grey.
+function paintStopframe(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
+  paintTornGlitch(ctx, x, y, size, fade, now, "#e9e9e6", "#ffffff", "#7e7e84");
+}
+
+// A picture of one for the glitch index. One you haven't met yet is a black
+// shape, still moving, with a white question mark over it.
+export function paintGlitchPortrait(
+  ctx: CanvasRenderingContext2D,
+  kind: "stalker" | "stopframe" | "flicker" | "mimic",
+  x: number,
+  y: number,
+  size: number,
+  now: number,
+  unknown: boolean
+): void {
+  if (unknown) {
+    paintTornGlitch(ctx, x, y, size, 1, now, "#000000", "#131313", "#060606");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${Math.round(size * 0.55)}px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("?", x, y);
+    return;
+  }
+  if (kind === "stopframe") paintStopframe(ctx, x, y, size, 1, now);
+  else if (kind === "flicker") paintFlicker(ctx, x, y, size, 1, now);
+  else if (kind === "mimic") paintMimic(ctx, x, y, size, 1, now);
+  else paintGlitch(ctx, x, y, size, 1, now);
 }

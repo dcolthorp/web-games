@@ -2,9 +2,9 @@
 // with glitch fragments to collect, blue blocks to pick up, and glitches that
 // chase you. Ladders are the only place they can't follow.
 
-import { hasCaught, newGlitch, updateGlitch, type Glitch } from "./glitches";
+import { GLITCH_INFO, GLITCH_KINDS, hasCaught, newGlitch, updateGlitch, type Glitch, type GlitchKind } from "./glitches";
 import { EYE, newPlayer, updatePlayer, type Input, type Player } from "./player";
-import { SKY, renderWorld, type Sprite } from "./render3d";
+import { SKY, paintGlitchPortrait, renderWorld, type Sprite } from "./render3d";
 import {
   ARENA_SIZE,
   BLACK,
@@ -13,6 +13,7 @@ import {
   FRAGMENT_COUNT,
   blockAt,
   isSolid,
+  lineOfSight,
   makeArena,
   setBlock,
   type Arena,
@@ -22,11 +23,13 @@ import {
 const BLACKEN_EVERY_MS = 55;
 const FALL_AWAY_MS = 260;
 const SCARE_AFTER_MS = 1100;
-const GLITCH_COUNT = 3;
-// How long you get before they start moving, and how fast they are once they do
-// (you walk at 4.6, so you can always outrun them in a straight line).
+// One of every kind.
+const GLITCH_COUNT = GLITCH_KINDS.length;
+// How long you get before they start moving.
 const HEAD_START_MS = 7000;
-const GLITCH_SPEED = 2.6;
+// How wide what you can see is, and how far off you can still make something out.
+const SIGHT_ANGLE = 0.62;
+const SIGHT_RANGE = 26;
 const FRAGMENT_REACH = 1.3;
 // How fast the arrow keys turn you, for looking around without a mouse.
 const LOOK_SPEED = 2.1;
@@ -38,7 +41,21 @@ export interface WorldSounds {
   scare(): void;
 }
 
-type Mood = "playing" | "caught" | "crashed";
+type Mood = "playing" | "paused" | "caught" | "crashed";
+
+// Which glitches you've laid eyes on. It's remembered between games, so the
+// index fills up as you meet them.
+const SEEN_KEY = "the-simulation-glitches-seen";
+
+function loadSeen(): Set<GlitchKind> {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "[]");
+    if (!Array.isArray(saved)) return new Set();
+    return new Set(saved.filter((kind): kind is GlitchKind => GLITCH_KINDS.includes(kind as GlitchKind)));
+  } catch {
+    return new Set();
+  }
+}
 
 interface FallingBlock {
   x: number;
@@ -49,6 +66,7 @@ interface FallingBlock {
 
 export interface WorldGame {
   update(now: number, dt: number): void;
+  togglePause(): void;
   // Where you are and what's around you, for checking the game from the outside.
   peek(): { player: Player; glitches: Glitch[]; fragmentsLeft: number; mood: string };
   draw(now: number): void;
@@ -75,6 +93,7 @@ export function createWorldGame(
   let blackened: FallingBlock[] = [];
   let lastBlackenAt = 0;
   const held = new Set<string>();
+  const seen = loadSeen();
 
   function spawnGlitches(): void {
     glitches = [];
@@ -86,7 +105,7 @@ export function createWorldGame(
         y: 1,
         z: player.z + Math.cos(corner) * away,
       };
-      glitches.push(newGlitch(spot, GLITCH_SPEED + i * 0.2));
+      glitches.push(newGlitch(spot, GLITCH_KINDS[i] ?? "stalker"));
     }
   }
 
@@ -102,6 +121,36 @@ export function createWorldGame(
   }
 
   spawnGlitches();
+
+  // Are you looking right at it? A stopframe only moves when you are not looking, and a
+  // glitch you can see is a glitch to run from.
+  function canSee(glitch: Glitch): boolean {
+    const eye = { x: player.x, y: player.y + EYE, z: player.z };
+    const middle = { x: glitch.x, y: glitch.y + 0.95, z: glitch.z };
+    const awayX = middle.x - eye.x;
+    const awayY = middle.y - eye.y;
+    const awayZ = middle.z - eye.z;
+    const away = Math.hypot(awayX, awayY, awayZ);
+    if (away > SIGHT_RANGE) return false;
+    const aim = {
+      x: Math.sin(player.yaw) * Math.cos(player.pitch),
+      y: Math.sin(player.pitch),
+      z: Math.cos(player.yaw) * Math.cos(player.pitch),
+    };
+    const straightness = (awayX * aim.x + awayY * aim.y + awayZ * aim.z) / (away || 1);
+    if (straightness < Math.cos(SIGHT_ANGLE)) return false;
+    return lineOfSight(arena.world, eye, middle);
+  }
+
+  function rememberGlitch(kind: GlitchKind): void {
+    if (seen.has(kind)) return;
+    seen.add(kind);
+    try {
+      localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+    } catch {
+      // Then the index forgets when you close the game.
+    }
+  }
 
   function input(): Input {
     const down = (...keys: string[]): boolean => keys.some((key) => held.has(key));
@@ -185,17 +234,25 @@ export function createWorldGame(
   }
 
   function update(now: number, dt: number): void {
-    if (mood === "crashed") return;
+    if (mood === "crashed" || mood === "paused") return;
 
     if (mood === "playing") {
       if (startedAt === 0) startedAt = now;
       lookWithArrows(dt);
       updatePlayer(arena.world, player, input(), dt);
       collectFragments();
+      // Seeing one is what puts it in the index, even while they're still holding still.
+      const watching = glitches.map((glitch) => {
+        const watched = canSee(glitch);
+        if (watched && !glitch.hiding) rememberGlitch(glitch.kind);
+        return watched;
+      });
+
       // They hold still at first, so you get a look at the place before the running starts.
       if (now - startedAt < HEAD_START_MS) return;
-      for (const glitch of glitches) {
-        updateGlitch(arena.world, glitch, player, dt);
+      for (const [index, glitch] of glitches.entries()) {
+        const watched = watching[index] ?? false;
+        updateGlitch(arena.world, glitch, player, dt, now, watched);
         if (!hasCaught(glitch, player)) continue;
         mood = "caught";
         caughtAt = now;
@@ -218,14 +275,19 @@ export function createWorldGame(
     const turn = Number(held.has("arrowright")) - Number(held.has("arrowleft"));
     const tilt = Number(held.has("arrowdown")) - Number(held.has("arrowup"));
     if (turn === 0 && tilt === 0) return;
-    player.yaw -= turn * LOOK_SPEED * dt;
+    player.yaw += turn * LOOK_SPEED * dt;
     player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch - tilt * LOOK_SPEED * dt));
   }
 
   function sprites(): Sprite[] {
     const all: Sprite[] = fragments.map((fragment) => ({ ...fragment, kind: "fragment" as const, size: 0.45 }));
     for (const glitch of glitches) {
-      all.push({ x: glitch.x, y: glitch.y + 0.95, z: glitch.z, kind: "glitch" as const, size: 1.9 });
+      // A mimic in hiding looks exactly like a fragment, which is the whole trick.
+      if (glitch.hiding) {
+        all.push({ x: glitch.x, y: glitch.y + 0.7, z: glitch.z, kind: "fragment" as const, size: 0.45 });
+        continue;
+      }
+      all.push({ x: glitch.x, y: glitch.y + 0.95, z: glitch.z, kind: glitch.kind, size: 1.9 });
     }
     return all;
   }
@@ -254,10 +316,19 @@ export function createWorldGame(
       ctx.fillText("ON A LADDER — THEY CAN'T FOLLOW", 18, 68);
     }
 
+    // The moment you can see one, it says so.
+    const watched = glitches.filter((glitch) => !glitch.hiding && canSee(glitch)).length;
+    if (watched > 0 && mood === "playing") {
+      ctx.font = "bold 44px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = `rgba(255, 60, 90, ${0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 180))})`;
+      ctx.fillText("RUN", W / 2, 40);
+    }
+
     ctx.font = "14px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "rgba(230, 240, 255, 0.55)";
     ctx.textAlign = "right";
-    ctx.fillText("WASD move · drag or arrows to look · SPACE jump · E pick up · ladders are safe", W - 18, 18);
+    ctx.fillText("WASD move · drag or arrows to look · SPACE jump · E pick up · P pause · ladders are safe", W - 18, 18);
   }
 
   // The jump scare: the screen tears itself apart and something is right in your face.
@@ -302,6 +373,68 @@ export function createWorldGame(
     ctx.fillText("Click to wake up", W / 2, H - 72);
   }
 
+  // The glitch index: one card for every kind, but only the ones you've actually
+  // seen say what they are.
+  function drawIndex(now: number): void {
+    ctx.fillStyle = "rgba(4, 8, 12, 0.88)";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#f5efe6";
+    ctx.font = "bold 52px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+    ctx.fillText("PAUSED", W / 2, 58);
+    ctx.fillStyle = "#a6ff9b";
+    ctx.font = "bold 26px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+    ctx.fillText(`GLITCH INDEX — ${seen.size} / ${GLITCH_KINDS.length} FOUND`, W / 2, 100);
+
+    const cardWidth = (W - 80) / GLITCH_KINDS.length;
+    GLITCH_KINDS.forEach((kind, column) => {
+      const middleX = 40 + cardWidth * column + cardWidth / 2;
+      const known = seen.has(kind);
+      const info = GLITCH_INFO[kind];
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+      ctx.fillRect(40 + cardWidth * column + 8, 130, cardWidth - 16, 400);
+
+      paintGlitchPortrait(ctx, kind, middleX, 250, 150, now, !known);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = known ? "#f5efe6" : "#6d737d";
+      ctx.font = "bold 28px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+      ctx.fillText(known ? info.name : "???", middleX, 370);
+
+      ctx.fillStyle = known ? "#b9c4d0" : "#5d626b";
+      ctx.font = "15px 'Trebuchet MS', sans-serif";
+      const bio = known ? info.bio : "You haven't seen this one yet.";
+      wrapWords(bio, cardWidth - 44).forEach((line, row) => {
+        ctx.fillText(line, middleX, 404 + row * 22);
+      });
+    });
+
+    ctx.fillStyle = "rgba(230, 240, 255, 0.6)";
+    ctx.font = "18px 'Trebuchet MS', sans-serif";
+    ctx.fillText("Press P to carry on", W / 2, H - 40);
+  }
+
+  // Breaks a line of words up so it fits the width of a card.
+  function wrapWords(text: string, width: number): string[] {
+    const lines: string[] = [];
+    let line = "";
+    for (const word of text.split(" ")) {
+      const tryLine = line ? `${line} ${word}` : word;
+      if (ctx.measureText(tryLine).width > width && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = tryLine;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
   function draw(now: number): void {
     if (mood === "crashed") {
       drawScare(now);
@@ -313,6 +446,11 @@ export function createWorldGame(
     renderWorld(ctx, W, H, arena.world, player, sprites(), now);
     drawCrosshair();
     drawHud();
+
+    if (mood === "paused") {
+      drawIndex(now);
+      return;
+    }
 
     if (mood === "caught") {
       // Everything goes wrong at once.
@@ -334,11 +472,18 @@ export function createWorldGame(
     },
     look(byX, byY) {
       if (mood !== "playing") return;
-      player.yaw -= byX * 0.0022;
+      // Moving the mouse right turns you right.
+      player.yaw += byX * 0.0022;
       player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch - byY * 0.0022));
     },
     use,
     isCrashed: () => mood === "crashed",
+    togglePause() {
+      if (mood === "playing") mood = "paused";
+      else if (mood === "paused") mood = "playing";
+      // Keys held down while paused shouldn't still be held when you come back.
+      held.clear();
+    },
     restart,
   };
 }

@@ -65,7 +65,9 @@ function decorateSimulationCard(list: HTMLElement): void {
   if (!card || !screen) return;
   const steel = paintBrushedSteel(600, 400);
   if (steel) card.style.backgroundImage = `url(${steel})`;
-  typeOnCalculatorScreen(screen, "THE SIMULATION");
+  // The blank on the end is typed too, so the name ends up sitting in the middle
+  // of the screen with one empty space on each side instead of two on the left.
+  typeOnCalculatorScreen(screen, "THE SIMULATION ");
 }
 
 renderGameList();

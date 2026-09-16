@@ -44,6 +44,20 @@ export function setBlock(world: World, x: number, y: number, z: number, block: n
   world.blocks[(y * world.sizeZ + z) * world.sizeX + x] = block;
 }
 
+// Is there a clear line from one point to another, or is a block in the way?
+export function lineOfSight(world: World, from: Spot, to: Spot): boolean {
+  const away = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
+  const steps = Math.ceil(away / 0.25);
+  for (let step = 1; step < steps; step += 1) {
+    const along = step / steps;
+    const x = Math.floor(from.x + (to.x - from.x) * along);
+    const y = Math.floor(from.y + (to.y - from.y) * along);
+    const z = Math.floor(from.z + (to.z - from.z) * along);
+    if (isSolid(blockAt(world, x, y, z))) return false;
+  }
+  return true;
+}
+
 export const solidAt = (world: World, x: number, y: number, z: number): boolean =>
   isSolid(blockAt(world, Math.floor(x), Math.floor(y), Math.floor(z)));
 

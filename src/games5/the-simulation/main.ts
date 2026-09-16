@@ -584,7 +584,9 @@ window.addEventListener("keydown", (event) => {
   if (phase === "playing" && worldGame) {
     // Space would scroll the page, and the arrows would too.
     if (event.key === " " || event.key.startsWith("Arrow")) event.preventDefault();
-    if (event.key.toLowerCase() === "e") worldGame.use();
+    const key = event.key.toLowerCase();
+    if (key === "e") worldGame.use();
+    else if (key === "p") worldGame.togglePause();
     else worldGame.hold(event.key, true);
     return;
   }
