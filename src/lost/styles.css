@@ -1,0 +1,113 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #cfe8d8;
+  background:
+    repeating-linear-gradient(0deg, rgba(120, 255, 190, 0.035) 0 2px, transparent 2px 5px),
+    radial-gradient(circle at 50% 0%, #0d2419, #05090c 70%);
+}
+
+.page {
+  width: min(1000px, calc(100vw - 24px));
+  margin: 0 auto;
+  padding: 20px 0 60px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: rgba(207, 232, 216, 0.7);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #6dff9c;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2.4rem, 7vw, 4.4rem);
+  color: #eafff2;
+  text-shadow: 3px 0 rgba(109, 255, 156, 0.5), -3px 0 rgba(255, 70, 120, 0.35);
+}
+
+.subtitle {
+  margin: 8px 0 26px;
+  max-width: 60ch;
+  color: #8fb8a3;
+}
+
+.lost-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lost-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 18px;
+  border: 2px solid #1e3a2b;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(18, 38, 28, 0.9), rgba(8, 16, 12, 0.9));
+  color: inherit;
+  text-decoration: none;
+}
+
+.lost-card:hover {
+  border-color: #6dff9c;
+  transform: translateY(-3px);
+}
+
+.lost-name {
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.02em;
+  color: #eafff2;
+}
+
+.lost-why {
+  margin: 0;
+  color: #8fb8a3;
+  font-size: 0.95rem;
+}
+
+.lost-where {
+  margin: auto 0 0;
+  color: #47705c;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.whisper {
+  margin-top: 30px;
+  color: #3f6553;
+  font-size: 0.85rem;
+}

@@ -8,7 +8,15 @@ export default defineConfig({
       transformIndexHtml: {
         order: "pre",
         handler(html) {
-          return html.replace("</body>", '  <script type="module" src="/shared/domGallery.ts"></script>\n  </body>');
+          return html.replace(
+            "</body>",
+            [
+              '  <script type="module" src="/shared/domGallery.ts"></script>',
+              // The way into the lost games: type the word on any page.
+              '  <script type="module" src="/shared/lostDoor.ts"></script>',
+              "  </body>",
+            ].join("\n")
+          );
         },
       },
     },
@@ -32,6 +40,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         menu: resolve(__dirname, "src/index.html"),
+        lost: resolve(__dirname, "src/lost/index.html"),
         penelope: resolve(__dirname, "src/penelope/index.html"),
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
