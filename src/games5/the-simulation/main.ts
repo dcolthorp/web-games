@@ -438,7 +438,44 @@ const worldSounds: WorldSounds = {
   fragment: () => playPing(880),
   block: () => playThunk(120),
   scare: () => playScare(),
+  forge: () => playForge(),
 };
+
+// Putting the fragments together: a shimmer that climbs and then lands on a
+// big low note.
+function playForge(): void {
+  if (!audio || !voiceOut) return;
+  const now = audio.currentTime;
+  [523.25, 659.25, 783.99, 1046.5].forEach((pitch, step) => {
+    if (!audio || !voiceOut) return;
+    const at = now + step * 0.55;
+    const note = audio.createOscillator();
+    note.type = "triangle";
+    note.frequency.setValueAtTime(pitch, at);
+    const level = audio.createGain();
+    level.gain.setValueAtTime(0, at);
+    level.gain.linearRampToValueAtTime(0.18, at + 0.06);
+    level.gain.exponentialRampToValueAtTime(0.001, at + 0.9);
+    note.connect(level).connect(voiceOut);
+    note.start(at);
+    note.stop(at + 1);
+  });
+
+  const landing = audio.createOscillator();
+  landing.type = "sawtooth";
+  landing.frequency.setValueAtTime(110, now + 2.6);
+  landing.frequency.exponentialRampToValueAtTime(55, now + 4.2);
+  const soften = audio.createBiquadFilter();
+  soften.type = "lowpass";
+  soften.frequency.value = 900;
+  const landingLevel = audio.createGain();
+  landingLevel.gain.setValueAtTime(0, now + 2.6);
+  landingLevel.gain.linearRampToValueAtTime(0.4, now + 2.8);
+  landingLevel.gain.exponentialRampToValueAtTime(0.001, now + 4.4);
+  landing.connect(soften).connect(landingLevel).connect(voiceOut);
+  landing.start(now + 2.6);
+  landing.stop(now + 4.5);
+}
 
 // A bright little chime for picking up a glitch fragment.
 function playPing(pitch: number): void {
@@ -553,8 +590,12 @@ function canvasPoint(event: PointerEvent): { x: number; y: number } {
 
 canvas.addEventListener("pointerdown", (event) => {
   if (phase === "playing" && worldGame) {
-    // Crashed: clicking wakes you up back at the start of the world.
-    if (worldGame.isCrashed()) worldGame.restart();
+    const point = canvasPoint(event);
+    // A menu is up, so this is a click on a button.
+    if (worldGame.isMenu()) {
+      worldGame.click(point.x, point.y);
+      return;
+    }
     if (document.pointerLockElement !== canvas) lockPointer();
     // Where the mouse can't be taken over, dragging looks around instead.
     draggingToLook = true;
@@ -586,7 +627,9 @@ window.addEventListener("keydown", (event) => {
     if (event.key === " " || event.key.startsWith("Arrow")) event.preventDefault();
     const key = event.key.toLowerCase();
     if (key === "e") worldGame.use();
+    else if (key === "q") worldGame.remove();
     else if (key === "p") worldGame.togglePause();
+    else if (/^[1-8]$/.test(key)) worldGame.pick(Number(key));
     else worldGame.hold(event.key, true);
     return;
   }

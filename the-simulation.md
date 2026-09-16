@@ -26,6 +26,16 @@ leads into, in Oscar's words (2026-09-15), and is being built a piece at a time.
 - Collecting all of them shows a screen where they're all forged together, and
   that leads to the final boss.
 
+## The lobby, and creative mode
+
+- Pressing START goes to a lobby: survival or creative, and how big the map is
+  (small 26, medium 40, big 64, gigantic 96 — as big as a browser will take).
+- Survival is the game below. Creative is an empty map with nothing chasing you,
+  where you place anything yourself: blocks, blue blocks, ladders, fragments, and
+  all four kinds of glitch. E places, Q takes away, 1-8 choose.
+- P opens a pause menu: carry on, the glitch index, exit to the lobby, and in
+  creative, play the map you built with the glitches awake.
+
 ## Still to decide
 
 - What the different types of glitches are, and how each one behaves.

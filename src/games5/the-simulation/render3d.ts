@@ -15,8 +15,9 @@ export interface Sprite {
   x: number;
   y: number;
   z: number;
-  // A mimic that's still pretending is drawn as a fragment, because that's the point.
-  kind: "fragment" | "stalker" | "stopframe" | "flicker" | "mimic";
+  // A mimic that's still pretending is drawn as a fragment that's a little bit
+  // wrong, because that's the point.
+  kind: "fragment" | "fakeFragment" | "stalker" | "stopframe" | "flicker" | "mimic";
   size: number;
 }
 
@@ -188,7 +189,8 @@ export function renderWorld(
     pieces.push({
       depth: middle.z,
       paint: () => {
-        if (sprite.kind === "fragment") paintFragment(ctx, screenX, screenY, size, fade, now);
+        if (sprite.kind === "fragment") paintFragment(ctx, screenX, screenY, size, fade, now, false);
+        else if (sprite.kind === "fakeFragment") paintFragment(ctx, screenX, screenY, size, fade, now, true);
         else if (sprite.kind === "stopframe") paintStopframe(ctx, screenX, screenY, size, fade, now);
         else if (sprite.kind === "flicker") paintFlicker(ctx, screenX, screenY, size, fade, now);
         else if (sprite.kind === "mimic") paintMimic(ctx, screenX, screenY, size, fade, now);
@@ -202,13 +204,23 @@ export function renderWorld(
   for (const piece of pieces) piece.paint();
 }
 
-// A glitch fragment: a small spinning green shard.
-function paintFragment(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
-  const squash = Math.abs(Math.cos(now / 600)) * 0.7 + 0.3;
-  ctx.globalAlpha = Math.max(0.15, fade);
-  ctx.shadowColor = "#6dff9c";
-  ctx.shadowBlur = size * 0.8;
-  ctx.fillStyle = "#a6ff9b";
+// A glitch fragment: a small spinning green shard. A mimic's fake one is a
+// little bit wrong: duller, flatter light, and it spins out of time with the
+// real ones. Worth a second look before you walk up to it.
+function paintFragment(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  fade: number,
+  now: number,
+  fake: boolean
+): void {
+  const squash = fake ? Math.abs(Math.cos(now / 900 + 1.1)) * 0.55 + 0.45 : Math.abs(Math.cos(now / 600)) * 0.7 + 0.3;
+  ctx.globalAlpha = Math.max(0.15, fade) * (fake ? 0.88 : 1);
+  ctx.shadowColor = fake ? "#69b678" : "#6dff9c";
+  ctx.shadowBlur = size * (fake ? 0.35 : 0.8);
+  ctx.fillStyle = fake ? "#86d98a" : "#a6ff9b";
   ctx.beginPath();
   ctx.moveTo(x, y - size / 2);
   ctx.lineTo(x + (size / 2) * squash, y);
