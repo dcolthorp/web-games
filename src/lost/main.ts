@@ -72,6 +72,12 @@ const RESCUED: RescuedGame[] = [
     why: "Stickmen running across rooftops at night, grabbing loot, dodging cops.",
     file: "police_chase/",
   },
+  {
+    name: "Software Hack",
+    path: "./software-hack/index.html",
+    why: "Hack the AI with little puzzles, and patch your own antivirus before it hacks you back.",
+    file: "software_hack/",
+  },
 ];
 
 const rescuedList = document.getElementById("rescued-list");

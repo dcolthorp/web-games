@@ -45,6 +45,7 @@ export default defineConfig({
         lostWallDodger: resolve(__dirname, "src/lost/wall-dodger/index.html"),
         lostGroundJumper: resolve(__dirname, "src/lost/ground-jumper/index.html"),
         lostPoliceChase: resolve(__dirname, "src/lost/police-chase/index.html"),
+        lostSoftwareHack: resolve(__dirname, "src/lost/software-hack/index.html"),
         penelope: resolve(__dirname, "src/penelope/index.html"),
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
