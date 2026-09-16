@@ -78,6 +78,12 @@ const RESCUED: RescuedGame[] = [
     why: "Hack the AI with little puzzles, and patch your own antivirus before it hacks you back.",
     file: "software_hack/",
   },
+  {
+    name: "Mermaid Math",
+    path: "./mermaid-math/index.html",
+    why: "Sums up to ten and pearls to count, made for someone much smaller than Oscar.",
+    file: "mermaid_math.py",
+  },
 ];
 
 const rescuedList = document.getElementById("rescued-list");

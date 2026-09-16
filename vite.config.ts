@@ -46,6 +46,7 @@ export default defineConfig({
         lostGroundJumper: resolve(__dirname, "src/lost/ground-jumper/index.html"),
         lostPoliceChase: resolve(__dirname, "src/lost/police-chase/index.html"),
         lostSoftwareHack: resolve(__dirname, "src/lost/software-hack/index.html"),
+        lostMermaidMath: resolve(__dirname, "src/lost/mermaid-math/index.html"),
         penelope: resolve(__dirname, "src/penelope/index.html"),
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
