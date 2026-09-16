@@ -16,29 +16,24 @@ interface LostGame {
 
 const LOST: LostGame[] = [
   {
-    name: "Cat Math",
-    path: "../games/cat-math/index.html",
-    why: "Sums with a cat. It never made it onto Oscar's Games.",
-  },
-  {
     name: "Holden's Game",
     path: "../games3/holdens-game/index.html",
-    why: "Holden's own game, with a shop and eleven worlds. Games 3 never listed it.",
+    why: "Holden's own game, with a shop and eleven worlds. Nothing anywhere links to it.",
   },
   {
-    name: "Totally Not a Geometry Dash Rip-Off",
-    path: "../games3/totally-not-a-geometry-dash-rip-off/index.html",
-    why: "Definitely not a rip-off. Also never listed.",
+    name: "c0rrupt3d games",
+    path: "../corrupted-games/index.html",
+    why: "A whole hub. Its place in the dropdown is greyed out as Delayed, so you can't click through to it.",
   },
   {
     name: "Bio Tech",
     path: "../corrupted-games/bio-tech/index.html",
-    why: "From the c0rrupt3d games hub, which is still marked delayed, so nobody can click through to it.",
+    why: "The game inside the c0rrupt3d hub, which is why nobody has been able to reach it either.",
   },
   {
     name: "Penelope's Old Page",
     path: "../games/penelope/index.html",
-    why: "The first Penelope page, left behind when the newer one took over.",
+    why: "The first Penelope page. The newer one still borrows its code, but nothing links to the page itself.",
   },
 ];
 
