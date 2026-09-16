@@ -101,6 +101,23 @@ export function loadWorld(): void {
   for (const [x, y, amount] of world.strokes) applyStroke(heights, x, y, amount);
 }
 
+// Reset: the same land you already have, with everything you put on it taken
+// off again — including any raising and sinking, so the ground goes back to how
+// it first came out.
+export function resetWorld(): void {
+  strokesBySpot.clear();
+  Object.assign(world, {
+    things: [],
+    tribes: [],
+    strokes: [],
+    heights: makeHeights(world.seed),
+    waves: [],
+    effects: [],
+  });
+  world.terrainVersion += 1;
+  save();
+}
+
 export function newWorld(): void {
   const seed = newSeed();
   strokesBySpot.clear();

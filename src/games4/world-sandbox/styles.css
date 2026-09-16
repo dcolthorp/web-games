@@ -148,6 +148,16 @@ canvas {
   background: rgba(127, 208, 255, 0.22);
 }
 
+.world-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 6px;
+}
+
+.world-actions[hidden] {
+  display: none;
+}
+
 .new-world {
   padding: 8px 12px;
   border: 3px solid var(--accent);

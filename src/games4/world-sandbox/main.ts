@@ -9,7 +9,7 @@ import { PERSON, personSprite, villageSprite } from "./folk";
 import { act, canBe, nameOf, updateWavesAndEffects, wander } from "./nature";
 import { TRAITS, TRIBE_COLORS, createTribe, makePerson, maxHp, personAt, randomName, setWar, updatePeople } from "./people";
 import { spriteIcon, type Choice, type Sprite } from "./sprites";
-import { currentNote, loadWorld, newWorld, reshape, save, say, world, type Tribe } from "./state";
+import { currentNote, loadWorld, newWorld, resetWorld, reshape, save, say, world, type Tribe } from "./state";
 import { H, W, type Thing } from "./world";
 
 installOofShortcut();
@@ -295,7 +295,7 @@ function enterCave(mountain: Thing): void {
   caveGrid = (mountain.cave && decodeCave(mountain.cave)) || makeCave(Math.floor(mountain.x * 1000 + mountain.y));
   caveMountain = mountain;
   categoriesEl.hidden = true;
-  $("new-world").hidden = true;
+  $("world-actions").hidden = true;
   hoverText = null;
   renderChoices();
   if (found) {
@@ -309,9 +309,19 @@ function leaveCave(): void {
   caveMountain = null;
   caveGrid = null;
   categoriesEl.hidden = false;
-  $("new-world").hidden = false;
+  $("world-actions").hidden = false;
   renderChoices();
 }
+
+$<HTMLButtonElement>("reset-world").addEventListener("click", () => {
+  const anythingToLose = world.things.length > 0 || world.tribes.length > 0 || world.strokes.length > 0;
+  const warning = "Reset this world? It goes back to how it first looked, so everything you put on it and any land you shaped will be gone.";
+  if (anythingToLose && !window.confirm(warning)) return;
+  resetWorld();
+  tribeId = "";
+  renderChoices();
+  say("Back to how this world started.");
+});
 
 $<HTMLButtonElement>("new-world").addEventListener("click", () => {
   if (world.things.length > 0 && !window.confirm("Make a new world? Everything on this one will be gone.")) return;
