@@ -1,0 +1,104 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #f6f1e6;
+  background: radial-gradient(circle at 50% 0%, #1d3350, #0a1018 65%);
+}
+
+.page {
+  width: min(1000px, calc(100vw - 24px));
+  margin: 0 auto;
+  padding: 18px 0 40px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(246, 241, 230, 0.8);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.top {
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  letter-spacing: 0.02em;
+  color: #ffd76a;
+}
+
+.tagline {
+  margin: 4px 0 0;
+  color: #9fb2c6;
+}
+
+.game-frame canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 3px solid #101820;
+  border-radius: 6px;
+  background: #0d1b2a;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.new-land {
+  padding: 12px 22px;
+  border: 3px solid #6b4b12;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd76a, #e0a92c);
+  color: #3b2a06;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.new-land:hover {
+  filter: brightness(1.08);
+}
+
+.new-land:active {
+  transform: translateY(2px);
+}
+
+.keys {
+  margin: 0;
+  color: #8fa3b8;
+  font-size: 0.9rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

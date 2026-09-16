@@ -22,6 +22,13 @@ const games: Game[] = [
     genre: "???",
     blurb: "Nobody knows what it is yet. Not even the calculator.",
   },
+  {
+    id: "cross-your-fingers",
+    name: "Cross Your Fingers",
+    path: "./cross-your-fingers/index.html",
+    genre: "Luck Platformer",
+    blurb: "A new piece of land every time. Hope there's a black coin in it.",
+  },
 ];
 
 function renderGameList(): void {

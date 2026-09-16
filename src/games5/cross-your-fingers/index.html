@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cross Your Fingers</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Games 5</a>
+      <header class="top">
+        <h1>Cross Your Fingers</h1>
+        <p class="tagline">One piece of land. Whatever's in it is what you get.</p>
+      </header>
+
+      <section class="game-frame">
+        <canvas id="game" width="960" height="600" aria-label="A piece of randomly made land with coins in it"></canvas>
+      </section>
+
+      <div class="controls">
+        <button class="new-land" id="new-land" type="button">🎲 NEW LAND</button>
+        <p class="keys">A D or ← → to run · W, ↑ or SPACE to jump · R for new land</p>
+      </div>
+      <p class="visually-hidden" id="caption" aria-live="polite"></p>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
