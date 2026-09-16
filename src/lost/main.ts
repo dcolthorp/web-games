@@ -60,6 +60,12 @@ const RESCUED: RescuedGame[] = [
     why: "Four walls closing in on you and a ball bouncing around inside. Coins buy you room.",
     file: "obstacles.py",
   },
+  {
+    name: "Ground Jumper",
+    path: "./ground-jumper/index.html",
+    why: "Three lanes to hop between, a dressing room to spend your coins in, and levels that got lost.",
+    file: "ground_jumper/",
+  },
 ];
 
 const rescuedList = document.getElementById("rescued-list");

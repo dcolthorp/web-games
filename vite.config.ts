@@ -43,6 +43,7 @@ export default defineConfig({
         lost: resolve(__dirname, "src/lost/index.html"),
         lostSnake: resolve(__dirname, "src/lost/snake/index.html"),
         lostWallDodger: resolve(__dirname, "src/lost/wall-dodger/index.html"),
+        lostGroundJumper: resolve(__dirname, "src/lost/ground-jumper/index.html"),
         penelope: resolve(__dirname, "src/penelope/index.html"),
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
