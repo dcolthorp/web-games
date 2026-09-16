@@ -37,6 +37,37 @@ const LOST: LostGame[] = [
   },
 ];
 
+// The ones brought back from Oscar's old Python project (kids-games), which
+// nothing on the web ever linked to because it wasn't on the web at all.
+interface RescuedGame {
+  name: string;
+  path: string;
+  why: string;
+}
+
+const RESCUED: RescuedGame[] = [
+  {
+    name: "Snake",
+    path: "./snake/index.html",
+    why: "Oscar's first ever game. Rainbow stripes, stars that fade away, and a snake that poops.",
+  },
+];
+
+const rescuedList = document.getElementById("rescued-list");
+if (rescuedList) {
+  rescuedList.innerHTML = RESCUED.map(
+    (game) => `
+    <li>
+      <a class="lost-card rescued" href="${game.path}">
+        <span class="lost-name">${game.name}</span>
+        <p class="lost-why">${game.why}</p>
+        <p class="lost-where">brought back from kids-games/snake.py</p>
+      </a>
+    </li>
+  `
+  ).join("");
+}
+
 const list = document.getElementById("lost-list");
 if (list) {
   list.innerHTML = LOST.map(

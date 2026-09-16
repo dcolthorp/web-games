@@ -111,3 +111,23 @@ h1 {
   color: #3f6553;
   font-size: 0.85rem;
 }
+
+.section {
+  margin: 34px 0 4px;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.04em;
+  color: #6dff9c;
+}
+
+.section-note {
+  margin: 0 0 14px;
+  max-width: 60ch;
+  color: #8fb8a3;
+  font-size: 0.95rem;
+}
+
+.lost-card.rescued {
+  border-color: #6dff9c;
+  background: linear-gradient(180deg, rgba(24, 58, 38, 0.95), rgba(9, 22, 14, 0.95));
+}

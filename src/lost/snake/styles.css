@@ -1,0 +1,60 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #eafff2;
+  background: #05090c;
+}
+
+.page {
+  width: min(1200px, calc(100vw - 24px));
+  margin: 0 auto;
+  padding: 16px 0 40px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(234, 255, 242, 0.75);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+h1 {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  color: #6dff9c;
+}
+
+.tagline {
+  margin: 4px 0 12px;
+  color: #8fb8a3;
+}
+
+.game-frame canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 3px solid #12261b;
+  border-radius: 4px;
+}
+
+.keys {
+  margin: 12px 0 0;
+  color: #8fb8a3;
+  font-size: 0.9rem;
+}

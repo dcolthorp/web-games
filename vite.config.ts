@@ -41,6 +41,7 @@ export default defineConfig({
       input: {
         menu: resolve(__dirname, "src/index.html"),
         lost: resolve(__dirname, "src/lost/index.html"),
+        lostSnake: resolve(__dirname, "src/lost/snake/index.html"),
         penelope: resolve(__dirname, "src/penelope/index.html"),
         penelopeNested: resolve(__dirname, "src/games/penelope/index.html"),
         games2: resolve(__dirname, "src/games2/index.html"),
