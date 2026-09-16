@@ -84,6 +84,12 @@ const RESCUED: RescuedGame[] = [
     why: "Sums up to ten and pearls to count, made for someone much smaller than Oscar.",
     file: "mermaid_math.py",
   },
+  {
+    name: "Roblox Trivia",
+    path: "./roblox-trivia/index.html",
+    why: "The big one. Five modes on the menu and a pile of secret ones underneath.",
+    file: "roblox_trivia.py",
+  },
 ];
 
 const rescuedList = document.getElementById("rescued-list");

@@ -4,6 +4,7 @@ import {
   COIN_PUSHBACK,
   DOLLAR_VALUE,
   MIN_WALL_GAP,
+  SCREEN_HEIGHT,
   SCREEN_WIDTH,
   newGame,
   overlaps,
@@ -15,18 +16,27 @@ import {
 
 const STILL: Moves = { left: false, right: false, up: false, down: false };
 
-// A game where the ball is parked in a corner and switched off, so the walls
-// are the only thing that can get you.
+// A game where the ball is held still in one corner and you stand in the other,
+// so the walls are the only thing that can get you.
 function quietGame(): ReturnType<typeof newGame> {
   const game = newGame();
+  game.player.x = SCREEN_WIDTH - 60;
+  game.player.y = SCREEN_HEIGHT - 60;
+  park(game);
+  return game;
+}
+
+// The ball drifts once it speeds up, so it gets pinned back every frame.
+function park(game: ReturnType<typeof newGame>): void {
   game.ballDx = 0;
   game.ballDy = 0;
-  game.ballSpeed = 0;
-  game.ball.x = 2;
-  game.ball.y = 2;
-  game.player.x = SCREEN_WIDTH - 60;
-  game.player.y = 400;
-  return game;
+  game.ball.x = game.walls.left + 2;
+  game.ball.y = game.walls.top + 2;
+}
+
+function quietStep(game: ReturnType<typeof newGame>, seconds: number): void {
+  step(game, STILL, seconds);
+  park(game);
 }
 
 describe("the closing walls", () => {
@@ -35,22 +45,37 @@ describe("the closing walls", () => {
     const width = (): number => game.walls.right - game.walls.left;
 
     const beforeFirst = width();
-    for (let frame = 0; frame < 60; frame += 1) step(game, STILL, frame / 60);
+    for (let frame = 0; frame < 60; frame += 1) quietStep(game, frame / 60);
     const firstSecond = beforeFirst - width();
 
-    for (let frame = 60; frame < 60 * 10; frame += 1) step(game, STILL, frame / 60);
+    for (let frame = 60; frame < 60 * 10; frame += 1) quietStep(game, frame / 60);
     const beforeLast = width();
-    for (let frame = 60 * 10; frame < 60 * 11; frame += 1) step(game, STILL, frame / 60);
+    for (let frame = 60 * 10; frame < 60 * 11; frame += 1) quietStep(game, frame / 60);
     const tenthSecond = beforeLast - width();
 
     expect(tenthSecond).toBeGreaterThan(firstSecond);
   });
 
-  it("finish you off when there's no room left", () => {
+  it("stop at the tightest they go, leaving you nowhere to dodge", () => {
     const game = quietGame();
-    for (let frame = 0; frame < 60 * 600 && !game.over; frame += 1) step(game, STILL, frame / 60);
+    for (let frame = 0; frame < 60 * 120; frame += 1) quietStep(game, frame / 60);
+    // The walls never actually crush you — they squeeze down to the smallest
+    // box that still holds you and the ball, and wait there.
+    expect(game.walls.right - game.walls.left).toBeCloseTo(MIN_WALL_GAP, 5);
+    expect(game.walls.bottom - game.walls.top).toBeCloseTo(MIN_WALL_GAP, 5);
+    expect(game.over).toBe(false);
+  });
+
+  it("leave the ball no room to miss you once they're that tight", () => {
+    const game = quietGame();
+    for (let frame = 0; frame < 60 * 120; frame += 1) quietStep(game, frame / 60);
+    // Let the ball go again in that tiny box: there's nowhere left to stand.
+    game.ballDx = game.ballSpeed;
+    game.ballDy = game.ballSpeed * 0.6;
+    for (let frame = 0; frame < 60 * 20 && !game.over; frame += 1) {
+      step(game, STILL, 120 + frame / 60);
+    }
     expect(game.over).toBe(true);
-    expect(game.walls.right - game.walls.left).toBeLessThanOrEqual(MIN_WALL_GAP + 2);
   });
 });
 
@@ -90,9 +115,9 @@ describe("coins and dollars", () => {
 
 describe("the ball", () => {
   it("speeds up every ten seconds", () => {
-    const game = newGame();
+    const game = quietGame();
     const startedAt = game.ballSpeed;
-    for (let frame = 0; frame < 60 * 11; frame += 1) step(game, STILL, frame / 60);
+    for (let frame = 0; frame < 60 * 11; frame += 1) quietStep(game, frame / 60);
     expect(game.ballSpeed).toBeCloseTo(startedAt + BALL_SPEED_INCREMENT, 5);
   });
 
