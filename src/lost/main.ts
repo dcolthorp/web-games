@@ -43,6 +43,8 @@ interface RescuedGame {
   name: string;
   path: string;
   why: string;
+  // The Python file it was brought back from.
+  file: string;
 }
 
 const RESCUED: RescuedGame[] = [
@@ -50,6 +52,13 @@ const RESCUED: RescuedGame[] = [
     name: "Snake",
     path: "./snake/index.html",
     why: "Oscar's first ever game. Rainbow stripes, stars that fade away, and a snake that poops.",
+    file: "snake.py",
+  },
+  {
+    name: "Wall Dodger Survival",
+    path: "./wall-dodger/index.html",
+    why: "Four walls closing in on you and a ball bouncing around inside. Coins buy you room.",
+    file: "obstacles.py",
   },
 ];
 
@@ -61,7 +70,7 @@ if (rescuedList) {
       <a class="lost-card rescued" href="${game.path}">
         <span class="lost-name">${game.name}</span>
         <p class="lost-why">${game.why}</p>
-        <p class="lost-where">brought back from kids-games/snake.py</p>
+        <p class="lost-where">brought back from kids-games/${game.file}</p>
       </a>
     </li>
   `
