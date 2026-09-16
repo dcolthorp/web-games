@@ -12,6 +12,11 @@ export const JUMP_SPEED = 7.6;
 export const GRAVITY = 20;
 // How tall a step you can walk straight up, so stairs work but walls don't.
 export const STEP_UP = 1.02;
+// A dash: a short burst of speed to get out from under something, and then a
+// wait before you can do it again.
+export const DASH_SPEED = 3.1;
+export const DASH_SECONDS = 0.25;
+export const DASH_WAIT_SECONDS = 2.5;
 
 export interface Player extends Spot {
   yaw: number;
@@ -21,6 +26,9 @@ export interface Player extends Spot {
   climbing: boolean;
   fragments: number;
   blue: number;
+  // How much of the dash is left, and how long until you can dash again.
+  dashLeft: number;
+  dashWait: number;
 }
 
 export interface Input {
@@ -30,6 +38,7 @@ export interface Input {
   strafe: number;
   up: boolean;
   down: boolean;
+  dash: boolean;
 }
 
 export function newPlayer(spawn: Spot): Player {
@@ -44,6 +53,8 @@ export function newPlayer(spawn: Spot): Player {
     climbing: false,
     fragments: 0,
     blue: 0,
+    dashLeft: 0,
+    dashWait: 0,
   };
 }
 
@@ -100,9 +111,19 @@ export function moveWalker(world: World, body: Spot, dx: number, dz: number, onG
 }
 
 export function updatePlayer(world: World, player: Player, input: Input, dt: number): void {
+  player.dashLeft = Math.max(0, player.dashLeft - dt);
+  player.dashWait = Math.max(0, player.dashWait - dt);
+  // A dash only starts if you're actually going somewhere.
+  const moving = input.forward !== 0 || input.strafe !== 0;
+  if (input.dash && moving && player.dashLeft === 0 && player.dashWait === 0) {
+    player.dashLeft = DASH_SECONDS;
+    player.dashWait = DASH_SECONDS + DASH_WAIT_SECONDS;
+  }
+
   const look = facing(player.yaw);
-  const dx = (input.forward * look.x + input.strafe * look.z) * WALK_SPEED * dt;
-  const dz = (input.forward * look.z - input.strafe * look.x) * WALK_SPEED * dt;
+  const speed = WALK_SPEED * (player.dashLeft > 0 ? DASH_SPEED : 1);
+  const dx = (input.forward * look.x + input.strafe * look.z) * speed * dt;
+  const dz = (input.forward * look.z - input.strafe * look.x) * speed * dt;
   moveWalker(world, player, dx, dz, player.onGround);
 
   player.climbing = atLadder(world, player.x, player.y, player.z);

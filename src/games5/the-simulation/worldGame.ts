@@ -27,7 +27,7 @@ import {
   type Shard,
 } from "./bossFight";
 import { buttonAt, drawButton, row, type MenuButton } from "./menus";
-import { EYE, newPlayer, updatePlayer, type Input, type Player } from "./player";
+import { DASH_SECONDS, DASH_WAIT_SECONDS, EYE, newPlayer, updatePlayer, type Input, type Player } from "./player";
 import { SKY, paintGlitchPortrait, renderWorld, type Sprite } from "./render3d";
 import {
   BLACK,
@@ -246,7 +246,8 @@ export function createWorldGame(
       forward: Number(down("w")) - Number(down("s")),
       strafe: Number(down("d")) - Number(down("a")),
       up: down(" ", "space"),
-      down: down("shift"),
+      down: down("control"),
+      dash: down("shift"),
     };
   }
 
@@ -764,6 +765,7 @@ export function createWorldGame(
       ctx.fillStyle = "#ffe08a";
       ctx.fillText("ON A LADDER — THEY CAN'T FOLLOW", 18, 68);
     }
+    drawDashBar();
 
     // The moment you can see one, it says so.
     const watched = glitches.filter((glitch) => !glitch.hiding && canSee(glitch)).length;
@@ -779,12 +781,28 @@ export function createWorldGame(
     ctx.textAlign = "right";
     const keys =
       mode === "creative"
-        ? "WASD move · drag or arrows to look · SPACE jump · 1-8 choose · E place · Q remove · P menu"
-        : "WASD move · drag or arrows to look · SPACE jump · E pick up · P menu · ladders are safe";
+        ? "WASD move · SHIFT dash · SPACE jump · 1-8 choose · E place · Q remove · P menu"
+        : "WASD move · SHIFT dash · drag or arrows to look · SPACE jump · E pick up · P menu";
     ctx.fillText(keys, W - 18, 18);
 
     if (mode === "creative") drawPalette();
     if (mode === "boss" && boss) drawBossBar();
+  }
+
+  // How much of your dash is charged up. Full and green means SHIFT is ready.
+  function drawDashBar(): void {
+    const width = 150;
+    const ready = player.dashWait === 0;
+    const filled = ready ? 1 : 1 - player.dashWait / (DASH_SECONDS + DASH_WAIT_SECONDS);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.fillRect(18, H - 34, width, 12);
+    ctx.fillStyle = player.dashLeft > 0 ? "#ffffff" : ready ? "#a6ff9b" : "#5c7f9a";
+    ctx.fillRect(18, H - 34, width * filled, 12);
+    ctx.fillStyle = ready ? "#a6ff9b" : "rgba(220, 235, 255, 0.55)";
+    ctx.font = "bold 13px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(ready ? "DASH READY (SHIFT)" : "DASH", 18, H - 40);
   }
 
   function drawBossBar(): void {
