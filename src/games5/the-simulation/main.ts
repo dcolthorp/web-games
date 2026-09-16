@@ -407,6 +407,9 @@ function pressStartButton(): void {
 function enterTheSimulation(): void {
   if (phase === "playing") return;
   phase = "playing";
+  // Coming straight here (with #world) skips the opening, and the opening is
+  // what normally wakes the sound up.
+  if (!audio) startAudio();
   worldGame = createWorldGame(ctx, W, H, worldSounds);
   if (caption) caption.textContent = "Inside The Simulation.";
   lockPointer();
@@ -439,7 +442,53 @@ const worldSounds: WorldSounds = {
   block: () => playThunk(120),
   scare: () => playScare(),
   forge: () => playForge(),
+  victory: () => playOdeToJoy(),
 };
+
+// Beethoven's Ode to Joy, played on the same little synth as everything else,
+// for beating the boss. The tune is over two hundred years old, so it's ours to
+// play. Each note is [how high, how many beats].
+const ODE_TO_JOY: [number, number][] = [
+  [329.63, 1], [329.63, 1], [349.23, 1], [392.0, 1],
+  [392.0, 1], [349.23, 1], [329.63, 1], [293.66, 1],
+  [261.63, 1], [261.63, 1], [293.66, 1], [329.63, 1],
+  [329.63, 1.5], [293.66, 0.5], [293.66, 2],
+  [329.63, 1], [329.63, 1], [349.23, 1], [392.0, 1],
+  [392.0, 1], [349.23, 1], [329.63, 1], [293.66, 1],
+  [261.63, 1], [261.63, 1], [293.66, 1], [329.63, 1],
+  [293.66, 1.5], [261.63, 0.5], [261.63, 2],
+];
+const BEAT_SECONDS = 0.42;
+
+function playOdeToJoy(): void {
+  if (!audio || !voiceOut) return;
+  const start = audio.currentTime + 0.25;
+  let beat = 0;
+
+  for (const [pitch, beats] of ODE_TO_JOY) {
+    const at = start + beat * BEAT_SECONDS;
+    const length = beats * BEAT_SECONDS;
+    playTuneNote(pitch, at, length * 0.92, 0.16, "triangle");
+    // A low note under the first beat of every bar, to hold it up.
+    if (beat % 4 === 0) playTuneNote(pitch / 4, at, BEAT_SECONDS * 3.6, 0.1, "sine");
+    beat += beats;
+  }
+}
+
+function playTuneNote(pitch: number, at: number, length: number, loudness: number, shape: OscillatorType): void {
+  if (!audio || !voiceOut) return;
+  const note = audio.createOscillator();
+  note.type = shape;
+  note.frequency.setValueAtTime(pitch, at);
+  const level = audio.createGain();
+  level.gain.setValueAtTime(0, at);
+  level.gain.linearRampToValueAtTime(loudness, at + 0.04);
+  level.gain.setValueAtTime(loudness, at + length * 0.7);
+  level.gain.exponentialRampToValueAtTime(0.001, at + length);
+  note.connect(level).connect(voiceOut);
+  note.start(at);
+  note.stop(at + length + 0.05);
+}
 
 // Putting the fragments together: a shimmer that climbs and then lands on a
 // big low note.

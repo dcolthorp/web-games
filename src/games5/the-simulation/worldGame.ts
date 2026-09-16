@@ -99,6 +99,7 @@ export interface WorldSounds {
   block(): void;
   scare(): void;
   forge(): void;
+  victory(): void;
 }
 
 type Screen = "lobby" | "world";
@@ -408,7 +409,7 @@ export function createWorldGame(
 
     if (boss.health <= 0) {
       mood = "won";
-      sounds.forge();
+      sounds.victory();
       return;
     }
     if (bossHasCaught(boss, player)) {
