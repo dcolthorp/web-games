@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { LETTER_MS, VOICES, speakLetter } from "./babble";
+import { createWorldGame, type WorldGame, type WorldSounds } from "./worldGame";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -8,7 +9,8 @@ installForceRefreshHotkey();
 // The Simulation. It opens on a blank screen with two people you can't see
 // talking about you. Their words type out as they say them, in made-up
 // sound-effect voices (babble.ts). When they're done, the screen turns on like
-// an old TV (what shows up on it hasn't been decided yet). Its steel card with the
+// an old TV, THE SIMULATION and 666 drop in on ropes, and a START button drops
+// in under them. Pressing it puts you inside the world (worldGame.ts). Its steel card with the
 // calculator title is on the Games 5 hub (simulationCard.ts).
 
 interface Line {
@@ -66,7 +68,7 @@ const BUTTON_AFTER_LAST_MS = 2000;
 const BUTTON_ROPE_INSET = 22;
 const PRESS_MS = 140;
 
-type Phase = "waiting" | "talking" | "on";
+type Phase = "waiting" | "talking" | "on" | "playing";
 
 interface Hanging {
   letter: string;
@@ -102,6 +104,7 @@ let subtitle: Subtitle | null = null;
 let onAt = 0;
 let hanging: Hanging[] = [];
 let startButton = newStartButton();
+let worldGame: WorldGame | null = null;
 let lastFrame = performance.now();
 let audio: AudioContext | null = null;
 let voiceOut: AudioNode | null = null;
@@ -396,7 +399,88 @@ function overStartButton(x: number, y: number, now: number): boolean {
 function pressStartButton(): void {
   startButton.pressedAt = performance.now();
   playThunk(150);
-  // What pressing START actually starts hasn't been decided yet.
+  window.setTimeout(enterTheSimulation, 220);
+}
+
+// Into the world: the game takes over the screen, and the mouse starts looking
+// around instead of pointing at things.
+function enterTheSimulation(): void {
+  if (phase === "playing") return;
+  phase = "playing";
+  worldGame = createWorldGame(ctx, W, H, worldSounds);
+  if (caption) caption.textContent = "Inside The Simulation.";
+  lockPointer();
+  // Only while the dev server is running: a peek at where you are, for checking
+  // the game without playing it.
+  if (import.meta.env.DEV) Object.assign(window, { theSimulation: worldGame });
+}
+
+// Some places (like the Claude app's browser pane) refuse to hide the mouse
+// pointer, and say so with an error nobody needs to see.
+let pointerLockRefused = false;
+let draggingToLook = false;
+
+function lockPointer(): void {
+  if (pointerLockRefused) return;
+  try {
+    const locking = canvas.requestPointerLock?.() as Promise<void> | undefined;
+    if (locking && typeof locking.catch === "function") {
+      locking.catch(() => {
+        pointerLockRefused = true;
+      });
+    }
+  } catch {
+    pointerLockRefused = true;
+  }
+}
+
+const worldSounds: WorldSounds = {
+  fragment: () => playPing(880),
+  block: () => playThunk(120),
+  scare: () => playScare(),
+};
+
+// A bright little chime for picking up a glitch fragment.
+function playPing(pitch: number): void {
+  if (!audio || !voiceOut) return;
+  const now = audio.currentTime;
+  const note = audio.createOscillator();
+  note.type = "triangle";
+  note.frequency.setValueAtTime(pitch, now);
+  note.frequency.exponentialRampToValueAtTime(pitch * 1.5, now + 0.09);
+  const level = audio.createGain();
+  level.gain.setValueAtTime(0.22, now);
+  level.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  note.connect(level).connect(voiceOut);
+  note.start(now);
+  note.stop(now + 0.3);
+}
+
+// The jump scare: a burst of noise with a shriek falling through it.
+function playScare(): void {
+  if (!audio || !voiceOut) return;
+  const now = audio.currentTime;
+  const noise = audio.createBuffer(1, Math.round(audio.sampleRate * 0.9), audio.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
+  const burst = audio.createBufferSource();
+  burst.buffer = noise;
+  const burstLevel = audio.createGain();
+  burstLevel.gain.setValueAtTime(0.5, now);
+  burstLevel.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+  burst.connect(burstLevel).connect(voiceOut);
+  burst.start(now);
+
+  const shriek = audio.createOscillator();
+  shriek.type = "sawtooth";
+  shriek.frequency.setValueAtTime(1400, now);
+  shriek.frequency.exponentialRampToValueAtTime(90, now + 0.8);
+  const shriekLevel = audio.createGain();
+  shriekLevel.gain.setValueAtTime(0.35, now);
+  shriekLevel.gain.exponentialRampToValueAtTime(0.001, now + 0.85);
+  shriek.connect(shriekLevel).connect(voiceOut);
+  shriek.start(now);
+  shriek.stop(now + 0.9);
 }
 
 function drawStartButton(now: number): void {
@@ -468,6 +552,15 @@ function canvasPoint(event: PointerEvent): { x: number; y: number } {
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  if (phase === "playing" && worldGame) {
+    // Crashed: clicking wakes you up back at the start of the world.
+    if (worldGame.isCrashed()) worldGame.restart();
+    if (document.pointerLockElement !== canvas) lockPointer();
+    // Where the mouse can't be taken over, dragging looks around instead.
+    draggingToLook = true;
+    canvas.setPointerCapture(event.pointerId);
+    return;
+  }
   const point = canvasPoint(event);
   if (overStartButton(point.x, point.y, performance.now())) {
     pressStartButton();
@@ -477,15 +570,36 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 
 canvas.addEventListener("pointermove", (event) => {
+  if (phase === "playing") {
+    const looking = document.pointerLockElement === canvas || draggingToLook;
+    if (looking) worldGame?.look(event.movementX, event.movementY);
+    return;
+  }
   const point = canvasPoint(event);
   canvas.style.cursor = overStartButton(point.x, point.y, performance.now()) ? "pointer" : "default";
 });
 window.addEventListener("keydown", (event) => {
   // Enter or Space on a button (like Full screen) is for that button.
   if (event.target instanceof HTMLButtonElement) return;
+  if (phase === "playing" && worldGame) {
+    // Space would scroll the page, and the arrows would too.
+    if (event.key === " " || event.key.startsWith("Arrow")) event.preventDefault();
+    if (event.key.toLowerCase() === "e") worldGame.use();
+    else worldGame.hold(event.key, true);
+    return;
+  }
   if (event.key === "Enter" || event.key === " ") start();
 });
+
+window.addEventListener("keyup", (event) => {
+  if (phase === "playing") worldGame?.hold(event.key, false);
+});
 window.addEventListener("pagehide", () => void audio?.close().catch(() => {}));
+for (const ending of ["pointerup", "pointercancel"]) {
+  canvas.addEventListener(ending, () => {
+    draggingToLook = false;
+  });
+}
 
 // Full screen makes the black screen fill the whole monitor. Esc gets out.
 const frame = document.querySelector<HTMLElement>(".game-frame");
@@ -526,6 +640,13 @@ function draw(now: number): void {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
   lastFrame = now;
 
+  if (phase === "playing" && worldGame) {
+    worldGame.update(now, dt);
+    worldGame.draw(now);
+    requestAnimationFrame(draw);
+    return;
+  }
+
   if (phase === "on") {
     drawScreenOn(now);
     updateTitle(now, dt);
@@ -559,3 +680,7 @@ function draw(now: number): void {
 }
 
 requestAnimationFrame(draw);
+
+// Straight into the world, for trying it out without sitting through the
+// opening: open the game with #world on the end of the address.
+if (location.hash === "#world") enterTheSimulation();
