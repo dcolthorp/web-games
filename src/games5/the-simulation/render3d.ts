@@ -17,8 +17,12 @@ export interface Sprite {
   z: number;
   // A mimic that's still pretending is drawn as a fragment that's a little bit
   // wrong, because that's the point.
-  kind: "fragment" | "fakeFragment" | "stalker" | "stopframe" | "flicker" | "mimic";
+  kind: "fragment" | "fakeFragment" | "stalker" | "stopframe" | "flicker" | "mimic" | "boss" | "shard";
   size: number;
+  // The boss only: which kind of glitch it's being, and whether looking at it
+  // has stopped it dead.
+  phase?: "stalker" | "stopframe" | "flicker" | "mimic";
+  frozen?: boolean;
 }
 
 interface Corner {
@@ -194,6 +198,8 @@ export function renderWorld(
         else if (sprite.kind === "stopframe") paintStopframe(ctx, screenX, screenY, size, fade, now);
         else if (sprite.kind === "flicker") paintFlicker(ctx, screenX, screenY, size, fade, now);
         else if (sprite.kind === "mimic") paintMimic(ctx, screenX, screenY, size, fade, now);
+        else if (sprite.kind === "shard") paintFragment(ctx, screenX, screenY, size, fade, now, false);
+        else if (sprite.kind === "boss") paintBoss(ctx, screenX, screenY, size, fade, now, sprite.phase ?? "stalker", sprite.frozen ?? false);
         else paintGlitch(ctx, screenX, screenY, size, fade, now);
       },
     });
@@ -297,6 +303,36 @@ function paintTornGlitch(
 
 function paintGlitch(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fade: number, now: number): void {
   paintTornGlitch(ctx, x, y, size, fade, now, "#05060a", "#ff2f6d", "#39ffd0");
+}
+
+// THE WHOLE: the boss. A huge torn shape that looks like whichever glitch it's
+// being, and goes still and white the moment looking at it stops it.
+function paintBoss(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  fade: number,
+  now: number,
+  phase: "stalker" | "stopframe" | "flicker" | "mimic",
+  frozen: boolean
+): void {
+  if (frozen) {
+    paintTornGlitch(ctx, x, y, size, fade, 0, "#f4f4f2", "#ffffff", "#9a9aa2");
+    // A ring around it, so you can tell this is the moment to throw.
+    ctx.globalAlpha = Math.max(0.3, fade);
+    ctx.strokeStyle = "#a6ff9b";
+    ctx.lineWidth = Math.max(2, size * 0.02);
+    ctx.beginPath();
+    ctx.ellipse(x, y, size * 0.42, size * 0.56, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (phase === "stopframe") paintTornGlitch(ctx, x, y, size, fade, now, "#d9d9d6", "#ffffff", "#83838b");
+  else if (phase === "flicker") paintTornGlitch(ctx, x, y, size, fade, now, "#04121a", "#8ffcff", "#27b7c9");
+  else if (phase === "mimic") paintTornGlitch(ctx, x, y, size, fade, now, "#0b2413", "#a6ff9b", "#2f7d43");
+  else paintTornGlitch(ctx, x, y, size, fade, now, "#05060a", "#ff2f6d", "#39ffd0");
 }
 
 // A stopframe: the same torn-up shape, but all white and grey.

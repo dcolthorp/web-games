@@ -36,7 +36,18 @@ leads into, in Oscar's words (2026-09-15), and is being built a piece at a time.
 - P opens a pause menu: carry on, the glitch index, exit to the lobby, and in
   creative, play the map you built with the glitches awake.
 
+## The final boss
+
+- THE WHOLE: the thing the glitch fragments were part of. Forging them opens the
+  way to it, and it's also a choice in the lobby.
+- It takes a turn at being each kind of glitch — stalking, watching, flickering,
+  pretending — and the turns come quicker the more hurt it is.
+- You throw shards of the forged crystal with E. They bounce off it, except
+  while looking at it holds it still, which only happens on its watching turn.
+  Five hits and it's finished.
+- The ladders in its room only hold you for a few seconds before it turns them
+  black and they fall away.
+
 ## Still to decide
 
-- What the different types of glitches are, and how each one behaves.
-- What the final boss is.
+- Whether TON 618 (the Geometry Dash level) turns up somewhere in here.

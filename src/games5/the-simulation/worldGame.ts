@@ -12,6 +12,20 @@ import {
   type Glitch,
   type GlitchKind,
 } from "./glitches";
+import {
+  BOSS_HEALTH,
+  BOSS_HEIGHT,
+  PHASE_NAMES,
+  bossHasCaught,
+  makeBossArena,
+  newBoss,
+  rotLadder,
+  throwShard,
+  updateBoss,
+  updateShards,
+  type Boss,
+  type Shard,
+} from "./bossFight";
 import { buttonAt, drawButton, row, type MenuButton } from "./menus";
 import { EYE, newPlayer, updatePlayer, type Input, type Player } from "./player";
 import { SKY, paintGlitchPortrait, renderWorld, type Sprite } from "./render3d";
@@ -88,8 +102,8 @@ export interface WorldSounds {
 }
 
 type Screen = "lobby" | "world";
-type Mood = "playing" | "paused" | "index" | "caught" | "crashed" | "forging";
-type Mode = "survival" | "creative";
+type Mood = "playing" | "paused" | "index" | "caught" | "crashed" | "forging" | "won";
+type Mode = "survival" | "creative" | "boss";
 
 interface FallingBlock {
   x: number;
@@ -110,6 +124,7 @@ export interface WorldGame {
     mood: string;
     screen: string;
     mode: string;
+    boss: Boss | null;
   };
   hold(key: string, down: boolean): void;
   look(byX: number, byY: number): void;
@@ -144,6 +159,10 @@ export function createWorldGame(
   let blackened: FallingBlock[] = [];
   let lastBlackenAt = 0;
   let holding: PaletteId = "block";
+  let boss: Boss | null = null;
+  let shards: Shard[] = [];
+  // When you got on the ladder you're on, so the boss knows when to take it away.
+  let climbingSince = 0;
   const held = new Set<string>();
   const seen = loadSeen();
 
@@ -163,15 +182,27 @@ export function createWorldGame(
 
   // Into a fresh map, the way the lobby says.
   function enterWorld(): void {
-    arena = mode === "creative" ? makeFlatArena(mapSize()) : makeArena(Math.floor(Math.random() * 100000), mapSize());
-    player = newPlayer(arena.spawn);
-    fragments = [...arena.fragments];
+    if (mode === "boss") {
+      arena = makeBossArena(30);
+      player = newPlayer(arena.spawn);
+      fragments = [];
+      glitches = [];
+      shards = [];
+      climbingSince = 0;
+      boss = newBoss({ x: arena.world.sizeX / 2, y: 1, z: arena.world.sizeZ / 2 }, performance.now());
+    } else {
+      arena = mode === "creative" ? makeFlatArena(mapSize()) : makeArena(Math.floor(Math.random() * 100000), mapSize());
+      player = newPlayer(arena.spawn);
+      fragments = [...arena.fragments];
+      boss = null;
+      shards = [];
+      spawnGlitches();
+    }
     blackened = [];
     startedAt = 0;
     mood = "playing";
     screen = "world";
     held.clear();
-    spawnGlitches();
   }
 
   function restart(): void {
@@ -190,9 +221,9 @@ export function createWorldGame(
 
   // Are you looking right at it? A stopframe only moves when you aren't, and a
   // glitch you can see is a glitch to run from.
-  function canSee(glitch: Glitch): boolean {
+  function canSee(glitch: { x: number; y: number; z: number }, tall = 0.95): boolean {
     const eye = { x: player.x, y: player.y + EYE, z: player.z };
-    const middle = { x: glitch.x, y: glitch.y + 0.95, z: glitch.z };
+    const middle = { x: glitch.x, y: glitch.y + tall, z: glitch.z };
     const awayX = middle.x - eye.x;
     const awayY = middle.y - eye.y;
     const awayZ = middle.z - eye.z;
@@ -250,6 +281,15 @@ export function createWorldGame(
   // blocks only: pick one up, or put one back.
   function use(): void {
     if (mood !== "playing") return;
+
+    if (mode === "boss") {
+      // A shard of the forged crystal. It only does anything while looking at
+      // the boss is holding it still.
+      shards.push(throwShard(player, performance.now()));
+      sounds.fragment();
+      return;
+    }
+
     const { at, before } = lookingAt();
 
     if (mode === "creative") {
@@ -342,9 +382,50 @@ export function createWorldGame(
     });
   }
 
+  // The boss fight has its own rules: shards, a boss taking turns at being every
+  // kind of glitch, and ladders that don't hold you for long.
+  function updateBossFight(now: number, dt: number): void {
+    if (!boss) return;
+    lookWithArrows(dt);
+    updatePlayer(arena.world, player, input(), dt);
+
+    if (player.climbing) {
+      if (climbingSince === 0) climbingSince = now;
+      if (rotLadder(arena.world, player, climbingSince, now)) {
+        climbingSince = now;
+        sounds.block();
+      }
+    } else {
+      climbingSince = 0;
+    }
+
+    const watched = canSee(boss, BOSS_HEIGHT / 2);
+    updateBoss(arena.world, boss, player, dt, now, watched);
+    const flying = updateShards(arena.world, shards, boss, dt, now);
+    shards = flying.shards;
+    if (flying.hits > 0) sounds.scare();
+    if (flying.bounces > 0) sounds.block();
+
+    if (boss.health <= 0) {
+      mood = "won";
+      sounds.forge();
+      return;
+    }
+    if (bossHasCaught(boss, player)) {
+      mood = "caught";
+      caughtAt = now;
+      lastBlackenAt = 0;
+    }
+  }
+
   function update(now: number, dt: number): void {
     if (screen === "lobby") return;
-    if (mood === "crashed" || mood === "paused" || mood === "index" || mood === "forging") return;
+    if (mood === "crashed" || mood === "paused" || mood === "index" || mood === "forging" || mood === "won") return;
+
+    if (mood === "playing" && mode === "boss") {
+      updateBossFight(now, dt);
+      return;
+    }
 
     if (mood === "playing") {
       if (startedAt === 0) startedAt = now;
@@ -383,6 +464,18 @@ export function createWorldGame(
 
   function sprites(): Sprite[] {
     const all: Sprite[] = fragments.map((fragment) => ({ ...fragment, kind: "fragment" as const, size: 0.45 }));
+    for (const shard of shards) all.push({ x: shard.x, y: shard.y, z: shard.z, kind: "shard" as const, size: 0.3 });
+    if (boss) {
+      all.push({
+        x: boss.x,
+        y: boss.y + BOSS_HEIGHT / 2,
+        z: boss.z,
+        kind: "boss" as const,
+        size: BOSS_HEIGHT,
+        phase: boss.phase,
+        frozen: boss.frozen,
+      });
+    }
     for (const glitch of glitches) {
       // A mimic in hiding looks like a fragment, which is the whole trick.
       if (glitch.hiding) {
@@ -398,10 +491,16 @@ export function createWorldGame(
 
   function lobbyButtons(): MenuButton[] {
     return [
-      ...row(W, 190, [
-        { id: "mode-survival", label: "SURVIVAL", chosen: mode === "survival" },
-        { id: "mode-creative", label: "CREATIVE", chosen: mode === "creative" },
-      ]),
+      ...row(
+        W,
+        190,
+        [
+          { id: "mode-survival", label: "SURVIVAL", chosen: mode === "survival" },
+          { id: "mode-creative", label: "CREATIVE", chosen: mode === "creative" },
+          { id: "mode-boss", label: "FINAL BOSS", chosen: mode === "boss" },
+        ],
+        176
+      ),
       ...row(
         W,
         300,
@@ -443,7 +542,13 @@ export function createWorldGame(
     if (mood === "paused") return pauseButtons();
     if (mood === "index") return indexButtons();
     if (mood === "crashed") return crashedButtons();
-    if (mood === "forging") return [{ id: "lobby", label: "EXIT TO LOBBY", x: W / 2 - 110, y: H - 46, width: 220, height: 40 }];
+    if (mood === "forging") return [{ id: "face-it", label: "FACE IT", x: W / 2 - 110, y: H - 46, width: 220, height: 40 }];
+    if (mood === "won") {
+      return row(W, H - 110, [
+        { id: "again", label: "FIGHT IT AGAIN" },
+        { id: "lobby", label: "EXIT TO LOBBY" },
+      ], 210, 56);
+    }
     return [];
   };
 
@@ -452,7 +557,13 @@ export function createWorldGame(
     if (!pressed) return;
 
     if (pressed.startsWith("mode-")) {
-      mode = pressed === "mode-creative" ? "creative" : "survival";
+      mode = pressed === "mode-creative" ? "creative" : pressed === "mode-boss" ? "boss" : "survival";
+      return;
+    }
+    if (pressed === "face-it") {
+      // Out of the forging and straight at it.
+      mode = "boss";
+      enterWorld();
       return;
     }
     if (pressed.startsWith("size-")) {
@@ -517,7 +628,9 @@ export function createWorldGame(
     const explain =
       mode === "creative"
         ? "Creative: an empty map, nothing chasing you, and you place everything yourself."
-        : "Survival: collect every glitch fragment without getting caught.";
+        : mode === "boss"
+          ? "Final boss: THE WHOLE. Throw shards with E, but they only hurt it while looking at it holds it still."
+          : "Survival: collect every glitch fragment without getting caught.";
     ctx.fillText(explain, W / 2, 380);
     ctx.fillText("Gigantic is as big as a browser can take before it falls over.", W / 2, 520 + 12 * Math.sin(now / 900) * 0);
   }
@@ -635,9 +748,16 @@ export function createWorldGame(
       ctx.fillText(`FRAGMENTS ${player.fragments} / ${FRAGMENT_COUNT}`, 18, 16);
       ctx.fillStyle = "#7fc4ff";
       ctx.fillText(`BLUE BLOCKS ${player.blue}`, 18, 42);
-    } else {
+    } else if (mode === "creative") {
       ctx.fillStyle = "#a6ff9b";
       ctx.fillText("CREATIVE — BUILD YOUR OWN MAP", 18, 16);
+    } else {
+      ctx.fillStyle = "#ff8a9c";
+      ctx.fillText("THE WHOLE", 18, 16);
+      ctx.fillStyle = "#cfe0f2";
+      ctx.font = "15px 'Trebuchet MS', sans-serif";
+      ctx.fillText("E throws a shard · they only bite while it's frozen", 18, 42);
+      ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
     }
     if (player.climbing) {
       ctx.fillStyle = "#ffe08a";
@@ -663,6 +783,65 @@ export function createWorldGame(
     ctx.fillText(keys, W - 18, 18);
 
     if (mode === "creative") drawPalette();
+    if (mode === "boss" && boss) drawBossBar();
+  }
+
+  function drawBossBar(): void {
+    if (!boss) return;
+    const width = 420;
+    const left = W / 2 - width / 2;
+    ctx.fillStyle = "rgba(6, 10, 14, 0.75)";
+    ctx.fillRect(left - 8, 16, width + 16, 54);
+
+    for (let pip = 0; pip < BOSS_HEALTH; pip += 1) {
+      const pipWidth = width / BOSS_HEALTH - 8;
+      ctx.fillStyle = pip < boss.health ? "#ff3c5a" : "rgba(255, 255, 255, 0.12)";
+      ctx.fillRect(left + pip * (pipWidth + 8), 24, pipWidth, 16);
+    }
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 20px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+    ctx.fillStyle = boss.frozen ? "#a6ff9b" : "#ffd27f";
+    ctx.fillText(boss.frozen ? "IT CAN'T MOVE — THROW (E)" : PHASE_NAMES[boss.phase], W / 2, 56);
+  }
+
+  // Beating it.
+  function drawWon(now: number): void {
+    const glow = ctx.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, W * 0.7);
+    glow.addColorStop(0, "#10331f");
+    glow.addColorStop(1, "#04070a");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    // The crystal, in pieces again, drifting apart.
+    for (let shard = 0; shard < 14; shard += 1) {
+      const turn = (shard / 14) * Math.PI * 2;
+      const drift = 120 + Math.sin(now / 700 + shard) * 20;
+      const x = W / 2 + Math.cos(turn) * drift;
+      const y = H / 2 - 60 + Math.sin(turn) * drift * 0.6;
+      ctx.fillStyle = "#a6ff9b";
+      ctx.shadowColor = "#6dff9c";
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 14);
+      ctx.lineTo(x + 8, y);
+      ctx.lineTo(x, y + 14);
+      ctx.lineTo(x - 8, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#a6ff9b";
+    ctx.font = "bold 58px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+    ctx.fillText("YOU BEAT THE SIMULATION", W / 2, H - 200);
+    ctx.fillStyle = "#f5efe6";
+    ctx.font = "22px 'Trebuchet MS', sans-serif";
+    ctx.fillText("THE WHOLE is in pieces again. The blocks stop humming.", W / 2, H - 155);
+    for (const button of menuButtons()) drawButton(ctx, button);
   }
 
   // The jump scare: the screen tears itself apart and something is right in your face.
@@ -805,6 +984,10 @@ export function createWorldGame(
       drawForge(now);
       return;
     }
+    if (mood === "won") {
+      drawWon(now);
+      return;
+    }
 
     ctx.fillStyle = SKY;
     ctx.fillRect(0, 0, W, H);
@@ -833,7 +1016,7 @@ export function createWorldGame(
   return {
     update,
     draw,
-    peek: () => ({ player, glitches, fragments, fragmentsLeft: fragments.length, mood, screen, mode }),
+    peek: () => ({ player, glitches, fragments, fragmentsLeft: fragments.length, mood, screen, mode, boss }),
     hold(key, down) {
       const name = key.toLowerCase();
       if (down) held.add(name);
@@ -858,9 +1041,10 @@ export function createWorldGame(
       // Keys held down while paused shouldn't still be held when you come back.
       held.clear();
     },
-    isMenu: () => screen === "lobby" || mood === "paused" || mood === "index" || mood === "crashed" || mood === "forging",
+    isMenu: () =>
+      screen === "lobby" || mood === "paused" || mood === "index" || mood === "crashed" || mood === "forging" || mood === "won",
     click,
-    isCrashed: () => mood === "crashed" || mood === "forging",
+    isCrashed: () => mood === "crashed" || mood === "forging" || mood === "won",
     restart,
   };
 }
