@@ -66,6 +66,12 @@ const RESCUED: RescuedGame[] = [
     why: "Three lanes to hop between, a dressing room to spend your coins in, and levels that got lost.",
     file: "ground_jumper/",
   },
+  {
+    name: "Police Chase",
+    path: "./police-chase/index.html",
+    why: "Stickmen running across rooftops at night, grabbing loot, dodging cops.",
+    file: "police_chase/",
+  },
 ];
 
 const rescuedList = document.getElementById("rescued-list");
