@@ -44,12 +44,35 @@ export function availableDifficulties(perfect: PerfectStatus): string[] {
 export const trophyUnlocked = (perfect: PerfectStatus): boolean =>
   TROPHY_REQUIRED.every((name) => perfect[name]);
 
+// Quizzes you wrote yourself, looked up the same way the built-in modes are, so
+// everything that plays a mode can play one of yours without knowing the
+// difference. They are keyed by id, and carry the name you gave them.
+const yourQuizzes = new Map<string, Difficulty>();
+
+export function registerYourQuizzes(
+  quizzes: { id: string; name: string; color: string; questions: Question[] }[]
+): void {
+  yourQuizzes.clear();
+  for (const quiz of quizzes) {
+    yourQuizzes.set(quiz.id, {
+      name: quiz.id,
+      label: quiz.name,
+      color: quiz.color,
+      hidden: true,
+      questions: quiz.questions,
+    });
+  }
+}
+
 export function getDifficulty(name: string): Difficulty | null {
   if (name === "ULTIMATE") {
     return { name: "ULTIMATE", color: "#ff5050", hidden: true, questions: ultimateQuestions() };
   }
-  return DIFFICULTIES[name] ?? null;
+  return DIFFICULTIES[name] ?? yourQuizzes.get(name) ?? null;
 }
+
+// What to call a mode on screen: your quiz's own name, or the built-in one.
+export const labelOf = (name: string): string => getDifficulty(name)?.label ?? name;
 
 export interface Style {
   accent: string;
@@ -110,8 +133,10 @@ export interface Run {
 export function startRun(name: string, random: () => number): Run | null {
   const difficulty = getDifficulty(name);
   if (!difficulty) return null;
-  const questions =
-    name === "Tutorial" ? [...difficulty.questions] : shuffle(difficulty.questions, random);
+  // The tutorial has to stay in order, and a quiz you wrote keeps the order you
+  // wrote it in. Everything else gets shuffled.
+  const keepsOrder = name === "Tutorial" || yourQuizzes.has(name);
+  const questions = keepsOrder ? [...difficulty.questions] : shuffle(difficulty.questions, random);
   return {
     difficultyName: name,
     questions,

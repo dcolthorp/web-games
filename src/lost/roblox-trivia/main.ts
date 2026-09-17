@@ -3,6 +3,22 @@
 
 import { DIFFICULTIES, ERROR_PARAGRAPHS, EXTRA_MODES, ultimateQuestions } from "./questions";
 import {
+  MAX_NAME_LENGTH,
+  MAX_OPTION_LENGTH,
+  MAX_QUESTION_LENGTH,
+  QUIZ_COLORS,
+  loadModes,
+  makeMode,
+  makeQuestion,
+  modeIsPlayable,
+  questionIsReady,
+  readyQuestions,
+  saveModes,
+  typeInto,
+  whatsMissing,
+  type CustomMode,
+} from "./creator";
+import {
   DEFAULT_BG,
   DEFAULT_TEXT,
   RESULT_DISPLAY_TIME,
@@ -12,7 +28,9 @@ import {
   availableDifficulties,
   currentQuestion,
   getDifficulty,
+  labelOf,
   pushErrorLetter,
+  registerYourQuizzes,
   shuffle,
   startRun,
   styleFor,
@@ -71,13 +89,40 @@ type Screen =
   | "infinite"
   | "infiniteOver"
   | "godBlackout"
-  | "godMenu";
+  | "godMenu"
+  | "create"
+  | "editor"
+  | "question";
 
 let screen: Screen = "select";
 let run: Run | null = null;
 let time = 0;
 
 const random = Math.random;
+
+// ------------------------------------------------------------ your own quizzes
+
+let yourModes: CustomMode[] = loadModes();
+let editingMode = -1;
+let editingQuestion = -1;
+// Which field the keyboard is typing into, if any.
+let typingInto: "name" | "question" | "option0" | "option1" | "option2" | "option3" | null = null;
+
+const currentMode = (): CustomMode | null => yourModes[editingMode] ?? null;
+
+function keepQuizzes(): void {
+  saveModes(yourModes);
+  registerYourQuizzes(
+    yourModes.map((mode) => ({
+      id: mode.id,
+      name: mode.name,
+      color: mode.color,
+      questions: readyQuestions(mode),
+    }))
+  );
+}
+
+keepQuizzes();
 
 // ---------------------------------------------------------------- the hitboxes
 
@@ -294,6 +339,14 @@ function drawSelect(): void {
     });
   }
 
+  // The "c" of "Difficulty" opens the quiz creator.
+  const cIndex = title.indexOf("Difficulty") + "Diffi".length;
+  const beforeC = ctx.measureText(title.slice(0, cIndex)).width;
+  const cWidth = ctx.measureText("c").width;
+  zone(left + beforeC, 80, cWidth, 40, () => {
+    screen = "create";
+  });
+
   const names = availableDifficulties(perfect);
   const startY = 210;
   const step = Math.min(56, Math.max(38, (SCREEN_HEIGHT - 110 - startY) / Math.max(1, names.length - 1)));
@@ -448,7 +501,7 @@ function drawQuiz(active: Run, endless: boolean): void {
 
   const heading = endless
     ? `Infinite · ${infinitePool}   Score ${infiniteScore}   Best ${infiniteBest}`
-    : `${active.difficultyName}   ${active.index + 1} / ${active.questions.length}   Score ${active.score}`;
+    : `${labelOf(active.difficultyName)}   ${active.index + 1} / ${active.questions.length}   Score ${active.score}`;
   text(heading, SCREEN_WIDTH / 2, 40, { size: 20, color: style.accent });
 
   const lines = wrap(question.question, SCREEN_WIDTH - 100, 26);
@@ -503,7 +556,7 @@ function drawComplete(active: Run): void {
   const style = styleFor(active.difficultyName);
   ctx.fillStyle = style.background;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  text(active.difficultyName, SCREEN_WIDTH / 2, 150, { size: 40, bold: true, color: style.accent });
+  text(labelOf(active.difficultyName), SCREEN_WIDTH / 2, 150, { size: 40, bold: true, color: style.accent });
   text(`${active.score} out of ${active.questions.length}`, SCREEN_WIDTH / 2, 240, { size: 32 });
   const clean = active.score === active.questions.length;
   text(clean ? "Perfect." : "Not perfect — try again for the unlocks.", SCREEN_WIDTH / 2, 300, {
@@ -518,7 +571,7 @@ function drawComplete(active: Run): void {
     color: "#a0a0a0",
   });
   zone(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, () => {
-    screen = "select";
+    screen = active.difficultyName.startsWith("custom-") ? "create" : "select";
     run = null;
   });
 }
@@ -554,6 +607,303 @@ function drawInfiniteOver(): void {
     screen = "select";
     run = null;
   });
+}
+
+// ---------------------------------------------------------- the quiz creator
+
+const FIELD_LEFT = 60;
+const FIELD_WIDTH = SCREEN_WIDTH - 120;
+
+// A box you can type in. It shows a caret while it has the keyboard.
+function field(
+  label: string,
+  value: string,
+  y: number,
+  height: number,
+  focused: boolean,
+  placeholder: string,
+  onClick: () => void
+): void {
+  ctx.fillStyle = focused ? "rgba(255, 255, 255, 0.14)" : "rgba(255, 255, 255, 0.06)";
+  ctx.fillRect(FIELD_LEFT, y, FIELD_WIDTH, height);
+  ctx.strokeStyle = focused ? "#ffffff" : "#6a6a7a";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(FIELD_LEFT, y, FIELD_WIDTH, height);
+
+  if (label) text(label, FIELD_LEFT + 8, y - 12, { size: 14, color: "#9a9aae", align: "left" });
+
+  const shown = value || placeholder;
+  const lines = wrap(shown, FIELD_WIDTH - 24, 20).slice(0, Math.max(1, Math.floor(height / 26)));
+  lines.forEach((line, index) => {
+    const caret = focused && index === lines.length - 1 && Math.floor(time * 2) % 2 === 0 ? "|" : "";
+    text(`${line}${caret}`, FIELD_LEFT + 12, y + 18 + index * 26, {
+      size: 20,
+      color: value ? DEFAULT_TEXT : "#7a7a8a",
+      align: "left",
+    });
+  });
+
+  zone(FIELD_LEFT, y, FIELD_WIDTH, height, onClick);
+}
+
+function button(
+  caption: string,
+  x: number,
+  y: number,
+  width: number,
+  onClick: () => void,
+  color = "#d0d0d0"
+): void {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, width, 38);
+  text(caption, x + width / 2, y + 19, { size: 18, color });
+  zone(x, y, width, 38, onClick);
+}
+
+function drawCreate(): void {
+  ctx.fillStyle = DEFAULT_BG;
+  ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+  text("Your Quizzes", SCREEN_WIDTH / 2, 70, { size: 40, bold: true, color: "#78d2ff" });
+  text("Write your own questions. They get saved.", SCREEN_WIDTH / 2, 112, {
+    size: 16,
+    color: "#9a9aae",
+  });
+
+  if (yourModes.length === 0) {
+    text("Nothing here yet.", SCREEN_WIDTH / 2, 200, { size: 22, color: "#8c8c9c" });
+  }
+
+  yourModes.forEach((mode, index) => {
+    const y = 170 + index * 48;
+    if (y > SCREEN_HEIGHT - 160) return;
+    const ready = readyQuestions(mode).length;
+    text(`${index + 1}. ${mode.name}`, FIELD_LEFT, y, { size: 24, color: mode.color, align: "left" });
+    text(`${ready} question${ready === 1 ? "" : "s"}${perfect[mode.id] ? "  ✓" : ""}`, SCREEN_WIDTH - FIELD_LEFT, y, {
+      size: 16,
+      color: "#9a9aae",
+      align: "right",
+    });
+    zone(FIELD_LEFT - 10, y - 20, FIELD_WIDTH + 20, 40, () => {
+      editingMode = index;
+      typingInto = null;
+      screen = "editor";
+    });
+  });
+
+  button("+ New quiz", SCREEN_WIDTH / 2 - 100, SCREEN_HEIGHT - 120, 200, () => {
+    yourModes.push(makeMode(`Quiz ${yourModes.length + 1}`));
+    editingMode = yourModes.length - 1;
+    editingQuestion = -1;
+    typingInto = "name";
+    keepQuizzes();
+    screen = "editor";
+  }, "#78ff78");
+
+  text("Q to go back", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 40, { size: 15, color: "#8c8c9c" });
+}
+
+function drawEditor(): void {
+  const mode = currentMode();
+  if (!mode) {
+    screen = "create";
+    return;
+  }
+  ctx.fillStyle = DEFAULT_BG;
+  ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+  field("QUIZ NAME", mode.name, 40, 44, typingInto === "name", "Type a name", () => {
+    typingInto = typingInto === "name" ? null : "name";
+  });
+
+  // The colour it wears while you play it.
+  text("COLOUR", FIELD_LEFT, 104, { size: 14, color: "#9a9aae", align: "left" });
+  QUIZ_COLORS.forEach((color, index) => {
+    const x = FIELD_LEFT + index * 44;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, 116, 36, 26);
+    if (mode.color === color) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x - 2, 114, 40, 30);
+    }
+    zone(x, 116, 36, 26, () => {
+      mode.color = color;
+      keepQuizzes();
+    });
+  });
+
+  text("QUESTIONS", FIELD_LEFT, 168, { size: 14, color: "#9a9aae", align: "left" });
+  mode.questions.forEach((question, index) => {
+    const y = 196 + index * 38;
+    if (y > SCREEN_HEIGHT - 170) return;
+    const ready = questionIsReady(question);
+    const asked = question.question.trim() || "(not written yet)";
+    const shown = asked.length > 52 ? `${asked.slice(0, 52)}…` : asked;
+    text(`${index + 1}. ${shown}`, FIELD_LEFT, y, {
+      size: 18,
+      color: ready ? DEFAULT_TEXT : "#8c8c9c",
+      align: "left",
+    });
+    text(ready ? "ready" : "unfinished", SCREEN_WIDTH - FIELD_LEFT, y, {
+      size: 14,
+      color: ready ? "#78ff78" : "#ffb060",
+      align: "right",
+    });
+    zone(FIELD_LEFT - 10, y - 16, FIELD_WIDTH + 20, 32, () => {
+      editingQuestion = index;
+      typingInto = "question";
+      screen = "question";
+    });
+  });
+
+  button("+ Add question", FIELD_LEFT, SCREEN_HEIGHT - 150, 190, () => {
+    mode.questions.push(makeQuestion());
+    editingQuestion = mode.questions.length - 1;
+    typingInto = "question";
+    keepQuizzes();
+    screen = "question";
+  }, "#78d2ff");
+
+  const missing = whatsMissing(mode);
+  if (missing) text(missing, SCREEN_WIDTH / 2, SCREEN_HEIGHT - 96, { size: 15, color: "#ffb060" });
+
+  const playable = modeIsPlayable(mode);
+  button(
+    playable ? "Play it" : "Play it (not yet)",
+    FIELD_LEFT,
+    SCREEN_HEIGHT - 72,
+    200,
+    () => {
+      if (!playable) return;
+      keepQuizzes();
+      run = startRun(mode.id, random);
+      if (run) screen = "quiz";
+    },
+    playable ? "#78ff78" : "#6a6a7a"
+  );
+  button("Delete quiz", SCREEN_WIDTH - FIELD_LEFT - 160, SCREEN_HEIGHT - 72, 160, () => {
+    if (!window.confirm(`Delete "${mode.name}"? It won't come back.`)) return;
+    yourModes.splice(editingMode, 1);
+    editingMode = -1;
+    keepQuizzes();
+    screen = "create";
+  }, "#ff8080");
+
+  text("Q to go back", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 24, { size: 15, color: "#8c8c9c" });
+}
+
+function drawQuestionEditor(): void {
+  const mode = currentMode();
+  const question = mode?.questions[editingQuestion];
+  if (!mode || !question) {
+    screen = "editor";
+    return;
+  }
+  ctx.fillStyle = DEFAULT_BG;
+  ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+  text(`Question ${editingQuestion + 1} of ${mode.questions.length}`, SCREEN_WIDTH / 2, 28, {
+    size: 20,
+    color: mode.color,
+  });
+
+  field("THE QUESTION", question.question, 66, 74, typingInto === "question", "What do you want to ask?", () => {
+    typingInto = typingInto === "question" ? null : "question";
+  });
+
+  text("THE ANSWERS — click the circle to mark the right one", FIELD_LEFT, 166, {
+    size: 14,
+    color: "#9a9aae",
+    align: "left",
+  });
+
+  question.options.forEach((option, index) => {
+    const y = 184 + index * 62;
+    const isRight = question.answer === index;
+
+    // The circle that says which one is right.
+    ctx.strokeStyle = isRight ? "#78ff78" : "#6a6a7a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(FIELD_LEFT - 22, y + 22, 11, 0, Math.PI * 2);
+    ctx.stroke();
+    if (isRight) {
+      ctx.fillStyle = "#78ff78";
+      ctx.beginPath();
+      ctx.arc(FIELD_LEFT - 22, y + 22, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    zone(FIELD_LEFT - 40, y + 4, 36, 36, () => {
+      question.answer = index;
+      keepQuizzes();
+    });
+
+    const key = `option${index}` as "option0" | "option1" | "option2" | "option3";
+    field("", option, y, 44, typingInto === key, `Answer ${index + 1}`, () => {
+      typingInto = typingInto === key ? null : key;
+    });
+  });
+
+  button("Done", FIELD_LEFT, SCREEN_HEIGHT - 60, 150, () => {
+    keepQuizzes();
+    typingInto = null;
+    screen = "editor";
+  }, "#78ff78");
+  button("Delete question", SCREEN_WIDTH - FIELD_LEFT - 190, SCREEN_HEIGHT - 60, 190, () => {
+    const written = question.question.trim() || question.options.some((option) => option.trim());
+    if (written && !window.confirm("Delete this question? It won't come back.")) return;
+    mode.questions.splice(editingQuestion, 1);
+    editingQuestion = -1;
+    typingInto = null;
+    keepQuizzes();
+    screen = "editor";
+  }, "#ff8080");
+
+  text("Type to fill in whichever box is lit up · TAB for the next one", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 16, {
+    size: 14,
+    color: "#7a7a8a",
+  });
+}
+
+// Typing goes into the lit-up box, and TAB moves along to the next one.
+const TYPING_ORDER = ["question", "option0", "option1", "option2", "option3"] as const;
+
+function typeKey(key: string): boolean {
+  if (!typingInto) return false;
+  const mode = currentMode();
+  if (!mode) return false;
+
+  if (key === "Escape") {
+    typingInto = null;
+    return true;
+  }
+  if (key === "Enter" || key === "Tab") {
+    if (typingInto === "name") typingInto = null;
+    else {
+      const at = TYPING_ORDER.indexOf(typingInto);
+      typingInto = TYPING_ORDER[(at + 1) % TYPING_ORDER.length] ?? null;
+    }
+    keepQuizzes();
+    return true;
+  }
+
+  if (typingInto === "name") {
+    mode.name = typeInto(mode.name, key, MAX_NAME_LENGTH);
+    keepQuizzes();
+    return true;
+  }
+
+  const question = mode.questions[editingQuestion];
+  if (!question) return false;
+  if (typingInto === "question") {
+    question.question = typeInto(question.question, key, MAX_QUESTION_LENGTH);
+  } else {
+    const index = Number(typingInto.slice(-1));
+    question.options[index] = typeInto(question.options[index] ?? "", key, MAX_OPTION_LENGTH);
+  }
+  keepQuizzes();
+  return true;
 }
 
 function drawGodMenu(): void {
@@ -672,14 +1022,35 @@ canvas.addEventListener("pointerup", () => {
 window.addEventListener("keydown", (event) => {
   const key = event.key;
 
+  // While a box in the creator is lit up, every key goes into it — including
+  // the letter q and the number keys.
+  if ((screen === "editor" || screen === "question") && typingInto) {
+    if (key === "Tab") event.preventDefault();
+    if (typeKey(key)) return;
+  }
+
   if (key === "q" || key === "Q" || key === "Escape") {
     if (screen === "quiz" || screen === "infinite") {
-      screen = "select";
+      screen = run?.difficultyName.startsWith("custom-") ? "create" : "select";
       run = null;
       return;
     }
     if (screen === "extra" || screen === "error" || screen === "infiniteSelect" || screen === "godMenu") {
       screen = "select";
+      return;
+    }
+    if (screen === "create") {
+      screen = "select";
+      return;
+    }
+    if (screen === "editor") {
+      keepQuizzes();
+      screen = "create";
+      return;
+    }
+    if (screen === "question") {
+      keepQuizzes();
+      screen = "editor";
       return;
     }
   }
@@ -703,6 +1074,16 @@ window.addEventListener("keydown", (event) => {
   const number = Number(key);
   if (!Number.isInteger(number) || number < 1 || number > 9) return;
   const index = number - 1;
+
+  if (screen === "create") {
+    const mode = yourModes[index];
+    if (!mode) return;
+    editingMode = index;
+    typingInto = null;
+    screen = "editor";
+    return;
+  }
+  if (screen === "editor" || screen === "question") return;
 
   if (screen === "select") {
     const name = availableDifficulties(perfect)[index];
@@ -779,6 +1160,9 @@ function frame(now: number): void {
   }
 
   if (screen === "select") drawSelect();
+  else if (screen === "create") drawCreate();
+  else if (screen === "editor") drawEditor();
+  else if (screen === "question") drawQuestionEditor();
   else if (screen === "extra") drawExtra();
   else if (screen === "error") drawError();
   else if (screen === "quiz" && run) drawQuiz(run, false);

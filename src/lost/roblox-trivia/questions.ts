@@ -17,6 +17,9 @@ export interface Difficulty {
   color: string;
   hidden: boolean;
   questions: Question[];
+  // Quizzes you write yourself are looked up by id, so they carry the name you
+  // gave them separately.
+  label?: string;
 }
 
 export const DIFFICULTIES: Record<string, Difficulty> = {
