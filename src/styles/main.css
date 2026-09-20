@@ -848,6 +848,121 @@ h1.is-glitching::after {
   border-color: var(--warn);
 }
 
+/* The wiring under Zero Logic Escape Rooms. It hangs off the bottom of the
+   card, outside its link, so hooking wires up never opens the game. */
+.has-wires {
+  position: relative;
+  padding-bottom: 92px;
+}
+
+.wire-panel {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  height: 78px;
+  border-radius: 0 0 12px 12px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.55),
+    rgba(0, 0, 0, 0.55) 12px,
+    rgba(20, 16, 10, 0.55) 12px,
+    rgba(20, 16, 10, 0.55) 24px
+  );
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-top: none;
+}
+
+/* The wires keep off the label underneath them. */
+.wire-lines {
+  position: absolute;
+  inset: 0 0 18px;
+  width: 100%;
+  height: calc(100% - 18px);
+}
+
+.wire-ports {
+  position: absolute;
+  inset: 0;
+}
+
+.wire-port {
+  position: absolute;
+  top: 6px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  background: var(--port);
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+.wire-port:hover {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2);
+}
+
+.wire-port.is-armed {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.55);
+}
+
+.wire-port.is-wired {
+  cursor: default;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.wire-port.is-wrong {
+  animation: wire-shake 0.3s ease;
+}
+
+@keyframes wire-shake {
+  25% { transform: translateX(-50%) rotate(-12deg) scale(1.2); }
+  75% { transform: translateX(-50%) rotate(12deg) scale(1.2); }
+}
+
+.wire-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Two wires in and this comes down out of the card. */
+.wire-button {
+  position: absolute;
+  left: 50%;
+  bottom: -26px;
+  width: 54px;
+  height: 40px;
+  padding: 0;
+  border: 3px solid #5a1414;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ff5c5c, #c21d1d);
+  color: #2a0505;
+  font-size: 18px;
+  font-weight: bold;
+  transform: translateX(-50%);
+  box-shadow: 0 6px 0 #5a1414;
+  cursor: pointer;
+  animation: wire-button-drop 0.45s cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+
+.wire-button.is-pressed {
+  transform: translate(-50%, 6px);
+  box-shadow: 0 0 0 #5a1414;
+}
+
+@keyframes wire-button-drop {
+  from { transform: translate(-50%, -40px); opacity: 0; }
+  to { transform: translateX(-50%); opacity: 1; }
+}
+
 .escape-switch:focus-visible {
   outline: 3px solid var(--warn);
   outline-offset: 3px;

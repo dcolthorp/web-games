@@ -24,6 +24,14 @@
       "url": "http://localhost:5211",
       "port": 5211,
       "autoPort": false
+    },
+    {
+      "name": "games-dev-4",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5233", "--strictPort"],
+      "url": "http://localhost:5233",
+      "port": 5233,
+      "autoPort": false
     }
   ]
 }

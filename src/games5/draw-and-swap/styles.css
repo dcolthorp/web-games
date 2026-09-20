@@ -1,0 +1,529 @@
+:root {
+  color-scheme: dark;
+  --paper-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #f4eefc;
+  background: radial-gradient(circle at 20% -10%, #43226b, #120a1d 60%);
+}
+
+.page {
+  width: min(1040px, calc(100vw - 24px));
+  margin: 0 auto;
+  padding: 18px 0 48px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: rgba(244, 238, 252, 0.75);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+h1 {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2rem, 5.5vw, 3.4rem);
+  letter-spacing: 0.02em;
+  color: #ffe066;
+  text-shadow: 3px 3px 0 #ff4fa3;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  color: #ffd1f0;
+}
+
+h3 {
+  margin: 18px 0 6px;
+  font-size: 1rem;
+  color: #c7b4e6;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tagline {
+  margin: 4px 0 0;
+  color: #b9a7d6;
+}
+
+.status {
+  margin: 14px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #ded3f2;
+  font-size: 14px;
+}
+
+.panel {
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #b9a7d6;
+}
+
+.field {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(10, 6, 18, 0.7);
+  color: #fff;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.field:focus {
+  outline: 2px solid #ff4fa3;
+}
+
+.button {
+  margin-top: 12px;
+  padding: 11px 18px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ff77bd, #e0338a);
+  color: #1b0a14;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.button:hover {
+  filter: brightness(1.1);
+}
+
+.button-quiet {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4eefc;
+}
+
+.button-danger {
+  background: linear-gradient(180deg, #ff7a5c, #d92d2d);
+  color: #fff;
+}
+
+.hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #9d8dbb;
+}
+
+.lobby-split {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 16px;
+}
+
+.lobby-half {
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* The vibe is the whole prompt, so it gets to look like a poster. */
+.vibe-card {
+  margin: 10px 0;
+  padding: 18px;
+  border-radius: 16px;
+  text-align: center;
+  background: linear-gradient(135deg, #2b1247, #6a2a8f 60%, #ff4fa3);
+  border: 2px dashed rgba(255, 255, 255, 0.35);
+}
+
+.vibe-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.vibe-name {
+  margin: 6px 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: clamp(2rem, 7vw, 3.6rem);
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
+}
+
+.vibe-hint {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 15px;
+}
+
+.artists {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.artists li {
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 15px;
+}
+
+.artists li.is-you {
+  background: #ffe066;
+  color: #26123a;
+  font-weight: bold;
+}
+
+.artists li.is-done::after {
+  content: " ✅";
+}
+
+.studio-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.round-label {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 1.6rem;
+  color: #ffe066;
+}
+
+.round-line {
+  margin: 2px 0 0;
+  color: #cbb9e8;
+}
+
+.clock {
+  margin: 0;
+  font-family: "Courier New", monospace;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: bold;
+  color: #7dffb0;
+}
+
+.clock.is-low {
+  color: #ff6b6b;
+  animation: clock-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes clock-pulse {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.paper-stack {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 900 / 620;
+}
+
+.paper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--paper-shadow);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.preview {
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* The text box floats on the paper at the spot you clicked. */
+.text-box {
+  position: absolute;
+  z-index: 5;
+}
+
+.text-box[hidden] {
+  display: none;
+}
+
+.text-input {
+  min-width: 220px;
+  padding: 4px 8px;
+  border: 2px dashed #e0338a;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #111;
+  font-family: inherit;
+}
+
+.text-input:focus {
+  outline: none;
+}
+
+.door-line {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 224, 102, 0.18);
+  border: 1px solid rgba(255, 224, 102, 0.5);
+  color: #ffe066;
+  font-size: 14px;
+}
+
+.door-line[hidden] {
+  display: none;
+}
+
+.framed {
+  position: relative;
+  display: block;
+}
+
+/* An invisible hatch sitting exactly on top of the drawn door. */
+.door-spot {
+  position: absolute;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.door-spot:hover,
+.door-spot:focus-visible {
+  background: rgba(255, 224, 102, 0.35);
+  outline: 2px solid #ffe066;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.tool-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.tool {
+  padding: 8px 12px;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #f4eefc;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tool.is-on {
+  border-color: #ffe066;
+  background: rgba(255, 224, 102, 0.22);
+}
+
+.tool-danger {
+  background: rgba(217, 45, 45, 0.45);
+}
+
+.swatch {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch.is-on {
+  border-color: #fff;
+  transform: scale(1.15);
+}
+
+.size-group .label {
+  margin: 0;
+}
+
+.size-readout {
+  min-width: 2.2ch;
+  font-family: "Courier New", monospace;
+}
+
+.gallery {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 12px;
+}
+
+.gallery figure {
+  margin: 0;
+}
+
+.gallery img {
+  width: 100%;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: var(--paper-shadow);
+}
+
+.gallery figcaption {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #cbb9e8;
+}
+
+/* The erase-all warning lands dead centre, over everything. */
+.warning-shade {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 4, 14, 0.75);
+  z-index: 20;
+}
+
+.warning-shade[hidden] {
+  display: none;
+}
+
+.warning-box {
+  width: min(430px, 100%);
+  padding: 22px;
+  border-radius: 18px;
+  text-align: center;
+  background: #23113a;
+  border: 3px solid #ff6b6b;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.warning-title {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 2.2rem;
+  color: #ff6b6b;
+}
+
+.warning-copy {
+  margin: 10px 0 0;
+  color: #e6dcf5;
+}
+
+.warning-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+@media (max-width: 620px) {
+  /* The text box floats on the paper at the spot you clicked. */
+.text-box {
+  position: absolute;
+  z-index: 5;
+}
+
+.text-box[hidden] {
+  display: none;
+}
+
+.text-input {
+  min-width: 220px;
+  padding: 4px 8px;
+  border: 2px dashed #e0338a;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #111;
+  font-family: inherit;
+}
+
+.text-input:focus {
+  outline: none;
+}
+
+.door-line {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 224, 102, 0.18);
+  border: 1px solid rgba(255, 224, 102, 0.5);
+  color: #ffe066;
+  font-size: 14px;
+}
+
+.door-line[hidden] {
+  display: none;
+}
+
+.framed {
+  position: relative;
+  display: block;
+}
+
+/* An invisible hatch sitting exactly on top of the drawn door. */
+.door-spot {
+  position: absolute;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.door-spot:hover,
+.door-spot:focus-visible {
+  background: rgba(255, 224, 102, 0.35);
+  outline: 2px solid #ffe066;
+}
+
+.toolbar {
+    gap: 8px;
+  }
+
+  .tool {
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+}

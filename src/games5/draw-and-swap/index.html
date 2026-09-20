@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Draw and Swap</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Games 5</a>
+      <header class="top">
+        <h1>Draw and Swap</h1>
+        <p class="tagline">No prompt. Just a vibe. And it isn't your paper for long.</p>
+      </header>
+
+      <p class="status" id="status" role="status">Make a room, or join the one somebody shouted at you.</p>
+
+      <section class="panel" id="lobby">
+        <label class="label" for="artist-name">Your name</label>
+        <input class="field" id="artist-name" maxlength="18" autocomplete="off" placeholder="Oscar" />
+
+        <div class="lobby-split">
+          <form class="lobby-half" id="create-form">
+            <h2>Make a Room</h2>
+            <label class="label" for="create-room">Room name</label>
+            <input class="field" id="create-room" maxlength="24" autocomplete="off" placeholder="the sketchy ones" required />
+            <button class="button" type="submit">Make It</button>
+            <p class="hint">Say the room name out loud. That's the whole invite.</p>
+          </form>
+
+          <form class="lobby-half" id="join-form">
+            <h2>Join a Room</h2>
+            <label class="label" for="join-room">Room name</label>
+            <input class="field" id="join-room" maxlength="24" autocomplete="off" placeholder="the sketchy ones" required />
+            <button class="button button-quiet" type="submit">Join It</button>
+            <p class="hint">Works across computers, or in another tab right here.</p>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel" id="room" hidden>
+        <h2 id="room-title">Room</h2>
+        <div class="vibe-card">
+          <p class="vibe-eyebrow">Tonight's vibe</p>
+          <p class="vibe-name" id="vibe-name">—</p>
+          <p class="vibe-hint" id="vibe-hint"></p>
+          <button class="button button-quiet" id="reroll" type="button" hidden>🎲 Different Vibe</button>
+        </div>
+
+        <h3>Who's drawing</h3>
+        <ul class="artists" id="artists"></ul>
+
+        <div class="room-controls" id="host-controls" hidden>
+          <label class="label" for="minutes">Minutes per round</label>
+          <select class="field" id="minutes">
+            <option value="1">1</option>
+            <option value="3">3</option>
+            <option value="5" selected>5</option>
+            <option value="10">10</option>
+          </select>
+          <button class="button" id="start" type="button">Start Drawing</button>
+        </div>
+        <p class="hint" id="guest-wait" hidden>Waiting for whoever made the room to start it.</p>
+      </section>
+
+      <section class="studio" id="studio" hidden>
+        <div class="studio-bar">
+          <div>
+            <p class="round-label" id="round-label">Round 1</p>
+            <p class="round-line" id="round-line">Your paper.</p>
+          </div>
+          <p class="clock" id="clock">5:00</p>
+        </div>
+
+        <div class="paper-stack">
+          <canvas class="paper" id="paper" width="900" height="620" aria-label="Your drawing"></canvas>
+          <canvas class="paper preview" id="preview" width="900" height="620" aria-hidden="true"></canvas>
+          <div class="text-box" id="text-box" hidden>
+            <input class="text-input" id="text-input" maxlength="60" autocomplete="off" placeholder="type, then Enter" aria-label="Words to put on the paper" />
+          </div>
+        </div>
+        <p class="door-line" id="door-line" hidden>🚪 There's a door on this paper. Double-click it.</p>
+
+        <div class="toolbar">
+          <div class="tool-group" id="tools" role="group" aria-label="Tools">
+            <button class="tool is-on" type="button" data-tool="freeform" aria-pressed="true">✏️ Freeform</button>
+            <button class="tool" type="button" data-tool="line" aria-pressed="false">📏 Line</button>
+            <button class="tool" type="button" data-tool="square" aria-pressed="false">⬛ Square</button>
+            <button class="tool" type="button" data-tool="fill" aria-pressed="false">🪣 Fill</button>
+            <button class="tool" type="button" data-tool="text" aria-pressed="false">🔤 Text</button>
+            <button class="tool" type="button" data-tool="eraser" aria-pressed="false">🧽 Erase</button>
+            <button class="tool tool-danger" id="erase-all" type="button">💥 Erase All</button>
+          </div>
+
+          <div class="tool-group" id="colors" role="group" aria-label="Colors"></div>
+
+          <div class="tool-group size-group">
+            <label class="label" for="size">Size</label>
+            <input id="size" type="range" min="1" max="60" value="6" />
+            <span class="size-readout" id="size-readout">6</span>
+          </div>
+
+          <button class="button" id="done" type="button">I'm Done Early</button>
+        </div>
+        <p class="hint" id="host-skip-hint" hidden>
+          <button class="button button-quiet" id="skip" type="button">Swap Now</button>
+        </p>
+      </section>
+
+      <section class="panel" id="gallery-panel" hidden>
+        <h2>The Gallery</h2>
+        <p class="hint" id="gallery-line">Three rounds, however many hands. Here's what survived.</p>
+        <div class="gallery" id="gallery"></div>
+        <button class="button" id="again" type="button">Back to the Room</button>
+      </section>
+    </main>
+
+    <div class="warning-shade" id="confirm" hidden>
+      <div class="warning-box" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-copy">
+        <p class="warning-title" id="confirm-title">ERASE ALL?</p>
+        <p class="warning-copy" id="confirm-copy">
+          This wipes the whole paper. Every single thing on it. There's no getting it back.
+        </p>
+        <div class="warning-row">
+          <button class="button button-danger" id="confirm-yes" type="button">Yes, erase it all</button>
+          <button class="button button-quiet" id="confirm-no" type="button">No, never mind</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

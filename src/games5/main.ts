@@ -23,6 +23,13 @@ const games: Game[] = [
     blurb: "Nobody knows what it is yet. Not even the calculator.",
   },
   {
+    id: "draw-and-swap",
+    name: "Draw and Swap",
+    path: "./draw-and-swap/index.html",
+    genre: "Drawing Party",
+    blurb: "No prompt, just a vibe. Then somebody else finishes your drawing.",
+  },
+  {
     id: "cross-your-fingers",
     name: "Cross Your Fingers",
     path: "./cross-your-fingers/index.html",

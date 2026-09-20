@@ -2,6 +2,7 @@ import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
 import { earthIsBuilt, hasAllEarthFragments, openEarthAssembly } from "./earthAssembly";
 import { hasAllSwitchPieces, openSwitchAssembly, switchIsBuilt } from "./switchAssembly";
+import { mountWirePanel, wasKickedOut, wiresAreDone } from "./wirePanel";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -89,9 +90,17 @@ function renderGameList(): void {
 
   list.innerHTML = games
     .map((game) => {
-      const hasSwitch = game.id === "zero-logic-escape-rooms" && switchIsBuilt();
+      const isEscape = game.id === "zero-logic-escape-rooms";
+      // Whatever the switch says, the wiring underneath outranks it.
+      const wired = isEscape && wiresAreDone();
+      const hasSwitch = isEscape && switchIsBuilt() && !wired;
       const hundred = hasSwitch && isHundred();
-      const name = hundred ? "Hundred Logic Escape Rooms" : game.name;
+      const name = wired
+        ? "Zero Logic Escape Rooms 2"
+        : hundred
+          ? "Hundred Logic Escape Rooms"
+          : game.name;
+      const path = wired ? "./zero-logic-escape-rooms-2/index.html" : game.path;
       // The switch sits outside the card's link, so flipping it doesn't open the game.
       const switchButton = hasSwitch
         ? `<button class="escape-switch${hundred ? " is-on" : ""}" type="button" aria-pressed="${hundred}" aria-label="Switch between Zero Logic and Hundred Logic Escape Rooms"><span class="escape-switch-lever" aria-hidden="true"></span></button>`
@@ -99,19 +108,34 @@ function renderGameList(): void {
       return `
       <li class="${hasSwitch ? "has-escape-switch" : ""}">
         ${switchButton}
-        <a class="game-card games4-game-card" data-game-id="${game.id}" href="${game.path}" aria-label="${name}">
+        <a class="game-card games4-game-card" data-game-id="${game.id}" href="${path}" aria-label="${name}">
           <span class="game-card-top">
             <span class="game-tag">${game.genre}</span>
             <span class="game-arrow" aria-hidden="true">→</span>
           </span>
           <span class="game-title">${game.menuLabel ?? name}</span>
-          <span class="game-blurb">${hundred ? "Every room has a way out, and every way out makes sense." : game.blurb}</span>
+          <span class="game-blurb">${wired ? "You wired it yourself. Nobody else even knows it's here." : hundred ? "Every room has a way out, and every way out makes sense." : game.blurb}</span>
         </a>
       </li>
     `;
     })
     .join("") + (earthIsBuilt() ? WORLD_SANDBOX_CARD : "");
   list.querySelector(".escape-switch")?.addEventListener("click", flipEscapeSwitch);
+  hangWires(list);
+}
+
+// Nothing says the wires are there. You have to have been thrown out of the
+// hallway to see them at all.
+function hangWires(list: HTMLElement): void {
+  if (!wasKickedOut() || wiresAreDone()) return;
+  const card = list.querySelector<HTMLElement>('[data-game-id="zero-logic-escape-rooms"]');
+  const slot = card?.parentElement;
+  if (!slot || slot.querySelector(".wire-panel")) return;
+  slot.classList.add("has-wires");
+  mountWirePanel(slot, () => {
+    renderGameList();
+    window.location.href = "./zero-logic-escape-rooms-2/index.html";
+  });
 }
 
 renderGameList();
