@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { PORT_COUNT, WIRE_COLORS, canConnect, makePorts } from "./wirePanel";
+import {
+  PORT_COUNT,
+  WIRES_NEEDED,
+  WIRE_COLORS,
+  canConnect,
+  makePorts,
+  matchedPairs,
+} from "./wirePanel";
 
 describe("makePorts", () => {
   it("lays out every colour twice", () => {
@@ -38,5 +45,28 @@ describe("canConnect", () => {
 
   it("refuses a port that already has a wire in it", () => {
     expect(canConnect(ports, 0, 2, [2, 5])).toBe(false);
+  });
+});
+
+describe("matchedPairs", () => {
+  it("pairs up both ends of every colour", () => {
+    const pairs = matchedPairs(makePorts([0.3, 0.8, 0.1, 0.6, 0.4]));
+    expect(pairs).toHaveLength(WIRE_COLORS.length);
+    const ends = pairs.flat();
+    expect(new Set(ends).size).toBe(PORT_COUNT);
+  });
+
+  it("only ever joins two ports of the same colour", () => {
+    const ports = makePorts([0.9, 0.2, 0.7, 0.5, 0.1]);
+    for (const [a, b] of matchedPairs(ports)) {
+      expect(ports[a]).toBe(ports[b]);
+    }
+  });
+});
+
+describe("WIRES_NEEDED", () => {
+  it("is every wire on the strip, not just some of them", () => {
+    expect(WIRES_NEEDED).toBe(WIRE_COLORS.length);
+    expect(WIRES_NEEDED * 2).toBe(PORT_COUNT);
   });
 });

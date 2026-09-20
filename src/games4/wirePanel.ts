@@ -1,14 +1,20 @@
 // The wiring under Zero Logic Escape Rooms. Nobody is told about it: you only
 // get here by drawing a door in Draw and Swap, finding the way out of the
-// hallway behind it, and getting dumped on this hub without a word. Hook two
-// matching wires from one end of the card's underside to the other and a
-// button drops down.
+// hallway behind it, and getting dumped on this hub without a word. The ports
+// poke out of the bottom edge of the card itself. Hook all three matching
+// wires from one end of the card's underside to the other and a button drops
+// down.
+//
+// The button doesn't take you anywhere. It switches the card between Zero
+// Logic Escape Rooms and Zero Logic Escape Rooms 2, and you go in through the
+// card like you would with any other game.
 
 const KICKED_KEY = "games4-kicked-out";
 const WIRED_KEY = "zero-logic-escape-rooms-wired";
+const SEQUEL_KEY = "zero-logic-escape-rooms-showing-2";
 
 export const PORT_COUNT = 6;
-export const WIRES_NEEDED = 2;
+export const WIRES_NEEDED = 3;
 export const WIRE_COLORS = ["#ff4fa3", "#ffe066", "#38d9a9"];
 
 function readFlag(key: string): boolean {
@@ -19,9 +25,9 @@ function readFlag(key: string): boolean {
   }
 }
 
-function writeFlag(key: string): void {
+function writeFlag(key: string, value = true): void {
   try {
-    localStorage.setItem(key, "true");
+    localStorage.setItem(key, String(value));
   } catch {
     // Nothing to remember it with, so the secret closes behind you.
   }
@@ -41,6 +47,15 @@ export function wiresAreDone(): boolean {
   return readFlag(WIRED_KEY);
 }
 
+/** Which of the two games the card is currently showing. */
+export function showingSequel(): boolean {
+  return readFlag(SEQUEL_KEY);
+}
+
+export function flipSequel(): void {
+  writeFlag(SEQUEL_KEY, !showingSequel());
+}
+
 /**
  * Six ports along the bottom: three colours, twice each, shuffled so the
  * matching one is never the port next door. `rolls` is one random number per
@@ -56,6 +71,18 @@ export function makePorts(rolls: number[]): string[] {
     ports[swap] = held;
   }
   return ports;
+}
+
+/** The two ends of each colour, for showing wiring that is already done. */
+export function matchedPairs(ports: string[]): [number, number][] {
+  const seen = new Map<string, number>();
+  const pairs: [number, number][] = [];
+  ports.forEach((color, index) => {
+    const first = seen.get(color);
+    if (first === undefined) seen.set(color, index);
+    else pairs.push([first, index]);
+  });
+  return pairs;
 }
 
 export function canConnect(ports: string[], a: number, b: number, wired: number[]): boolean {
@@ -77,14 +104,16 @@ function portX(index: number): number {
 function wirePath(a: number, b: number): string {
   const x1 = portX(a);
   const x2 = portX(b);
-  return `M ${x1} 5 C ${x1} 27, ${x2} 27, ${x2} 5`;
+  // Out of one port, down into a slack loop, and back up into the other.
+  return `M ${x1} 1 C ${x1} 26, ${x2} 26, ${x2} 1`;
 }
 
 /**
- * Hangs the panel under the card. `onDone` runs once the button has been
- * pressed all the way down, so the hub can rename the card and move you on.
+ * Hangs the panel under the card. `onChange` runs whenever the button is
+ * pressed, so the hub can redraw the card as whichever game it now says.
+ * Wiring that was finished on an earlier visit comes back already hooked up.
  */
-export function mountWirePanel(host: HTMLElement, onDone: () => void): void {
+export function mountWirePanel(host: HTMLElement, onChange: () => void): void {
   const ports = makePorts([Math.random(), Math.random(), Math.random(), Math.random(), Math.random()]);
   const wired: number[] = [];
   const wires: Wire[] = [];
@@ -104,7 +133,9 @@ export function mountWirePanel(host: HTMLElement, onDone: () => void): void {
         )
         .join("")}
     </div>
-    <p class="wire-note" aria-live="polite">Two wires. Same colour to same colour.</p>
+    <p class="wire-note" aria-live="polite">${
+      wiresAreDone() ? "Wired. The button switches it." : "All three. Same colour to same colour."
+    }</p>
   `;
   host.appendChild(panel);
 
@@ -139,7 +170,7 @@ export function mountWirePanel(host: HTMLElement, onDone: () => void): void {
     const box = lines.getBoundingClientRect();
     const x = ((event.clientX - box.left) / box.width) * 100;
     const y = ((event.clientY - box.top) / box.height) * 30;
-    live.setAttribute("d", `M ${portX(armed)} 5 C ${portX(armed)} 27, ${x} ${y}, ${x} ${y}`);
+    live.setAttribute("d", `M ${portX(armed)} 1 C ${portX(armed)} 26, ${x} ${y}, ${x} ${y}`);
     live.setAttribute("stroke", ports[armed] ?? "#fff");
   });
 
@@ -164,9 +195,10 @@ export function mountWirePanel(host: HTMLElement, onDone: () => void): void {
       portButton(wire.a)?.classList.add("is-wired");
       portButton(wire.b)?.classList.add("is-wired");
       disarm();
+      const left = WIRES_NEEDED - wires.length;
       note.textContent =
-        wires.length >= WIRES_NEEDED ? "Something came down." : "One more wire.";
-      if (wires.length >= WIRES_NEEDED) dropButton();
+        left <= 0 ? "Something came down." : left === 1 ? "One more wire." : `${left} more wires.`;
+      if (left <= 0) addButton(true);
       return;
     }
 
@@ -177,18 +209,38 @@ export function mountWirePanel(host: HTMLElement, onDone: () => void): void {
     note.textContent = "Not that one.";
   });
 
-  function dropButton(): void {
+  // The button that comes down out of the card. All it does is flip the card
+  // between the two games, and it stays down while the card says the second.
+  function addButton(dropping: boolean): void {
     if (panel.querySelector(".wire-button")) return;
     const button = document.createElement("button");
-    button.className = "wire-button";
+    button.className = `wire-button${dropping ? " is-dropping" : ""}${showingSequel() ? " is-pressed" : ""}`;
     button.type = "button";
     button.textContent = "▼";
-    button.setAttribute("aria-label", "Press the button that came down");
+    button.setAttribute("aria-label", "Switch between Zero Logic Escape Rooms and Zero Logic Escape Rooms 2");
+    button.setAttribute("aria-pressed", String(showingSequel()));
     panel.appendChild(button);
     button.addEventListener("click", () => {
-      button.classList.add("is-pressed");
       writeFlag(WIRED_KEY);
-      window.setTimeout(onDone, 420);
+      flipSequel();
+      button.classList.toggle("is-pressed", showingSequel());
+      button.setAttribute("aria-pressed", String(showingSequel()));
+      note.textContent = showingSequel() ? "It says 2 now." : "Back to the first one.";
+      onChange();
     });
+  }
+
+  // Wiring you did on another visit is still wired when you come back: the
+  // two wires it took, not every pair on the strip.
+  if (wiresAreDone()) {
+    for (const [a, b] of matchedPairs(ports).slice(0, WIRES_NEEDED)) {
+      const color = ports[a] ?? "#fff";
+      wires.push({ a, b, color });
+      wired.push(a, b);
+      drawWire({ a, b, color });
+      portButton(a)?.classList.add("is-wired");
+      portButton(b)?.classList.add("is-wired");
+    }
+    addButton(false);
   }
 }

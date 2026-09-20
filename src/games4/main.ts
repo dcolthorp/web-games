@@ -2,7 +2,7 @@ import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
 import { earthIsBuilt, hasAllEarthFragments, openEarthAssembly } from "./earthAssembly";
 import { hasAllSwitchPieces, openSwitchAssembly, switchIsBuilt } from "./switchAssembly";
-import { mountWirePanel, wasKickedOut, wiresAreDone } from "./wirePanel";
+import { mountWirePanel, showingSequel, wasKickedOut, wiresAreDone } from "./wirePanel";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -91,16 +91,17 @@ function renderGameList(): void {
   list.innerHTML = games
     .map((game) => {
       const isEscape = game.id === "zero-logic-escape-rooms";
-      // Whatever the switch says, the wiring underneath outranks it.
-      const wired = isEscape && wiresAreDone();
-      const hasSwitch = isEscape && switchIsBuilt() && !wired;
+      // The button under the card says which of the two games this is. While
+      // it says the second one, the Zero/Hundred lever has nothing to flip.
+      const sequel = isEscape && wiresAreDone() && showingSequel();
+      const hasSwitch = isEscape && switchIsBuilt() && !sequel;
       const hundred = hasSwitch && isHundred();
-      const name = wired
+      const name = sequel
         ? "Zero Logic Escape Rooms 2"
         : hundred
           ? "Hundred Logic Escape Rooms"
           : game.name;
-      const path = wired ? "./zero-logic-escape-rooms-2/index.html" : game.path;
+      const path = sequel ? "./zero-logic-escape-rooms-2/index.html" : game.path;
       // The switch sits outside the card's link, so flipping it doesn't open the game.
       const switchButton = hasSwitch
         ? `<button class="escape-switch${hundred ? " is-on" : ""}" type="button" aria-pressed="${hundred}" aria-label="Switch between Zero Logic and Hundred Logic Escape Rooms"><span class="escape-switch-lever" aria-hidden="true"></span></button>`
@@ -114,7 +115,7 @@ function renderGameList(): void {
             <span class="game-arrow" aria-hidden="true">→</span>
           </span>
           <span class="game-title">${game.menuLabel ?? name}</span>
-          <span class="game-blurb">${wired ? "You wired it yourself. Nobody else even knows it's here." : hundred ? "Every room has a way out, and every way out makes sense." : game.blurb}</span>
+          <span class="game-blurb">${sequel ? "You wired it yourself. Nobody else even knows it's here." : hundred ? "Every room has a way out, and every way out makes sense." : game.blurb}</span>
         </a>
       </li>
     `;
@@ -125,17 +126,15 @@ function renderGameList(): void {
 }
 
 // Nothing says the wires are there. You have to have been thrown out of the
-// hallway to see them at all.
+// hallway to see them at all. Once they're hooked up they stay hooked up, and
+// the button under the card is how you pick which game the card is.
 function hangWires(list: HTMLElement): void {
-  if (!wasKickedOut() || wiresAreDone()) return;
+  if (!wasKickedOut()) return;
   const card = list.querySelector<HTMLElement>('[data-game-id="zero-logic-escape-rooms"]');
   const slot = card?.parentElement;
   if (!slot || slot.querySelector(".wire-panel")) return;
   slot.classList.add("has-wires");
-  mountWirePanel(slot, () => {
-    renderGameList();
-    window.location.href = "./zero-logic-escape-rooms-2/index.html";
-  });
+  mountWirePanel(slot, renderGameList);
 }
 
 renderGameList();

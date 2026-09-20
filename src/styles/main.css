@@ -852,33 +852,25 @@ h1.is-glitching::after {
    card, outside its link, so hooking wires up never opens the game. */
 .has-wires {
   position: relative;
-  padding-bottom: 92px;
+  padding-bottom: 118px;
 }
 
+/* No panel, no housing: the ports come straight out of the bottom edge of the
+   card and the wires hang underneath it. */
 .wire-panel {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 6px;
-  height: 78px;
-  border-radius: 0 0 12px 12px;
-  background: repeating-linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.55),
-    rgba(0, 0, 0, 0.55) 12px,
-    rgba(20, 16, 10, 0.55) 12px,
-    rgba(20, 16, 10, 0.55) 24px
-  );
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  border-top: none;
+  left: 18px;
+  right: 18px;
+  bottom: 8px;
+  height: 110px;
 }
 
 /* The wires keep off the label underneath them. */
 .wire-lines {
   position: absolute;
-  inset: 0 0 18px;
+  inset: 0 0 52px;
   width: 100%;
-  height: calc(100% - 18px);
+  height: calc(100% - 52px);
 }
 
 .wire-ports {
@@ -886,9 +878,11 @@ h1.is-glitching::after {
   inset: 0;
 }
 
+/* Each port sits half inside the card's bottom edge, on a short stalk that
+   disappears up into it. */
 .wire-port {
   position: absolute;
-  top: 6px;
+  top: -9px;
   width: 16px;
   height: 16px;
   padding: 0;
@@ -897,6 +891,18 @@ h1.is-glitching::after {
   background: var(--port);
   transform: translateX(-50%);
   cursor: pointer;
+}
+
+.wire-port::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 5px;
+  height: 12px;
+  border-radius: 2px 2px 0 0;
+  background: rgba(0, 0, 0, 0.55);
+  transform: translateX(-50%);
 }
 
 .wire-port:hover {
@@ -925,19 +931,20 @@ h1.is-glitching::after {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 4px;
+  bottom: 2px;
   margin: 0;
   text-align: center;
   font-size: 11px;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* Two wires in and this comes down out of the card. */
+/* Hangs in front of the slack in the wires, with the label clear underneath. */
 .wire-button {
   position: absolute;
   left: 50%;
-  bottom: -26px;
+  bottom: 20px;
   width: 54px;
   height: 40px;
   padding: 0;
@@ -950,6 +957,9 @@ h1.is-glitching::after {
   transform: translateX(-50%);
   box-shadow: 0 6px 0 #5a1414;
   cursor: pointer;
+}
+
+.wire-button.is-dropping {
   animation: wire-button-drop 0.45s cubic-bezier(0.3, 1.4, 0.6, 1);
 }
 
