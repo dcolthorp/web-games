@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zero Logic Escape Rooms 2</title>
+    <!-- The sequel looks exactly like the first one, so it wears its stylesheet. -->
+    <link rel="stylesheet" href="../zero-logic-escape-rooms/styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Games 4</a>
+      <header class="hero">
+        <p class="eyebrow" id="room-name">Escape Room 1 · Blank, Blank, Blankity Blank</p>
+        <h1>Zero Logic Escape Rooms 2</h1>
+      </header>
+
+      <section class="game-frame" aria-label="Escape room">
+        <canvas id="game" width="960" height="600" aria-label="A room with four empty frames on the wall"></canvas>
+        <div class="escape-overlay" id="escape-overlay" hidden>
+          <div class="escaped-card">
+            <p class="escape-title">YOU ESCAPED</p>
+            <p class="escape-note" id="escape-note"></p>
+            <p class="next-line">Room 5 isn't built yet. Oscar hasn't said what it is.</p>
+          </div>
+          <button type="button" data-action="restart">Go Back In</button>
+        </div>
+      </section>
+
+      <nav class="room-picker" id="room-picker" aria-label="Rooms you have reached" hidden></nav>
+
+      <p class="instructions">There is no door. There is no window. There is no logic. Click things.</p>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

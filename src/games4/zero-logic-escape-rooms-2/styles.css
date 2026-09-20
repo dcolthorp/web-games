@@ -1,0 +1,73 @@
+/* Sits on top of the first game's stylesheet. There are no credits to roll
+   yet, so escaping just puts a card in the middle of the screen. */
+
+.escaped-card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  padding: 0 24px 80px;
+}
+
+.next-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.98rem;
+}
+
+/* Escape Room 4. The sentence under the game is part of the room: a hand comes
+   out of it, and the word "door" is the thing doing the talking. */
+
+.the-word {
+  position: relative;
+  padding: 0 2px;
+  border-bottom: 2px dashed rgba(255, 207, 90, 0.6);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.the-word:hover,
+.the-word:focus-visible {
+  background: rgba(255, 207, 90, 0.18);
+  outline: none;
+}
+
+.the-word.is-smug {
+  animation: word-gloat 0.5s ease;
+}
+
+@keyframes word-gloat {
+  30% {
+    transform: scale(1.5) rotate(-4deg);
+    text-shadow: 0 0 14px rgba(255, 207, 90, 0.9);
+  }
+}
+
+.the-word.is-falling {
+  display: inline-block;
+  animation: word-falls 0.7s cubic-bezier(0.4, 0, 0.9, 0.5) forwards;
+  pointer-events: none;
+}
+
+@keyframes word-falls {
+  to {
+    transform: translate(26px, 120px) rotate(70deg);
+    opacity: 0;
+  }
+}
+
+.the-blank {
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.instructions.is-shaking {
+  animation: line-shakes 0.45s ease;
+}
+
+@keyframes line-shakes {
+  20% { transform: translateX(-7px) rotate(-0.6deg); }
+  50% { transform: translateX(6px) rotate(0.5deg); }
+  80% { transform: translateX(-3px); }
+}
