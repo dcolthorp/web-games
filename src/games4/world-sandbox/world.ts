@@ -27,8 +27,25 @@ export interface Thing {
   hp?: number;
   // Frames until a person can hit again.
   rest?: number;
-  // A mountain's cave, once someone's been inside (see caves.ts).
+  // Frames left of walking back towards home.
+  homing?: number;
+  // A teleporter's own name and the pad it is linked to.
+  pad?: string;
+  link?: string;
+  // Frames until a teleporter will take this person again.
+  warp?: number;
+  // A mountain's cave, once someone's been inside (see caves.ts), and
+  // everything that lives in it: its own little world, in cave coordinates.
   cave?: string;
+  caveThings?: Thing[];
+  // A bomb's fuse, in frames.
+  fuse?: number;
+  // A person who has gone into a cave: the mountain they're in, where they are
+  // inside it, and the crystal they've chipped off the wall to bring out.
+  inside?: [number, number];
+  cx?: number;
+  cy?: number;
+  dug?: string;
 }
 
 export const TSUNAMI_MS = 5000;

@@ -1,7 +1,7 @@
 import { CATEGORIES, CELESTIAL_IDS, CHOICES, MAGIC } from "./catalog";
 import { physics } from "./matrix";
 import type { Choice } from "./sprites";
-import { EFFECT_MS, say, save, world, type Effect } from "./state";
+import { EFFECT_MS, say, save, tribeHasEnemies, tribesAtWar, world, type Effect } from "./state";
 import { H, TSUNAMI_MS, W, isLand, tsunamiRadius, waveReaches, type Thing } from "./world";
 
 // Everything that happens in the world on its own, apart from people.
@@ -105,14 +105,45 @@ export function updateWavesAndEffects(now: number): void {
 
 const RAINBOW = ["#d8362b", "#ee7a2a", "#f7d23e", "#3f9a3a", "#3b7fe0", "#9b59d9"];
 
+// A dragon, a kraken or a star that has joined a tribe goes after the tribes
+// its own is at war with. One whose tribe has no enemies goes back to being an
+// ordinary monster — except that it never touches its own tribe.
+function prey(t: Thing, reach: number, wild: (c: Choice, victim: Thing) => boolean): Thing | undefined {
+  if (!t.tribe) return nearest(t, reach, wild);
+  if (tribeHasEnemies(t.tribe)) return nearest(t, reach + 16, (_, victim) => tribesAtWar(t.tribe, victim.tribe));
+  return nearest(t, reach, (c, victim) => wild(c, victim) && victim.tribe !== t.tribe);
+}
+
+const whose = (t: Thing): string => {
+  const tribe = world.tribes.find((x) => x.id === t.tribe);
+  return tribe ? ` of ${tribe.name}` : "";
+};
+
+// "Kira of GODS", but "an apartment complex of GODS".
+const victimName = (t: Thing): string => `${t.name ? nameOf(t) : aOrAn(nameOf(t))}${whose(t)}`;
+
 export function act(t: Thing, now: number): void {
   const behind = Math.cos(t.heading ?? 0) < 0 ? 4 : -4;
   if (t.type === "dragon" && Math.random() < 0.004) {
-    const victim = nearest(t, 24, (c) => c.habitat === "land" && !c.sturdy);
-    if (victim) destroy(victim, { kind: "fire", x: victim.x, y: victim.y, born: now, color: "" }, `The dragon burned ${nameOf(victim)}!`);
+    const victim = prey(t, 24, (c) => c.habitat === "land" && !c.sturdy);
+    if (victim) {
+      destroy(
+        victim,
+        { kind: "fire", x: victim.x, y: victim.y, born: now, color: "" },
+        `The dragon${whose(t)} burned ${victimName(victim)}!`
+      );
+    }
   } else if (t.type === "kraken" && Math.random() < 0.003) {
-    const victim = nearest(t, 20, (c) => c.habitat === "sea");
-    if (victim) destroy(victim, sparkle(victim.x, victim.y, now, "#f4f1ea"), `The kraken ate the ${nameOf(victim)}!`);
+    // A kraken fighting for a tribe will reach right up onto the beach for them.
+    const victim = prey(t, 20, (c) => c.habitat === "sea");
+    if (victim) destroy(victim, sparkle(victim.x, victim.y, now, "#f4f1ea"), `The kraken${whose(t)} ate ${victimName(victim)}!`);
+  } else if ((t.type === "unicorn" || t.type === "phoenix") && t.tribe && Math.random() < 0.02) {
+    // Theirs is the kinder sort of joining in: they patch their tribe up.
+    const hurt = nearest(t, 30, (_, friend) => friend.type === "person" && friend.tribe === t.tribe && (friend.hp ?? 9) < 5);
+    if (hurt) {
+      hurt.hp = 5;
+      world.effects.push(sparkle(hurt.x, hurt.y, now, t.type === "unicorn" ? "#f2a3b3" : "#ee7a2a"));
+    }
   } else if ((t.type === "unicorn" || t.type === "phoenix") && Math.random() < 0.3) {
     const color =
       t.type === "unicorn"
@@ -130,7 +161,10 @@ export function act(t: Thing, now: number): void {
 // happens near where it lands.
 function causeChaos(t: Thing, now: number): void {
   world.effects.push(sparkle(t.x, t.y, now));
-  Object.assign(t, randomSpot("air"));
+  // One that has joined a tribe blinks in on top of that tribe's enemies
+  // instead of somewhere random, and makes its mess there.
+  const target = t.tribe ? nearest(t, Infinity, (_, other) => tribesAtWar(t.tribe, other.tribe)) : undefined;
+  Object.assign(t, target ? { x: target.x, y: target.y - 6 } : randomSpot("air"));
   world.effects.push(sparkle(t.x, t.y, now));
 
   const victim = nearest(t, 60, () => true);

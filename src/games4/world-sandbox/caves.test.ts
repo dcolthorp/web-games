@@ -22,7 +22,8 @@ describe("caves", () => {
   it("won't load text that isn't a whole cave", () => {
     expect(decodeCave("#5")).toBeNull();
     expect(decodeCave(`#${W * H + 1}`)).toBeNull();
-    expect(decodeCave(`?${W * H}`)).toBeNull();
+    // A space is the one thing no material is ever allowed to be called.
+    expect(decodeCave(` ${W * H}`)).toBeNull();
   });
 
   it("puts ores only in rock and lava only in tunnels", () => {

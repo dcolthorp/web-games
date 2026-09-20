@@ -154,11 +154,92 @@ canvas {
   gap: 6px;
 }
 
+/* Only there when there is a world to bring back. */
+.undo-world {
+  grid-column: 1 / -1;
+}
+
+.undo-world[hidden] {
+  display: none;
+}
+
+.save-files {
+  grid-column: 1 / -1;
+}
+
+.save-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  margin: 12px 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.save-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.save-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.save-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-when {
+  display: block;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.save-list button {
+  padding: 6px 10px;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.save-list button:hover {
+  background: rgba(127, 208, 255, 0.22);
+}
+
+.save-list button.danger {
+  border-color: #d8362b;
+}
+
+.save-empty {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ask-copy {
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
 .world-actions[hidden] {
   display: none;
 }
 
 .new-world {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
   padding: 8px 12px;
   border: 3px solid var(--accent);
   background: transparent;
@@ -178,6 +259,37 @@ canvas {
   margin: 10px 0 0;
   color: var(--muted);
   text-align: center;
+}
+
+/* The crystal list: hundreds of them, with a box to find one by name. */
+.tool-search {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 7px 8px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.tool-search:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.crystal-list {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.tool-empty {
+  grid-column: 1 / -1;
+  margin: 6px 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .tool-action {

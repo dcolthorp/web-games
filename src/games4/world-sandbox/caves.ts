@@ -1,3 +1,4 @@
+import { BUILT_IN_CODES, CRYSTALS, FOUND_CODES, type CrystalSpec } from "./crystals";
 import { H, W, seededRandom } from "./world";
 
 // Inside a mountain: a side-on slice of rock with tunnels through it, one
@@ -14,7 +15,7 @@ export interface Material {
   goesIn: "anything" | "rock" | "tunnel";
 }
 
-export const MATERIALS: Material[] = [
+const BASE: Material[] = [
   { code: ".", name: "Dig", colors: ["#0c0a14", "#120f1c"], goesIn: "anything" },
   { code: "#", name: "Rock", colors: ["#5d626b", "#4f545c", "#686d76"], goesIn: "anything" },
   { code: "c", name: "Coal", colors: ["#1b1b1f", "#2e2e34"], goesIn: "rock" },
@@ -30,6 +31,48 @@ export const MATERIALS: Material[] = [
   { code: "l", name: "Lava", colors: ["#ee7a2a", "#d8362b", "#f7d23e"], goesIn: "tunnel" },
   { code: "w", name: "Water", colors: ["#3b7fe0", "#1d5fb8"], goesIn: "tunnel" },
 ];
+
+// The dig, rock, lava and water tools first, then every crystal we know about,
+// then any crystal somebody found that nobody had ever seen before. A cave
+// remembers materials by their code, so codes have to keep meaning the same
+// thing forever: built-in crystals take theirs in list order.
+const takenCodes = new Set(BASE.map((m) => m.code));
+const freeBuiltInCodes = BUILT_IN_CODES.filter((code) => !takenCodes.has(code));
+
+export const MATERIALS: Material[] = [
+  ...BASE,
+  ...CRYSTALS.map((crystal, index) => ({
+    code: freeBuiltInCodes[index] ?? "",
+    name: crystal.name,
+    colors: crystal.colors,
+    goesIn: "rock" as const,
+  })).filter((m) => m.code !== ""),
+];
+for (const m of MATERIALS) takenCodes.add(m.code);
+
+// One material per pixel, so this is as many kinds of crystal as a cave can
+// hold. There is room for plenty of crystals nobody has found yet.
+export const MAX_MATERIALS = 256;
+
+// Anything that belongs in the rock walls: every ore and every crystal, but
+// not the digging tool, the rock itself, or lava and water.
+export function isCrystal(material: number): boolean {
+  return MATERIALS[material]?.goesIn === "rock";
+}
+
+/**
+ * Adds a crystal nobody has ever seen to the list, with its own save code.
+ * Returns its material number, or -1 when every code is spoken for.
+ */
+export function registerFoundCrystal(crystal: CrystalSpec, code?: string): number {
+  const existing = MATERIALS.findIndex((m) => m.code === code);
+  if (code && existing >= 0) return existing;
+  const free = code && !takenCodes.has(code) ? code : FOUND_CODES.find((c) => !takenCodes.has(c));
+  if (!free || MATERIALS.length >= MAX_MATERIALS) return -1;
+  takenCodes.add(free);
+  MATERIALS.push({ code: free, name: crystal.name, colors: crystal.colors, goesIn: "rock" });
+  return MATERIALS.length - 1;
+}
 
 export const TUNNEL = 0;
 export const ROCK = 1;

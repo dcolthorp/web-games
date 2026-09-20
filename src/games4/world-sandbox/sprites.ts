@@ -106,6 +106,15 @@ export function drawSprite(ctx: CanvasRenderingContext2D, s: Sprite, x: number, 
 }
 
 // For buttons: an <img> of the first frame, blown up with CSS (image-rendering: pixelated).
+// Turning a sprite into a picture isn't free, and the crystal list asks for
+// hundreds of them at a time, so each one is only made once.
+const iconCache = new WeakMap<Sprite, string>();
+
 export function spriteIcon(s: Sprite): string {
-  return `<img class="pixel-icon" src="${(s.frames[0] as HTMLCanvasElement).toDataURL()}" alt="" style="width: ${s.width * 3}px" />`;
+  let html = iconCache.get(s);
+  if (!html) {
+    html = `<img class="pixel-icon" src="${(s.frames[0] as HTMLCanvasElement).toDataURL()}" alt="" style="width: ${s.width * 3}px" />`;
+    iconCache.set(s, html);
+  }
+  return html;
 }

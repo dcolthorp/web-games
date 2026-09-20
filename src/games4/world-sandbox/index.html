@@ -31,10 +31,36 @@
           <div class="world-actions" id="world-actions">
             <button class="new-world" id="reset-world" type="button">Reset</button>
             <button class="new-world" id="new-world" type="button">New World</button>
+            <button class="new-world undo-world" id="undo-world" type="button" hidden>Bring That World Back</button>
+            <button class="new-world save-files" id="save-files" type="button">Save Files</button>
           </div>
         </section>
       </div>
     </main>
+
+    <dialog class="panel" id="files-dialog" aria-labelledby="files-title">
+      <form method="dialog" id="files-form">
+        <h2 id="files-title">Save Files</h2>
+        <p class="ask-copy">Keep as many worlds as you like. Opening one puts this one away safely.</p>
+        <label class="field">Name this world <input id="file-name" maxlength="24" autocomplete="off" placeholder="My World" /></label>
+        <button class="tool-action" type="button" id="file-save">Save This World</button>
+        <ul class="save-list" id="save-list"></ul>
+        <div class="panel-buttons">
+          <button type="submit">Done</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="panel" id="ask-dialog" aria-labelledby="ask-title">
+      <form method="dialog" id="ask-form">
+        <h2 id="ask-title">Are you sure?</h2>
+        <p class="ask-copy" id="ask-copy"></p>
+        <div class="panel-buttons">
+          <button class="quiet" type="button" id="ask-no">No, keep it</button>
+          <button type="submit" id="ask-yes">Yes</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog class="panel" id="person-dialog" aria-labelledby="person-title">
       <form method="dialog" id="person-form">

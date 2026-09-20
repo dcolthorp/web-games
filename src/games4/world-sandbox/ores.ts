@@ -37,11 +37,21 @@ const ICONS: Record<string, Sprite> = {
   `),
 };
 
-export const CAVE_TOOLS: { material: number; name: string; sprite: Sprite }[] = MATERIALS.map((m, material) => ({
-  material,
-  name: m.name,
-  sprite: ICONS[m.code] ?? tinted(`ore-${m.code}`, m.colors[0] ?? "#fff", GEM),
-}));
+export interface CaveTool {
+  material: number;
+  name: string;
+  sprite: Sprite;
+}
+
+// Built fresh every time, because crystals nobody had seen before get added to
+// the list while you are standing there.
+export function caveTools(): CaveTool[] {
+  return MATERIALS.map((m, material) => ({
+    material,
+    name: m.name,
+    sprite: ICONS[m.code] ?? tinted(`ore-${m.code}`, m.colors[0] ?? "#fff", GEM),
+  }));
+}
 
 export const CAVE: Choice = {
   id: "cave",
