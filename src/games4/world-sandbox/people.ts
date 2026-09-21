@@ -1,8 +1,10 @@
 import { physics } from "./matrix";
-import { CAVE_MOUTH, ENTER_CHANCE, ENTER_RANGE, LEAVE_CHANCE } from "./miners";
+import { CAVE_MOUTH, ENTER_CHANCE, ENTER_RANGE, LEAVE_CHANCE, mountainOf } from "./miners";
 import { destroy, nearest, sparkle, step, wander, canBe } from "./nature";
 import { say, save, tribesAtWar, world, type Tribe } from "./state";
 import { TECH, TECH_IDS, TECH_PER_TRIBE, buildCost, isTech, type TechId } from "./techRules";
+import { encodeCave, makeCave } from "./caves";
+import { oreLeft } from "./mining";
 import { tribeNameFor } from "./tribeNames";
 import { H, W, isLand, type Thing } from "./world";
 
@@ -28,6 +30,7 @@ export const TRAITS = [
   { id: "explorer", name: "Explorer", about: "wanders far from home" },
   { id: "builder", name: "Builder", about: "builds new villages, and sometimes whole new tribes" },
   { id: "healer", name: "Healer", about: "heals hurt people from their tribe" },
+  { id: "miner", name: "Miner", about: "finds the nearest cave and won't come out until every ore is mined" },
 ];
 
 const NAMES = [
@@ -203,8 +206,14 @@ function updateHome(home: Thing, now: number, census: Census): void {
 function updatePerson(p: Thing, now: number, census: Census): void {
   // Mutants don't go into caves, build anything, or found tribes; they wander
   // and they fight, which the rest of this function handles.
-  // Somebody in a cave is busy. They'll be out in a bit.
   if (p.inside) {
+    // A miner stays down there until the last ore is out of the walls.
+    if (has(p, "miner")) {
+      const mountain = mountainOf(p, world.things);
+      if (mountain && oreLeft(mountain) > 0) return;
+      comeOutOfCave(p, now);
+      return;
+    }
     if (Math.random() < LEAVE_CHANCE) comeOutOfCave(p, now);
     return;
   }
@@ -241,6 +250,8 @@ function updatePerson(p: Thing, now: number, census: Census): void {
   if (founding && farFromHome(p, census)) foundTribe(p, now);
   else if (has(p, "builder") && p.tribe && Math.random() < 1 / 3000) buildVillage(p, now);
   else if (has(p, "builder") && p.tribe && Math.random() < TECH_CHANCE) buildTech(p, now, census);
+  // A miner doesn't wait to be passing: they go and find a cave.
+  if (has(p, "miner") && headForCave(p, now, speed)) return;
   if (p.type === "person" && Math.random() < ENTER_CHANCE && goIntoCave(p, now)) return;
 
   // Head back if they've wandered too far from the nearest home of their tribe.
@@ -343,12 +354,35 @@ function nearestOf(
   return best;
 }
 
+
+
+/**
+ * A miner heads for the nearest mountain and walks straight in — and if that
+ * mountain has never been opened, opening it is their first job. True once
+ * they have taken over their own movement for this frame.
+ */
+function headForCave(p: Thing, now: number, speed: number): boolean {
+  const mountain = nearest(p, Infinity, (_, t) => t.type === "mountain");
+  if (!mountain) return false;
+  if (Math.hypot(mountain.x - p.x, mountain.y - p.y) < ENTER_RANGE) {
+    if (mountain.cave === undefined) {
+      mountain.cave = encodeCave(makeCave(Math.floor(mountain.x * 1000 + mountain.y)));
+      say(`${p.name} dug into the mountain and found a cave!`);
+    }
+    return goIntoCave(p, now);
+  }
+  p.heading = Math.atan2(mountain.y - p.y, mountain.x - p.x);
+  movePerson(p, speed);
+  return true;
+}
+
 // A mountain with a cave in it, close enough to walk into.
 function goIntoCave(p: Thing, now: number): boolean {
   const mountain = world.things.find(
     (t) => t.type === "mountain" && t.cave !== undefined && Math.hypot(t.x - p.x, t.y - p.y) < ENTER_RANGE
   );
   if (!mountain) return false;
+  if (mountain.cave === undefined) return false;
   p.inside = [mountain.x, mountain.y];
   p.cx = CAVE_MOUTH.x;
   p.cy = CAVE_MOUTH.y;
@@ -367,7 +401,13 @@ export function comeOutOfCave(p: Thing, now: number): void {
   p.cx = undefined;
   p.cy = undefined;
   world.effects.push(sparkle(mx, my, now, tribeOf(p)?.color));
-  say(p.dug ? `${p.name} came out of the cave with a piece of ${p.dug}!` : `${p.name} came out of the cave.`);
+  say(
+    has(p, "miner")
+      ? `${p.name} mined the cave dry and came out${p.dug ? ` with the last of the ${p.dug}` : ""}.`
+      : p.dug
+        ? `${p.name} came out of the cave with a piece of ${p.dug}!`
+        : `${p.name} came out of the cave.`
+  );
   p.dug = undefined;
   save();
 }

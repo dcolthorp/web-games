@@ -13,9 +13,11 @@ const GOLD = MATERIALS.findIndex((m) => m.name === "Gold");
 
 describe("who is in the cave", () => {
   const mountain: Thing = { type: "mountain", x: 40, y: 50 };
+  const faraway: Thing = { type: "mountain", x: 99, y: 99 };
   const digger: Thing = { type: "person", x: 0, y: 0, inside: [40, 50] };
   const elsewhere: Thing = { type: "person", x: 0, y: 0, inside: [99, 99] };
   const outside: Thing = { type: "person", x: 10, y: 10 };
+  const things = [mountain, faraway, digger, elsewhere, outside];
 
   it("knows who went in", () => {
     expect(isInside(digger)).toBe(true);
@@ -23,7 +25,14 @@ describe("who is in the cave", () => {
   });
 
   it("only counts the ones in this mountain", () => {
-    expect(insideOf(mountain, [digger, elsewhere, outside])).toEqual([digger]);
+    expect(insideOf(mountain, things)).toEqual([digger]);
+    expect(insideOf(faraway, things)).toEqual([elsewhere]);
+  });
+
+  it("still finds the mountain after it has drifted away from where they went in", () => {
+    const drifted: Thing = { type: "mountain", x: 44, y: 57 };
+    const inThere: Thing = { type: "person", x: 0, y: 0, inside: [40, 50] };
+    expect(insideOf(drifted, [drifted, faraway, inThere])).toEqual([inThere]);
   });
 });
 

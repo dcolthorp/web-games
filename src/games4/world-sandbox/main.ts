@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import { MATERIALS, MAX_MATERIALS, ROCK, decodeCave, encodeCave, makeCave, paint, registerFoundCrystal } from "./caves";
+import { MATERIALS, MAX_MATERIALS, ROCK, encodeCave, paint, registerFoundCrystal } from "./caves";
+import { dig, gridFor, isBeingWorked, isOre, releaseCave, storeCave, tunnelTowards } from "./mining";
 import { BOMB_CHOICES } from "./bombs";
 import { CATEGORIES, CAVE_CATEGORIES, CHOICES, MAGIC, MOVERS, TECH_IDS_SET } from "./catalog";
 import { drawCave, drawWorld } from "./draw";
@@ -8,7 +9,7 @@ import { LAWS, drawMatrix, physics } from "./matrix";
 import { inventCrystal } from "./crystals";
 import { bombKind } from "./cavern";
 import { updateCave, type CaveBlast } from "./caveWorld";
-import { CAVE_MOUTH, FIND_CHANCE, crystalBeside, insideOf, nearestTunnel, stepInTunnel } from "./miners";
+import { CAVE_MOUTH, FIND_CHANCE, crystalBeside, insideOf, nearestOre, nearestTunnel, stepInTunnel } from "./miners";
 import { caveTools } from "./ores";
 import { APARTMENT, PERSON, VILLAGE, apartmentSprite, personSprite, villageSprite } from "./folk";
 import { MUTANT, mutantSprite } from "./tech";
@@ -553,7 +554,7 @@ canvas.addEventListener("pointercancel", stopPainting);
 
 function enterCave(mountain: Thing): void {
   const found = mountain.cave === undefined;
-  caveGrid = (mountain.cave && decodeCave(mountain.cave)) || makeCave(Math.floor(mountain.x * 1000 + mountain.y));
+  caveGrid = gridFor(mountain);
   caveMountain = mountain;
   mountain.caveThings ??= [];
   caveCategory = "Dig";
@@ -589,6 +590,8 @@ function findCrystal(): void {
 // doing whatever people do in caves.
 function walkInCave(mountain: Thing, grid: Uint8Array): void {
   for (const p of insideOf(mountain, world.things)) {
+    // Miners are moved by their own work below, so they don't step twice.
+    if (p.traits?.includes("miner")) continue;
     // Anybody standing in rock — the cave got dug differently, or somebody
     // painted a wall over them — gets put back in the nearest tunnel.
     const standing = nearestTunnel(grid, p.cx ?? CAVE_MOUTH.x, p.cy ?? CAVE_MOUTH.y);
@@ -606,11 +609,51 @@ function walkInCave(mountain: Thing, grid: Uint8Array): void {
   }
 }
 
+// Miners keep working whether or not you are watching them, so their cave is
+// dug out in the background and written back to the mountain when they are
+// done with it.
+let minedAt = 0;
+
+function mineCaves(now: number): void {
+  if (now - minedAt < 200) return;
+  minedAt = now;
+  const mountains = world.things.filter((t) => t.type === "mountain" && t.cave !== undefined);
+  for (const mountain of mountains) {
+    const miners = insideOf(mountain, world.things).filter((p) => p.traits?.includes("miner"));
+    if (miners.length === 0) {
+      if (isBeingWorked(mountain) && mountain !== caveMountain) releaseCave(mountain);
+      continue;
+    }
+    const grid = gridFor(mountain);
+    for (const p of miners) {
+      const here = { x: p.cx ?? CAVE_MOUTH.x, y: p.cy ?? CAVE_MOUTH.y };
+      // Take whatever is within reach first, then set off for the next seam,
+      // digging straight through the rock to get to it.
+      const got = dig(mountain, here.x, here.y);
+      if (got) {
+        p.dug = got;
+        continue;
+      }
+      const seam = nearestOre(grid, here.x, here.y, isOre);
+      if (!seam) continue;
+      const step = tunnelTowards(mountain, here, seam);
+      p.cx = step.x;
+      p.cy = step.y;
+      p.heading = Math.atan2(seam.y - here.y, seam.x - here.x);
+    }
+    if (mountain !== caveMountain) storeCave(mountain);
+  }
+}
+
 function leaveCave(): void {
   saveCave();
+  const left = caveMountain;
   caveMountain = null;
   caveGrid = null;
   $("world-actions").hidden = false;
+  // Somebody still mining in there keeps it open; otherwise it goes back to
+  // being a line of text on the mountain.
+  if (left && !insideOf(left, world.things).some((p) => p.traits?.includes("miner"))) releaseCave(left);
   renderCategories();
   renderChoices();
 }
@@ -902,6 +945,7 @@ function simulate(now: number): void {
     }
   }
   updatePeople(now);
+  mineCaves(now);
   updateTech(now);
   updateWavesAndEffects(now);
 }

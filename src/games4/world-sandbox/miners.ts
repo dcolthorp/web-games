@@ -19,10 +19,30 @@ export function isInside(p: Thing): boolean {
   return Array.isArray(p.inside);
 }
 
-export function insideOf(mountain: Thing, people: Thing[]): Thing[] {
-  return people.filter(
-    (p) => isInside(p) && p.inside?.[0] === mountain.x && p.inside?.[1] === mountain.y
-  );
+/**
+ * The mountain somebody walked into. They remember the spot rather than the
+ * mountain, and a mountain can move — gravity gets switched off, a celestial
+ * being throws it somewhere — so this takes whichever mountain is nearest to
+ * where they went in.
+ */
+export function mountainOf(p: Thing, things: Thing[]): Thing | undefined {
+  const where = p.inside;
+  if (!where) return undefined;
+  let best: Thing | undefined;
+  let bestDistance = Infinity;
+  for (const t of things) {
+    if (t.type !== "mountain") continue;
+    const d = Math.hypot(t.x - where[0], t.y - where[1]);
+    if (d < bestDistance) {
+      best = t;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+export function insideOf(mountain: Thing, things: Thing[]): Thing[] {
+  return things.filter((p) => isInside(p) && mountainOf(p, things) === mountain);
 }
 
 export function tunnelAt(grid: Uint8Array, x: number, y: number): boolean {
@@ -69,6 +89,23 @@ export function nearestTunnel(grid: Uint8Array, x: number, y: number): { x: numb
     }
   }
   return null;
+}
+
+/** The nearest bit of ore anywhere in the cave, for a miner to head towards. */
+export function nearestOre(grid: Uint8Array, x: number, y: number, isOre: (material: number) => boolean): { x: number; y: number } | null {
+  let best: { x: number; y: number } | null = null;
+  let bestDistance = Infinity;
+  for (let i = 0; i < grid.length; i += 1) {
+    if (!isOre(grid[i] ?? 0)) continue;
+    const ox = i % W;
+    const oy = (i - ox) / W;
+    const d = (ox - x) ** 2 + (oy - y) ** 2;
+    if (d < bestDistance) {
+      best = { x: ox, y: oy };
+      bestDistance = d;
+    }
+  }
+  return best;
 }
 
 /** The name of a crystal in the wall right next to them, if there is one. */
