@@ -3,7 +3,8 @@ import { sprite, type Choice } from "./sprites";
 // Bosses. Far bigger than anything else in the world, far harder to put down,
 // and each with one thing it does that nothing else does.
 
-// Oscar's own drawing, in pixels. A huge empty screen of a body with one small
+// Oscar's own drawing, in pixels. The paper it came from is in
+// art/oscar-bot-drawing.heic, next door. A huge empty screen of a body with one small
 // furious face up in it — V eyebrows, two hatched eyes, a long gritted mouth —
 // a crack down one wall and a staircase up the other. Off the top: a burning
 // torch, a hand pointing up, an aerial, and a sign that says RUN. Two striped
