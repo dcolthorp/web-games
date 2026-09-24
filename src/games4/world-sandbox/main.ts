@@ -1,9 +1,11 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import { MATERIALS, MAX_MATERIALS, ROCK, encodeCave, paint, registerFoundCrystal } from "./caves";
-import { dig, gridFor, isBeingWorked, isOre, releaseCave, storeCave, tunnelTowards } from "./mining";
+import { MATERIALS, MAX_MATERIALS, ROCK, encodeCave, makeCave, paint, registerFoundCrystal } from "./caves";
+import { dig, gridFor, isBeingWorked, isOre, releaseCave, rivalsOver, storeCave, tunnelTowards } from "./mining";
 import { BOMB_CHOICES } from "./bombs";
 import { CATEGORIES, CAVE_CATEGORIES, CHOICES, MAGIC, MOVERS, TECH_IDS_SET } from "./catalog";
+import { MOUNTAIN_SIZES } from "./land";
+import { isSpawner } from "./techRules";
 import { drawCave, drawWorld } from "./draw";
 import { LAWS, drawMatrix, physics } from "./matrix";
 import { inventCrystal } from "./crystals";
@@ -40,12 +42,21 @@ import {
   rememberCrystal,
   resetWorld,
   reshape,
+  setFlood,
   restoreOldWorld,
   save,
   say,
   world,
   type Tribe,
 } from "./state";
+import {
+  buildRoster,
+  filterRoster,
+  rosterSummary,
+  sortRoster,
+  tallyTribes,
+  type RosterEntry,
+} from "./roster";
 import { H, W, type Thing } from "./world";
 
 installOofShortcut();
@@ -75,6 +86,9 @@ let tribeId = world.tribes[0]?.id ?? "";
 
 const choice = (): Choice => picked[categoryIndex] as Choice;
 const currentTribe = (): Tribe | undefined => world.tribes.find((t) => t.id === tribeId);
+
+// How big the next mountain will be.
+let mountainSize = 1;
 
 // The teleporter you have picked up one end of, waiting for its other end.
 let linking: Thing | null = null;
@@ -190,7 +204,28 @@ function renderChoices(): void {
     choicesEl.innerHTML = buildings + [...none, ...tribes].join("") + actions;
     return;
   }
+  // Mountains come in sizes, and clicking one that is already there changes it.
+  if (c.id === "mountain") {
+    const sizes = MOUNTAIN_SIZES.map(
+      (s) =>
+        `<button class="tool-slot" type="button" data-size="${s.size}" aria-pressed="${s.size === mountainSize}">${spriteIcon(c.sprite)}<span>${s.name}</span></button>`
+    ).join("");
+    const { choices: landChoices } = CATEGORIES[categoryIndex] as { choices: Choice[] };
+    choicesEl.innerHTML =
+      landChoices.map((o) => slot("data-choice", o.id, o.sprite, o.name, o === c)).join("") +
+      `<p class="tool-note">How big? Click a mountain that's already there to change it.</p>` +
+      sizes;
+    return;
+  }
+
   const { choices } = CATEGORIES[categoryIndex] as { choices: Choice[] };
+  // The whole world at once, for when you have had enough of the sea.
+  const wholeWorld =
+    CATEGORIES[categoryIndex]?.name === "Land"
+      ? `<button class="tool-action" type="button" data-flood="1.4">Make It All Land</button>` +
+        `<button class="tool-action" type="button" data-flood="-2">Make It All Sea</button>` +
+        (world.flood !== 0 ? `<button class="tool-action" type="button" data-flood="0">Put The Sea Back</button>` : "")
+      : "";
   // Mythical creatures and celestial beings can join a tribe and fight for it,
   // so those two toolbars get the tribe list underneath them.
   const canJoin = (MAGIC.has(c.id) || TECH_IDS_SET.has(c.id)) && world.tribes.length > 0;
@@ -198,7 +233,7 @@ function renderChoices(): void {
     ? slot("data-tribe", "", PERSON.sprite, "No Tribe", tribeId === "") +
       world.tribes.map((t) => slot("data-tribe", t.id, personSprite(t.color), t.name, t.id === tribeId)).join("")
     : "";
-  choicesEl.innerHTML = choices.map((o) => slot("data-choice", o.id, o.sprite, o.name, o === c)).join("") + joining;
+  choicesEl.innerHTML = choices.map((o) => slot("data-choice", o.id, o.sprite, o.name, o === c)).join("") + wholeWorld + joining;
 }
 
 const worldCategoryRow = CATEGORIES.map((c, i) =>
@@ -273,6 +308,23 @@ choicesEl.addEventListener("click", (event) => {
     return;
   }
 
+  const floodButton = target.closest<HTMLElement>("[data-flood]");
+  if (floodButton) {
+    const by = Number(floodButton.dataset["flood"]);
+    setFlood(by);
+    renderChoices();
+    say(by > 0 ? "No more sea. It's all land now." : by < 0 ? "It's all sea now. Hope everyone can swim." : "The sea is back where it was.");
+    return;
+  }
+
+  const sizeButton = target.closest<HTMLElement>("[data-size]");
+  if (sizeButton) {
+    mountainSize = Number(sizeButton.dataset["size"]);
+    setPressed(choicesEl, sizeButton);
+    say(`Mountains go down ${MOUNTAIN_SIZES.find((s) => s.size === mountainSize)?.name.toLowerCase()} now.`);
+    return;
+  }
+
   const tribeButton = target.closest<HTMLElement>("[data-tribe]");
   if (tribeButton) {
     tribeId = tribeButton.dataset["tribe"] ?? "";
@@ -291,7 +343,7 @@ choicesEl.addEventListener("click", (event) => {
   }
   picked[categoryIndex] = c;
   // Switching what you are putting down redraws the tribe list in its icon.
-  if (["village", "apartment", "person", "mutant"].includes(c.id)) renderChoices();
+  if (["village", "apartment", "person", "mutant", "mountain"].includes(c.id)) renderChoices();
   else setPressed(choicesEl, button);
 });
 
@@ -374,7 +426,9 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
   if (c.id === "cave") {
-    const mountain = world.things.filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 6 && y <= t.y && y >= t.y - 9).at(-1);
+    const mountain = world.things
+      .filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 6 * (t.size ?? 1) && y <= t.y && y >= t.y - 9 * (t.size ?? 1))
+      .at(-1);
     return mountain ? enterCave(mountain) : say("Click a mountain to go inside it.");
   }
   if (c.id === "raise" || c.id === "sink") {
@@ -398,6 +452,16 @@ canvas.addEventListener("pointerdown", (event) => {
     if (pad) return linkPads(pad);
   }
 
+  if (c.id === "mountain") {
+    const standing = world.things.filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 8 * (t.size ?? 1) && Math.abs(t.y - y) <= 12 * (t.size ?? 1)).at(-1);
+    if (standing) return resizeMountain(standing);
+  }
+
+  if (isSpawner(c.id)) {
+    const machine = world.things.filter((t) => t.type === c.id && Math.hypot(t.x - x, t.y - y) <= 6).at(-1);
+    if (machine) return openMachineDialog(machine);
+  }
+
   const existing = c.id === "person" ? personAt(x, y) : undefined;
   if (existing) return openPersonDialog(existing);
   if (!canBe(c.habitat, x, y)) return say(`${c.name} has to go ${c.habitat === "land" ? "on land" : "in the water"}.`);
@@ -414,9 +478,21 @@ canvas.addEventListener("pointerdown", (event) => {
   } else if (c.id === "mutant") {
     world.things.push({ type: "mutant", x, y, hp: MUTANT_HP, name: "A mutant", ...(tribeId ? { tribe: tribeId } : {}) });
     say(tribeId ? `A mutant for ${currentTribe()?.name}.` : "A mutant, belonging to nobody.");
+  } else if (isSpawner(c.id)) {
+    // A machine that makes people asks what sort of people straight away, and
+    // it works just as well for nobody's tribe as for somebody's.
+    const built: Thing = { type: c.id, x, y, ...(tribeId ? { tribe: tribeId } : {}) };
+    world.things.push(built);
+    openMachineDialog(built);
   } else if ((MAGIC.has(c.id) || TECH_IDS_SET.has(c.id)) && tribeId) {
     world.things.push({ type: c.id, x, y, tribe: tribeId });
     say(TECH_IDS_SET.has(c.id) ? `${c.name} built for ${currentTribe()?.name}.` : `${c.name} joined ${currentTribe()?.name}!`);
+  } else if (c.id === "mountain") {
+    world.things.push({ type: c.id, x, y, size: mountainSize });
+  } else if (c.id === "oscar-bot") {
+    // The drawing says TOO BIG, and the drawing is already enormous.
+    world.things.push({ type: c.id, x, y, size: 1.15 });
+    say("RUN.");
   } else {
     world.things.push({ type: c.id, x, y });
   }
@@ -452,6 +528,30 @@ function linkPads(pad: Thing): void {
   save();
 }
 
+/**
+ * Makes a mountain that is already standing bigger or smaller. Its cave grows
+ * or shrinks with it, unless somebody has already been inside and dug it — a
+ * cave that has been worked is left exactly as it was found.
+ */
+function resizeMountain(mountain: Thing): void {
+  const was = mountain.size ?? 1;
+  if (was === mountainSize) {
+    say("That mountain is already that size.");
+    return;
+  }
+  mountain.size = mountainSize;
+  if (mountain.cave === undefined) {
+    say(`That mountain is ${mountainSize > was ? "bigger" : "smaller"} now.`);
+  } else if (insideOf(mountain, world.things).length > 0) {
+    say("Somebody is in there. The cave stays as it is.");
+  } else {
+    releaseCave(mountain);
+    mountain.cave = encodeCave(makeCave(Math.floor(mountain.x * 1000 + mountain.y), mountainSize));
+    say(`That mountain is ${mountainSize > was ? "bigger, and so is its cave" : "smaller, and so is its cave"}.`);
+  }
+  save();
+}
+
 // ---------- caves ----------
 
 // Anything you can put in a world, you can put in a cave: trees, animals,
@@ -468,16 +568,26 @@ function placeInCave(x: number, y: number): void {
     return;
   }
   const tribe = tribeId || undefined;
-  const wantsTribe = ["person", "mutant", "village", "apartment"].includes(c.id) || TECH_IDS_SET.has(c.id);
-  things.push({
+  if (c.id === "person") {
+    // The same as putting a person down outside: a name, some traits of their
+    // own, and the chance to change both.
+    const person = makePerson(x, y, tribe);
+    things.push(person);
+    openPersonDialog(person);
+    save();
+    return;
+  }
+  const wantsTribe = ["mutant", "village", "apartment"].includes(c.id) || TECH_IDS_SET.has(c.id);
+  const put: Thing = {
     type: c.id,
     x,
     y,
     ...(wantsTribe && tribe ? { tribe } : {}),
     ...(c.id === "mutant" ? { hp: MUTANT_HP, name: "A mutant" } : {}),
-    ...(c.id === "person" ? { name: randomName(), traits: [] } : {}),
-  });
-  say(`${c.name} in the cave.`);
+  };
+  things.push(put);
+  if (isSpawner(c.id)) openMachineDialog(put);
+  else say(`${c.name} in the cave.`);
   save();
 }
 
@@ -627,15 +737,21 @@ function mineCaves(now: number): void {
     const grid = gridFor(mountain);
     for (const p of miners) {
       const here = { x: p.cx ?? CAVE_MOUTH.x, y: p.cy ?? CAVE_MOUTH.y };
+      if (p.feud) {
+        haveItOut(p, miners, mountain, here);
+        continue;
+      }
       // Take whatever is within reach first, then set off for the next seam,
       // digging straight through the rock to get to it.
       const got = dig(mountain, here.x, here.y);
       if (got) {
         p.dug = got;
+        fallOut(p, miners, here, got);
         continue;
       }
       const seam = nearestOre(grid, here.x, here.y, isOre);
       if (!seam) continue;
+      p.seam = [seam.x, seam.y];
       const step = tunnelTowards(mountain, here, seam);
       p.cx = step.x;
       p.cy = step.y;
@@ -643,6 +759,48 @@ function mineCaves(now: number): void {
     }
     if (mountain !== caveMountain) storeCave(mountain);
   }
+}
+
+const nameTag = (p: Thing): string => (p.who ??= `who-${Math.random().toString(36).slice(2, 9)}`);
+
+/**
+ * Somebody just took ore another tribe's miner was digging towards. That is
+ * worth falling out over whatever the tribes had agreed: peaceful people and
+ * tribes at peace included.
+ */
+function fallOut(digger: Thing, miners: Thing[], spot: { x: number; y: number }, ore: string): void {
+  const robbed = rivalsOver(spot, digger, miners).filter((p) => !p.feud);
+  if (robbed.length === 0 || digger.feud) return;
+  const other = robbed[0] as Thing;
+  digger.feud = nameTag(other);
+  other.feud = nameTag(digger);
+  other.seam = undefined;
+  say(`${digger.name} took the ${ore} ${other.name} was digging for. Now they're fighting over it.`);
+}
+
+// Two miners settling it, down a hole, in the dark.
+function haveItOut(p: Thing, miners: Thing[], mountain: Thing, here: { x: number; y: number }): void {
+  const foe = miners.find((other) => other.who === p.feud);
+  if (!foe) {
+    p.feud = undefined;
+    return;
+  }
+  if (p.rest) p.rest -= 1;
+  const gap = Math.hypot((foe.cx ?? 0) - here.x, (foe.cy ?? 0) - here.y);
+  if (gap > 2.5) {
+    const step = tunnelTowards(mountain, here, { x: foe.cx ?? here.x, y: foe.cy ?? here.y });
+    p.cx = step.x;
+    p.cy = step.y;
+    return;
+  }
+  if (p.rest) return;
+  p.rest = 40;
+  foe.hp = (foe.hp ?? maxHp(foe)) - 2;
+  if ((foe.hp ?? 0) > 0) return;
+  world.things = world.things.filter((t) => t !== foe);
+  p.feud = undefined;
+  say(`${p.name} won the fight over the ore. ${foe.name} is still down there.`);
+  save();
 }
 
 function leaveCave(): void {
@@ -840,6 +998,51 @@ const personTribe = $<HTMLSelectElement>("person-tribe");
 const personTraits = $<HTMLDivElement>("person-traits");
 let editingPerson: Thing | null = null;
 
+// ---------- what a spawning machine makes ----------
+
+const machineDialog = $<HTMLDialogElement>("machine-dialog");
+let editingMachine: Thing | null = null;
+
+function openMachineDialog(machine: Thing): void {
+  editingMachine = machine;
+  const mutants = machine.type === "mutant-spawner";
+  $("machine-title").textContent = mutants ? "Mutant Spawning Machine" : "Spawning Machine";
+  $<HTMLInputElement>("machine-name").value = machine.spawnName ?? "";
+  $("machine-traits").innerHTML = TRAITS.map(
+    (t) => `
+    <label class="check">
+      <input type="checkbox" value="${t.id}" ${machine.spawnTraits?.includes(t.id) ? "checked" : ""} />
+      ${t.name} <span class="about">${t.about}</span>
+    </label>`
+  ).join("");
+  machineDialog.showModal();
+}
+
+function saveMachine(): void {
+  const machine = editingMachine;
+  editingMachine = null;
+  if (!machine) return;
+  const name = $<HTMLInputElement>("machine-name").value.trim();
+  const traits = [...machineDialog.querySelectorAll<HTMLInputElement>("#machine-traits input:checked")].map((box) => box.value);
+  machine.spawnName = name || undefined;
+  machine.spawnTraits = traits.length > 0 ? traits : undefined;
+  const what = name ? `people called ${name}` : "people";
+  const named = traits.map((id) => TRAITS.find((t) => t.id === id)?.name ?? id);
+  const how = named.length > 0 ? ` who are all ${named.join(" and ")}` : "";
+  say(name || traits.length > 0 ? `That machine makes ${what}${how} now.` : "That machine makes whoever it likes.");
+  save();
+}
+
+$<HTMLFormElement>("machine-form").addEventListener("submit", saveMachine);
+machineDialog.addEventListener("cancel", saveMachine);
+
+$<HTMLButtonElement>("machine-random").addEventListener("click", () => {
+  $<HTMLInputElement>("machine-name").value = "";
+  for (const box of machineDialog.querySelectorAll<HTMLInputElement>("#machine-traits input")) box.checked = false;
+  saveMachine();
+  machineDialog.close();
+});
+
 function openPersonDialog(person: Thing): void {
   editingPerson = person;
   personName.value = person.name ?? randomName();
@@ -865,6 +1068,9 @@ $<HTMLFormElement>("person-form").addEventListener("submit", () => {
 
 $<HTMLButtonElement>("person-remove").addEventListener("click", () => {
   world.things = world.things.filter((t) => t !== editingPerson);
+  if (caveMountain?.caveThings) {
+    caveMountain.caveThings = caveMountain.caveThings.filter((t) => t !== editingPerson);
+  }
   save();
   personDialog.close();
 });
@@ -923,6 +1129,102 @@ $<HTMLFormElement>("tribe-form").addEventListener("submit", () => {
   save();
   renderChoices();
 });
+
+// ---------- who's who ----------
+
+// A roll call of every person in the world, the ones down caves included, so
+// you can see at a glance what your miners are actually up to and whose tribe
+// is winning. It refreshes itself while it's open.
+
+const rosterDialog = $<HTMLDialogElement>("roster-dialog");
+const rosterList = $<HTMLUListElement>("roster-list");
+const rosterCount = $<HTMLParagraphElement>("roster-count");
+const rosterTribes = $<HTMLDivElement>("roster-tribes");
+const rosterTribe = $<HTMLSelectElement>("roster-tribe");
+const rosterTrait = $<HTMLSelectElement>("roster-trait");
+const rosterSearch = $<HTMLInputElement>("roster-search");
+let rosterTimer = 0;
+
+const hearts = (e: RosterEntry): string => `${e.hp}/${e.most}`;
+
+function renderRosterFilters(): void {
+  const wanted = rosterTribe.value;
+  rosterTribe.innerHTML =
+    `<option value="">Every tribe</option><option value="none">No tribe</option>` +
+    world.tribes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  rosterTribe.value = [...rosterTribe.options].some((o) => o.value === wanted) ? wanted : "";
+  if (rosterTrait.options.length === 0) {
+    rosterTrait.innerHTML =
+      `<option value="">Any trait</option>` + TRAITS.map((t) => `<option value="${t.id}">${t.name}</option>`).join("");
+  }
+}
+
+function renderRoster(): void {
+  const everyone = buildRoster(world.things, world.tribes);
+  const shown = sortRoster(
+    filterRoster(everyone, { tribe: rosterTribe.value, trait: rosterTrait.value, search: rosterSearch.value }),
+  );
+  rosterCount.textContent = rosterSummary(everyone);
+  rosterTribes.innerHTML = tallyTribes(everyone, world.tribes)
+    .map(
+      (t) =>
+        `<button type="button" class="roster-tally" data-tribe="${t.id}" aria-pressed="${rosterTribe.value === t.id}">` +
+        `<span class="roster-dot" style="background:${t.color}"></span>${escapeHtml(t.name)} <b>${t.count}</b></button>`,
+    )
+    .join("");
+  if (shown.length === 0) {
+    rosterList.innerHTML = `<li class="save-empty">Nobody like that. Try a different tribe.</li>`;
+    return;
+  }
+  rosterList.innerHTML = shown
+    .map((e, i) => {
+      const traits = e.traits.length > 0 ? e.traits.join(", ") : "No traits";
+      return `
+      <li>
+        <span class="roster-dot" style="background:${e.color}"></span>
+        <span class="save-row">
+          <span class="save-name">${escapeHtml(e.name)} <span class="roster-tribe-name">${escapeHtml(e.tribeName)}</span></span>
+          <span class="save-when">${escapeHtml(traits)} · ${hearts(e)} health</span>
+          <span class="save-when">${escapeHtml(e.where)} · ${escapeHtml(e.doing)}</span>
+        </span>
+        <button type="button" data-who="${i}">Edit</button>
+      </li>`;
+    })
+    .join("");
+  rosterShown = shown;
+}
+
+let rosterShown: RosterEntry[] = [];
+
+rosterTribes.addEventListener("click", (event) => {
+  const button = (event.target as Element).closest<HTMLElement>("[data-tribe]");
+  if (!button) return;
+  const id = button.dataset["tribe"] ?? "";
+  rosterTribe.value = rosterTribe.value === id ? "" : id;
+  renderRoster();
+});
+
+rosterList.addEventListener("click", (event) => {
+  const button = (event.target as Element).closest<HTMLElement>("[data-who]");
+  if (!button) return;
+  const entry = rosterShown[Number(button.dataset["who"])];
+  if (!entry) return;
+  rosterDialog.close();
+  openPersonDialog(entry.person);
+});
+
+for (const el of [rosterTribe, rosterTrait]) el.addEventListener("change", renderRoster);
+rosterSearch.addEventListener("input", renderRoster);
+
+$<HTMLButtonElement>("people-list").addEventListener("click", () => {
+  renderRosterFilters();
+  renderRoster();
+  rosterDialog.showModal();
+  window.clearInterval(rosterTimer);
+  rosterTimer = window.setInterval(renderRoster, 700);
+});
+
+rosterDialog.addEventListener("close", () => window.clearInterval(rosterTimer));
 
 // ---------- every frame ----------
 

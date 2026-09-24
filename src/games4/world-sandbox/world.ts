@@ -34,12 +34,25 @@ export interface Thing {
   link?: string;
   // Frames until a teleporter will take this person again.
   warp?: number;
+  // A miner's own name-tag, the seam they are digging towards, and whoever
+  // they have fallen out with over it.
+  who?: string;
+  seam?: [number, number];
+  feud?: string;
   // A mountain's cave, once someone's been inside (see caves.ts), and
   // everything that lives in it: its own little world, in cave coordinates.
   cave?: string;
   caveThings?: Thing[];
   // A bomb's fuse, in frames.
   fuse?: number;
+  // Frames left of a boss's charge.
+  dash?: number;
+  // How big a mountain is. 1 is an ordinary one.
+  size?: number;
+  // What a spawning machine is set to make: everyone it makes gets this name
+  // and these traits.
+  spawnName?: string;
+  spawnTraits?: string[];
   // A person who has gone into a cave: the mountain they're in, where they are
   // inside it, and the crystal they've chipped off the wall to bring out.
   inside?: [number, number];

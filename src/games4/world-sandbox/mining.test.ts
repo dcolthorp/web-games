@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { MATERIALS, ROCK, TUNNEL, encodeCave, makeCave } from "./caves";
 import { nearestOre } from "./miners";
-import { caveKey, countOre, dig, gridFor, isOre, oreLeft, releaseCave, storeCave, tunnelTowards } from "./mining";
+import {
+  caveKey,
+  countOre,
+  dig,
+  gridFor,
+  isOre,
+  oreLeft,
+  releaseCave,
+  rivalsOver,
+  storeCave,
+  tunnelTowards,
+} from "./mining";
 import { W, type Thing } from "./world";
 
 const GOLD = MATERIALS.findIndex((m) => m.name === "Gold");
@@ -125,5 +136,39 @@ describe("a miner working a cave", () => {
     expect(isOre(ROCK)).toBe(false);
     expect(isOre(TUNNEL)).toBe(false);
     expect(isOre(LAVA)).toBe(false);
+  });
+});
+
+describe("rivalsOver", () => {
+  const at = (x: number, y: number, tribe?: string) => ({ tribe, seam: [x, y] as [number, number] });
+
+  it("falls out with somebody digging for the same lump", () => {
+    const digger = at(100, 100, "gods");
+    const rival = at(104, 103, "poopies");
+    expect(rivalsOver({ x: 100, y: 100 }, digger, [digger, rival])).toEqual([rival]);
+  });
+
+  it("doesn't mind its own tribe taking it", () => {
+    const digger = at(100, 100, "gods");
+    const mate = at(102, 100, "gods");
+    expect(rivalsOver({ x: 100, y: 100 }, digger, [digger, mate])).toEqual([]);
+  });
+
+  it("doesn't mind somebody digging somewhere else entirely", () => {
+    const digger = at(100, 100, "gods");
+    const elsewhere = at(180, 40, "poopies");
+    expect(rivalsOver({ x: 100, y: 100 }, digger, [digger, elsewhere])).toEqual([]);
+  });
+
+  it("counts a tribeless miner as a different tribe", () => {
+    const digger = at(100, 100, "gods");
+    const loner = at(101, 101);
+    expect(rivalsOver({ x: 100, y: 100 }, digger, [digger, loner])).toEqual([loner]);
+  });
+
+  it("ignores anybody who wasn't digging towards anything", () => {
+    const digger = at(100, 100, "gods");
+    const idle = { tribe: "poopies" };
+    expect(rivalsOver({ x: 100, y: 100 }, digger, [digger, idle])).toEqual([]);
   });
 });

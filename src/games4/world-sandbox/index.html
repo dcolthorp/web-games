@@ -33,10 +33,27 @@
             <button class="new-world" id="new-world" type="button">New World</button>
             <button class="new-world undo-world" id="undo-world" type="button" hidden>Bring That World Back</button>
             <button class="new-world save-files" id="save-files" type="button">Save Files</button>
+            <button class="new-world people-list" id="people-list" type="button">Who's Who</button>
           </div>
         </section>
       </div>
     </main>
+
+    <dialog class="panel" id="machine-dialog" aria-labelledby="machine-title">
+      <form method="dialog" id="machine-form">
+        <h2 id="machine-title">Spawning Machine</h2>
+        <p class="ask-copy">Everyone this machine makes comes out like this. Leave the name blank for a different name every time.</p>
+        <label class="field">They're all called <input id="machine-name" maxlength="16" autocomplete="off" placeholder="Any name" /></label>
+        <fieldset>
+          <legend>And they all have</legend>
+          <div id="machine-traits"></div>
+        </fieldset>
+        <div class="panel-buttons">
+          <button class="quiet" type="button" id="machine-random">Random Each Time</button>
+          <button type="submit">Done</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog class="panel" id="files-dialog" aria-labelledby="files-title">
       <form method="dialog" id="files-form">
@@ -58,6 +75,23 @@
         <div class="panel-buttons">
           <button class="quiet" type="button" id="ask-no">No, keep it</button>
           <button type="submit" id="ask-yes">Yes</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="panel wide" id="roster-dialog" aria-labelledby="roster-title">
+      <form method="dialog" id="roster-form">
+        <h2 id="roster-title">Who's Who</h2>
+        <p class="ask-copy" id="roster-count"></p>
+        <div class="roster-tribes" id="roster-tribes"></div>
+        <div class="roster-filters">
+          <label class="field">Tribe <select id="roster-tribe"></select></label>
+          <label class="field">Trait <select id="roster-trait"></select></label>
+          <label class="field">Find <input id="roster-search" type="search" autocomplete="off" placeholder="A name…" /></label>
+        </div>
+        <ul class="save-list roster-list" id="roster-list"></ul>
+        <div class="panel-buttons">
+          <button type="submit">Done</button>
         </div>
       </form>
     </dialog>

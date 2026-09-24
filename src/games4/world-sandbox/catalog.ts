@@ -5,6 +5,7 @@ import { LIFE } from "./life";
 import { COPY, MATRIX_ICON } from "./matrix";
 import { CAVE } from "./ores";
 import { BOMB_CHOICES } from "./bombs";
+import { BOSSES } from "./bosses";
 import { MUTANT, TECH_CHOICES } from "./tech";
 import type { Choice, Sprite } from "./sprites";
 
@@ -20,6 +21,7 @@ export const CATEGORIES: { name: string; choices: Choice[]; icon?: Sprite }[] = 
   { name: "Tech", choices: TECH_CHOICES },
   { name: "Disasters", choices: DISASTERS },
   { name: "Creatures", choices: CREATURES },
+  { name: "Bosses", choices: BOSSES },
   { name: "Celestial", choices: CELESTIAL },
   { name: "Matrix", choices: [COPY], icon: MATRIX_ICON },
 ];
@@ -32,7 +34,9 @@ export const CHOICES = new Map([...CATEGORIES.flatMap((c) => c.choices), ...BOMB
 // own tools come first, then everything you could put in a world, because a
 // tribe can live down here just as well as up there.
 export const CAVE_CATEGORIES = ["Dig", "Crystals", "Bombs", "Land", "Life", "People", "Tribes", "Tech", "Creatures"];
-export const MAGIC = new Set([...CREATURES, ...CELESTIAL].map((c) => c.id));
+// Bosses count as magic: ordinary people don't pick fights with them, and they
+// don't pick fights with each other.
+export const MAGIC = new Set([...CREATURES, ...CELESTIAL, ...BOSSES].map((c) => c.id));
 export const CELESTIAL_IDS = new Set(CELESTIAL.map((c) => c.id));
 // Things that wander around on their own. People move with their own rules.
 export const MOVERS = new Set([...LIFE.map((c) => c.id), ...MAGIC]);

@@ -98,28 +98,38 @@ export function paint(grid: Uint8Array, cx: number, cy: number, radius: number, 
 
 // Solid rock, with a tunnel coming in from the left that wanders around and
 // branches, and a little coal and iron already in the walls.
-export function makeCave(seed: number): Uint8Array {
+//
+// `size` is how big the mountain is: a little hill of a mountain has a poky
+// cave with a couple of seams in it, and a huge one is riddled with tunnels
+// from end to end and full of ore.
+export function makeCave(seed: number, size = 1): Uint8Array {
   const rand = seededRandom(seed);
   const grid = new Uint8Array(W * H).fill(ROCK);
+  const reach = Math.min(1, Math.max(0.28, size / 2.4));
+  // The cave sits around the mouth, and only a big mountain has room for
+  // tunnels right across the rock.
+  const top = 10 + (1 - reach) * (H - 60);
+  const bottom = H - 11;
+  const right = 6 + reach * (W - 13);
   let x = 0;
   let y = H - 40;
   let heading = 0;
-  for (let branch = 0; branch < 5; branch += 1) {
-    for (let i = 0; i < 180; i += 1) {
+  for (let branch = 0; branch < Math.round(2 + 4 * reach); branch += 1) {
+    for (let i = 0; i < Math.round(80 + 140 * reach); i += 1) {
       heading += (rand() - 0.5) * 0.8;
       x += Math.cos(heading) * 2;
       y += Math.sin(heading) * 2;
-      // Bounce off the edges.
-      if (x < 6 || x > W - 7) heading = Math.PI - heading;
-      if (y < 10 || y > H - 11) heading = -heading;
-      x = Math.min(W - 7, Math.max(6, x));
-      y = Math.min(H - 11, Math.max(10, y));
+      // Bounce off the walls of the mountain.
+      if (x < 6 || x > right) heading = Math.PI - heading;
+      if (y < top || y > bottom) heading = -heading;
+      x = Math.min(right, Math.max(6, x));
+      y = Math.min(bottom, Math.max(top, y));
       paint(grid, x, y, 3 + rand() * 4, TUNNEL);
     }
     heading = rand() * Math.PI * 2;
   }
-  for (let i = 0; i < 16; i += 1) {
-    paint(grid, rand() * W, rand() * H, 2 + rand() * 2, materialIndex(i % 2 ? "i" : "c"));
+  for (let i = 0; i < Math.round(6 + 22 * reach); i += 1) {
+    paint(grid, 6 + rand() * (right - 6), top + rand() * (bottom - top), 2 + rand() * 2, materialIndex(i % 2 ? "i" : "c"));
   }
   return grid;
 }

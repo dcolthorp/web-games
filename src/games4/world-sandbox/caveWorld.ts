@@ -1,5 +1,6 @@
 import { blowUp, bombKind, crystalsAround, inBlast, isBomb } from "./cavern";
-import { nearestTunnel, stepInTunnel } from "./miners";
+import { nearestOre, nearestTunnel, stepInTunnel } from "./miners";
+import { dig, isOre, tunnelTowards } from "./mining";
 import { MUTANT_HP, makePerson, maxHp } from "./people";
 import { tribesAtWar } from "./state";
 import { DAMAGE, TECH, WARP_REST, canUsePad, isSpawner, isTech } from "./techRules";
@@ -46,7 +47,11 @@ export function updateCave(mountain: Thing, grid: Uint8Array, now: number, blast
       runMachine(cave, t, dead);
       continue;
     }
-    if (MOVES.has(t.type)) walk(cave, t);
+    if (!MOVES.has(t.type)) continue;
+    // Somebody who lives down here and is a miner works the walls, the same as
+    // a miner who walked in from outside.
+    if (t.traits?.includes("miner")) mine(cave, mountain, t);
+    else walk(cave, t);
   }
 
   if (dead.size > 0) mountain.caveThings = things.filter((t) => !dead.has(t));
@@ -61,6 +66,29 @@ function walk(cave: CaveWorld, t: Thing): void {
   t.x = step.x;
   t.y = step.y;
   t.heading = step.heading;
+}
+
+/**
+ * A miner who lives in the cave: take whatever ore is to hand, and otherwise
+ * pick the nearest seam anywhere in the rock and dig straight towards it.
+ */
+function mine(cave: CaveWorld, mountain: Thing, t: Thing): void {
+  const here = { x: t.x, y: t.y };
+  const got = dig(mountain, here.x, here.y);
+  if (got) {
+    t.dug = got;
+    return;
+  }
+  const seam = nearestOre(cave.grid, here.x, here.y, isOre);
+  if (!seam) {
+    walk(cave, t);
+    return;
+  }
+  t.seam = [seam.x, seam.y];
+  const step = tunnelTowards(mountain, here, seam);
+  t.x = step.x;
+  t.y = step.y;
+  t.heading = Math.atan2(seam.y - here.y, seam.x - here.x);
 }
 
 /** True when that finished it off. Only living things and buildings have health. */
@@ -123,10 +151,18 @@ function runMachine(cave: CaveWorld, machine: Thing, dead: Set<Thing>): void {
     const x = machine.x + (Math.random() - 0.5) * 6;
     const y = machine.y + 2;
     if (machine.type === "mutant-spawner") {
-      cave.things.push({ type: "mutant", x, y, hp: MUTANT_HP, name: "A mutant", ...(machine.tribe ? { tribe: machine.tribe } : {}) });
+      cave.things.push({
+        type: "mutant",
+        x,
+        y,
+        hp: MUTANT_HP,
+        name: machine.spawnName ?? "A mutant",
+        ...(machine.spawnTraits ? { traits: [...machine.spawnTraits] } : {}),
+        ...(machine.tribe ? { tribe: machine.tribe } : {}),
+      });
       cave.say("Something came out of the mutant machine, down in the dark.");
     } else {
-      cave.things.push(makePerson(x, y, machine.tribe));
+      cave.things.push(makePerson(x, y, machine.tribe, machine.spawnName, machine.spawnTraits && [...machine.spawnTraits]));
     }
     return;
   }

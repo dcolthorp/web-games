@@ -294,7 +294,7 @@ export function drawWorld(target: CanvasRenderingContext2D, now: number): void {
     // Anybody swimming is drawn down in the water with a ripple round them —
     // mutants included, since they swim the same as everybody else.
     const swimming = (t.type === "person" || t.type === "mutant") && !isLand(world.heights, t.x, t.y);
-    drawSprite(ctx, s, t.x, t.y + (swimming ? 3 : 0), now + t.x * 37, Math.cos(t.heading ?? 0) < 0);
+    drawSprite(ctx, s, t.x, t.y + (swimming ? 3 : 0), now + t.x * 37, Math.cos(t.heading ?? 0) < 0, t.size ?? 1);
     if (swimming) drawRipple(t, now);
     if (t.type === "volcano") drawSmoke(t, now);
     if (t.tribe && MAGIC.has(t.type)) drawBanner(t, s, now);

@@ -57,6 +57,9 @@ export const world = {
   waves: [] as Wave[],
   effects: [] as Effect[],
   crystals: [] as FoundCrystal[],
+  // Added to the height of the whole world: push it up and the sea goes away,
+  // push it down and everything drowns.
+  flood: 0,
   // Missiles and nukes on their way somewhere. Nothing in the air is saved.
   shots: [] as Shot[],
 };
@@ -119,6 +122,7 @@ export function loadWorld(): void {
   let tribes: Tribe[] = [];
   let strokes: Stroke[] = [];
   let crystals: FoundCrystal[] = [];
+  let flood = 0;
   try {
     const saved = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "null") as Record<string, unknown> | null;
     if (saved && Number.isFinite(saved["seed"]) && Array.isArray(saved["things"])) {
@@ -127,6 +131,7 @@ export function loadWorld(): void {
       tribes = Array.isArray(saved["tribes"]) ? saved["tribes"].filter(isTribe) : [];
       strokes = Array.isArray(saved["strokes"]) ? saved["strokes"].filter(isStroke) : [];
       crystals = Array.isArray(saved["crystals"]) ? saved["crystals"].filter(isFoundCrystal) : [];
+      flood = Number.isFinite(saved["flood"]) ? (saved["flood"] as number) : 0;
     }
   } catch {
     // Nothing saved, or it got scrambled. Start a fresh world.
@@ -135,10 +140,11 @@ export function loadWorld(): void {
   // codes in a saved cave still mean the crystals they were painted with.
   for (const crystal of crystals) registerFoundCrystal(crystal, crystal.code);
   const heights = makeHeights(seed);
-  Object.assign(world, { seed, things, tribes, strokes: [], heights, waves: [], effects: [], crystals, shots: [] });
+  Object.assign(world, { seed, things, tribes, strokes: [], heights, waves: [], effects: [], crystals, shots: [], flood });
   strokesBySpot.clear();
   for (const stroke of strokes) remember(stroke);
   for (const [x, y, amount] of world.strokes) applyStroke(heights, x, y, amount);
+  raiseEverything(heights, flood);
 }
 
 /** Puts the world as it stands now in the drawer, before wiping it. */
@@ -177,6 +183,26 @@ export function restoreOldWorld(): boolean {
 // Reset: the same land you already have, with everything you put on it taken
 // off again — including any raising and sinking, so the ground goes back to how
 // it first came out.
+/** Lifts or sinks the whole world at once. */
+function raiseEverything(heights: Float32Array, by: number): void {
+  if (by === 0) return;
+  for (let i = 0; i < heights.length; i += 1) heights[i] = (heights[i] ?? 0) + by;
+}
+
+/**
+ * All land, all sea, or back to the way the world came out. It is one number
+ * saved with the world, so it costs nothing and can always be undone.
+ */
+export function setFlood(by: number): void {
+  world.flood = by;
+  const heights = makeHeights(world.seed);
+  for (const [x, y, amount] of world.strokes) applyStroke(heights, x, y, amount);
+  raiseEverything(heights, by);
+  Object.assign(world, { heights });
+  world.terrainVersion += 1;
+  save();
+}
+
 export function resetWorld(): void {
   saveNow();
   keepOldWorld();
@@ -189,6 +215,7 @@ export function resetWorld(): void {
     waves: [],
     effects: [],
     shots: [],
+    flood: 0,
   });
   world.terrainVersion += 1;
   saveNow();
@@ -199,7 +226,7 @@ export function newWorld(): void {
   keepOldWorld();
   const seed = newSeed();
   strokesBySpot.clear();
-  Object.assign(world, { seed, things: [], tribes: [], strokes: [], heights: makeHeights(seed), waves: [], effects: [], shots: [] });
+  Object.assign(world, { seed, things: [], tribes: [], strokes: [], heights: makeHeights(seed), waves: [], effects: [], shots: [], flood: 0 });
   saveNow();
 }
 
@@ -255,6 +282,7 @@ export function saveNow(): void {
         tribes: world.tribes,
         strokes: world.strokes,
         crystals: world.crystals,
+        flood: world.flood,
       }),
     );
   } catch {

@@ -1,3 +1,4 @@
+import { BOSS_HP, isBoss } from "./bosses";
 import { CATEGORIES, CELESTIAL_IDS, CHOICES, MAGIC } from "./catalog";
 import { physics } from "./matrix";
 import type { Choice } from "./sprites";
@@ -124,6 +125,10 @@ const victimName = (t: Thing): string => `${t.name ? nameOf(t) : aOrAn(nameOf(t)
 
 export function act(t: Thing, now: number): void {
   const behind = Math.cos(t.heading ?? 0) < 0 ? 4 : -4;
+  if (isBoss(t.type)) {
+    bossTurn(t, now);
+    return;
+  }
   if (t.type === "dragon" && Math.random() < 0.004) {
     const victim = prey(t, 24, (c) => c.habitat === "land" && !c.sturdy);
     if (victim) {
@@ -155,6 +160,74 @@ export function act(t: Thing, now: number): void {
   } else if (CELESTIAL_IDS.has(t.type) && Math.random() < 0.005) {
     causeChaos(t, now);
   }
+}
+
+// ---------- bosses ----------
+
+const BOSS_REACH = 34;
+
+/**
+ * The O.S.C.A.R. BOT sweeps a beam across whatever is in front of it and
+ * deletes it. Geometry Dash winds up, then throws itself in a straight line
+ * and flattens everything it goes through, because it cannot stop.
+ */
+function bossTurn(t: Thing, now: number): void {
+  t.hp ??= BOSS_HP[t.type] ?? 200;
+  t.rest = Math.max(0, (t.rest ?? 0) - 1);
+
+  if (t.type === "geometry-dash") {
+    // Winding up, then a straight sprint that nothing survives.
+    if ((t.dash ?? 0) > 0) {
+      t.dash = (t.dash ?? 0) - 1;
+      step(t, "land", 1.1);
+      for (const victim of world.things) {
+        if (victim === t || isBoss(victim.type) || Math.hypot(victim.x - t.x, victim.y - t.y) > 5) continue;
+        destroy(victim, sparkle(victim.x, victim.y, now, "#3b7fe0"), `Geometry Dash went straight through ${nameOf(victim)}.`);
+        break;
+      }
+      return;
+    }
+    if (t.rest === 0) {
+      t.rest = 260;
+      t.dash = 90;
+      t.heading = Math.random() * Math.PI * 2;
+      world.effects.push(sparkle(t.x, t.y, now, "#9fe3ff"));
+      say("Geometry Dash is coming.");
+      return;
+    }
+    wander(t, "land", 0.06);
+    return;
+  }
+
+  // The bot has an arm for every occasion, and takes them in turns.
+  if (t.rest === 0) {
+    const victim = nearest(t, BOSS_REACH, (_, other) => !isBoss(other.type) && other.type !== "mountain");
+    if (victim) {
+      t.rest = 150;
+      const arm = Math.floor(Math.random() * 3);
+      if (arm === 0) {
+        world.effects.push({ kind: "laser", x: t.x, y: t.y - 8, x2: victim.x, y2: victim.y - 2, born: now, color: "#ff4fa3" });
+        destroy(victim, sparkle(victim.x, victim.y, now, "#ff4fa3"), `The O.S.C.A.R. BOT deleted ${nameOf(victim)}.`);
+      } else if (arm === 1) {
+        // The torch.
+        destroy(
+          victim,
+          { kind: "fire", x: victim.x, y: victim.y, born: now, color: "" },
+          `The O.S.C.A.R. BOT set fire to ${nameOf(victim)}.`
+        );
+      } else if (victim.type === "person" && victim.tribe) {
+        // The spiral. They wander off and never go home again.
+        victim.tribe = undefined;
+        victim.homing = 0;
+        world.effects.push(sparkle(victim.x, victim.y, now, "#9b59d9"));
+        say(`The O.S.C.A.R. BOT hypnotised ${nameOf(victim)}. They don't know whose tribe they were in.`);
+      } else {
+        destroy(victim, sparkle(victim.x, victim.y, now, "#ff4fa3"), `The O.S.C.A.R. BOT deleted ${nameOf(victim)}.`);
+      }
+      return;
+    }
+  }
+  wander(t, "land", 0.08);
 }
 
 // A celestial being teleports somewhere random, and then something strange

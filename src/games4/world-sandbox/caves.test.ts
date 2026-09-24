@@ -19,6 +19,25 @@ describe("caves", () => {
     expect(decodeCave(encodeCave(cave))).toEqual(cave);
   });
 
+  it("gives a bigger mountain a bigger cave", () => {
+    const tunnelsIn = (size: number): number => makeCave(11, size).filter((m) => m === TUNNEL).length;
+    const oreIn = (size: number): number =>
+      makeCave(11, size).filter((m) => m > 1 && MATERIALS[m]?.goesIn === "rock").length;
+    expect(tunnelsIn(2.4)).toBeGreaterThan(tunnelsIn(1));
+    expect(tunnelsIn(1)).toBeGreaterThan(tunnelsIn(0.6));
+    expect(oreIn(2.4)).toBeGreaterThan(oreIn(0.6));
+  });
+
+  it("keeps a little mountain's cave down at its own end", () => {
+    const small = makeCave(11, 0.6);
+    // Nothing dug out up in the top corner, where a small mountain has no room.
+    let topCorner = 0;
+    for (let y = 0; y < 20; y += 1) {
+      for (let x = W - 40; x < W; x += 1) if (small[y * W + x] === TUNNEL) topCorner += 1;
+    }
+    expect(topCorner).toBe(0);
+  });
+
   it("won't load text that isn't a whole cave", () => {
     expect(decodeCave("#5")).toBeNull();
     expect(decodeCave(`#${W * H + 1}`)).toBeNull();

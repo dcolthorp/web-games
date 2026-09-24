@@ -285,6 +285,13 @@ canvas {
   gap: 6px;
 }
 
+.tool-note {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .tool-empty {
   grid-column: 1 / -1;
   margin: 6px 0;
@@ -422,4 +429,69 @@ canvas {
     width: 100%;
     max-height: none;
   }
+}
+
+/* ---------- who's who ---------- */
+
+.people-list {
+  grid-column: 1 / -1;
+}
+
+.panel.wide {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.roster-tribes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.roster-tally {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 8px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.roster-tally[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: rgba(127, 208, 255, 0.22);
+}
+
+.roster-dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.6);
+}
+
+.roster-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.roster-filters .field {
+  margin-bottom: 12px;
+}
+
+.roster-list {
+  max-height: 46vh;
+}
+
+.roster-list li {
+  align-items: flex-start;
+}
+
+.roster-tribe-name {
+  color: var(--muted);
+  font-size: 0.85rem;
 }

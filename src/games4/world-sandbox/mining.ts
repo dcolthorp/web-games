@@ -41,7 +41,7 @@ export function gridFor(mountain: Thing): Uint8Array {
   const key = caveKey(mountain);
   let grid = grids.get(key);
   if (!grid) {
-    grid = (mountain.cave && decodeCave(mountain.cave)) || makeCave(Math.floor(mountain.x * 1000 + mountain.y));
+    grid = (mountain.cave && decodeCave(mountain.cave)) || makeCave(Math.floor(mountain.x * 1000 + mountain.y), mountain.size ?? 1);
     grids.set(key, grid);
     oreCounts.set(key, countOre(grid));
   }
@@ -116,6 +116,26 @@ export function tunnelTowards(mountain: Thing, from: { x: number; y: number }, t
   const y = from.y + (dy / d) * step;
   blowUp(grid, x, y, 1.7);
   return { x, y };
+}
+
+/** How close two miners' seams have to be to count as the same lump of ore. */
+export const SAME_SEAM = 9;
+
+/**
+ * Who was digging towards the ore somebody else just took. A tribe doesn't
+ * fall out with itself, and it makes no difference whether the two tribes were
+ * at war or whether either of them is a peaceful sort: they both wanted it.
+ */
+export function rivalsOver<T extends { tribe?: string; seam?: [number, number] }>(
+  spot: { x: number; y: number },
+  digger: T,
+  others: T[]
+): T[] {
+  return others.filter((other) => {
+    if (other === digger || !other.seam) return false;
+    if ((other.tribe ?? "") === (digger.tribe ?? "")) return false;
+    return Math.hypot(other.seam[0] - spot.x, other.seam[1] - spot.y) <= SAME_SEAM;
+  });
 }
 
 /** The nearest bit of ore within arm's reach, as a place in the grid. */

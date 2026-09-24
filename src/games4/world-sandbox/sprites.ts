@@ -90,10 +90,35 @@ export function tinted(key: string, color: string, ...frames: string[]): Sprite 
 
 // (x, y) is the spot on the ground the sprite stands on. Sprites face right;
 // flip them to face left.
-export function drawSprite(ctx: CanvasRenderingContext2D, s: Sprite, x: number, y: number, now = 0, flip = false): void {
+export function drawSprite(
+  ctx: CanvasRenderingContext2D,
+  s: Sprite,
+  x: number,
+  y: number,
+  now = 0,
+  flip = false,
+  scale = 1
+): void {
   const frame = s.frames[Math.floor(now / 250) % s.frames.length] as HTMLCanvasElement;
-  const left = Math.round(x - s.width / 2);
-  const top = Math.round(y) - s.height + 1;
+  const width = Math.round(s.width * scale);
+  const height = Math.round(s.height * scale);
+  const left = Math.round(x - width / 2);
+  const top = Math.round(y) - height + 1;
+  if (scale !== 1) {
+    // Blown up without smoothing, so a big mountain is the same mountain with
+    // bigger pixels.
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if (flip) {
+      ctx.translate(left + width, top);
+      ctx.scale(-1, 1);
+      ctx.drawImage(frame, 0, 0, width, height);
+    } else {
+      ctx.drawImage(frame, left, top, width, height);
+    }
+    ctx.restore();
+    return;
+  }
   if (!flip) {
     ctx.drawImage(frame, left, top);
     return;

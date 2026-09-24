@@ -1,5 +1,14 @@
 import { sprite, type Choice } from "./sprites";
 
+// How big a mountain you are putting down. A bigger one has a bigger cave in
+// it, with more tunnels and more ore.
+export const MOUNTAIN_SIZES = [
+  { name: "Hill-ish", size: 0.6 },
+  { name: "Mountain", size: 1 },
+  { name: "Big", size: 1.6 },
+  { name: "Huge", size: 2.4 },
+];
+
 export const LAND: Choice[] = [
   {
     id: "oak",

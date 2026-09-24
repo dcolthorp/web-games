@@ -3,9 +3,11 @@ import { CAVE_MOUTH, ENTER_CHANCE, ENTER_RANGE, LEAVE_CHANCE, mountainOf } from 
 import { destroy, nearest, sparkle, step, wander, canBe } from "./nature";
 import { say, save, tribesAtWar, world, type Tribe } from "./state";
 import { TECH, TECH_IDS, TECH_PER_TRIBE, buildCost, isTech, type TechId } from "./techRules";
+import { BOSS_HP } from "./bosses";
 import { encodeCave, makeCave } from "./caves";
 import { oreLeft } from "./mining";
 import { tribeNameFor } from "./tribeNames";
+import { TRAITS } from "./traits";
 import { H, W, isLand, type Thing } from "./world";
 
 // Tribes live in villages. Villages grow new people, people wander near home,
@@ -22,16 +24,8 @@ export const TRIBE_COLORS = [
   { name: "Black", color: "#1b1b1f" },
 ];
 
-export const TRAITS = [
-  { id: "brave", name: "Brave", about: "charges at enemies from further away" },
-  { id: "strong", name: "Strong", about: "hits harder and takes more hits" },
-  { id: "fast", name: "Fast", about: "moves twice as fast" },
-  { id: "peaceful", name: "Peaceful", about: "never starts a fight" },
-  { id: "explorer", name: "Explorer", about: "wanders far from home" },
-  { id: "builder", name: "Builder", about: "builds new villages, and sometimes whole new tribes" },
-  { id: "healer", name: "Healer", about: "heals hurt people from their tribe" },
-  { id: "miner", name: "Miner", about: "finds the nearest cave and won't come out until every ore is mined" },
-];
+// Kept in its own file so the roster can read them without pulling in sprites.
+export { TRAITS };
 
 const NAMES = [
   "Aki", "Bo", "Cora", "Dax", "Edda", "Finn", "Gus", "Hana", "Ivo", "Jax", "Kira", "Lev", "Mara",
@@ -53,7 +47,8 @@ export function randomTraits(): string[] {
 export const tribeOf = (t: Thing): Tribe | undefined => world.tribes.find((tribe) => tribe.id === t.tribe);
 
 export const maxHp = (t: Thing): number =>
-  t.type === "apartment" ? 40 : t.type === "village" ? 20 : t.type === "mutant" ? MUTANT_HP : has(t, "strong") ? 8 : 5;
+  BOSS_HP[t.type] ??
+  (t.type === "apartment" ? 40 : t.type === "village" ? 20 : t.type === "mutant" ? MUTANT_HP : has(t, "strong") ? 8 : 5);
 
 // A mutant walks out of a nuke. That is the entire point of a mutant.
 export const MUTANT_HP = 30;
@@ -366,7 +361,7 @@ function headForCave(p: Thing, now: number, speed: number): boolean {
   if (!mountain) return false;
   if (Math.hypot(mountain.x - p.x, mountain.y - p.y) < ENTER_RANGE) {
     if (mountain.cave === undefined) {
-      mountain.cave = encodeCave(makeCave(Math.floor(mountain.x * 1000 + mountain.y)));
+      mountain.cave = encodeCave(makeCave(Math.floor(mountain.x * 1000 + mountain.y), mountain.size ?? 1));
       say(`${p.name} dug into the mountain and found a cave!`);
     }
     return goIntoCave(p, now);
