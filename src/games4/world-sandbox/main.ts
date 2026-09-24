@@ -1144,6 +1144,8 @@ const rosterTribe = $<HTMLSelectElement>("roster-tribe");
 const rosterTrait = $<HTMLSelectElement>("roster-trait");
 const rosterSearch = $<HTMLInputElement>("roster-search");
 let rosterTimer = 0;
+// Whatever the list is showing right now, so the Edit buttons know who's who.
+let rosterShown: RosterEntry[] = [];
 
 const hearts = (e: RosterEntry): string => `${e.hp}/${e.most}`;
 
@@ -1164,6 +1166,7 @@ function renderRoster(): void {
   const shown = sortRoster(
     filterRoster(everyone, { tribe: rosterTribe.value, trait: rosterTrait.value, search: rosterSearch.value }),
   );
+  rosterShown = shown;
   rosterCount.textContent = rosterSummary(everyone);
   rosterTribes.innerHTML = tallyTribes(everyone, world.tribes)
     .map(
@@ -1191,10 +1194,7 @@ function renderRoster(): void {
       </li>`;
     })
     .join("");
-  rosterShown = shown;
 }
-
-let rosterShown: RosterEntry[] = [];
 
 rosterTribes.addEventListener("click", (event) => {
   const button = (event.target as Element).closest<HTMLElement>("[data-tribe]");
