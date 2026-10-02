@@ -296,6 +296,18 @@ h1.is-glitching::after {
   color: var(--warn);
 }
 
+.hub-dropdown-link-big {
+  border-color: #000;
+  background: repeating-linear-gradient(-55deg, #ff3b3b 0 14px, #ff9a1f 14px 28px, #ffe23b 28px 42px, #3bd16f 42px 56px, #3b8cff 56px 70px, #5b3bff 70px 84px, #b23bff 84px 98px);
+  color: #fff;
+  font-weight: 900;
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+}
+
+.hub-dropdown-link-big:hover {
+  color: #fff;
+}
+
 .hub-dropdown-link-delayed {
   position: relative;
   min-width: 290px;

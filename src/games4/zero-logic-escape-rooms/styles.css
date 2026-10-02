@@ -332,3 +332,104 @@ canvas {
   color: var(--muted);
   text-align: center;
 }
+
+/* GIGANTIC: the room on the canvas stays normal size, and everything around
+   it goes giant. Both games wear this stylesheet, and each one only puts the
+   class on its body when it is the gigantic one. */
+body.gigantic .back-link {
+  font-size: 42px;
+}
+
+body.gigantic .eyebrow {
+  font-size: 2.2rem;
+}
+
+body.gigantic h1 {
+  font-size: clamp(4rem, 15vw, 11rem);
+  overflow-wrap: anywhere;
+}
+
+body.gigantic .toolbar {
+  flex-wrap: wrap;
+  gap: 30px;
+  padding: 24px 30px;
+  border-width: 8px;
+}
+
+body.gigantic .toolbar-label {
+  font-size: 3.6rem;
+}
+
+body.gigantic .toolbar-slots {
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+body.gigantic .tool-slot {
+  width: 170px;
+  height: 170px;
+  border-width: 5px;
+  font-size: 1.8rem;
+}
+
+body.gigantic .tool-slot svg {
+  width: 84px;
+  height: 84px;
+}
+
+body.gigantic .tool-slot.is-empty {
+  font-size: 3.4rem;
+}
+
+body.gigantic .tool-new {
+  top: -22px;
+  right: -22px;
+  padding: 3px 12px;
+  font-size: 1.6rem;
+}
+
+body.gigantic .earth-goal {
+  max-width: 20rem;
+  font-size: 2rem;
+}
+
+body.gigantic .room-picker {
+  gap: 20px;
+}
+
+body.gigantic .room-picker button {
+  padding: 16px 30px;
+  border-width: 5px;
+  font-size: 2.4rem;
+}
+
+body.gigantic .instructions {
+  font-size: 3rem;
+  line-height: 1.2;
+}
+
+/* The credits roll over the canvas, so they get as giant as the box lets them. */
+body.gigantic .escape-title,
+body.gigantic .the-end {
+  font-size: clamp(3rem, 14vw, 9rem);
+}
+
+body.gigantic .credits-game {
+  font-size: clamp(2rem, 7vw, 4.5rem);
+}
+
+body.gigantic .credits-heading {
+  font-size: 1.8rem;
+}
+
+body.gigantic .credits-name,
+body.gigantic .credits-rooms p,
+body.gigantic .escape-note {
+  font-size: 2.6rem;
+}
+
+body.gigantic .escape-overlay button {
+  padding: 18px 34px;
+  border-width: 6px;
+  font-size: 2.2rem;
+}

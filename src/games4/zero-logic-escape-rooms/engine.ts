@@ -48,6 +48,55 @@ export const H = canvas.height;
 // and side walls slanting out to the edges of the canvas.
 export const BACK = { left: 120, right: 840, top: 40, bottom: 400 };
 
+// GIGANTIC: the room and its puzzle stay normal size, and everything else in
+// it (lights, junk, items, effects, words) goes giant. Both games share this
+// engine, so each game's main.ts sets it from its own gigantic switch.
+let giantScale = 1;
+
+export function setGiant(scale: number): void {
+  giantScale = scale;
+}
+
+export function giant(): number {
+  return giantScale;
+}
+
+// Grows whatever is drawn next around (x, y). Call between save and restore.
+export function growAround(x: number, y: number, scale = giantScale): void {
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.translate(-x, -y);
+}
+
+// Sets ctx.font with its size made giant. Given the text, it shrinks back down
+// as far as it has to for the text to still fit across the canvas.
+export function giantFont(font: string, text = "", maxWidth = W - 40): void {
+  ctx.font = font;
+  if (giantScale === 1) return;
+  const size = Number(/([\d.]+)px/.exec(font)?.[1] ?? 16);
+  const sized = (px: number): string => font.replace(/[\d.]+px/, `${Math.round(px)}px`);
+  ctx.font = sized(size * giantScale);
+  const width = text ? ctx.measureText(text).width : 0;
+  if (width > maxWidth) ctx.font = sized(Math.max(size, (size * giantScale * maxWidth) / width));
+}
+
+// Splits text into lines no wider than maxWidth in the current font.
+export function wrapLines(text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  for (const word of text.split(" ")) {
+    const next = current ? `${current} ${word}` : word;
+    if (current && ctx.measureText(next).width > maxWidth) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
 export function drawRoomBox(palette: RoomPalette): void {
   ctx.fillStyle = palette.ceiling;
   poly([0, 0], [W, 0], [BACK.right, BACK.top], [BACK.left, BACK.top]);
@@ -107,15 +156,20 @@ export function drawCaption(text: string, secondsIn: number): void {
   if (secondsIn < 0 || secondsIn > 5) return;
   const alpha = secondsIn < 0.5 ? secondsIn / 0.5 : secondsIn > 4 ? 5 - secondsIn : 1;
   ctx.globalAlpha = alpha;
-  ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
-  const width = ctx.measureText(text).width + 60;
+  ctx.font = `bold ${22 * giantScale}px 'Trebuchet MS', sans-serif`;
+  // A giant caption doesn't fit on one line, so it stacks up from the bottom.
+  const lines = giantScale === 1 ? [text] : wrapLines(text, W - 120);
+  const lineHeight = 26 * giantScale;
+  const boxHeight = 18 + lines.length * lineHeight;
+  const top = H - 26 - boxHeight;
+  const width = Math.max(...lines.map((words) => ctx.measureText(words).width)) + 60;
   ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-  roundRect(W / 2 - width / 2, H - 70, width, 44, 10);
+  roundRect(W / 2 - width / 2, top, width, boxHeight, 10);
   ctx.fill();
   ctx.fillStyle = "#f5efe6";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, W / 2, H - 48);
+  lines.forEach((words, i) => ctx.fillText(words, W / 2, top + 9 + lineHeight * (i + 0.5)));
   ctx.globalAlpha = 1;
 }
 
@@ -143,7 +197,7 @@ export function drawDust(dust: Dust[], color: string): void {
   ctx.fillStyle = color;
   for (const d of dust) {
     ctx.globalAlpha = Math.max(0, d.life);
-    ctx.fillRect(d.x, d.y, 3, 3);
+    ctx.fillRect(d.x, d.y, 3 * giantScale, 3 * giantScale);
   }
   ctx.globalAlpha = 1;
 }
@@ -153,7 +207,7 @@ export function drawSaw(x: number, y: number, angle: number, scale = 1): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.scale(scale, scale);
+  ctx.scale(scale * giantScale, scale * giantScale);
 
   // Blade: tall at the handle, narrowing to the tip, with teeth underneath.
   const blade = ctx.createLinearGradient(0, -18, 0, 14);

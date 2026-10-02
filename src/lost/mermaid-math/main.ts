@@ -10,6 +10,7 @@ import {
   newGame,
   type Game,
 } from "./rounds";
+import { isGigantic } from "../../shared/bigGames";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -24,6 +25,17 @@ const PEARL = "#f8faff";
 const MINT = "#9cffdc";
 const TEAL = "#3cdcd7";
 const INK = "#0a0c12";
+
+// GIGANTIC Mermaid Math: the sum, the pearls you count and the four answer
+// bubbles stay normal size. The sea goes giant around them: giant bubbles,
+// giant waves, giant sparkles.
+const GIGANTIC = isGigantic("mermaid-math");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Mermaid Math";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Mermaid Math";
+}
 
 const BEST_STREAK_KEY = "mermaid-math-best-streak";
 
@@ -79,7 +91,7 @@ function spawnBubble(): void {
   bubbles.push({
     x: 50 + Math.random() * (WINDOW_WIDTH - 100),
     y: WINDOW_HEIGHT + 10 + Math.random() * 110,
-    radius: 9 + Math.random() * 15,
+    radius: (9 + Math.random() * 15) * GIANT,
     speed: 18 + Math.random() * 46,
     phase: Math.random() * Math.PI * 2,
     wobble: 18 + Math.random() * 52,
@@ -93,7 +105,7 @@ function celebrate(x: number, y: number): void {
     bubbles.push({
       x: x + Math.random() * 16 - 8,
       y: y + Math.random() * 16 - 8,
-      radius: 10 + Math.random() * 12,
+      radius: (10 + Math.random() * 12) * GIANT,
       speed: 22 + Math.random() * 30,
       phase: Math.random() * Math.PI * 2,
       wobble: 14 + Math.random() * 26,
@@ -140,9 +152,9 @@ function drawOcean(): void {
 
   // Three slow waves across the lower half.
   const waves = [
-    { color: "rgba(143, 255, 214, 0.33)", offset: 0.58, amp: 10, freq: 2, speed: 0.7 },
-    { color: "rgba(198, 168, 255, 0.24)", offset: 0.67, amp: 16, freq: 2.6, speed: 0.95 },
-    { color: "rgba(156, 255, 220, 0.22)", offset: 0.76, amp: 22, freq: 3.2, speed: 1.2 },
+    { color: "rgba(143, 255, 214, 0.33)", offset: 0.58, amp: 10 * GIANT, freq: 2 / GIANT, speed: 0.7 },
+    { color: "rgba(198, 168, 255, 0.24)", offset: 0.67, amp: 16 * GIANT, freq: 2.6 / GIANT, speed: 0.95 },
+    { color: "rgba(156, 255, 220, 0.22)", offset: 0.76, amp: 22 * GIANT, freq: 3.2 / GIANT, speed: 1.2 },
   ];
   for (const wave of waves) {
     ctx.fillStyle = wave.color;
@@ -164,7 +176,7 @@ function drawBubbles(): void {
   for (const bubble of bubbles) {
     ctx.strokeStyle = bubble.color;
     ctx.globalAlpha = Math.max(0, bubble.alpha / 255);
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * GIANT;
     ctx.beginPath();
     ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
     ctx.stroke();
@@ -175,10 +187,10 @@ function drawBubbles(): void {
 function drawSparkles(): void {
   for (const sparkle of sparkles) {
     const life = Math.min(1, sparkle.age / sparkle.life);
-    const size = 6 + 10 * (1 - life);
+    const size = (6 + 10 * (1 - life)) * GIANT;
     ctx.globalAlpha = 1 - life;
     ctx.strokeStyle = sparkle.color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * GIANT;
     ctx.beginPath();
     ctx.moveTo(sparkle.x - size, sparkle.y);
     ctx.lineTo(sparkle.x + size, sparkle.y);
@@ -276,11 +288,11 @@ function drawFrame(): void {
     const pop = easeOutBack(Math.min(1, progress * 1.4));
     ctx.globalAlpha = Math.max(0, 1 - progress);
     ctx.fillStyle = feedback.correct ? SEAFOAM : CORAL;
-    const width = 260 * pop;
-    const height = 84 * pop;
+    const width = 260 * GIANT * pop;
+    const height = 84 * GIANT * pop;
     ctx.fillRect(WINDOW_WIDTH / 2 - width / 2, WINDOW_HEIGHT * 0.36 - height / 2, width, height);
     ctx.fillStyle = INK;
-    ctx.font = `${Math.max(10, 42 * pop)}px 'Trebuchet MS', sans-serif`;
+    ctx.font = `${Math.max(10, 42 * GIANT * pop)}px 'Trebuchet MS', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(feedback.message, WINDOW_WIDTH / 2, WINDOW_HEIGHT * 0.36);
@@ -295,6 +307,11 @@ function drawFrame(): void {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("Mermaid Math", WINDOW_WIDTH / 2, WINDOW_HEIGHT * 0.3);
+    if (GIGANTIC) {
+      ctx.fillStyle = CORAL;
+      ctx.font = "bold 170px 'Trebuchet MS', sans-serif";
+      ctx.fillText("GIGANTIC", WINDOW_WIDTH / 2, WINDOW_HEIGHT * 0.13);
+    }
     const pulse = 0.92 + 0.1 * ((Math.sin(time * 2.2) + 1) / 2);
     ctx.fillStyle = SEAFOAM;
     ctx.font = `${Math.round(52 * pulse)}px 'Trebuchet MS', sans-serif`;

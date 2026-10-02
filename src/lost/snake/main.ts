@@ -1,3 +1,4 @@
+import { isGigantic } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import {
@@ -26,6 +27,17 @@ installForceRefreshHotkey();
 
 const HIGH_SCORE_KEY = "lost-snake-high-score";
 
+// GIGANTIC Snake: the snake stays its normal size, and the food, the stars,
+// the poop and the writing are giant.
+const GIGANTIC = isGigantic("snake");
+const GIANT = GIGANTIC ? 3 : 1;
+const POOP_SIZE = BASE_SNAKE_SIZE * GIANT;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Snake";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Snake";
+}
+
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
@@ -36,6 +48,8 @@ let highScore = readHighScore();
 let foodLocation: Spot = { x: WINDOW_WIDTH - 3 * BASE_SNAKE_SIZE, y: WINDOW_HEIGHT - 3 * BASE_SNAKE_SIZE };
 let starFood: StarFood | null = null;
 let poops: Spot[] = [];
+// A giant poop waits to land until the snake has got clear of all of it.
+let landingPoops: Spot[] = [];
 let state: "playing" | "paused" | "game over" = "playing";
 const snake = new Snake({ x: WINDOW_WIDTH / 2, y: WINDOW_HEIGHT / 2 });
 
@@ -92,7 +106,7 @@ function drawStar(color: string, middle: Spot, radius: number, filled = true): v
 // The lucky star has lines drawn from its points towards the middle.
 function drawStarLines(color: string, middle: Spot, radius: number): void {
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * GIANT;
   for (let i = 0; i < 5; i += 1) {
     const angle = (Math.PI * 2 * i) / 5;
     ctx.beginPath();
@@ -107,8 +121,8 @@ function drawStarLines(color: string, middle: Spot, radius: number): void {
 function drawStarFood(star: StarFood, now: number): void {
   if (star.kind === "lucky") {
     const size = 2 * RAINBOW.length;
-    drawStar(LIME_GREEN, star.spot, size);
-    drawStarLines(DARK_GREEN, star.spot, size);
+    drawStar(LIME_GREEN, star.spot, size * GIANT);
+    drawStarLines(DARK_GREEN, star.spot, size * GIANT);
     return;
   }
 
@@ -125,7 +139,7 @@ function drawStarFood(star: StarFood, now: number): void {
       const dt = age % timeForEachColor;
       color = `rgb(${Math.round(base[0] * (1 - dt) + 128 * dt)}, ${Math.round(base[1] * (1 - dt) + 128 * dt)}, ${Math.round(base[2] * (1 - dt) + 128 * dt)})`;
     }
-    drawStar(color, star.spot, maxSize - 2 * x);
+    drawStar(color, star.spot, (maxSize - 2 * x) * GIANT);
   }
 }
 
@@ -137,34 +151,39 @@ function draw(now: number): void {
 
   ctx.fillStyle = FOOD_COLOR;
   ctx.beginPath();
-  ctx.arc(foodLocation.x, foodLocation.y, snake.size / 2, 0, Math.PI * 2);
+  ctx.arc(foodLocation.x, foodLocation.y, (snake.size / 2) * GIANT, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = POOP_COLOR;
-  for (const poop of poops) ctx.fillRect(poop.x, poop.y, BASE_SNAKE_SIZE, BASE_SNAKE_SIZE);
+  if (GIGANTIC) {
+    // Drawn round the spot that kills you, so you can see where not to go.
+    for (const poop of poops) ctx.fillRect(poop.x - POOP_SIZE / 2, poop.y - POOP_SIZE / 2, POOP_SIZE, POOP_SIZE);
+  } else {
+    for (const poop of poops) ctx.fillRect(poop.x, poop.y, BASE_SNAKE_SIZE, BASE_SNAKE_SIZE);
+  }
 
   if (starFood) drawStarFood(starFood, now);
 
   ctx.fillStyle = "rgb(255, 255, 255)";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = "30px 'Trebuchet MS', sans-serif";
-  ctx.fillText(`Score: ${score}`, WINDOW_WIDTH / 2, 50);
-  ctx.font = "13px 'Trebuchet MS', sans-serif";
-  ctx.fillText(`High Score: ${highScore}`, WINDOW_WIDTH / 2, 74);
+  ctx.font = `${30 * GIANT}px 'Trebuchet MS', sans-serif`;
+  ctx.fillText(`Score: ${score}`, WINDOW_WIDTH / 2, 50 * GIANT);
+  ctx.font = `${13 * GIANT}px 'Trebuchet MS', sans-serif`;
+  ctx.fillText(`High Score: ${highScore}`, WINDOW_WIDTH / 2, 74 * GIANT);
 
   if (state === "paused" || state === "game over") {
     const over = state === "game over";
     ctx.fillStyle = over ? "rgb(238, 130, 238)" : "rgb(0, 0, 0)";
     ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
     ctx.fillStyle = over ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)";
-    ctx.font = "30px 'Trebuchet MS', sans-serif";
+    ctx.font = `${30 * GIANT}px 'Trebuchet MS', sans-serif`;
     ctx.fillText(over ? "Game Over" : "Paused", WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
-    ctx.font = "18px 'Trebuchet MS', sans-serif";
+    ctx.font = `${18 * GIANT}px 'Trebuchet MS', sans-serif`;
     ctx.fillText(
       over ? "Press any key to play again" : "ESC to carry on",
       WINDOW_WIDTH / 2,
-      WINDOW_HEIGHT / 2 + 40
+      WINDOW_HEIGHT / 2 + 40 * GIANT
     );
   }
 }
@@ -174,6 +193,7 @@ function draw(now: number): void {
 function resetGame(): void {
   snake.reset({ x: WINDOW_WIDTH / 2, y: WINDOW_HEIGHT / 2 });
   poops = [];
+  landingPoops = [];
 
   // Die three times in a row without scoring and you're given a lucky star.
   gameNumber = score === 0 ? gameNumber + 1 : 0;
@@ -196,7 +216,7 @@ function step(now: number): void {
   if (
     snake.isTouchingItself() ||
     snake.isOutsideWindow() ||
-    poops.some((poop) => snake.isTouching(poop, BASE_SNAKE_SIZE / 2))
+    poops.some((poop) => snake.isTouching(poop, POOP_SIZE / 2))
   ) {
     state = "game over";
     return;
@@ -204,7 +224,7 @@ function step(now: number): void {
 
   if (starFood && starIsGone(starFood, now)) starFood = null;
 
-  if (snake.isTouching(foodLocation, snake.size / 2)) {
+  if (snake.isTouching(foodLocation, (snake.size / 2) * GIANT)) {
     snake.grow(4);
     round += 1;
     score += 1;
@@ -213,7 +233,7 @@ function step(now: number): void {
     if (round % 3 === 0) starFood = { spot: randomSpot(), kind: "normal", addedAt: now };
   }
 
-  if (starFood && snake.isTouching(starFood.spot, snake.size / 2)) {
+  if (starFood && snake.isTouching(starFood.spot, (snake.size / 2) * GIANT)) {
     score = scoreAfterStar(score);
     snake.grow(12);
     // A normal star also makes the snake bigger and faster, which is its own problem.
@@ -225,7 +245,13 @@ function step(now: number): void {
   }
 
   const newPoop = snake.update();
-  if (newPoop) poops.push(newPoop);
+  if (newPoop && GIGANTIC) landingPoops.push(newPoop);
+  else if (newPoop) poops.push(newPoop);
+  landingPoops = landingPoops.filter((poop) => {
+    if (snake.isTouching(poop, POOP_SIZE)) return true;
+    poops.push(poop);
+    return false;
+  });
 
   if (score > highScore) {
     highScore = score;

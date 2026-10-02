@@ -6,6 +6,7 @@ import { rgb } from "../systems/utils";
 import { ParticleSystem } from "../graphics/ParticleSystem";
 import { drawNu11Background } from "../graphics/Nu11Background";
 import { Button } from "../ui/Button";
+import { GIANT } from "../gigantic";
 
 export class DentalCareScene implements Scene {
   private stage: GrowthStage;
@@ -172,10 +173,12 @@ function drawMouth(
 }
 
 function drawBrush(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  // The bristles stay right where you point, however giant the brush is.
+  const s = GIANT;
   ctx.fillStyle = "rgb(200,200,220)";
-  ctx.fillRect(x - 20, y - 5, 40, 10);
+  ctx.fillRect(x + 19 - 39 * s, y - 5 * s, 40 * s, 10 * s);
   ctx.fillStyle = "rgb(150,200,255)";
-  ctx.fillRect(x + 15, y - 12, 8, 24);
+  ctx.fillRect(x + 15, y - 12 * s, 8 * s, 24 * s);
 }
 
 function drawProgress(

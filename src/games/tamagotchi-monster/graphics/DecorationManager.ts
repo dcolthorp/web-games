@@ -1,6 +1,7 @@
 import type { GrowthStage } from "../model/types";
 import { getAccentColor, getDecorationTypes } from "../systems/theme";
 import { rgb } from "../systems/utils";
+import { GIANT } from "../gigantic";
 
 type Decoration = {
   x: number;
@@ -68,7 +69,7 @@ export class DecorationManager {
       this.decorations.push({
         x: Math.random() * this.width,
         y: Math.random() * this.height,
-        size: 10 + Math.random() * 25,
+        size: (10 + Math.random() * 25) * GIANT,
         type: types[Math.floor(Math.random() * types.length)] as string,
         rotation: Math.random() * Math.PI * 2,
         alpha: 0.3 + Math.random() * 0.4,

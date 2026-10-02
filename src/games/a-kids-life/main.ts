@@ -7,8 +7,15 @@ import {
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { GAME_TITLE, GIGANTIC } from "./gigantic";
 
 installOofShortcut();
+
+if (GIGANTIC) {
+  document.title = GAME_TITLE;
+  const badge = document.querySelector(".game-badge");
+  if (badge) badge.textContent = GAME_TITLE;
+}
 
 const AKL_TROPHY_DOOM_STARTED_KEY = "a-kids-life-trophy-doom-started";
 

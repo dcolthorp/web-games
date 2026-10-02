@@ -9,6 +9,7 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  giant,
   lerp,
   roundRect,
   updateDust,
@@ -255,7 +256,7 @@ export function createButtonRoom(onEscaped: () => void): Room {
   // Wires run between the buttons, doing nothing in particular.
   function drawWiring(): void {
     ctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * giant();
     ctx.beginPath();
     for (let i = 1; i < buttons.length; i += 1) {
       const from = buttons[i - 1];
@@ -274,12 +275,12 @@ export function createButtonRoom(onEscaped: () => void): Room {
 
   function drawRipples(now: number): void {
     ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * giant();
     for (const ripple of ripples) {
       const t = (now - ripple.at) / 600;
       ctx.globalAlpha = 1 - t;
       ctx.beginPath();
-      ctx.arc(ripple.x, ripple.y, lerp(4, 46, t), 0, Math.PI * 2);
+      ctx.arc(ripple.x, ripple.y, lerp(4, 46, t) * giant(), 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;

@@ -1,3 +1,4 @@
+import { isGigantic } from "../../shared/bigGames";
 // Stickman Fight — ragdoll-physics brawler with a weapon shop.
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -34,6 +35,22 @@ const WEAPONS: Record<WeaponId, WeaponDef> = {
   // as a token "buy" — its real cost was paid in pain.
   ragequit:   { id: "ragequit",   name: "Rage Quit",     price: 1,    length: 60, width: 6,  color: "#ff2a2a", damage: 99,  tipBonus: 0   },
 };
+
+// GIGANTIC Stickman Fight, made by dragging B, I and G onto it on the BIG
+// games page. The stickmen stay normal size; everything else goes giant.
+const GIGANTIC = isGigantic("stickman-fight");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  for (const w of Object.values(WEAPONS)) {
+    if (w.id === "fist") continue;
+    w.length *= GIANT;
+    w.width *= GIANT;
+  }
+  document.title = "GIGANTIC Stickman Fight";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Stickman Fight";
+  document.body.classList.add("gigantic");
+}
 
 const WEAPON_ORDER: WeaponId[] = ["fist", "stick", "bat", "sword", "spear", "hammer", "lightsaber", "ragequit"];
 
@@ -310,7 +327,7 @@ function drawStickman(s: Stickman): void {
     if (s.weapon === "hammer") {
       ctx.fillStyle = w.color;
       ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 12, 0, Math.PI * 2);
+      ctx.arc(tip.x, tip.y, 12 * GIANT, 0, Math.PI * 2);
       ctx.fill();
     } else if (s.weapon === "spear") {
       ctx.fillStyle = "#dadada";
@@ -319,9 +336,9 @@ function drawStickman(s: Stickman): void {
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len, uy = dy / len;
       const px = -uy, py = ux;
-      ctx.moveTo(tip.x + ux * 10, tip.y + uy * 10);
-      ctx.lineTo(tip.x + px * 5, tip.y + py * 5);
-      ctx.lineTo(tip.x - px * 5, tip.y - py * 5);
+      ctx.moveTo(tip.x + ux * 10 * GIANT, tip.y + uy * 10 * GIANT);
+      ctx.lineTo(tip.x + px * 5 * GIANT, tip.y + py * 5 * GIANT);
+      ctx.lineTo(tip.x - px * 5 * GIANT, tip.y - py * 5 * GIANT);
       ctx.closePath();
       ctx.fill();
     } else if (s.weapon === "sword") {
@@ -923,12 +940,20 @@ function step(): void {
   ctx.lineTo(WIDTH, GROUND_Y);
   ctx.stroke();
 
+  // A giant sun, which only turns up when everything is giant.
+  if (GIGANTIC) {
+    ctx.fillStyle = "rgba(255, 214, 90, 0.9)";
+    ctx.beginPath();
+    ctx.arc(WIDTH * 0.78, 40, 190, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // distant mountains
   ctx.fillStyle = "rgba(80, 110, 140, 0.45)";
   ctx.beginPath();
   ctx.moveTo(0, GROUND_Y);
-  for (let x = 0; x <= WIDTH; x += 80) {
-    ctx.lineTo(x, GROUND_Y - 60 - Math.sin(x * 0.013) * 30 - (x % 160 === 0 ? 20 : 0));
+  for (let x = 0; x <= WIDTH; x += 80 * GIANT) {
+    ctx.lineTo(x, GROUND_Y - (60 + Math.sin(x * 0.013) * 30 + (x % 160 === 0 ? 20 : 0)) * GIANT);
   }
   ctx.lineTo(WIDTH, GROUND_Y);
   ctx.closePath();
@@ -938,8 +963,8 @@ function step(): void {
   for (let i = hits.length - 1; i >= 0; i--) {
     const h = hits[i]!;
     ctx.strokeStyle = `rgba(255, 220, 80, ${h.life / 14})`;
-    ctx.lineWidth = 3;
-    const r = 18 - h.life;
+    ctx.lineWidth = 3 * GIANT;
+    const r = (18 - h.life) * GIANT;
     ctx.beginPath();
     for (let a = 0; a < 6; a++) {
       const ang = (a / 6) * Math.PI * 2 + h.life * 0.2;

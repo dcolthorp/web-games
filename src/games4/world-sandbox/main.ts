@@ -1,3 +1,5 @@
+import { markFound } from "../../shared/bigGames";
+markFound("world-sandbox");
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { MATERIALS, MAX_MATERIALS, ROCK, encodeCave, makeCave, paint, registerFoundCrystal } from "./caves";
@@ -6,7 +8,7 @@ import { BOMB_CHOICES } from "./bombs";
 import { CATEGORIES, CAVE_CATEGORIES, CHOICES, MAGIC, MOVERS, TECH_IDS_SET } from "./catalog";
 import { MOUNTAIN_SIZES } from "./land";
 import { isSpawner } from "./techRules";
-import { drawCave, drawWorld } from "./draw";
+import { GIANT, GIGANTIC, drawCave, drawWorld, giantOf } from "./draw";
 import { LAWS, drawMatrix, physics } from "./matrix";
 import { inventCrystal } from "./crystals";
 import { bombKind } from "./cavern";
@@ -61,6 +63,13 @@ import { H, W, type Thing } from "./world";
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+if (GIGANTIC) {
+  document.title = "GIGANTIC World Sandbox";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC World Sandbox";
+  document.body.classList.add("gigantic");
+}
 
 // You look down on your world from space. Pick a kind of thing, pick which
 // one, and click the map to add it. The world is saved, so it's still there
@@ -418,7 +427,7 @@ canvas.addEventListener("pointerdown", (event) => {
     // Clicking a pad that is already down links it up, same as outside.
     if (caveChoice()?.id === "teleporter") {
       const pad = (caveMountain?.caveThings ?? [])
-        .filter((t) => t.type === "teleporter" && Math.hypot(t.x - x, t.y - y) <= 5)
+        .filter((t) => t.type === "teleporter" && Math.hypot(t.x - x, t.y - y) <= 5 * giantOf(t))
         .at(-1);
       if (pad) return linkPads(pad);
     }
@@ -427,7 +436,7 @@ canvas.addEventListener("pointerdown", (event) => {
   }
   if (c.id === "cave") {
     const mountain = world.things
-      .filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 6 * (t.size ?? 1) && y <= t.y && y >= t.y - 9 * (t.size ?? 1))
+      .filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 6 * (t.size ?? 1) * giantOf(t) && y <= t.y && y >= t.y - 9 * (t.size ?? 1) * giantOf(t))
       .at(-1);
     return mountain ? enterCave(mountain) : say("Click a mountain to go inside it.");
   }
@@ -438,9 +447,10 @@ canvas.addEventListener("pointerdown", (event) => {
     return;
   }
   if (c.id === "copy") {
-    const original = world.things.filter((t) => Math.abs(t.x - x) <= 6 && y <= t.y + 2 && y >= t.y - 12).at(-1);
+    // Giant things are giant to click on, and their copies stand a giant step away.
+    const original = world.things.filter((t) => Math.abs(t.x - x) <= 6 * giantOf(t) && y <= t.y + 2 && y >= t.y - 12 * giantOf(t)).at(-1);
     if (!original) return say("Click something to copy it.");
-    world.things.push({ ...structuredClone(original), x: original.x + 5, y: original.y + 1 });
+    world.things.push({ ...structuredClone(original), x: original.x + 5 * giantOf(original), y: original.y + 1 });
     say(`You copied ${nameOf(original)}. Physics is broken!`);
     return save();
   }
@@ -448,17 +458,17 @@ canvas.addEventListener("pointerdown", (event) => {
   // Clicking a pad with the Teleporter tool in your hand links pads together
   // instead of putting another one down.
   if (c.id === "teleporter") {
-    const pad = world.things.filter((t) => t.type === "teleporter" && Math.hypot(t.x - x, t.y - y) <= 5).at(-1);
+    const pad = world.things.filter((t) => t.type === "teleporter" && Math.hypot(t.x - x, t.y - y) <= 5 * giantOf(t)).at(-1);
     if (pad) return linkPads(pad);
   }
 
   if (c.id === "mountain") {
-    const standing = world.things.filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 8 * (t.size ?? 1) && Math.abs(t.y - y) <= 12 * (t.size ?? 1)).at(-1);
+    const standing = world.things.filter((t) => t.type === "mountain" && Math.abs(t.x - x) <= 8 * (t.size ?? 1) * giantOf(t) && Math.abs(t.y - y) <= 12 * (t.size ?? 1) * giantOf(t)).at(-1);
     if (standing) return resizeMountain(standing);
   }
 
   if (isSpawner(c.id)) {
-    const machine = world.things.filter((t) => t.type === c.id && Math.hypot(t.x - x, t.y - y) <= 6).at(-1);
+    const machine = world.things.filter((t) => t.type === c.id && Math.hypot(t.x - x, t.y - y) <= 6 * giantOf(t)).at(-1);
     if (machine) return openMachineDialog(machine);
   }
 
@@ -604,7 +614,7 @@ function drawCaveBlasts(now: number): void {
       continue;
     }
     ctx.strokeStyle = p < 0.4 ? "#f7d23e" : "#ee7a2a";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * GIANT;
     ctx.globalAlpha = 1 - p;
     ctx.beginPath();
     ctx.arc(blast.x, blast.y, blast.r * (0.3 + p), 0, Math.PI * 2);

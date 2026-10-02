@@ -753,3 +753,10 @@ body[data-body="matrix"] .velocity-meter .velocity-value,
 body[data-body="matrix"] .velocity-meter.broken .velocity-value {
   color: #46ff82;
 }
+
+/* GIGANTIC: only the word gets big up here. Everything above the canvas
+   steals height from it, and a smaller canvas would shrink Claire too. */
+body.gigantic .clairs-shell .clairs-eyebrow {
+  font-size: 1.5rem;
+  opacity: 1;
+}

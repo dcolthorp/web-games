@@ -8,6 +8,8 @@ import {
   drawRoomBox,
   drawSaw,
   drawVignette,
+  giant,
+  growAround,
   inRect,
   lerp,
   line,
@@ -813,6 +815,8 @@ export function createComicalRoom(escape: () => void): Room {
   }
 
   function drawCeilingLight(): void {
+    ctx.save();
+    growAround(W / 2, 40);
     const glow = ctx.createRadialGradient(W / 2, 50, 10, W / 2, 50, 240);
     glow.addColorStop(0, "rgba(255, 246, 216, 0.35)");
     glow.addColorStop(1, "rgba(255, 246, 216, 0)");
@@ -822,6 +826,7 @@ export function createComicalRoom(escape: () => void): Room {
     ctx.beginPath();
     ctx.ellipse(W / 2, 48, 42, 10, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 
   function drawCushion(color: string, open: boolean): void {
@@ -1153,6 +1158,7 @@ export function createComicalRoom(escape: () => void): Room {
   function drawGlueCursor(p: Point): void {
     ctx.save();
     ctx.translate(p.x, p.y);
+    ctx.scale(giant(), giant());
     ctx.rotate(0.5);
     ctx.fillStyle = "#f08a24";
     poly([0, 0], [-6, -14], [6, -14]);
@@ -1240,7 +1246,7 @@ export function createComicalRoom(escape: () => void): Room {
   }
 
   function drawFloaters(now: number): void {
-    ctx.font = `bold 20px ${COMIC_FONT}`;
+    ctx.font = `bold ${20 * giant()}px ${COMIC_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 4;

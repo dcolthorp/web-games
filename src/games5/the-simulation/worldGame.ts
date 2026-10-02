@@ -144,8 +144,14 @@ export function createWorldGame(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  sounds: WorldSounds
+  sounds: WorldSounds,
+  // GIGANTIC: the blocks stay as they are and you, the glitches and the
+  // fragments shrink to fit, which looks just like the world going giant around
+  // you. Nothing moves any differently, so the ladders still keep you safe.
+  giant = 1
 ): WorldGame {
+  const small = 1 / giant;
+  const eyeUp = EYE * small;
   let screen: Screen = "lobby";
   let mood: Mood = "playing";
   let mode: Mode = "survival";
@@ -222,8 +228,8 @@ export function createWorldGame(
 
   // Are you looking right at it? A stopframe only moves when you aren't, and a
   // glitch you can see is a glitch to run from.
-  function canSee(glitch: { x: number; y: number; z: number }, tall = 0.95): boolean {
-    const eye = { x: player.x, y: player.y + EYE, z: player.z };
+  function canSee(glitch: { x: number; y: number; z: number }, tall = 0.95 * small): boolean {
+    const eye = { x: player.x, y: player.y + eyeUp, z: player.z };
     const middle = { x: glitch.x, y: glitch.y + tall, z: glitch.z };
     const awayX = middle.x - eye.x;
     const awayY = middle.y - eye.y;
@@ -271,7 +277,7 @@ export function createWorldGame(
     let before: Spot | null = null;
     for (let step = 0.1; step < REACH; step += 0.1) {
       const x = Math.floor(player.x + aim.x * step);
-      const y = Math.floor(player.y + EYE + aim.y * step);
+      const y = Math.floor(player.y + eyeUp + aim.y * step);
       const z = Math.floor(player.z + aim.z * step);
       if (isSolid(blockAt(arena.world, x, y, z))) return { at: { x, y, z }, before };
       before = { x, y, z };
@@ -287,7 +293,7 @@ export function createWorldGame(
     if (mode === "boss") {
       // A shard of the forged crystal. It only does anything while looking at
       // the boss is holding it still.
-      shards.push(throwShard(player, performance.now()));
+      shards.push(throwShard(player, performance.now(), eyeUp));
       sounds.fragment();
       return;
     }
@@ -401,9 +407,9 @@ export function createWorldGame(
       climbingSince = 0;
     }
 
-    const watched = canSee(boss, BOSS_HEIGHT / 2);
+    const watched = canSee(boss, (BOSS_HEIGHT / 2) * small);
     updateBoss(arena.world, boss, player, dt, now, watched);
-    const flying = updateShards(arena.world, shards, boss, dt, now);
+    const flying = updateShards(arena.world, shards, boss, dt, now, BOSS_HEIGHT * small);
     shards = flying.shards;
     if (flying.hits > 0) sounds.scare();
     if (flying.bounces > 0) sounds.block();
@@ -465,15 +471,17 @@ export function createWorldGame(
   }
 
   function sprites(): Sprite[] {
-    const all: Sprite[] = fragments.map((fragment) => ({ ...fragment, kind: "fragment" as const, size: 0.45 }));
-    for (const shard of shards) all.push({ x: shard.x, y: shard.y, z: shard.z, kind: "shard" as const, size: 0.3 });
+    // Shrunk to match you when it's gigantic; the ones that stand on the
+    // ground keep their feet on it.
+    const all: Sprite[] = fragments.map((fragment) => ({ ...fragment, kind: "fragment" as const, size: 0.45 * small }));
+    for (const shard of shards) all.push({ x: shard.x, y: shard.y, z: shard.z, kind: "shard" as const, size: 0.3 * small });
     if (boss) {
       all.push({
         x: boss.x,
-        y: boss.y + BOSS_HEIGHT / 2,
+        y: boss.y + (BOSS_HEIGHT / 2) * small,
         z: boss.z,
         kind: "boss" as const,
-        size: BOSS_HEIGHT,
+        size: BOSS_HEIGHT * small,
         phase: boss.phase,
         frozen: boss.frozen,
       });
@@ -481,10 +489,10 @@ export function createWorldGame(
     for (const glitch of glitches) {
       // A mimic in hiding looks like a fragment, which is the whole trick.
       if (glitch.hiding) {
-        all.push({ x: glitch.x, y: glitch.y + 0.7, z: glitch.z, kind: "fakeFragment" as const, size: 0.45 });
+        all.push({ x: glitch.x, y: glitch.y + 0.7, z: glitch.z, kind: "fakeFragment" as const, size: 0.45 * small });
         continue;
       }
-      all.push({ x: glitch.x, y: glitch.y + 0.95, z: glitch.z, kind: glitch.kind, size: 1.9 });
+      all.push({ x: glitch.x, y: glitch.y + 0.95 * small, z: glitch.z, kind: glitch.kind, size: 1.9 * small });
     }
     return all;
   }
@@ -616,7 +624,7 @@ export function createWorldGame(
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#a6ff9b";
     ctx.font = "bold 64px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
-    ctx.fillText("THE SIMULATION", W / 2, 80);
+    ctx.fillText(giant > 1 ? "GIGANTIC THE SIMULATION" : "THE SIMULATION", W / 2, 80);
 
     ctx.fillStyle = "rgba(230, 240, 255, 0.65)";
     ctx.font = "20px 'Trebuchet MS', sans-serif";
@@ -1010,7 +1018,7 @@ export function createWorldGame(
 
     ctx.fillStyle = SKY;
     ctx.fillRect(0, 0, W, H);
-    renderWorld(ctx, W, H, arena.world, player, sprites(), now);
+    renderWorld(ctx, W, H, arena.world, player, sprites(), now, eyeUp);
     drawCrosshair();
     drawHud();
 

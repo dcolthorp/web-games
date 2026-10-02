@@ -46,7 +46,10 @@ export function textHeight(size: number): number {
 export function createBoard(
   paper: HTMLCanvasElement,
   preview: HTMLCanvasElement,
-  hooks: BoardHooks = {}
+  hooks: BoardHooks = {},
+  // GIGANTIC: the pencil stays the pencil, and every other tool draws this
+  // many times bigger.
+  giant = 1
 ): Board {
   const ink = paper.getContext("2d", { willReadFrequently: true });
   const ghost = preview.getContext("2d");
@@ -88,7 +91,8 @@ export function createBoard(
 
   const strokeStyle = (context: CanvasRenderingContext2D): void => {
     context.strokeStyle = tool === "eraser" ? PAPER_COLOR : color;
-    context.lineWidth = tool === "eraser" ? size * 2.5 : size;
+    const width = tool === "freeform" ? size : size * giant;
+    context.lineWidth = tool === "eraser" ? width * 2.5 : width;
     context.lineCap = "round";
     context.lineJoin = "round";
   };
@@ -211,8 +215,8 @@ export function createBoard(
     placeText(spot, text) {
       const words = text.trim();
       if (!words) return;
-      const height = textHeight(size);
-      ink.font = textFont(size);
+      const height = textHeight(size * giant);
+      ink.font = textFont(size * giant);
       ink.textBaseline = "top";
       ink.fillStyle = tool === "eraser" ? PAPER_COLOR : color;
       ink.fillText(words, spot.x, spot.y);

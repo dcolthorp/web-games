@@ -14,8 +14,24 @@ import {
 } from "../../shared/ahegTrophy";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 
 installOofShortcut();
+
+// GIGANTIC A Hard Easy Game: the player stays normal size, everything else
+// goes giant. Real walls keep their size so every level still fits through.
+const GIGANTIC = isGigantic("a-hard-easy-game");
+const GIANT = GIGANTIC ? 2.5 : 1;
+const TROPHY_WIDTH = 52 * GIANT;
+const TROPHY_HEIGHT = 60 * GIANT;
+if (GIGANTIC) {
+  document.title = "GIGANTIC A Hard Easy Game";
+  const lockup = document.querySelector(".title-lockup");
+  const gigantic = document.createElement("span");
+  gigantic.className = "title-gigantic";
+  gigantic.textContent = "GIGANTIC";
+  lockup?.prepend(gigantic);
+}
 
 interface Vector2 {
   x: number;
@@ -526,11 +542,14 @@ canvas.addEventListener("click", (event) => {
       secretHealth = secretMaxHealth;
       updateHud("Heart drop. Full heal and max health +10.");
     } else if (skull.variant === "escape") {
+      const width = 104 * GIANT;
+      const height = 56 * GIANT;
       exitDrop = {
-        x: skull.x - 52,
-        y: skull.y - 28,
-        width: 104,
-        height: 56,
+        // A giant sign has to land where it can still be clicked.
+        x: GIGANTIC ? clamp(skull.x - width / 2, 0, WORLD.width - width) : skull.x - 52,
+        y: GIGANTIC ? clamp(skull.y - height / 2, 0, WORLD.height - height) : skull.y - 28,
+        width,
+        height,
         bobPhase: Math.random() * Math.PI * 2,
       };
       updateHud("Exit sign dropped. Click it to escape back to localhost.");
@@ -673,11 +692,12 @@ function render(timestamp: number): void {
 }
 
 function drawBackground(timestamp: number): void {
-  const stripeOffset = (timestamp * 0.05) % 40;
+  const stripeGap = 40 * GIANT;
+  const stripeOffset = (timestamp * 0.05) % stripeGap;
   ctx.save();
-  for (let x = -40; x < WORLD.width + 40; x += 40) {
+  for (let x = -stripeGap; x < WORLD.width + stripeGap; x += stripeGap) {
     ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
-    ctx.fillRect(x + stripeOffset, 0, 16, WORLD.height);
+    ctx.fillRect(x + stripeOffset, 0, 16 * GIANT, WORLD.height);
   }
   ctx.restore();
 }
@@ -685,21 +705,41 @@ function drawBackground(timestamp: number): void {
 function drawFakeWarnings(): void {
   ctx.save();
   ctx.strokeStyle = "rgba(255, 107, 122, 0.16)";
-  ctx.setLineDash([8, 10]);
+  ctx.setLineDash([8 * GIANT, 10 * GIANT]);
   for (const hazard of course.hazards) {
     if (hazard.real) {
       continue;
     }
-    ctx.lineWidth = 3;
-    ctx.strokeRect(hazard.x - 4, hazard.y - 4, hazard.width + 8, hazard.height + 8);
+    const shown = shownHazard(hazard);
+    const pad = 4 * GIANT;
+    ctx.lineWidth = 3 * GIANT;
+    ctx.strokeRect(shown.x - pad, shown.y - pad, shown.width + pad * 2, shown.height + pad * 2);
   }
   ctx.restore();
 }
 
 function drawHazards(): void {
+  if (GIGANTIC) {
+    // Giant fake walls first, so they never hide a real one.
+    course.hazards.filter((hazard) => !hazard.real).forEach(drawHazard);
+    course.hazards.filter((hazard) => hazard.real).forEach(drawHazard);
+    return;
+  }
+
   for (const hazard of course.hazards) {
     drawHazard(hazard);
   }
+}
+
+// Fake walls are only scenery, so in GIGANTIC they can go giant. Real walls
+// keep their hitbox, or the gaps between them would close up.
+function shownHazard(hazard: Hazard): Rect {
+  if (hazard.real || !GIGANTIC) {
+    return hazard;
+  }
+
+  const width = hazard.width * GIANT;
+  return { x: hazard.x + hazard.width / 2 - width / 2, y: hazard.y, width, height: hazard.height };
 }
 
 function updateMovingHazards(): void {
@@ -788,7 +828,7 @@ function drawGoal(timestamp: number): void {
 
   ctx.save();
   ctx.shadowColor = `rgba(246, 211, 101, ${0.45 + pulse * 0.15})`;
-  ctx.shadowBlur = 28;
+  ctx.shadowBlur = 28 * GIANT;
   ctx.fillStyle = "#f6d365";
   ctx.fillRect(course.goal.x, course.goal.y, course.goal.width, course.goal.height);
 
@@ -796,22 +836,25 @@ function drawGoal(timestamp: number): void {
   ctx.fillRect(course.goal.x + 10, course.goal.y + 12, course.goal.width - 20, course.goal.height - 24);
   ctx.restore();
 
-  ctx.fillStyle = "#2b1c08";
-  ctx.font = "700 20px Trebuchet MS";
+  ctx.font = `700 ${20 * GIANT}px Trebuchet MS`;
   ctx.textAlign = "center";
-  ctx.fillText("EXIT", course.goal.x + course.goal.width / 2, course.goal.y - 16);
+  // A giant EXIT sign goes under the exit when there's no room above it.
+  const labelY =
+    course.goal.y - 16 - 20 * GIANT < 0 ? course.goal.y + course.goal.height + 20 * GIANT : course.goal.y - 16;
+  ctx.fillStyle = GIGANTIC ? "#f6d365" : "#2b1c08";
+  ctx.fillText("EXIT", course.goal.x + course.goal.width / 2, labelY);
 }
 
 function drawStart(): void {
   ctx.fillStyle = "#6dd3ff";
   ctx.beginPath();
-  ctx.arc(course.start.x, course.start.y, 26, 0, Math.PI * 2);
+  ctx.arc(course.start.x, course.start.y, 26 * GIANT, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "#0f1828";
-  ctx.font = "700 18px Trebuchet MS";
+  ctx.font = `700 ${18 * GIANT}px Trebuchet MS`;
   ctx.textAlign = "center";
-  ctx.fillText("GO", course.start.x, course.start.y + 6);
+  ctx.fillText("GO", course.start.x, course.start.y + 6 * GIANT);
 }
 
 function drawPlayer(): void {
@@ -1092,8 +1135,8 @@ function createTrophyIfNeeded(): Trophy | null {
     return {
       x: 96,
       y: 70,
-      width: 52,
-      height: 60,
+      width: TROPHY_WIDTH,
+      height: TROPHY_HEIGHT,
       homeX: 96,
       homeY: 70,
       targetLevel,
@@ -1108,8 +1151,8 @@ function createTrophyIfNeeded(): Trophy | null {
     return {
       x: 96,
       y: 70,
-      width: 52,
-      height: 60,
+      width: TROPHY_WIDTH,
+      height: TROPHY_HEIGHT,
       homeX: 96,
       homeY: 70,
       targetLevel: 5,
@@ -1120,8 +1163,8 @@ function createTrophyIfNeeded(): Trophy | null {
     return {
       x: 96,
       y: 70,
-      width: 52,
-      height: 60,
+      width: TROPHY_WIDTH,
+      height: TROPHY_HEIGHT,
       homeX: 96,
       homeY: 70,
       targetLevel: 2,
@@ -1130,24 +1173,24 @@ function createTrophyIfNeeded(): Trophy | null {
 
   if (readLevelThreeTrophyReady() && readLevelTwoUnlocked() && !readLevelThreeUnlocked() && currentLevel === 2) {
     return {
-      x: WORLD.width / 2 - 26,
-      y: WORLD.height / 2 - 30,
-      width: 52,
-      height: 60,
-      homeX: WORLD.width / 2 - 26,
-      homeY: WORLD.height / 2 - 30,
+      x: WORLD.width / 2 - TROPHY_WIDTH / 2,
+      y: WORLD.height / 2 - TROPHY_HEIGHT / 2,
+      width: TROPHY_WIDTH,
+      height: TROPHY_HEIGHT,
+      homeX: WORLD.width / 2 - TROPHY_WIDTH / 2,
+      homeY: WORLD.height / 2 - TROPHY_HEIGHT / 2,
       targetLevel: 3,
     };
   }
 
   if (readLevelThreeUnlocked() && !readLevelFourUnlocked() && currentLevel === 3) {
     return {
-      x: WORLD.width / 2 - 26,
-      y: WORLD.height / 2 - 30,
-      width: 52,
-      height: 60,
-      homeX: WORLD.width / 2 - 26,
-      homeY: WORLD.height / 2 - 30,
+      x: WORLD.width / 2 - TROPHY_WIDTH / 2,
+      y: WORLD.height / 2 - TROPHY_HEIGHT / 2,
+      width: TROPHY_WIDTH,
+      height: TROPHY_HEIGHT,
+      homeX: WORLD.width / 2 - TROPHY_WIDTH / 2,
+      homeY: WORLD.height / 2 - TROPHY_HEIGHT / 2,
       targetLevel: 4,
     };
   }
@@ -1183,8 +1226,12 @@ function showTrophyDragGhost(left: number, top: number): void {
     trophyDragGhost.className = "trophy-drag-ghost";
     trophyDragGhost.setAttribute("aria-hidden", "true");
     const ghostCanvas = document.createElement("canvas");
-    ghostCanvas.width = 52;
-    ghostCanvas.height = 60;
+    ghostCanvas.width = TROPHY_WIDTH;
+    ghostCanvas.height = TROPHY_HEIGHT;
+    if (GIGANTIC) {
+      trophyDragGhost.style.width = `${TROPHY_WIDTH}px`;
+      trophyDragGhost.style.height = `${TROPHY_HEIGHT}px`;
+    }
     const ghostContext = ghostCanvas.getContext("2d");
     if (ghostContext instanceof CanvasRenderingContext2D) {
       drawTrophyGraphic(ghostContext, 0, 0, trophy?.targetLevel ?? 2);
@@ -1351,6 +1398,10 @@ function drawTrophyGraphic(
   targetLevel: 2 | 3 | 4 | 5
 ): void {
   renderCtx.save();
+  // Drawn at normal size, then blown up to giant around its corner.
+  renderCtx.translate(x, y);
+  renderCtx.scale(GIANT, GIANT);
+  renderCtx.translate(-x, -y);
   renderCtx.fillStyle = "#ffd86f";
   renderCtx.fillRect(x + 10, y + 44, 32, 10);
   renderCtx.fillRect(x + 20, y + 22, 12, 28);
@@ -1372,7 +1423,8 @@ function drawTrophyGraphic(
   renderCtx.restore();
 }
 
-function drawHazard(hazard: Hazard): void {
+function drawHazard(real: Hazard): void {
+  const hazard = { ...shownHazard(real), real: real.real };
   const gradient = ctx.createLinearGradient(hazard.x, hazard.y, hazard.x + hazard.width, hazard.y);
   if (hazard.real) {
     gradient.addColorStop(0, "#ff7b7b");
@@ -1386,12 +1438,12 @@ function drawHazard(hazard: Hazard): void {
   ctx.fillRect(hazard.x, hazard.y, hazard.width, hazard.height);
 
   ctx.fillStyle = "rgba(22, 16, 30, 0.42)";
-  for (let y = hazard.y; y < hazard.y + hazard.height; y += 16) {
+  for (let y = hazard.y; y < hazard.y + hazard.height; y += 16 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(hazard.x, y);
-    ctx.lineTo(hazard.x + hazard.width, y + 10);
-    ctx.lineTo(hazard.x + hazard.width, y + 16);
-    ctx.lineTo(hazard.x, y + 6);
+    ctx.lineTo(hazard.x + hazard.width, y + 10 * GIANT);
+    ctx.lineTo(hazard.x + hazard.width, y + 16 * GIANT);
+    ctx.lineTo(hazard.x, y + 6 * GIANT);
     ctx.closePath();
     ctx.fill();
   }
@@ -1745,25 +1797,26 @@ function spawnSkull(): void {
   const variant: Skull["variant"] = Math.random() < 0.16 ? "elite" : "normal";
   let x = 0;
   let y = 0;
+  const offscreen = 40 * GIANT;
 
   if (edge === 0) {
     x = Math.random() * WORLD.width;
-    y = -40;
+    y = -offscreen;
   } else if (edge === 1) {
-    x = WORLD.width + 40;
+    x = WORLD.width + offscreen;
     y = Math.random() * WORLD.height;
   } else if (edge === 2) {
     x = Math.random() * WORLD.width;
-    y = WORLD.height + 40;
+    y = WORLD.height + offscreen;
   } else {
-    x = -40;
+    x = -offscreen;
     y = Math.random() * WORLD.height;
   }
 
   skulls.push({
     x,
     y,
-    radius: variant === "elite" ? 30 + Math.random() * 12 : 24 + Math.random() * 10,
+    radius: (variant === "elite" ? 30 + Math.random() * 12 : 24 + Math.random() * 10) * GIANT,
     speed: variant === "elite" ? 72 + Math.random() * 26 : 88 + Math.random() * 60,
     spin: Math.random() * Math.PI * 2,
     wobble: 22 + Math.random() * 18,
@@ -1776,8 +1829,8 @@ function spawnSkull(): void {
 function spawnEscapeSkull(): void {
   skulls.push({
     x: WORLD.width / 2,
-    y: -54,
-    radius: 38,
+    y: -54 * GIANT,
+    radius: 38 * GIANT,
     speed: 64,
     spin: Math.random() * Math.PI * 2,
     wobble: 16,
@@ -1801,10 +1854,10 @@ function drawGlitchTransition(timestamp: number): void {
   ctx.fillRect(0, 0, WORLD.width, WORLD.height);
   ctx.fillStyle = "#ff8fb3";
   ctx.textAlign = "center";
-  ctx.font = "700 48px Trebuchet MS";
-  ctx.fillText("SIGNAL CORRUPTED", WORLD.width / 2, WORLD.height / 2 - 12);
-  ctx.font = "700 20px Trebuchet MS";
-  ctx.fillText("Shadow account found. Teleporting...", WORLD.width / 2, WORLD.height / 2 + 32);
+  ctx.font = `700 ${48 * GIANT}px Trebuchet MS`;
+  ctx.fillText("SIGNAL CORRUPTED", WORLD.width / 2, WORLD.height / 2 - 12, WORLD.width - 32);
+  ctx.font = `700 ${20 * GIANT}px Trebuchet MS`;
+  ctx.fillText("Shadow account found. Teleporting...", WORLD.width / 2, WORLD.height / 2 + 12 + 20 * GIANT, WORLD.width - 32);
 }
 
 function drawSecretLevel(timestamp: number): void {
@@ -1839,9 +1892,9 @@ function drawSecretLevel(timestamp: number): void {
   }
 
   ctx.fillStyle = "#ffc0d2";
-  ctx.font = "700 22px Trebuchet MS";
+  ctx.font = `700 ${22 * GIANT}px Trebuchet MS`;
   ctx.textAlign = "left";
-  ctx.fillText("SECRET LEVEL // SHADOW SWARM", 24, 36);
+  ctx.fillText("SECRET LEVEL // SHADOW SWARM", 24, 14 + 22 * GIANT, WORLD.width - 48);
 }
 
 function drawSkull(skull: Skull, timestamp: number): void {
@@ -1880,7 +1933,7 @@ function drawSkull(skull: Skull, timestamp: number): void {
   ctx.fill();
 
   ctx.strokeStyle = "#1a1024";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * GIANT;
   for (let i = -2; i <= 2; i += 1) {
     ctx.beginPath();
     ctx.moveTo(i * skull.radius * 0.18, skull.radius * 0.42);
@@ -1903,7 +1956,7 @@ function drawSkull(skull: Skull, timestamp: number): void {
     }
 
     ctx.fillStyle = skull.variant === "escape" ? "#4d3600" : "#fff0f4";
-    ctx.font = "700 16px Trebuchet MS";
+    ctx.font = `700 ${16 * GIANT}px Trebuchet MS`;
     ctx.textAlign = "center";
     ctx.fillText(String(Math.max(0, skull.hitsRemaining)), 0, skull.radius * 1.24);
   }
@@ -1913,29 +1966,32 @@ function drawSkull(skull: Skull, timestamp: number): void {
 
 function drawExitDrop(drop: ExitDrop, timestamp: number): void {
   const bob = Math.sin(timestamp * 0.004 + drop.bobPhase) * 6;
-  const x = drop.x;
-  const y = drop.y + bob;
+  // Drawn at normal size, then blown up to giant around its corner.
+  const width = drop.width / GIANT;
+  const height = drop.height / GIANT;
 
   ctx.save();
+  ctx.translate(drop.x, drop.y + bob);
+  ctx.scale(GIANT, GIANT);
   ctx.fillStyle = "#69c0d8";
-  ctx.fillRect(x + 46, y + drop.height - 18, 12, 18);
+  ctx.fillRect(46, height - 18, 12, 18);
   ctx.fillStyle = "#d7edf7";
-  ctx.fillRect(x + 8, y + drop.height - 10, drop.width - 16, 10);
+  ctx.fillRect(8, height - 10, width - 16, 10);
 
   ctx.fillStyle = "#f2d365";
   ctx.strokeStyle = "#6d5200";
   ctx.lineWidth = 4;
   ctx.beginPath();
-  ctx.roundRect(x, y, drop.width, drop.height - 10, 10);
+  ctx.roundRect(0, 0, width, height - 10, 10);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = "#3e2d00";
   ctx.textAlign = "center";
   ctx.font = "700 16px Trebuchet MS";
-  ctx.fillText("EXIT", x + drop.width / 2, y + 25);
+  ctx.fillText("EXIT", width / 2, 25);
   ctx.font = "700 10px Trebuchet MS";
-  ctx.fillText("LOCALHOST", x + drop.width / 2, y + 40);
+  ctx.fillText("LOCALHOST", width / 2, 40);
   ctx.restore();
 }
 

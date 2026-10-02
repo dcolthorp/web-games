@@ -7,6 +7,7 @@ import {
   drawCaption,
   drawRoomBox,
   drawVignette,
+  giant,
   inRect,
   roundRect,
   type Point,
@@ -99,7 +100,8 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
     floaters.push({ text, x: clamp(x, 170, W - 170), y: Math.max(60, y), start: now });
   }
 
-  const overKey = (p: Point): boolean => stage === "find" && Math.hypot(p.x - KEY_HOME.x, p.y - KEY_HOME.y) < 30;
+  // A giant key is easier to grab.
+  const overKey = (p: Point): boolean => stage === "find" && Math.hypot(p.x - KEY_HOME.x, p.y - KEY_HOME.y) < 30 * giant();
 
   // ---------- input ----------
 
@@ -111,16 +113,17 @@ export function createHundredChalkboardRoom(escape: () => void): Room {
       return;
     }
     if (stage === "find") {
-      if (overKey(p)) {
+      // The keyhole goes first, or a giant key lying next to it would cover it.
+      if (overBoardKeyhole(p)) {
+        sounds.tink();
+        say("There's a tiny keyhole in the chalkboard.", BOARD.x + BOARD.w / 2, BOARD.y - 20, now);
+      } else if (overKey(p)) {
         sounds.tink();
         setStage("holding", now);
       } else if (over(p, DOOR)) {
         rattleAt = now;
         sounds.thunk();
         say("It's locked.", DOOR.x + DOOR.w / 2, DOOR.y - 20, now);
-      } else if (overBoardKeyhole(p)) {
-        sounds.tink();
-        say("There's a tiny keyhole in the chalkboard.", BOARD.x + BOARD.w / 2, BOARD.y - 20, now);
       } else if (over(p, BOARD)) {
         say("1 + 1 = 2. That makes sense.", BOARD.x + BOARD.w / 2, BOARD.y - 20, now);
       }

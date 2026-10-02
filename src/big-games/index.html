@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BIG games</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Oscar's Games</a>
+      <header class="hero">
+        <p class="eyebrow">Every game. One page.</p>
+        <h1 class="rainbow-title" id="big-title" aria-label="BIG games"><span class="title-letter" data-letter="B">B</span><span class="title-letter" data-letter="I">I</span><span class="title-letter" data-letter="G">G</span> <span class="title-word">games</span></h1>
+        <p class="subtitle" id="subtitle">Ooh, yay! Boom bang!</p>
+        <p class="game-count" id="game-count" aria-live="polite"></p>
+        <p class="game-found" id="game-found"></p>
+      </header>
+
+      <div class="tape-band">
+        <div class="rainbow-tape tape-strip" aria-hidden="true"></div>
+        <div class="tape-row">
+          <div class="filter-wrap">
+            <button class="filter-tape" id="filter-tape" type="button" aria-expanded="false" aria-controls="filter-menu">
+              <span id="filter-label">Filter by</span>
+            </button>
+            <div class="filter-menu" id="filter-menu" role="menu" hidden></div>
+          </div>
+          <input class="search-bar" id="search" type="search" placeholder="Search anything…" aria-label="Search games" autocomplete="off" />
+          <button class="surprise" id="surprise" type="button">🎲 Surprise me!</button>
+        </div>
+      </div>
+
+      <div class="section-header">
+        <h2>Choose Your BIG Disaster</h2>
+        <p>Every hub, every trap, all in one place.</p>
+      </div>
+
+      <ul class="big-list" id="big-list"></ul>
+
+      <div class="waterfalls" id="waterfalls" aria-hidden="true"></div>
+
+      <button class="big-floor" id="big-floor" type="button">STAND ON ME. I'M BIG.</button>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,6 +1,8 @@
+import { isGigantic, markFound } from "../../shared/bigGames";
+markFound("zero-logic-escape-rooms-2");
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import { H, W, canvas, ctx, type Point, type Room } from "../zero-logic-escape-rooms/engine";
+import { H, W, canvas, ctx, giantFont, setGiant, type Point, type Room } from "../zero-logic-escape-rooms/engine";
 import { ensureAudio } from "../zero-logic-escape-rooms/sound";
 import { createBlankRoom } from "./room1";
 import { createButtonRoom } from "./room2";
@@ -15,6 +17,18 @@ installForceRefreshHotkey();
 // drawn in Draw and Swap, a hallway, and two wires under a card on Games 4.
 // Escaping a room drops you straight into the next one, and how far you got is
 // remembered so you can go back to any room you have reached.
+
+// GIGANTIC Zero Logic Escape Rooms 2: the rooms and their puzzles stay normal
+// size, and everything else (the junk in them, effects, words, the page around
+// the game) goes giant. The first game's styles.css does the page.
+const GIGANTIC = isGigantic("zero-logic-escape-rooms-2");
+if (GIGANTIC) {
+  setGiant(3);
+  document.body.classList.add("gigantic");
+  document.title = "GIGANTIC Zero Logic Escape Rooms 2";
+  const heading = document.querySelector(".hero h1");
+  if (heading) heading.textContent = "GIGANTIC Zero Logic Escape Rooms 2";
+}
 
 const TITLE_MS = 2400;
 const UNLOCKED_KEY = "zero-logic-escape-rooms-2-unlocked";
@@ -115,15 +129,17 @@ function drawTitle(now: number): boolean {
   ctx.textBaseline = "middle";
   if (title.lead) {
     ctx.fillStyle = "#b9adc4";
-    ctx.font = "20px 'Trebuchet MS', sans-serif";
-    ctx.fillText(title.lead, W / 2, H / 2 - 110);
+    giantFont("20px 'Trebuchet MS', sans-serif", title.lead);
+    ctx.fillText(title.lead, W / 2, H / 2 - (GIGANTIC ? 200 : 110));
   }
+  const heading = `ESCAPE ROOM ${current + 1}`;
+  const name = (rooms[current]?.name ?? "").toUpperCase();
   ctx.fillStyle = "#ffcf5a";
-  ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
-  ctx.fillText(`ESCAPE ROOM ${current + 1}`, W / 2, H / 2 - 54);
+  giantFont("bold 22px 'Trebuchet MS', sans-serif", heading);
+  ctx.fillText(heading, W / 2, H / 2 - (GIGANTIC ? 100 : 54));
   ctx.fillStyle = "#f5efe6";
-  ctx.font = "54px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
-  ctx.fillText((rooms[current]?.name ?? "").toUpperCase(), W / 2, H / 2 + 6);
+  giantFont("54px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif", name);
+  ctx.fillText(name, W / 2, H / 2 + (GIGANTIC ? 50 : 6));
   ctx.globalAlpha = 1;
   return true;
 }

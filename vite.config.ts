@@ -40,6 +40,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         menu: resolve(__dirname, "src/index.html"),
+        bigGames: resolve(__dirname, "src/big-games/index.html"),
+        bigGamesSecretRoom: resolve(__dirname, "src/big-games/secret-room/index.html"),
+        gemSmasher: resolve(__dirname, "src/big-games/gem-smasher/index.html"),
         lost: resolve(__dirname, "src/lost/index.html"),
         lostSnake: resolve(__dirname, "src/lost/snake/index.html"),
         lostWallDodger: resolve(__dirname, "src/lost/wall-dodger/index.html"),

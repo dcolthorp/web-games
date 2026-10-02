@@ -1,3 +1,4 @@
+import { isGigantic } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 
@@ -105,6 +106,18 @@ const SIX_TIMES_SEVEN_SEEN_KEY = "cat-math-6x7-seen-v1";
 const MIN_CLASH_EQUATIONS = 10;
 const MAX_CUSTOM_EQUATIONS = 10;
 const ALL_THE_MONEY_IN_THE_WORLD = 100_000_000_000_000;
+
+// GIGANTIC Cat Math: every cat stays its normal size. The stars, the
+// wallpaper, the floor tiles and the coins and hearts that pop out go giant.
+// Buttons and numbers stay put so the math still works.
+const GIGANTIC = isGigantic("cat-math");
+const GIANT = GIGANTIC ? 3 : 1;
+const GAME_NAME = GIGANTIC ? "GIGANTIC Cat Math" : "Cat Math";
+if (GIGANTIC) {
+  document.title = GAME_NAME;
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = GAME_NAME;
+}
 
 const shopItems: ShopItem[] = [
   { id: "black", name: "Black Cat", category: "skin", cost: 0, color: "#08070a", accent: "#1a111d" },
@@ -357,7 +370,7 @@ function drawBackground(): void {
   for (let i = 0; i < 22; i += 1) {
     const x = (i * 137) % WIDTH;
     const y = (i * 83) % 420;
-    drawStar(x + 18, y + 22, 7 + (i % 3) * 2, "rgba(255, 211, 92, 0.42)");
+    drawStar(x + 18, y + 22, (7 + (i % 3) * 2) * GIANT, "rgba(255, 211, 92, 0.42)");
   }
 
   ctx.fillStyle = "#cf8fe8";
@@ -368,7 +381,7 @@ function drawBackground(): void {
 
 function drawLobby(timestamp: number): void {
   drawRoundedRect(54, 48, 852, 560, 30, "rgba(255, 248, 255, 0.94)", "#321545", 5);
-  drawText("Cat Math", 480, 120, {
+  drawText(GAME_NAME, 480, 120, {
     font: "900 64px Impact, Haettenschweiler, Arial Narrow Bold, sans-serif",
     color: "#8f45c8",
     align: "center",
@@ -593,12 +606,12 @@ function drawCafeRoom(): void {
   ctx.fillStyle = "#f4d6b8";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   ctx.fillStyle = "rgba(255, 248, 239, 0.7)";
-  for (let y = 0; y < 580; y += 64) ctx.fillRect(0, y, WIDTH, 32);
+  for (let y = 0; y < 580; y += 64 * GIANT) ctx.fillRect(0, y, WIDTH, 32 * GIANT);
   ctx.fillStyle = "#b8755c";
   ctx.fillRect(0, 580, WIDTH, 100);
-  for (let x = 0; x < WIDTH; x += 80) {
-    ctx.fillStyle = x % 160 === 0 ? "#9d5d43" : "#c78b6e";
-    ctx.fillRect(x, 580, 80, 100);
+  for (let x = 0; x < WIDTH; x += 80 * GIANT) {
+    ctx.fillStyle = x % (160 * GIANT) === 0 ? "#9d5d43" : "#c78b6e";
+    ctx.fillRect(x, 580, 80 * GIANT, 100);
   }
 }
 
@@ -948,11 +961,12 @@ function drawPlaidRoom(): void {
   ctx.fillStyle = "#7f416e";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   ctx.fillStyle = "rgba(255, 212, 94, 0.26)";
-  for (let x = 0; x < WIDTH; x += 88) ctx.fillRect(x, 0, 24, HEIGHT);
-  for (let y = 0; y < HEIGHT; y += 88) ctx.fillRect(0, y, WIDTH, 24);
+  const plaid = 88 * GIANT;
+  for (let x = 0; x < WIDTH; x += plaid) ctx.fillRect(x, 0, 24 * GIANT, HEIGHT);
+  for (let y = 0; y < HEIGHT; y += plaid) ctx.fillRect(0, y, WIDTH, 24 * GIANT);
   ctx.fillStyle = "rgba(65, 26, 76, 0.32)";
-  for (let x = 44; x < WIDTH; x += 88) ctx.fillRect(x, 0, 12, HEIGHT);
-  for (let y = 44; y < HEIGHT; y += 88) ctx.fillRect(0, y, WIDTH, 12);
+  for (let x = plaid / 2; x < WIDTH; x += plaid) ctx.fillRect(x, 0, 12 * GIANT, HEIGHT);
+  for (let y = plaid / 2; y < HEIGHT; y += plaid) ctx.fillRect(0, y, WIDTH, 12 * GIANT);
   ctx.fillStyle = "#5d3156";
   ctx.fillRect(0, 584, WIDTH, 96);
 }
@@ -2210,11 +2224,11 @@ function drawParticles(): void {
     ctx.save();
     ctx.globalAlpha = alpha;
     if (particle.type === "coin") {
-      drawCoin(particle.x, particle.y, 12);
+      drawCoin(particle.x, particle.y, 12 * GIANT);
     } else if (particle.type === "heart") {
-      drawHeart(particle.x, particle.y, 12, "#ff77bd");
+      drawHeart(particle.x, particle.y, 12 * GIANT, "#ff77bd");
     } else {
-      drawStar(particle.x, particle.y, 9, "#ffd35c");
+      drawStar(particle.x, particle.y, 9 * GIANT, "#ffd35c");
     }
     ctx.restore();
   });

@@ -5,6 +5,7 @@ import { intro2Seen, playIntro2 } from "./intro";
 import { brightenOther, happyZeroName, happyZeroPalette, isHappy } from "./mood";
 import { scrambleName, spec, storyPages } from "./world0Spec";
 import { unlockGlitch } from "./shop";
+import { giganticName } from "./gigantic";
 
 // Plays once, then leaves you alone down here.
 void Promise.all([import("./music"), import("./assets/world-zero-theme.m4a?url")])
@@ -37,9 +38,9 @@ if (isHappy()) {
 } else {
   spec.name = scrambleName();
 }
-document.title = spec.name;
+document.title = giganticName(spec.name);
 const heading = document.querySelector<HTMLElement>("#world-name");
-if (heading) heading.textContent = spec.name;
+if (heading) heading.textContent = giganticName(spec.name);
 
 const storyButton = document.querySelector<HTMLButtonElement>("#story-button");
 const storyPanel = document.querySelector<HTMLDivElement>("#story-panel");

@@ -1,4 +1,5 @@
 import { SIMPLE_FONT } from "../constants";
+import { GAME_TITLE } from "../gigantic";
 import { drawPortraitChip } from "../graphics/draw";
 import { SaveStore } from "../model/storage";
 import type { SaveSummary } from "../model/types";
@@ -59,7 +60,7 @@ export class SaveSelectScene implements Scene {
     ctx.fillStyle = "#6a5163";
     ctx.textAlign = "left";
     ctx.font = `800 54px ${SIMPLE_FONT}`;
-    ctx.fillText("A Kid's Life", 74, 82);
+    ctx.fillText(GAME_TITLE, 74, 82);
     ctx.font = `700 22px ${SIMPLE_FONT}`;
     ctx.globalAlpha = 0.76;
     ctx.fillText("Pick a family.", 74, 112);

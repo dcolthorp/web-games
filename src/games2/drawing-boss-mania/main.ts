@@ -1,6 +1,18 @@
+import { isGigantic } from "../../shared/bigGames";
 import { installOofShortcut } from "../../shared/oofShortcut";
 
 installOofShortcut();
+
+// GIGANTIC Drawing Boss Mania: you and the bosses stay normal size. The paper,
+// the sun, the grass, the planks and the pickups go giant. Attacks keep their
+// size because they are what hits you.
+const GIGANTIC = isGigantic("drawing-boss-mania");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Drawing Boss Mania";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Drawing Boss Mania";
+}
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -3441,7 +3453,8 @@ function updatePellets(dt: number): void {
     const closestY = Math.max(aabb.y, Math.min(pel.y, aabb.y + aabb.h));
     const dx = pel.x - closestX;
     const dy = pel.y - closestY;
-    if (dx * dx + dy * dy < 18 * 18) {
+    const reach = 18 * GIANT;
+    if (dx * dx + dy * dy < reach * reach) {
       const collectedKind = pel.kind;
       pellets.splice(i, 1);
       if (currentBossId === "elemental" && (collectedKind === "air" || collectedKind === "earth" || collectedKind === "fire" || collectedKind === "water")) {
@@ -3855,32 +3868,32 @@ function drawBackground(): void {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   ctx.strokeStyle = "rgba(120, 160, 210, 0.35)";
-  ctx.lineWidth = 1;
-  for (let y = 40; y < HEIGHT; y += 32) {
+  ctx.lineWidth = 1 * GIANT;
+  for (let y = 40; y < HEIGHT; y += 32 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(WIDTH, y);
     ctx.stroke();
   }
   ctx.strokeStyle = "rgba(220, 80, 80, 0.5)";
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * GIANT;
   ctx.beginPath();
-  ctx.moveTo(78, 0);
-  ctx.lineTo(78, HEIGHT);
+  ctx.moveTo(78 * GIANT, 0);
+  ctx.lineTo(78 * GIANT, HEIGHT);
   ctx.stroke();
 
   // Sun
-  crayonFillCircle(120, 80, 28, "#ffd23a", 7001);
-  crayonCircle(120, 80, 28, "#e8a200", 3, 7002);
+  crayonFillCircle(120, 80, 28 * GIANT, "#ffd23a", 7001);
+  crayonCircle(120, 80, 28 * GIANT, "#e8a200", 3 * GIANT, 7002);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     crayonLine(
-      120 + Math.cos(a) * 34,
-      80 + Math.sin(a) * 34,
-      120 + Math.cos(a) * 50,
-      80 + Math.sin(a) * 50,
+      120 + Math.cos(a) * 34 * GIANT,
+      80 + Math.sin(a) * 34 * GIANT,
+      120 + Math.cos(a) * 50 * GIANT,
+      80 + Math.sin(a) * 50 * GIANT,
       "#e8a200",
-      2.5,
+      2.5 * GIANT,
       7100 + i
     );
   }
@@ -3888,34 +3901,41 @@ function drawBackground(): void {
   // Grass strip
   scribbleFill(0, GROUND_Y, WIDTH, HEIGHT - GROUND_Y, "#5fb04a", 9000);
   crayonLine(0, GROUND_Y, WIDTH, GROUND_Y, "#2f6a26", 4, 9100);
-  for (let i = 0; i < 14; i++) {
-    const gx = 30 + i * 70 + jitter(9200 + i, 8);
-    crayonLine(gx, GROUND_Y + 6, gx - 5, GROUND_Y - 10, "#2f6a26", 2.5, 9300 + i * 3);
-    crayonLine(gx, GROUND_Y + 6, gx, GROUND_Y - 14, "#2f6a26", 2.5, 9301 + i * 3);
-    crayonLine(gx, GROUND_Y + 6, gx + 5, GROUND_Y - 10, "#2f6a26", 2.5, 9302 + i * 3);
+  for (let i = 0; i < 14 / GIANT; i++) {
+    const gx = 30 + i * 70 * GIANT + jitter(9200 + i, 8);
+    const g = GIANT;
+    crayonLine(gx, GROUND_Y + 6, gx - 5 * g, GROUND_Y - 10 * g, "#2f6a26", 2.5 * g, 9300 + i * 3);
+    crayonLine(gx, GROUND_Y + 6, gx, GROUND_Y - 14 * g, "#2f6a26", 2.5 * g, 9301 + i * 3);
+    crayonLine(gx, GROUND_Y + 6, gx + 5 * g, GROUND_Y - 10 * g, "#2f6a26", 2.5 * g, 9302 + i * 3);
   }
 
   // Title
   ctx.save();
   ctx.fillStyle = "#1f4ea8";
-  ctx.font = "italic bold 22px 'Comic Sans MS', 'Marker Felt', cursive";
+  ctx.font = `italic bold ${22 * GIANT}px 'Comic Sans MS', 'Marker Felt', cursive`;
   ctx.textAlign = "left";
-  ctx.translate(96, 44);
+  // A giant title drops below the boss HP bar.
+  ctx.translate(96, 44 + (GIANT - 1) * 20);
   ctx.rotate(-0.04);
   const bossLabel = (BOSS_ROSTER.find((b) => b.id === currentBossId)?.name ?? "PAC MAN").toUpperCase();
   const levelNum = currentBossId === "mrpencil" ? 2 : 1;
-  ctx.fillText(`BOSS ${levelNum}: ${bossLabel} !!!`, 0, 0);
+  const title = `BOSS ${levelNum}: ${bossLabel} !!!`;
+  if (GIGANTIC) ctx.fillText(title, 0, 0, WIDTH - 96 - 80);
+  else ctx.fillText(title, 0, 0);
   ctx.restore();
 }
 
 function drawPlatforms(): void {
   for (const p of platforms) {
     if (p.spawnDelay > 0) continue;
-    scribbleFill(p.x, p.y, p.w, p.h, "#9b5a2c", 5000 + p.id);
-    crayonLine(p.x, p.y, p.x + p.w, p.y, "#3a2618", 3, 5100 + p.id);
-    crayonLine(p.x, p.y + p.h, p.x + p.w, p.y + p.h, "#3a2618", 3, 5200 + p.id);
-    crayonLine(p.x, p.y, p.x, p.y + p.h, "#3a2618", 3, 5300 + p.id);
-    crayonLine(p.x + p.w, p.y, p.x + p.w, p.y + p.h, "#3a2618", 3, 5400 + p.id);
+    // Giant planks only grow downward, so you still land on the same top edge.
+    const h = p.h * GIANT;
+    const line = 3 * GIANT;
+    scribbleFill(p.x, p.y, p.w, h, "#9b5a2c", 5000 + p.id);
+    crayonLine(p.x, p.y, p.x + p.w, p.y, "#3a2618", line, 5100 + p.id);
+    crayonLine(p.x, p.y + h, p.x + p.w, p.y + h, "#3a2618", line, 5200 + p.id);
+    crayonLine(p.x, p.y, p.x, p.y + h, "#3a2618", line, 5300 + p.id);
+    crayonLine(p.x + p.w, p.y, p.x + p.w, p.y + h, "#3a2618", line, 5400 + p.id);
   }
 }
 
@@ -4442,6 +4462,14 @@ function drawShieldAttack(a: Attack): void {
 function drawPellets(): void {
   for (const pel of pellets) {
     const bob = Math.sin(pel.bobPhase) * 2;
+    // Giant pickups are drawn scaled up around their own middle, lifted a bit
+    // so they sit on the ground instead of sinking into it.
+    if (GIGANTIC) {
+      ctx.save();
+      ctx.translate(pel.x, pel.y - (GIANT - 1) * 10);
+      ctx.scale(GIANT, GIANT);
+      ctx.translate(-pel.x, -pel.y);
+    }
     if (pel.kind === "eraser") {
       drawEraserPickup(pel.x, pel.y + bob, pel.id);
     } else if (pel.kind === "air" || pel.kind === "earth" || pel.kind === "fire" || pel.kind === "water") {
@@ -4459,6 +4487,7 @@ function drawPellets(): void {
       ctx.arc(pel.x - 2, pel.y + bob - 2, 1.6, 0, Math.PI * 2);
       ctx.fill();
     }
+    if (GIGANTIC) ctx.restore();
   }
 }
 

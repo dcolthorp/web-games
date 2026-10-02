@@ -9,6 +9,7 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  growAround,
   inRect,
   line,
   poly,
@@ -317,6 +318,8 @@ export function createHundredWorkbenchRoom(escape: () => void): Room {
   // ---------- drawing ----------
 
   function drawTubeLight(): void {
+    ctx.save();
+    growAround(W / 2, 48);
     const glow = ctx.createRadialGradient(W / 2, 60, 10, W / 2, 60, 260);
     glow.addColorStop(0, "rgba(220, 240, 255, 0.35)");
     glow.addColorStop(1, "rgba(220, 240, 255, 0)");
@@ -327,6 +330,7 @@ export function createHundredWorkbenchRoom(escape: () => void): Room {
     ctx.fillStyle = "#f4fbff";
     roundRect(W / 2 - 100, 56, 200, 9, 4);
     ctx.fill();
+    ctx.restore();
   }
 
   // With the tip at (x, y).
@@ -630,9 +634,13 @@ export function createHundredWorkbenchRoom(escape: () => void): Room {
     if (stage === "room" && held === "none") drawCaption("There's a vent on the wall.", (now - roomStart) / 1000);
     drawFloaters(floaters, now);
     if (stage === "room") {
+      // Whatever you're carrying goes giant in your hand.
+      ctx.save();
+      growAround(pointer.x, pointer.y);
       if (held === "screwdriver") drawScrewdriver(pointer.x, pointer.y, -0.8);
       else if (held === "wrench") drawWrench(pointer.x, pointer.y, -0.6);
       else if (held === "plywood") drawPlywoodSheet(pointer.x, pointer.y, -0.35);
+      ctx.restore();
     }
 
     if (fade > 0 || stage === "escaped") {

@@ -48,6 +48,7 @@ export interface WorldSpec {
 }
 
 import { addCoins, wornSkin } from "./shop";
+import { GIANT } from "./gigantic";
 
 export const MAP_W = 40;
 export const MAP_H = 28;
@@ -170,7 +171,9 @@ export function startWorld(
   }));
   const openedDoors = new Set<string>();
   const held = new Set<KeyColour>();
-  const player = { x: spec.start.x, y: spec.start.y, r: 0.34, vx: 0, vy: 0 };
+  // In GIGANTIC the world is drawn GIANT times bigger but you are not, so
+  // you take up less of each tile.
+  const player = { x: spec.start.x, y: spec.start.y, r: 0.34 / GIANT, vx: 0, vy: 0 };
   // Crumbling tiles: how long they have been stood on, and when they regrow.
   const standing = new Map<string, number>();
   const holes = new Map<string, number>();
@@ -593,7 +596,7 @@ export function startWorld(
       moveEnemy(enemy, dt);
       if (!enemy.visible) continue;
       if (creative || inSafeZone(player.x, player.y) || clock < graceUntil) continue;
-      if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 0.75) {
+      if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 0.75 - (0.34 - player.r)) {
         sendBack(`The ${spec.enemyName} got you.`);
       }
     }
@@ -709,14 +712,15 @@ export function startWorld(
 
   function draw(now: number): void {
     if (!canvas || !context) return;
-    const viewW = canvas.width / TILE;
-    const viewH = canvas.height / TILE;
+    const viewW = canvas.width / (TILE * GIANT);
+    const viewH = canvas.height / (TILE * GIANT);
     camX = Math.max(0, Math.min(MAP_W - viewW, player.x - viewW / 2));
     camY = Math.max(0, Math.min(MAP_H - viewH, player.y - viewH / 2));
 
     context.fillStyle = spec.palette.bg;
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.save();
+    context.scale(GIANT, GIANT);
     context.translate(-camX * TILE, -camY * TILE);
 
     const x0 = Math.floor(camX);
@@ -907,21 +911,23 @@ export function startWorld(
 
     enemies.forEach((enemy) => drawEnemy(enemy, now));
 
+    // You are drawn at your normal size, however giant the world is.
+    const you = 1 / GIANT;
     const hurt = now < flashUntil;
     context.fillStyle = hurt ? "#ff8a8a" : skin.colour;
     context.beginPath();
-    context.arc(player.x * TILE, player.y * TILE, 11, 0, Math.PI * 2);
+    context.arc(player.x * TILE, player.y * TILE, 11 * you, 0, Math.PI * 2);
     context.fill();
     if (shield > 0) {
       context.strokeStyle = "rgb(220 235 245 / .85)";
-      context.lineWidth = 2;
+      context.lineWidth = 2 * you;
       context.beginPath();
-      context.arc(player.x * TILE, player.y * TILE, 15, 0, Math.PI * 2);
+      context.arc(player.x * TILE, player.y * TILE, 15 * you, 0, Math.PI * 2);
       context.stroke();
     }
     context.fillStyle = "#1b2630";
-    context.fillRect(player.x * TILE - 5, player.y * TILE - 3, 3, 4);
-    context.fillRect(player.x * TILE + 2, player.y * TILE - 3, 3, 4);
+    context.fillRect(player.x * TILE - 5 * you, player.y * TILE - 3 * you, 3 * you, 4 * you);
+    context.fillRect(player.x * TILE + 2 * you, player.y * TILE - 3 * you, 3 * you, 4 * you);
 
     context.restore();
 
@@ -929,9 +935,9 @@ export function startWorld(
     const natural = spec.fog > 0 ? Math.max(2.4, spec.fog - closing + skin.fogBonus) : 0;
     const fog = fogOverride === null ? natural : fogOverride;
     if (fog > 0) {
-      const px = (player.x - camX) * TILE;
-      const py = (player.y - camY) * TILE;
-      const radius = fog * TILE;
+      const px = (player.x - camX) * TILE * GIANT;
+      const py = (player.y - camY) * TILE * GIANT;
+      const radius = fog * TILE * GIANT;
       const shade = context.createRadialGradient(px, py, radius * 0.35, px, py, radius);
       shade.addColorStop(0, "rgb(0 0 0 / 0)");
       shade.addColorStop(1, "rgb(0 0 0 / .96)");
@@ -943,9 +949,9 @@ export function startWorld(
       const glare = Math.min(0.88, Math.abs(fog) * 0.2);
       context.fillStyle = `rgb(255 255 255 / ${glare.toFixed(2)})`;
       context.fillRect(0, 0, canvas.width, canvas.height);
-      const px = (player.x - camX) * TILE;
-      const py = (player.y - camY) * TILE;
-      const bloom = context.createRadialGradient(px, py, 0, px, py, Math.abs(fog) * TILE * 2);
+      const px = (player.x - camX) * TILE * GIANT;
+      const py = (player.y - camY) * TILE * GIANT;
+      const bloom = context.createRadialGradient(px, py, 0, px, py, Math.abs(fog) * TILE * GIANT * 2);
       bloom.addColorStop(0, `rgb(255 255 255 / ${Math.min(0.6, glare).toFixed(2)})`);
       bloom.addColorStop(1, "rgb(255 255 255 / 0)");
       context.fillStyle = bloom;
@@ -962,8 +968,8 @@ export function startWorld(
   const paint = (event: PointerEvent, solid: boolean): void => {
     if (!creative || !canvas) return;
     const box = canvas.getBoundingClientRect();
-    const tx = Math.floor(camX + ((event.clientX - box.left) / box.width) * (canvas.width / TILE));
-    const ty = Math.floor(camY + ((event.clientY - box.top) / box.height) * (canvas.height / TILE));
+    const tx = Math.floor(camX + ((event.clientX - box.left) / box.width) * (canvas.width / (TILE * GIANT)));
+    const ty = Math.floor(camY + ((event.clientY - box.top) / box.height) * (canvas.height / (TILE * GIANT)));
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return;
     grid[ty]![tx] = solid ? "#" : ".";
     edits.set(`${tx},${ty}`, solid ? "#" : ".");

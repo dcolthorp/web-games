@@ -175,6 +175,13 @@ h3 {
   text-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
 }
 
+/* GIGANTIC: the vibe is written on the wall now. */
+.is-gigantic .vibe-name {
+  font-size: clamp(4rem, 17vw, 10rem);
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
 .vibe-hint {
   margin: 0;
   color: rgba(255, 255, 255, 0.85);

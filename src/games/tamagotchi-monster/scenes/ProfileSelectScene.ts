@@ -8,6 +8,7 @@ import { Button, IconButton } from "../ui/Button";
 import { roundRectPath } from "../ui/roundRect";
 import { drawPet } from "../graphics/Sprites";
 import { drawNu11Background } from "../graphics/Nu11Background";
+import { GAME_TITLE } from "../gigantic";
 
 const COLOR_CHOICES: { theme: ColorTheme; label: string }[] = [
   { theme: "blue", label: "Blue" },
@@ -217,7 +218,7 @@ export class ProfileSelectScene implements Scene {
     }
 
     ctx.font = "48px system-ui, sans-serif";
-    ctx.fillText("Tamagotchi Monster", 400, 40);
+    ctx.fillText(GAME_TITLE, 400, 40, 760);
     ctx.font = "28px system-ui, sans-serif";
     ctx.fillText("Select Profile", 400, 90);
 

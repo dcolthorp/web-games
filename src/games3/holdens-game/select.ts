@@ -4,9 +4,11 @@ import { clearedWorlds, worlds } from "./worlds";
 import { coins } from "./shop";
 import { bossBeaten, happyNames, isHappy, setHappy } from "./mood";
 import { introSeen, playIntro } from "./intro";
+import { nameThisPage } from "./gigantic";
 
 installOofShortcut();
 installForceRefreshHotkey();
+nameThisPage();
 
 const list = document.querySelector<HTMLOListElement>("#worlds");
 const note = document.querySelector<HTMLParagraphElement>("#note");

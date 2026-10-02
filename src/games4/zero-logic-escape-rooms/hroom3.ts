@@ -7,6 +7,7 @@ import {
   drawCaption,
   drawRoomBox,
   drawVignette,
+  giantFont,
   inRect,
   lerp,
   poly,
@@ -864,7 +865,7 @@ export function createHundredComicalRoom(escape: () => void): Room {
         ctx.fillStyle = "#78ffc8";
         ctx.strokeStyle = "#111";
         ctx.lineWidth = 5;
-        ctx.font = "bold 54px 'Comic Sans MS', 'Chalkboard SE', 'Trebuchet MS', sans-serif";
+        giantFont("bold 54px 'Comic Sans MS', 'Chalkboard SE', 'Trebuchet MS', sans-serif", "ZAP!");
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.strokeText("ZAP!", YOU.x - 120, YOU.y - 150);

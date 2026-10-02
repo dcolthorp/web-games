@@ -1,5 +1,6 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 import { NIGHTMARE_TOAST_KEY, TOAST_ON_GAMES3_KEY } from "../../shared/glitchedToast";
 import { Peer, type DataConnection } from "peerjs";
 import recoveredSaveOne from "./recovered-save-1.json";
@@ -315,6 +316,20 @@ const SAVE_KEY_PREFIX = "sharks-in-the-water-save-v1-slot-";
 const SAVE_BACKUP_KEY_PREFIX = "sharks-in-the-water-save-v1-backup-slot-";
 const RECOVERED_SAVE_ONE_FLAG = "sharks-in-the-water-save-1-recovered-2026-08-05";
 const RAFT = { x: 352, y: 218, width: 256, height: 164 };
+
+// GIGANTIC Sharks in the Water: you, your friend and the shark stay normal
+// size. The waves, bubbles, crates, trees, animals and island signs go giant.
+// The raft and the islands keep their size so the safe places don't move.
+const GIGANTIC = isGigantic("sharks-in-the-water");
+const GIANT = GIGANTIC ? 3 : 1;
+// A crate is 46 wide, so a giant crate is grabbed from its giant edge.
+const CRATE_REACH = 34 + 23 * (GIANT - 1);
+if (GIGANTIC) {
+  document.title = "GIGANTIC Sharks in the Water";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Sharks in the Water";
+  document.body.classList.add("gigantic");
+}
 const ISLANDS: Island[] = [
   { x: 850, y: 465, radiusX: 112, radiusY: 76, name: "COCONUT CAY", kind: "coconut", requiredExpansions: 3 },
   { x: 845, y: 170, radiusX: 104, radiusY: 70, name: "PALM POINT", kind: "coconut", requiredExpansions: 3 },
@@ -4504,7 +4519,7 @@ function collectHackerTargets(worldX: number, worldY: number): HackerTarget[] {
       label: `${crate.kind.toUpperCase()} CRATE`,
       x: crate.x,
       y: crate.y,
-      hit: near(crate.x, crate.y, 42),
+      hit: near(crate.x, crate.y, 42 + 23 * (GIANT - 1)),
       clipboard: { kind: "crate", crate: { ...crate } },
       remove: () => crates.splice(index, 1),
     });
@@ -4938,7 +4953,7 @@ function randomWaterPosition(): { x: number; y: number } {
 function collectCrates(): void {
   if (isGuestMultiplayer()) {
     for (const crate of crates) {
-      if (distance(player.x, player.y, crate.x, crate.y) > 34) continue;
+      if (distance(player.x, player.y, crate.x, crate.y) > CRATE_REACH) continue;
       if (Array.from(multiplayerPendingCommands.values()).some((pending) => pending.type === "crate.collect" && (pending.payload as { crateId?: string }).crateId === crate.id)) continue;
       queueMultiplayerCommand("crate.collect", { crateId: ensureCrateId(crate), crate: { ...crate } });
     }
@@ -4946,7 +4961,7 @@ function collectCrates(): void {
   }
   let collectedAny = false;
   crates = crates.filter((crate) => {
-    if (distance(player.x, player.y, crate.x, crate.y) > 34) return true;
+    if (distance(player.x, player.y, crate.x, crate.y) > CRATE_REACH) return true;
     ensureCrateId(crate);
     // The catalog and carried-ID ledger are co-op replication state. Writing
     // them during offline play only leaks memory: nothing ever deletes the
@@ -6474,11 +6489,11 @@ function drawOcean(): void {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   ctx.save();
   ctx.strokeStyle = nightmare ? "rgba(255, 79, 79, 0.2)" : "rgba(179, 249, 255, 0.12)";
-  ctx.lineWidth = 2;
-  for (let y = 95; y < HEIGHT; y += 42) {
+  ctx.lineWidth = 2 * GIANT;
+  for (let y = 95; y < HEIGHT; y += 42 * GIANT) {
     ctx.beginPath();
     for (let x = -20; x <= WIDTH + 20; x += 20) {
-      const waveY = y + Math.sin(x * 0.03 + elapsed * 1.8 + y) * 5;
+      const waveY = y + Math.sin((x * 0.03) / GIANT + elapsed * 1.8 + y) * 5 * GIANT;
       if (x === -20) ctx.moveTo(x, waveY);
       else ctx.lineTo(x, waveY);
     }
@@ -6557,6 +6572,8 @@ function drawIsland(): void {
     ctx.beginPath();
     ctx.ellipse(-10, -8, island.radiusX - 22, island.radiusY - 20, -0.08, 0, Math.PI * 2);
     ctx.fill();
+    ctx.save();
+    ctx.scale(GIANT, GIANT);
     if (island.kind === "coconut") drawPalmTree(islandIndex);
     else if (elapsed >= (animalReadyAt[islandIndex] ?? 0)) drawFarmAnimal(island.kind);
     else {
@@ -6565,11 +6582,13 @@ function drawIsland(): void {
       ctx.textAlign = "center";
       ctx.fillText(`RETURNS IN ${Math.ceil((animalReadyAt[islandIndex] ?? elapsed) - elapsed)}s`, 0, 0);
     }
+    ctx.restore();
     ctx.fillStyle = "#ffffff";
-    ctx.font = "900 13px Trebuchet MS";
+    ctx.font = `900 ${13 * GIANT}px Trebuchet MS`;
     ctx.textAlign = "center";
     const nightmareName = island.kind === "coconut" ? (islandIndex === 0 ? "BLOOD ORANGE GROVE" : "WITHERED ORCHARD") : island.kind === "cow" ? "HOLLOW PASTURE" : "BLACK WOOL SHORE";
-    ctx.fillText(bridgesBuilt > islandIndex ? (isNightmareLevel() ? nightmareName : island.name) : isNightmareLevel() ? "BONE BRIDGE NEEDED" : "BRIDGE NEEDED", -4, 50);
+    // The giant tree's own sign sits lower, so the island's name drops below it.
+    ctx.fillText(bridgesBuilt > islandIndex ? (isNightmareLevel() ? nightmareName : island.name) : isNightmareLevel() ? "BONE BRIDGE NEEDED" : "BRIDGE NEEDED", -4, 50 + 35 * (GIANT - 1));
     ctx.restore();
   });
 }
@@ -6799,10 +6818,11 @@ function drawBridgeDeck(start: { x: number; y: number }, end: { x: number; y: nu
 function drawBubbles(): void {
   ctx.save();
   ctx.strokeStyle = isNightmareLevel() ? "#b51f31" : "#d4ffff";
+  ctx.lineWidth = GIANT;
   for (const bubble of bubbles) {
     ctx.globalAlpha = bubble.opacity;
     ctx.beginPath();
-    ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2);
+    ctx.arc(bubble.x, bubble.y, bubble.radius * GIANT, 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.restore();
@@ -7602,6 +7622,7 @@ function drawCrates(deliveredOnly: boolean): void {
     const age = elapsed - crate.landedAt;
     ctx.save();
     ctx.translate(crate.x, crate.y + bob);
+    ctx.scale(GIANT, GIANT);
     if (age < 2.4) {
       const parachuteY = -82 + age * 28;
       ctx.strokeStyle = "rgba(255,255,255,0.75)";
@@ -7921,7 +7942,7 @@ function drawParticles(): void {
     ctx.globalAlpha = Math.min(1, particle.life * 2);
     ctx.fillStyle = particle.color;
     ctx.beginPath();
-    ctx.arc(particle.x, particle.y, 4, 0, Math.PI * 2);
+    ctx.arc(particle.x, particle.y, 4 * GIANT, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();

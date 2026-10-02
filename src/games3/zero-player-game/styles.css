@@ -429,3 +429,28 @@ canvas:focus {
     width: 68px;
   }
 }
+
+/* GIGANTIC: the cells on the grid stay normal size; every bit of the page
+   around them is zoomed up. */
+body.gigantic .back-link,
+body.gigantic .hero,
+body.gigantic .level-bar,
+body.gigantic .controls,
+body.gigantic .saves,
+body.gigantic .instructions {
+  zoom: 2.5;
+}
+
+body.gigantic .palette {
+  zoom: 2;
+}
+
+body.gigantic .zoom-controls,
+body.gigantic .win-overlay > *,
+body.gigantic .confirm-overlay > * {
+  zoom: 2;
+}
+
+body.gigantic .game-frame {
+  border-width: 8px;
+}

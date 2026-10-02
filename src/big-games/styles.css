@@ -1,0 +1,699 @@
+/* BIG games: everything rainbow. Roy G. Biv, over and over. */
+
+:root {
+  --red: #ff3b3b;
+  --orange: #ff9a1f;
+  --yellow: #ffe23b;
+  --green: #3bd16f;
+  --blue: #3b8cff;
+  --indigo: #5b3bff;
+  --violet: #b23bff;
+  --roygbiv: var(--red), var(--orange), var(--yellow), var(--green), var(--blue), var(--indigo), var(--violet);
+  --ink: #ffffff;
+  --night: #120d1f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 59, 59, 0.25), transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(59, 140, 255, 0.25), transparent 40%),
+    radial-gradient(circle at 50% 95%, rgba(178, 59, 255, 0.25), transparent 45%),
+    var(--night);
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Arial Rounded MT Bold", sans-serif;
+}
+
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+}
+
+.back-link {
+  color: var(--yellow);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hero {
+  text-align: center;
+  margin: 18px 0 28px;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.rainbow-title {
+  margin: 8px 0;
+  font: 900 clamp(3rem, 12vw, 6.5rem) / 1 "Arial Black", Impact, sans-serif;
+  user-select: none;
+}
+
+.rainbow-title > span,
+.letter-ghost {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--roygbiv), var(--red));
+  background-size: 400% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(4px 4px 0 #000);
+  animation: rainbow-slide 4s linear infinite;
+}
+
+.title-letter {
+  cursor: grab;
+  touch-action: none;
+  transition: transform 0.15s ease;
+}
+
+.title-letter:hover {
+  transform: translateY(-6px) rotate(-6deg);
+}
+
+/* A stolen letter leaves a dotted hole where it was. */
+.title-letter.is-stolen {
+  outline: 4px dashed rgba(255, 255, 255, 0.35);
+  outline-offset: -6px;
+  background: none;
+  filter: none;
+  cursor: default;
+}
+
+.title-letter.is-stolen:hover {
+  transform: none;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+@keyframes rainbow-slide {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+/* The construction tape, in rainbow stripes that just repeat and repeat. */
+.rainbow-tape {
+  border: none;
+  border-top: 3px solid #000;
+  border-bottom: 3px solid #000;
+  background: repeating-linear-gradient(
+    -55deg,
+    var(--red) 0 18px,
+    var(--orange) 18px 36px,
+    var(--yellow) 36px 54px,
+    var(--green) 54px 72px,
+    var(--blue) 72px 90px,
+    var(--indigo) 90px 108px,
+    var(--violet) 108px 126px
+  );
+  background-size: 300px 100%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font: 900 1.05rem "Arial Black", Impact, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  animation: tape-roll 6s linear infinite;
+}
+
+@keyframes tape-roll {
+  to {
+    background-position: 300px 0;
+  }
+}
+
+/* The tape stretches right across the page, edge to edge, and the filter
+   sign and search bar sit on top of it. */
+.tape-band {
+  position: relative;
+  margin: 0 0 32px;
+  padding: 26px 0;
+}
+
+.tape-strip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 110vw;
+  height: 64px;
+  transform: translate(-50%, -50%) rotate(-2deg);
+}
+
+.tape-row {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+
+.filter-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+/* A sign stuck on the tape. */
+.filter-tape {
+  padding: 10px 24px;
+  border: 4px solid #000;
+  border-radius: 6px;
+  background: #000;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.6);
+  color: var(--yellow);
+  font: 900 1.1rem "Arial Black", Impact, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transform: rotate(-3deg);
+  transition: transform 0.15s ease;
+}
+
+.filter-tape:hover,
+.filter-tape[aria-expanded="true"] {
+  transform: rotate(-3deg) scale(1.06);
+}
+
+.filter-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 10px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 6px;
+  border: 3px solid #000;
+  border-image: linear-gradient(180deg, var(--roygbiv)) 1;
+  background: #1d1630;
+  box-shadow: 0 8px 0 #000;
+}
+
+.filter-menu[hidden] {
+  display: none;
+}
+
+.filter-choice {
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: 700 1rem "Trebuchet MS", sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filter-choice:hover,
+.filter-choice:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.filter-choice.is-picked {
+  color: var(--yellow);
+}
+
+.filter-choice.is-picked::before {
+  content: "★ ";
+}
+
+.search-bar {
+  flex: 0 1 420px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.6);
+  min-width: 0;
+  padding: 12px 16px;
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(#1d1630, #1d1630) padding-box,
+    linear-gradient(90deg, var(--roygbiv)) border-box;
+  color: var(--ink);
+  font: 700 1.05rem "Trebuchet MS", sans-serif;
+  outline: none;
+}
+
+.search-bar::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.big-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+/* Each card takes the next colour of the rainbow. */
+.big-list li:nth-child(7n + 1) { --card: var(--red); }
+.big-list li:nth-child(7n + 2) { --card: var(--orange); }
+.big-list li:nth-child(7n + 3) { --card: var(--yellow); }
+.big-list li:nth-child(7n + 4) { --card: var(--green); }
+.big-list li:nth-child(7n + 5) { --card: var(--blue); }
+.big-list li:nth-child(7n + 6) { --card: var(--indigo); }
+.big-list li:nth-child(7n + 7) { --card: var(--violet); }
+
+.big-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  padding: 16px;
+  border: 4px solid var(--card);
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 22%, #1d1630), #1d1630);
+  box-shadow: 0 6px 0 #000;
+  color: var(--ink);
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+
+.big-card:hover,
+.big-card:focus-visible {
+  transform: translateY(-4px) rotate(-1deg);
+}
+
+.big-card-top {
+  display: flex;
+  gap: 8px;
+}
+
+.hub-tag,
+.secret-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hub-tag {
+  background: var(--card);
+  color: #000;
+}
+
+.secret-tag {
+  background: #000;
+  color: var(--yellow);
+}
+
+.big-title {
+  font: 900 1.35rem "Arial Black", Impact, sans-serif;
+}
+
+.big-blurb {
+  opacity: 0.85;
+  line-height: 1.35;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 30px;
+  text-align: center;
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+
+.game-count {
+  margin: 18px 0 0;
+  font: 900 clamp(2.4rem, 9vw, 4.5rem) / 1 "Arial Black", Impact, sans-serif;
+  background: linear-gradient(90deg, var(--roygbiv));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+
+.game-found {
+  margin: 6px 0 0;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.surprise {
+  flex: 0 0 auto;
+  padding: 12px 20px;
+  border: 4px solid #000;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--roygbiv));
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font: 900 1rem "Arial Black", Impact, sans-serif;
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+  cursor: pointer;
+  transform: rotate(2deg);
+  transition: transform 0.15s ease;
+}
+
+.surprise:hover {
+  transform: rotate(2deg) scale(1.06);
+}
+
+.section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin-bottom: 18px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font: 900 clamp(1.6rem, 5vw, 2.2rem) "Arial Black", Impact, sans-serif;
+  text-transform: uppercase;
+}
+
+.section-header p {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.locked-card {
+  border-style: dashed;
+  background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 0 10px, transparent 10px 20px), #140f22;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
+.locked-card:hover {
+  transform: none;
+}
+
+.locked-card .big-title {
+  letter-spacing: 0.3em;
+}
+
+/* The floor. Rainbow construction tape again, because of course it is. */
+.big-floor {
+  display: block;
+  width: 100%;
+  margin-top: 48px;
+  padding: 22px 20px;
+  border: 4px solid #000;
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--red) 0 22px,
+    var(--orange) 22px 44px,
+    var(--yellow) 44px 66px,
+    var(--green) 66px 88px,
+    var(--blue) 88px 110px,
+    var(--indigo) 110px 132px,
+    var(--violet) 132px 154px
+  );
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font: 900 clamp(1.4rem, 4vw, 2.2rem) "Arial Black", Impact, sans-serif;
+  letter-spacing: 0.1em;
+  text-shadow: 3px 3px 0 #000, -1px -1px 0 #000;
+  cursor: pointer;
+}
+
+.big-floor:hover {
+  transform: translateY(2px);
+}
+
+.big-floor.is-broken {
+  animation: floor-crack 0.5s steps(2, end) 3;
+  clip-path: polygon(0 0, 30% 0, 34% 60%, 40% 0, 62% 0, 66% 70%, 72% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+@keyframes floor-crack {
+  50% {
+    transform: translate(-6px, 4px) rotate(-1deg);
+  }
+}
+
+.big-list li.is-falling {
+  animation: card-fall 1.4s cubic-bezier(0.5, 0, 0.9, 0.4) forwards;
+}
+
+.big-list li.is-flying-back {
+  animation: card-fly-back 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes card-fall {
+  to {
+    transform: translateY(120vh) rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+@keyframes card-fly-back {
+  from {
+    transform: translateY(120vh) rotate(var(--spin));
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .big-list li.is-falling,
+  .big-list li.is-flying-back,
+  .big-floor.is-broken,
+  .rainbow-title,
+  .rainbow-tape {
+    animation: none;
+  }
+}
+
+/* ── Dragging letters ─────────────────────────────────────────────────── */
+
+.letter-ghost {
+  position: fixed;
+  z-index: 50;
+  font: 900 5rem / 1 "Arial Black", Impact, sans-serif;
+  pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-10deg);
+}
+
+body.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body.is-dragging .waterfalls {
+  pointer-events: none;
+}
+
+body.is-dragging .waterfall {
+  pointer-events: none;
+}
+
+.big-card.is-target {
+  transform: scale(1.05) rotate(-1deg);
+  outline: 4px dashed #fff;
+}
+
+.big-card {
+  position: relative;
+}
+
+.card-letters {
+  position: absolute;
+  top: -18px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+}
+
+.card-letter {
+  font: 900 2.2rem / 1 "Arial Black", Impact, sans-serif;
+  color: #fff;
+  text-shadow: 3px 3px 0 #000, -1px -1px 0 #000;
+  cursor: grab;
+  touch-action: none;
+  transform: rotate(8deg);
+}
+
+.big-card.is-shaking {
+  animation: card-shake 0.12s linear 4;
+}
+
+@keyframes card-shake {
+  25% { transform: translateX(-6px) rotate(-2deg); }
+  75% { transform: translateX(6px) rotate(2deg); }
+}
+
+.big-toast {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: 28px;
+  padding: 12px 22px;
+  border: 4px solid #000;
+  border-radius: 999px;
+  background: var(--yellow);
+  color: #000;
+  font: 900 1.1rem "Arial Black", Impact, sans-serif;
+  transform: translateX(-50%);
+  box-shadow: 0 6px 0 #000;
+}
+
+/* A GIGANTIC game takes up two whole columns. */
+.big-list li.is-gigantic {
+  grid-column: span 2;
+}
+
+.gigantic-card .big-title {
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+}
+
+.gigantic-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--roygbiv));
+  color: #000;
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 600px) {
+  .big-list li.is-gigantic {
+    grid-column: auto;
+  }
+}
+
+/* ── Crying ───────────────────────────────────────────────────────────── */
+/* Three steals and the whole page goes blue. */
+body.crying {
+  --red: #1e6bff;
+  --orange: #3d86ff;
+  --yellow: #8fd0ff;
+  --green: #2aa8e0;
+  --blue: #1a4fd1;
+  --indigo: #2b3fb5;
+  --violet: #4a6dff;
+  --night: #07142e;
+  --roygbiv: var(--red), var(--orange), var(--yellow), var(--green), var(--blue), var(--indigo), var(--violet);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(30, 107, 255, 0.3), transparent 40%),
+    radial-gradient(circle at 85% 20%, rgba(143, 208, 255, 0.2), transparent 40%),
+    var(--night);
+  transition: background 1s ease;
+}
+
+.page {
+  position: relative;
+}
+
+.waterfalls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.waterfall {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  margin-left: -30px;
+  border-radius: 30px 30px 0 0;
+  background:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0 6px, transparent 6px 34px),
+    linear-gradient(90deg, rgba(120, 200, 255, 0.55), rgba(190, 235, 255, 0.85), rgba(120, 200, 255, 0.55));
+  background-size: 100% 120px, 100% 100%;
+  box-shadow: 0 0 18px rgba(140, 210, 255, 0.6);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: waterfall-pour 0.7s linear infinite, waterfall-grow 2.4s ease-out both;
+}
+
+@keyframes waterfall-pour {
+  to {
+    background-position: 0 120px, 0 0;
+  }
+}
+
+@keyframes waterfall-grow {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Poking the water parts it for a moment, to see what's behind. */
+.water-part {
+  position: absolute;
+  left: 50%;
+  width: 70px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1c2433 55%, rgba(28, 36, 51, 0));
+  transform: translate(-50%, -50%);
+  animation: water-part 1.1s ease-out forwards;
+}
+
+@keyframes water-part {
+  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+.secret-door {
+  position: absolute;
+  left: 50%;
+  width: 48px;
+  height: 110px;
+  margin-left: -24px;
+  border-radius: 24px 24px 4px 4px;
+  /* Just see-through enough to spot through the water if you look hard. */
+  opacity: 0.22;
+  pointer-events: none;
+  border: 4px solid #000;
+  background:
+    radial-gradient(circle at 78% 55%, #ffd23b 0 5px, transparent 6px),
+    linear-gradient(90deg, #6b3d1b, #8b5427 50%, #6b3d1b);
+}
+
+.secret-door.is-found {
+  border: 4px solid #000;
+  background:
+    radial-gradient(circle at 78% 55%, #ffd23b 0 5px, transparent 6px),
+    linear-gradient(90deg, #6b3d1b, #8b5427 50%, #6b3d1b);
+  box-shadow: 0 0 24px #fff;
+  opacity: 1;
+  pointer-events: auto;
+  animation: door-appear 0.6s ease-out;
+}
+
+@keyframes door-appear {
+  from { transform: scale(0.6); opacity: 0.22; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .waterfall,
+  .letter-ghost,
+  .rainbow-title > span {
+    animation: none;
+  }
+}

@@ -7,6 +7,7 @@ import { rgb } from "../systems/utils";
 import { drawPet } from "../graphics/Sprites";
 import { drawNu11Background } from "../graphics/Nu11Background";
 import { Button } from "../ui/Button";
+import { GIANT } from "../gigantic";
 
 export class PlayActivityScene implements Scene {
   private stage: GrowthStage;
@@ -135,12 +136,21 @@ function drawPlayEffects(
     const py = y + Math.sin(angle) * dist;
     ctx.fillStyle = spooky ? "rgb(100,200,100)" : "rgb(255,200,100)";
     ctx.beginPath();
-    ctx.arc(px, py, 8, 0, Math.PI * 2);
+    ctx.arc(px, py, 8 * GIANT, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
 function drawOutcomeIndicator(ctx: CanvasRenderingContext2D, outcome: PlayOutcome, x: number, y: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(GIANT, GIANT);
+  ctx.translate(-x, -y);
+  drawOutcomeShape(ctx, outcome, x, y);
+  ctx.restore();
+}
+
+function drawOutcomeShape(ctx: CanvasRenderingContext2D, outcome: PlayOutcome, x: number, y: number): void {
   if (outcome === "success") {
     ctx.fillStyle = "rgb(255,215,0)";
     ctx.beginPath();

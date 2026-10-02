@@ -9,6 +9,8 @@ import {
   drawRoomBox,
   drawSaw,
   drawVignette,
+  giant,
+  growAround,
   inRect,
   lerp,
   line,
@@ -110,8 +112,10 @@ export function createNothingRoom(escape: () => void): Room {
     return inRect(p, MIRROR.x - 12, MIRROR.y - 12, MIRROR.w + 24, MIRROR.h + 24);
   }
 
+  // A giant saw gets a giant place to grab it.
   function overSaw(p: Point): boolean {
-    return inRect(p, SAW_REST.x - 70, SAW_REST.y - 30, 140, 50);
+    const g = giant();
+    return inRect(p, SAW_REST.x - 70 * g, SAW_REST.y - 30 * g, 140 * g, 50 * g);
   }
 
   function overTable(p: Point): boolean {
@@ -259,6 +263,8 @@ export function createNothingRoom(escape: () => void): Room {
   // ---------- drawing ----------
 
   function drawBulb(): void {
+    ctx.save();
+    growAround(W / 2, BACK.top - 10);
     ctx.strokeStyle = "#1d1a20";
     ctx.lineWidth = 2;
     line(W / 2, BACK.top - 10, W / 2, 95);
@@ -271,6 +277,7 @@ export function createNothingRoom(escape: () => void): Room {
     ctx.beginPath();
     ctx.arc(W / 2, 105, 11, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 
   function drawMirror(now: number): void {

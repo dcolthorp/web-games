@@ -9,6 +9,8 @@ import {
   drawRoomBox,
   drawSaw,
   drawVignette,
+  giant,
+  growAround,
   inRect,
   lerp,
   line,
@@ -130,7 +132,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
   }
 
   function overKnob(p: Point): boolean {
-    return !knobUsed && Math.hypot(p.x - KNOB_HOME.x, p.y - KNOB_HOME.y) < 36;
+    return !knobUsed && Math.hypot(p.x - KNOB_HOME.x, p.y - KNOB_HOME.y) < 36 * giant();
   }
 
   function overWall(p: Point): boolean {
@@ -310,6 +312,8 @@ export function createWorkbenchRoom(escape: () => void): Room {
   // ---------- drawing ----------
 
   function drawTubeLight(): void {
+    ctx.save();
+    growAround(W / 2, 48);
     const glow = ctx.createRadialGradient(W / 2, 60, 10, W / 2, 60, 260);
     glow.addColorStop(0, "rgba(220, 240, 255, 0.35)");
     glow.addColorStop(1, "rgba(220, 240, 255, 0)");
@@ -320,9 +324,13 @@ export function createWorkbenchRoom(escape: () => void): Room {
     ctx.fillStyle = "#f4fbff";
     roundRect(W / 2 - 100, 56, 200, 9, 4);
     ctx.fill();
+    ctx.restore();
   }
 
+  // Nothing on it helps, so it's free to go giant.
   function drawPegboard(): void {
+    ctx.save();
+    growAround(720, 320);
     ctx.fillStyle = "#b8926a";
     ctx.fillRect(600, 150, 240, 170);
     ctx.fillStyle = "rgba(60, 40, 20, 0.45)";
@@ -355,6 +363,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
     ctx.fill();
     ctx.fillStyle = "#aab3b8";
     ctx.fillRect(766, 230, 6, 60);
+    ctx.restore();
   }
 
   function drawOutline(): void {
@@ -629,6 +638,7 @@ export function createWorkbenchRoom(escape: () => void): Room {
   function drawKnob(x: number, y: number, angle: number, lying: boolean): void {
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(giant(), giant());
     if (lying) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
       ctx.beginPath();

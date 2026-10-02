@@ -2,6 +2,7 @@
 
 import {
   BONUS_DISTANCE,
+  GIANT_STUFF,
   GROUND_Y,
   ROOF_THICKNESS,
   SCREEN_HEIGHT,
@@ -16,12 +17,28 @@ import {
   type Player,
 } from "./world";
 import { newChase, step, type Chase, type Keys } from "./game";
+import { isGigantic } from "../../shared/bigGames";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
 const context = canvas.getContext("2d");
 if (!context) throw new Error("no 2d context");
 const ctx: CanvasRenderingContext2D = context;
+
+// GIGANTIC Police Chase: you and the cops stay normal size; the skyline, the
+// loot and the chimneys go giant. Chimneys only get a bit wider, because a
+// giant wrong-chimney hole would be too easy to fall into.
+const GIGANTIC = isGigantic("police-chase");
+const GIANT = GIGANTIC ? 3 : 1;
+const TITLE = GIGANTIC ? "GIGANTIC Police Chase" : "Police Chase";
+if (GIGANTIC) {
+  GIANT_STUFF.loot = 2.5;
+  GIANT_STUFF.chimneyWidth = 1.5;
+  GIANT_STUFF.chimneyHeight = 2.5;
+  document.title = TITLE;
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = TITLE;
+}
 
 const HIGH_SCORE_KEY = "police-chase-high-score";
 
@@ -65,6 +82,12 @@ const SKYLINE: SkylineLayer[] = [
   { seed: 13, color: "#1a1430", parallax: 0.25, baseY: Math.trunc(SCREEN_HEIGHT * 0.68), minW: 40, maxW: 110, minH: 40, maxH: 160 },
   { seed: 29, color: "#231e37", parallax: 0.4, baseY: Math.trunc(SCREEN_HEIGHT * 0.72), minW: 36, maxW: 95, minH: 35, maxH: 140 },
 ];
+for (const layer of SKYLINE) {
+  layer.minW *= GIANT;
+  layer.maxW *= GIANT;
+  layer.minH *= GIANT;
+  layer.maxH *= GIANT;
+}
 
 // The buildings are built from the same number sequence every frame, so they
 // stay put as the camera slides past them.
@@ -95,6 +118,13 @@ function drawBackground(): void {
   sky.addColorStop(1, "#1e122d");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+  // A giant moon rises behind the giant buildings.
+  if (GIGANTIC) {
+    ctx.fillStyle = "#f2ecd2";
+    ctx.beginPath();
+    ctx.arc(SCREEN_WIDTH * 0.7, 110, 170, 0, Math.PI * 2);
+    ctx.fill();
+  }
   for (const layer of SKYLINE) drawSkyline(chase.camera, chase.time, layer);
 }
 
@@ -174,7 +204,17 @@ function drawStickman(
 }
 
 function drawLoot(item: Loot, screenX: number): void {
-  const y = item.y;
+  ctx.save();
+  ctx.translate(screenX, item.y);
+  ctx.scale(GIANT_STUFF.loot, GIANT_STUFF.loot);
+  drawLootShape(item);
+  ctx.restore();
+}
+
+// Drawn around (0, 0), so it can be any size.
+function drawLootShape(item: Loot): void {
+  const screenX = 0;
+  const y = 0;
   if (item.kind === "coin") {
     ctx.fillStyle = "#ffd848";
     ctx.beginPath();
@@ -332,9 +372,9 @@ function drawOverlay(title: string, subtitle: string): void {
 function drawTitle(): void {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.font = "48px monospace";
+  ctx.font = `${GIGANTIC ? 64 : 48}px monospace`;
   ctx.fillStyle = "#f5f5ff";
-  ctx.fillText("Police Chase", SCREEN_WIDTH / 2, 120);
+  ctx.fillText(TITLE, SCREEN_WIDTH / 2, GIGANTIC ? 100 : 120);
   ctx.font = "18px monospace";
   ctx.fillText("Run the rooftops. Jump the cops. Green chimneys are the good ones.", SCREEN_WIDTH / 2, 200);
   ctx.fillText("←/→ move · SPACE or ↑ jump (let go to cut it short) · ↓ drop in · ESC pause", SCREEN_WIDTH / 2, 240);

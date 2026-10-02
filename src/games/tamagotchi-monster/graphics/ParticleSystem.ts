@@ -1,6 +1,7 @@
 import type { GrowthStage } from "../model/types";
 import { getAccentColor, getParticleTypes } from "../systems/theme";
 import { rgb } from "../systems/utils";
+import { GIANT } from "../gigantic";
 
 type Particle = {
   x: number;
@@ -160,7 +161,7 @@ export class ParticleSystem {
   }
 
   private spawn(p: Omit<Particle, "life">): void {
-    this.particles.push({ ...p, life: 0 });
+    this.particles.push({ ...p, size: p.size * GIANT, life: 0 });
   }
 }
 

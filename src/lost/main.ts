@@ -1,3 +1,5 @@
+import { markBeenLost } from "../shared/bigGames";
+markBeenLost();
 import { installForceRefreshHotkey } from "../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../shared/oofShortcut";
 

@@ -9,6 +9,8 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  giant,
+  growAround,
   inRect,
   lerp,
   line,
@@ -309,6 +311,8 @@ export function createHundredNothingRoom(escape: () => void): Room {
   // ---------- drawing ----------
 
   function drawBulb(): void {
+    ctx.save();
+    growAround(W / 2, BACK.top - 10);
     ctx.strokeStyle = "#1d1a20";
     ctx.lineWidth = 2;
     line(W / 2, BACK.top - 10, W / 2, 95);
@@ -321,6 +325,7 @@ export function createHundredNothingRoom(escape: () => void): Room {
     ctx.beginPath();
     ctx.arc(W / 2, 105, 11, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 
   function drawMirror(now: number): void {
@@ -429,7 +434,7 @@ export function createHundredNothingRoom(escape: () => void): Room {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
-    ctx.scale(scale, scale);
+    ctx.scale(scale * giant(), scale * giant());
     ctx.lineCap = "round";
     ctx.strokeStyle = "#3f2712";
     ctx.lineWidth = 13;

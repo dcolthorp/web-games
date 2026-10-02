@@ -1,4 +1,4 @@
-import { ctx, roundRect } from "./engine";
+import { ctx, giant, roundRect } from "./engine";
 
 // Shared bits for Hundred Logic Escape Rooms: what this game turns into when
 // the switch on its Games 4 card is flipped up. Same rooms, but every way out
@@ -25,7 +25,7 @@ export const FLOAT_MS = 1600;
 
 // Short messages that float up and fade, like "It's locked."
 export function drawFloaters(floaters: Floater[], now: number): void {
-  ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
+  ctx.font = `bold ${20 * giant()}px 'Trebuchet MS', sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = 4;
@@ -41,7 +41,8 @@ export function drawFloaters(floaters: Floater[], now: number): void {
   ctx.globalAlpha = 1;
 }
 
-// A box in the top-left corner listing what you've got so far.
+// A box in the top-left corner listing what you've got so far. It's about you,
+// so it stays normal size even when the game is GIGANTIC.
 export function drawNotes(lines: string[]): void {
   if (lines.length === 0) return;
   ctx.font = "bold 15px 'Trebuchet MS', sans-serif";
@@ -60,7 +61,7 @@ export function drawKey(x: number, y: number, angle = 0, scale = 1): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  ctx.scale(scale, scale);
+  ctx.scale(scale * giant(), scale * giant());
   ctx.fillStyle = "#d9a52a";
   ctx.strokeStyle = "#7a5712";
   ctx.lineWidth = 2;

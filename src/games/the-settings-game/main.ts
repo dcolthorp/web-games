@@ -1,4 +1,15 @@
-export {};
+import { isGigantic } from "../../shared/bigGames";
+
+// GIGANTIC Settings Game: the level is GIANT times bigger than you and the
+// camera is zoomed way out to fit it all in, so you look tiny. Your runs and
+// jumps still cover the same ground as before, so every level stays winnable.
+const GIGANTIC = isGigantic("the-settings-game");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC The Settings Game";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC The Settings Game";
+}
 
 interface Rect {
   x: number;
@@ -824,8 +835,8 @@ let currentLevelIndex = 0;
 let entities: Entity[] = [];
 const settingValues: Record<string, number | string | boolean> = {};
 
-const BASE_PLAYER_W = 22;
-const BASE_PLAYER_H = 28;
+const BASE_PLAYER_W = 22 / GIANT;
+const BASE_PLAYER_H = 28 / GIANT;
 
 const player = {
   x: 0,
@@ -838,8 +849,8 @@ const player = {
 };
 
 function applyPlayerScale(scale: number): void {
-  const newW = Math.round(BASE_PLAYER_W * scale);
-  const newH = Math.round(BASE_PLAYER_H * scale);
+  const newW = Math.round(BASE_PLAYER_W * scale * GIANT) / GIANT;
+  const newH = Math.round(BASE_PLAYER_H * scale * GIANT) / GIANT;
   // Anchor to bottom-center so the player doesn't sink into a platform.
   const cx = player.x + player.w / 2;
   const bottom = player.y + player.h;
@@ -1457,7 +1468,9 @@ let lastT = performance.now();
 function loop(t: number): void {
   const dt = Math.min((t - lastT) / 1000, 1 / 30);
   lastT = t;
-  if (currentLevelIndex >= 0) step(dt);
+  // A tiny player could fall right through a thin platform in one big step,
+  // so gigantic mode takes several small ones.
+  for (let i = 0; i < GIANT && currentLevelIndex >= 0; i++) step(dt / GIANT);
   render();
   requestAnimationFrame(loop);
 }

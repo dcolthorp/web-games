@@ -19,6 +19,7 @@ import {
   type SimonPattern,
   type TimingTrace,
 } from "./session";
+import { isGigantic } from "../../shared/bigGames";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -33,6 +34,17 @@ const CYAN = "#00eeff";
 const MAGENTA = "#ff46eb";
 const LIME = "#78ff78";
 const WARNING = "#ff5460";
+
+// GIGANTIC Software Hack: the things you press (the trace bar, the pads, the
+// patches, the HUD) stay normal size. The headlines, the grid and the
+// scanlines go giant, the headlines see-through so you can play over them.
+const GIGANTIC = isGigantic("software-hack");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Software Hack";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Software Hack";
+}
 
 const HIGH_SCORE_KEY = "software-hack-high-score";
 
@@ -70,8 +82,8 @@ function drawBackground(): void {
 
   // A grid sliding away under everything, like an old hacker movie.
   ctx.strokeStyle = "rgba(0, 238, 255, 0.08)";
-  ctx.lineWidth = 1;
-  const spacing = 48;
+  ctx.lineWidth = GIANT;
+  const spacing = 48 * GIANT;
   const drift = (time * 26) % spacing;
   for (let x = -spacing; x < SCREEN_WIDTH + spacing; x += spacing) {
     ctx.beginPath();
@@ -89,7 +101,23 @@ function drawBackground(): void {
 
 function drawScanlines(): void {
   ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
-  for (let y = 0; y < SCREEN_HEIGHT; y += 4) ctx.fillRect(0, y, SCREEN_WIDTH, 2);
+  for (let y = 0; y < SCREEN_HEIGHT; y += 4 * GIANT) ctx.fillRect(0, y, SCREEN_WIDTH, 2 * GIANT);
+}
+
+// A big line of text. When everything's giant it goes as big as fits and
+// see-through, so whatever's drawn on top of it can still be read.
+function drawHeadline(text: string, size: number, x: number, y: number): void {
+  if (!GIGANTIC) {
+    ctx.font = `${size}px monospace`;
+    ctx.fillText(text, x, y);
+    return;
+  }
+  const fits = (SCREEN_WIDTH - 2 * SIDE) / (text.length * 0.62);
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.font = `${Math.trunc(Math.min(size * GIANT, fits))}px monospace`;
+  ctx.fillText(text, x, y);
+  ctx.restore();
 }
 
 function drawPanel(x: number, y: number, w: number, h: number, border: string, alpha = 0.28): void {
@@ -170,8 +198,7 @@ function drawIcon(x: number, y: number, size: number, shape: IconShape, color: s
 
 function drawTimingTrace(game: TimingTrace): void {
   ctx.fillStyle = TEXT;
-  ctx.font = "44px monospace";
-  ctx.fillText(game.name, SIDE, 120);
+  drawHeadline(game.name, 44, SIDE, 120);
   ctx.font = "18px monospace";
   ctx.fillStyle = MUTED;
   ctx.fillText("Press SPACE when the cursor is inside the neon window.", SIDE, 180);
@@ -209,8 +236,7 @@ function simonPads(): { x: number; y: number; w: number; h: number }[] {
 
 function drawSimon(game: SimonPattern): void {
   ctx.fillStyle = TEXT;
-  ctx.font = "44px monospace";
-  ctx.fillText(game.name, SIDE, 120);
+  drawHeadline(game.name, 44, SIDE, 120);
   ctx.font = "18px monospace";
   ctx.fillStyle = MUTED;
   const hint =
@@ -273,8 +299,7 @@ function drawSimon(game: SimonPattern): void {
 
 function drawPatchMatch(game: PatchMatch): void {
   ctx.fillStyle = WARNING;
-  ctx.font = "40px monospace";
-  ctx.fillText("VULNERABILITY DETECTED", SIDE, 95);
+  drawHeadline("VULNERABILITY DETECTED", 40, SIDE, 95);
   ctx.fillStyle = TEXT;
   ctx.font = "18px monospace";
   ctx.fillText("Update your antivirus: pick the matching patch (press 1–4).", SIDE, 160);
@@ -320,8 +345,7 @@ function drawMinigame(game: Minigame): void {
 
 function drawTitle(): void {
   ctx.fillStyle = TEXT;
-  ctx.font = "48px monospace";
-  ctx.fillText("SOFTWARE HACK", SIDE, 220);
+  drawHeadline("SOFTWARE HACK", 48, SIDE, 220);
   ctx.font = "18px monospace";
   ctx.fillStyle = MUTED;
   ctx.fillText("Hack hostile AIs. Patch yourself when vulnerabilities strike.", SIDE, 285);
@@ -332,8 +356,7 @@ function drawTitle(): void {
 
 function drawTerminal(): void {
   ctx.fillStyle = CYAN;
-  ctx.font = "44px monospace";
-  ctx.fillText("JOB TERMINAL", SIDE, 210);
+  drawHeadline("JOB TERMINAL", 44, SIDE, 210);
   ctx.fillStyle = TEXT;
   ctx.font = "18px monospace";
   ctx.fillText("Press H or ENTER to start Job 1.", SIDE, 278);
@@ -350,8 +373,7 @@ function drawTerminal(): void {
 
 function drawOverlayPage(title: string, color: string, lines: string[]): void {
   ctx.fillStyle = color;
-  ctx.font = "44px monospace";
-  ctx.fillText(title, SIDE, 250);
+  drawHeadline(title, 44, SIDE, 250);
   ctx.font = "18px monospace";
   lines.forEach((line, index) => {
     ctx.fillStyle = index === lines.length - 1 ? MUTED : TEXT;
@@ -461,8 +483,7 @@ function frame(now: number): void {
     ]);
   } else if (session.phase === "vulnBanner") {
     ctx.fillStyle = WARNING;
-    ctx.font = "44px monospace";
-    ctx.fillText("VULNERABILITY DETECTED", SIDE, 290);
+    drawHeadline("VULNERABILITY DETECTED", 44, SIDE, 290);
     ctx.fillStyle = TEXT;
     ctx.font = "18px monospace";
     ctx.fillText("Launching AV update…", SIDE, 352);

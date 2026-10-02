@@ -71,3 +71,9 @@
   50% { transform: translateX(6px) rotate(0.5deg); }
   80% { transform: translateX(-3px); }
 }
+
+/* GIGANTIC: the first game's stylesheet makes the page giant; this is the one
+   line it doesn't know about. */
+body.gigantic .next-line {
+  font-size: 2.4rem;
+}

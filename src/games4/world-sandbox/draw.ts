@@ -1,3 +1,4 @@
+import { isGigantic } from "../../shared/bigGames";
 import { MATERIALS } from "./caves";
 import { CHOICES, MAGIC } from "./catalog";
 import { bombSprite } from "./bombs";
@@ -14,6 +15,16 @@ import { H, LAND_LEVEL, W, isLand, tsunamiRadius, waveReaches, type Thing } from
 // Draws the whole world, one pixel at a time: no smooth shapes anywhere.
 
 let ctx: CanvasRenderingContext2D;
+
+// GIGANTIC World Sandbox: people (and mutants, who are people too) stay their
+// normal size; everything else in the world is drawn giant around them.
+export const GIGANTIC = isGigantic("world-sandbox");
+export const GIANT = GIGANTIC ? 3 : 1;
+
+/** How many times giant something is: always 1 for people. */
+export function giantOf(t: Thing): number {
+  return t.type === "person" || t.type === "mutant" ? 1 : GIANT;
+}
 const toRgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
 // Deep water, shallow water, sand, grass, and high grass.
@@ -69,34 +80,39 @@ function drawRipple(t: Thing, now: number): void {
 function drawBanner(t: Thing, s: Sprite, now: number): void {
   const color = tribeOf(t)?.color;
   if (!color) return;
+  const g = giantOf(t);
   const x = Math.round(t.x);
-  const top = Math.round(t.y) - s.height - 4;
+  const top = Math.round(t.y - (s.height + 4) * g);
   ctx.fillStyle = "#f4f1ea";
-  ctx.fillRect(x, top, 1, 5);
+  ctx.fillRect(x, top, g, 5 * g);
   ctx.fillStyle = color;
   const flap = Math.floor(now / 200) % 2;
-  ctx.fillRect(x + 1, top, 3 - flap, 3);
+  ctx.fillRect(x + g, top, (3 - flap) * g, 3 * g);
 }
 
 // Pixel smoke puffs drift up out of a volcano, growing as they go.
 function drawSmoke(t: Thing, now: number): void {
+  const g = giantOf(t);
   for (let i = 0; i < 3; i += 1) {
     const p = (now / 2400 + i / 3 + t.x / 97) % 1;
     if (p > 0.85) continue;
-    const size = 1 + Math.floor(p * 3);
+    const size = (1 + Math.floor(p * 3)) * g;
     ctx.fillStyle = p < 0.4 ? "#9aa0a8" : "#5d626b";
-    ctx.fillRect(Math.round(t.x + Math.sin(p * 6 + i) * 2 - size / 2), Math.round(t.y - 9 - p * 14), size, size);
+    ctx.fillRect(Math.round(t.x + Math.sin(p * 6 + i) * 2 * g - size / 2), Math.round(t.y - (9 + p * 14) * g), size, size);
   }
 }
 
 // A one-pixel bar above anything that's been hurt.
 function drawHealth(t: Thing, s: Sprite): void {
-  const left = Math.round(t.x - s.width / 2);
-  const top = Math.round(t.y) - s.height - 1;
+  // A giant thing gets a giant bar, but people keep theirs as it always was.
+  const g = giantOf(t);
+  const width = s.width * g;
+  const left = Math.round(t.x - width / 2);
+  const top = Math.round(t.y) - s.height * g - g;
   ctx.fillStyle = "#1b1b1f";
-  ctx.fillRect(left, top, s.width, 1);
+  ctx.fillRect(left, top, width, g);
   ctx.fillStyle = "#86d86e";
-  ctx.fillRect(left, top, Math.max(1, Math.round((s.width * (t.hp ?? 0)) / maxHp(t))), 1);
+  ctx.fillRect(left, top, Math.max(g, Math.round((width * (t.hp ?? 0)) / maxHp(t))), g);
 }
 
 // A one-pixel ring of foam, only where the water can actually get to.
@@ -119,8 +135,8 @@ function drawWave(wave: Wave, now: number): void {
 // A white line means the pads belong to nobody, so anybody can walk through.
 function drawPadLinks(): void {
   ctx.save();
-  ctx.setLineDash([2, 3]);
-  ctx.lineWidth = 1;
+  ctx.setLineDash([2 * GIANT, 3 * GIANT]);
+  ctx.lineWidth = GIANT;
   for (const pad of world.things) {
     if (pad.type !== "teleporter" || !pad.link || !pad.pad) continue;
     // Only draw each pair once.
@@ -130,8 +146,8 @@ function drawPadLinks(): void {
     ctx.strokeStyle = tribeOf(pad)?.color ?? "#f4f1ea";
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
-    ctx.moveTo(pad.x, pad.y - 3);
-    ctx.lineTo(other.x, other.y - 3);
+    ctx.moveTo(pad.x, pad.y - 3 * GIANT);
+    ctx.lineTo(other.x, other.y - 3 * GIANT);
     ctx.stroke();
   }
   ctx.restore();
@@ -142,10 +158,11 @@ function drawShot(shot: Shot): void {
   const x = Math.round(shot.x);
   const y = Math.round(shot.y);
   const fat = shot.kind === "nuke";
+  const g = GIANT;
   ctx.fillStyle = fat ? "#f7d23e" : "#f4f1ea";
-  ctx.fillRect(x - (fat ? 1 : 0), y - 1, fat ? 3 : 2, fat ? 3 : 2);
+  ctx.fillRect(x - (fat ? 1 : 0) * g, y - g, (fat ? 3 : 2) * g, (fat ? 3 : 2) * g);
   ctx.fillStyle = "#ee7a2a";
-  ctx.fillRect(x - 1, y + (fat ? 2 : 1), 1, 1);
+  ctx.fillRect(x - g, y + (fat ? 2 : 1) * g, g, g);
 }
 
 function drawEffect(e: Effect, now: number): void {
@@ -155,16 +172,17 @@ function drawEffect(e: Effect, now: number): void {
   if (e.kind === "laser") {
     // A beam that thins out as it fades.
     ctx.strokeStyle = e.color;
-    ctx.lineWidth = Math.max(1, 3 * (1 - p));
+    ctx.lineWidth = Math.max(1, 3 * (1 - p)) * GIANT;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(Math.round(e.x2 ?? x), Math.round(e.y2 ?? y));
     ctx.stroke();
   } else if (e.kind === "blast") {
-    // A ring of fire racing outwards.
+    // A ring of fire racing outwards. It stays as wide as the blast really
+    // reaches, so a giant one is only fatter.
     const r = (e.size ?? 8) * p;
     ctx.strokeStyle = p < 0.5 ? "#f7d23e" : e.color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * GIANT;
     ctx.globalAlpha = 1 - p;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -172,11 +190,11 @@ function drawEffect(e: Effect, now: number): void {
     ctx.globalAlpha = 1;
   } else if (e.kind === "trail") {
     ctx.fillStyle = e.color;
-    ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(x, y, GIANT, GIANT);
   } else if (e.kind === "sparkle") {
-    const r = 1 + Math.floor(p * 4);
+    const r = (1 + Math.floor(p * 4)) * GIANT;
     ctx.fillStyle = e.color;
-    for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r]] as const) ctx.fillRect(x + dx, y - 4 + dy, 1, 1);
+    for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r]] as const) ctx.fillRect(x + dx, y - 4 * GIANT + dy, GIANT, GIANT);
   } else {
     // Flickering flames that burn down to nothing.
     const tallest = Math.round(8 * (1 - p));
@@ -184,9 +202,9 @@ function drawEffect(e: Effect, now: number): void {
       const h = tallest - Math.abs(i) * 2 + (Math.floor(now / 80 + i * 7) % 3);
       if (h <= 0) continue;
       for (const [color, share] of [["#d8362b", 1], ["#ee7a2a", 0.6], ["#f7d23e", 0.3]] as const) {
-        const ch = Math.max(1, Math.round(h * share));
+        const ch = Math.max(1, Math.round(h * share)) * GIANT;
         ctx.fillStyle = color;
-        ctx.fillRect(x + i, y - ch + 1, 1, ch);
+        ctx.fillRect(x + i * GIANT, y - ch + 1, GIANT, ch);
       }
     }
   }
@@ -250,14 +268,15 @@ function drawCaveThings(target: CanvasRenderingContext2D, mountain: Thing, now: 
   for (const t of mountain.caveThings ?? []) {
     const s = spriteFor(t);
     if (!s) continue;
+    const g = giantOf(t);
     if (isBomb(t.type)) {
       const speed = Math.max(60, (t.fuse ?? 0) * 3);
       if (Math.floor(now / speed) % 2 === 0) {
         target.fillStyle = "#d8362b";
-        target.fillRect(Math.round(t.x) - 1, Math.round(t.y) - s.height - 1, 3, 3);
+        target.fillRect(Math.round(t.x - g), Math.round(t.y - (s.height + 1) * g), 3 * g, 3 * g);
       }
     }
-    drawSprite(target, s, t.x, t.y, now + t.x * 37, Math.cos(t.heading ?? 0) < 0);
+    drawSprite(target, s, t.x, t.y, now + t.x * 37, Math.cos(t.heading ?? 0) < 0, g);
   }
 }
 
@@ -294,14 +313,14 @@ export function drawWorld(target: CanvasRenderingContext2D, now: number): void {
     // Anybody swimming is drawn down in the water with a ripple round them —
     // mutants included, since they swim the same as everybody else.
     const swimming = (t.type === "person" || t.type === "mutant") && !isLand(world.heights, t.x, t.y);
-    drawSprite(ctx, s, t.x, t.y + (swimming ? 3 : 0), now + t.x * 37, Math.cos(t.heading ?? 0) < 0, t.size ?? 1);
+    drawSprite(ctx, s, t.x, t.y + (swimming ? 3 : 0), now + t.x * 37, Math.cos(t.heading ?? 0) < 0, (t.size ?? 1) * giantOf(t));
     if (swimming) drawRipple(t, now);
     if (t.type === "volcano") drawSmoke(t, now);
     if (t.tribe && MAGIC.has(t.type)) drawBanner(t, s, now);
     // A dark doorway at the foot of a mountain with a cave in it.
     if (t.cave !== undefined) {
       ctx.fillStyle = "#1b1b1f";
-      ctx.fillRect(Math.round(t.x) - 1, Math.round(t.y) - 2, 3, 3);
+      ctx.fillRect(Math.round(t.x) - GIANT, Math.round(t.y) - 2 * GIANT, 3 * GIANT, 3 * GIANT);
     }
     if (t.hp !== undefined && t.hp < maxHp(t)) drawHealth(t, s);
   }

@@ -1,7 +1,18 @@
 import { openGuest, openHost, type Link } from "./net";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 
 installOofShortcut();
+
+// GIGANTIC Telephone: the people playing stay normal size and the whole phone
+// around them goes giant. styles.css does the growing off the body class.
+const GIGANTIC = isGigantic("telephone");
+if (GIGANTIC) {
+  document.body.classList.add("gigantic");
+  document.title = "GIGANTIC Telephone";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Telephone";
+}
 
 type Privacy = "public" | "private";
 type Mode = "words" | "phrases";

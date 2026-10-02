@@ -39,6 +39,7 @@ import {
   type PerfectStatus,
   type Run,
 } from "./quiz";
+import { isGigantic } from "../../shared/bigGames";
 
 const found = document.getElementById("game");
 if (!(found instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -47,6 +48,17 @@ const canvas: HTMLCanvasElement = found;
 const context = canvas.getContext("2d");
 if (!context) throw new Error("no 2d context");
 const ctx: CanvasRenderingContext2D = context;
+
+// GIGANTIC Roblox Trivia: what you click stays normal size (the answers, the
+// mode lists, the secret trophy and paint, the quiz creator). The titles, the
+// question, the score line and a giant question mark behind it all go giant.
+const GIGANTIC = isGigantic("roblox-trivia");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Roblox Trivia";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Roblox Trivia";
+}
 
 const SAVE_KEY = "roblox-trivia-progress";
 
@@ -231,6 +243,23 @@ function text(
   return ctx.measureText(content).width;
 }
 
+// How big a line of text gets: its normal size, or as giant as fits across
+// the screen (and never more than `most`, so it can't run into what's below).
+function giantSize(content: string, size: number, bold = false, most = size * GIANT): number {
+  if (!GIGANTIC) return size;
+  ctx.font = `${bold ? "bold " : ""}${size}px "Trebuchet MS", sans-serif`;
+  const width = Math.max(1, ctx.measureText(content).width);
+  return Math.floor(Math.min(size * GIANT, most, (size * (SCREEN_WIDTH - 60)) / width));
+}
+
+// The giant question mark that hangs behind everything.
+function drawGiantMark(color: string): void {
+  if (!GIGANTIC) return;
+  ctx.globalAlpha = 0.08;
+  text("?", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 30, { size: 640, bold: true, color });
+  ctx.globalAlpha = 1;
+}
+
 function wrap(content: string, maxWidth: number, size: number): string[] {
   ctx.font = `${size}px "Trebuchet MS", sans-serif`;
   const words = content.split(" ");
@@ -301,16 +330,20 @@ function drawSelect(): void {
   ctx.fillStyle = DEFAULT_BG;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
+  drawGiantMark(DEFAULT_TEXT);
+
   const title = "Select Difficulty";
-  ctx.font = 'bold 40px "Trebuchet MS", sans-serif';
+  // The secret letters are measured at whatever size the title is drawn.
+  const titleSize = giantSize(title, 40, true, 100);
+  const titleTop = 100 - titleSize / 2;
+  text(title, SCREEN_WIDTH / 2, 100, { size: titleSize, bold: true });
   const titleWidth = ctx.measureText(title).width;
   const left = SCREEN_WIDTH / 2 - titleWidth / 2;
-  text(title, SCREEN_WIDTH / 2, 100, { size: 40, bold: true });
 
   // The second "e" of "Select" is a door.
   const beforeSecondE = ctx.measureText("Sel").width;
   const eWidth = ctx.measureText("e").width;
-  zone(left + beforeSecondE, 80, eWidth, 40, () => {
+  zone(left + beforeSecondE, titleTop, eWidth, titleSize, () => {
     screen = "extra";
     errorBuffer = "";
   });
@@ -324,9 +357,9 @@ function drawSelect(): void {
     iPositions.push(iPositions.length);
     const slot = iPositions.length - 1;
     if (clickedIs.has(slot)) {
-      text("i", left + before, 100, { size: 40, bold: true, color: "#ffff00", align: "left" });
+      text("i", left + before, 100, { size: titleSize, bold: true, color: "#ffff00", align: "left" });
     }
-    zone(left + before, 80, charWidth, 40, () => {
+    zone(left + before, titleTop, charWidth, titleSize, () => {
       if (clickedIs.has(slot)) {
         clickedIs.clear();
         return;
@@ -343,7 +376,7 @@ function drawSelect(): void {
   const cIndex = title.indexOf("Difficulty") + "Diffi".length;
   const beforeC = ctx.measureText(title.slice(0, cIndex)).width;
   const cWidth = ctx.measureText("c").width;
-  zone(left + beforeC, 80, cWidth, 40, () => {
+  zone(left + beforeC, titleTop, cWidth, titleSize, () => {
     screen = "create";
   });
 
@@ -404,7 +437,8 @@ function drawSelect(): void {
 function drawExtra(): void {
   ctx.fillStyle = DEFAULT_BG;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  text("Extra Modes", SCREEN_WIDTH / 2, 100, { size: 40, bold: true });
+  drawGiantMark(DEFAULT_TEXT);
+  text("Extra Modes", SCREEN_WIDTH / 2, 100, { size: giantSize("Extra Modes", 40, true, 110), bold: true });
 
   EXTRA_MODES.forEach((name, index) => {
     const difficulty = DIFFICULTIES[name];
@@ -498,19 +532,23 @@ function drawQuiz(active: Run, endless: boolean): void {
 
   ctx.fillStyle = style.background;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+  drawGiantMark(style.accent);
 
   const heading = endless
     ? `Infinite · ${infinitePool}   Score ${infiniteScore}   Best ${infiniteBest}`
     : `${labelOf(active.difficultyName)}   ${active.index + 1} / ${active.questions.length}   Score ${active.score}`;
-  text(heading, SCREEN_WIDTH / 2, 40, { size: 20, color: style.accent });
+  text(heading, SCREEN_WIDTH / 2, 40, { size: giantSize(heading, 20, false, 52), color: style.accent });
 
-  const lines = wrap(question.question, SCREEN_WIDTH - 100, 26);
+  const size = questionSize(question.question);
+  const lineHeight = Math.round(size * 1.3);
+  const lines = wrap(question.question, SCREEN_WIDTH - 100, size);
+  const firstLine = GIGANTIC ? 72 + lineHeight / 2 : 110;
   lines.forEach((line, index) => {
-    text(line, SCREEN_WIDTH / 2, 110 + index * 34, { size: 26, color: style.text });
+    text(line, SCREEN_WIDTH / 2, firstLine + index * lineHeight, { size, color: style.text });
   });
 
   question.options.forEach((option, index) => {
-    const y = 250 + index * 66;
+    const y = ANSWERS_TOP + index * 66;
     const correct = index === question.answer;
     let fill = "rgba(255, 255, 255, 0.08)";
     if (active.showingResult) {
@@ -528,12 +566,26 @@ function drawQuiz(active: Run, endless: boolean): void {
 
   if (active.showingResult) {
     text(active.feedback, SCREEN_WIDTH / 2, SCREEN_HEIGHT - 40, {
-      size: 24,
+      size: giantSize(active.feedback, 24, false, 40),
       color: active.selected === question.answer ? "#78ff78" : "#ff8080",
     });
   } else {
     text("Q to go back", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 26, { size: 15, color: "#9a9a9a" });
   }
+}
+
+// When it's giant, the answers move down a bit to give the question room.
+const ANSWERS_TOP = GIGANTIC ? 290 : 250;
+
+// The biggest the question can be and still fit above the answers.
+function questionSize(question: string): number {
+  if (!GIGANTIC) return 26;
+  const room = ANSWERS_TOP - 26 - 12 - 72;
+  for (let size = 26 * GIANT; size > 26; size -= 2) {
+    const lines = wrap(question, SCREEN_WIDTH - 100, size).length;
+    if (lines * Math.round(size * 1.3) <= room) return size;
+  }
+  return 26;
 }
 
 function answerNow(option: number): void {
@@ -556,7 +608,9 @@ function drawComplete(active: Run): void {
   const style = styleFor(active.difficultyName);
   ctx.fillStyle = style.background;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  text(labelOf(active.difficultyName), SCREEN_WIDTH / 2, 150, { size: 40, bold: true, color: style.accent });
+  drawGiantMark(style.accent);
+  const label = labelOf(active.difficultyName);
+  text(label, SCREEN_WIDTH / 2, 150, { size: giantSize(label, 40, true, 110), bold: true, color: style.accent });
   text(`${active.score} out of ${active.questions.length}`, SCREEN_WIDTH / 2, 240, { size: 32 });
   const clean = active.score === active.questions.length;
   text(clean ? "Perfect." : "Not perfect — try again for the unlocks.", SCREEN_WIDTH / 2, 300, {
@@ -579,7 +633,12 @@ function drawComplete(active: Run): void {
 function drawInfiniteSelect(): void {
   ctx.fillStyle = DEFAULT_BG;
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  text("Infinite Mode", SCREEN_WIDTH / 2, 100, { size: 40, bold: true, color: "#50c8ff" });
+  drawGiantMark("#50c8ff");
+  text("Infinite Mode", SCREEN_WIDTH / 2, 100, {
+    size: giantSize("Infinite Mode", 40, true, 76),
+    bold: true,
+    color: "#50c8ff",
+  });
   text("Questions keep coming. One wrong answer ends it.", SCREEN_WIDTH / 2, 150, {
     size: 18,
     color: "#a0a0a0",
@@ -597,7 +656,11 @@ function drawInfiniteSelect(): void {
 function drawInfiniteOver(): void {
   ctx.fillStyle = "#14141e";
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  text("That's the end of that", SCREEN_WIDTH / 2, 180, { size: 36, bold: true, color: "#ff8080" });
+  text("That's the end of that", SCREEN_WIDTH / 2, 180, {
+    size: giantSize("That's the end of that", 36, true, 90),
+    bold: true,
+    color: "#ff8080",
+  });
   text(`Score ${infiniteScore}   Best ${infiniteBest}`, SCREEN_WIDTH / 2, 250, { size: 26 });
   text("Click anywhere for the menu", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 60, {
     size: 18,
@@ -909,7 +972,7 @@ function typeKey(key: string): boolean {
 function drawGodMenu(): void {
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-  text("GOD MODE", SCREEN_WIDTH / 2, 170, { size: 44, bold: true });
+  text("GOD MODE", SCREEN_WIDTH / 2, 170, { size: giantSize("GOD MODE", 44, true, 130), bold: true });
   text("1. Begin", SCREEN_WIDTH / 2, 280, { size: 28 });
   zone(SCREEN_WIDTH / 2 - 120, 258, 240, 44, () => {
     run = startRun("God Mode", random);

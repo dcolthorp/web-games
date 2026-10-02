@@ -187,7 +187,7 @@ export function bossHasCaught(boss: Boss, player: Player): boolean {
 }
 
 // A shard of the forged crystal, thrown from where you're looking.
-export function throwShard(player: Player, now: number): Shard {
+export function throwShard(player: Player, now: number, eye = EYE): Shard {
   const aim = {
     x: Math.sin(player.yaw) * Math.cos(player.pitch),
     y: Math.sin(player.pitch),
@@ -195,7 +195,7 @@ export function throwShard(player: Player, now: number): Shard {
   };
   return {
     x: player.x + aim.x,
-    y: player.y + EYE + aim.y,
+    y: player.y + eye + aim.y,
     z: player.z + aim.z,
     vx: aim.x * SHARD_SPEED,
     vy: aim.y * SHARD_SPEED,
@@ -212,7 +212,15 @@ export interface ShardResult {
   bounces: number;
 }
 
-export function updateShards(world: World, shards: Shard[], boss: Boss, dt: number, now: number): ShardResult {
+// `tall` is how tall it's drawn, so a shard hits its middle wherever that is.
+export function updateShards(
+  world: World,
+  shards: Shard[],
+  boss: Boss,
+  dt: number,
+  now: number,
+  tall = BOSS_HEIGHT
+): ShardResult {
   let hits = 0;
   let bounces = 0;
   const left: Shard[] = [];
@@ -224,7 +232,7 @@ export function updateShards(world: World, shards: Shard[], boss: Boss, dt: numb
     // They fly nearly straight, with the smallest droop.
     shard.vy -= 3 * dt;
 
-    const away = Math.hypot(shard.x - boss.x, shard.y - (boss.y + BOSS_HEIGHT / 2), shard.z - boss.z);
+    const away = Math.hypot(shard.x - boss.x, shard.y - (boss.y + tall / 2), shard.z - boss.z);
     if (away < SHARD_HIT_RANGE) {
       if (boss.frozen) {
         hits += 1;

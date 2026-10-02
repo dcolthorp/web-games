@@ -1,5 +1,6 @@
 import { wornSkin } from "./shop";
 import { isHappy, markBossBeaten } from "./mood";
+import { GIANT } from "./gigantic";
 
 const TILE = 32;
 const ARENA = { x: 1, y: 1, w: 21, h: 13 };
@@ -168,7 +169,8 @@ export function startBoss(): void {
       // A charge that lands on a pillar takes the pillar down with it.
       for (const pillar of pillars) {
         if (pillar.broken) continue;
-        if (Math.hypot(boss.x - pillar.x, boss.y - pillar.y) > boss.size * 0.7 + 0.75) continue;
+        // Giant pillars are a bigger thing to charge into.
+        if (Math.hypot(boss.x - pillar.x, boss.y - pillar.y) > boss.size * 0.7 + 0.75 * GIANT) continue;
         pillar.broken = true;
         pillar.rubble = 0.6;
         boss.dashing = 0;
@@ -219,29 +221,31 @@ export function startBoss(): void {
       : ["#140a14", "#170a12", "#1b0a10", "#20090e", "#26080c"][rage] ?? "#26080c";
     context.fillRect(ARENA.x * TILE, ARENA.y * TILE, ARENA.w * TILE, ARENA.h * TILE);
     context.strokeStyle = happy ? "#ded6bb" : "#4a1020";
-    context.lineWidth = 4;
+    context.lineWidth = 4 * GIANT;
     context.strokeRect(ARENA.x * TILE, ARENA.y * TILE, ARENA.w * TILE, ARENA.h * TILE);
 
+    // The keeper and you stay your normal size; the pillars can be giant.
+    const g = GIANT;
     pillars.forEach((pillar) => {
       const px = pillar.x * TILE, py = pillar.y * TILE;
       if (pillar.broken) {
         context.fillStyle = "#2a1119";
-        context.fillRect(px - 16, py + 14, 32, 8);
+        context.fillRect(px - 16 * g, py + 14 * g, 32 * g, 8 * g);
         if (pillar.rubble > 0) {
           // Chunks thrown out by the impact.
           context.fillStyle = "#6b5570";
           for (let i = 0; i < 7; i += 1) {
-            const spread = (1 - pillar.rubble / 0.6) * 34;
+            const spread = (1 - pillar.rubble / 0.6) * 34 * g;
             const angle = i * 0.9;
-            context.fillRect(px + Math.cos(angle) * spread - 3, py + Math.sin(angle) * spread * 0.6 - 3, 6, 6);
+            context.fillRect(px + Math.cos(angle) * spread - 3 * g, py + Math.sin(angle) * spread * 0.6 - 3 * g, 6 * g, 6 * g);
           }
         }
         return;
       }
       context.fillStyle = "#6b5570";
-      context.fillRect(px - 13, py - 26, 26, 52);
+      context.fillRect(px - 13 * g, py - 26 * g, 26 * g, 52 * g);
       context.fillStyle = "#8a6f90";
-      context.fillRect(px - 13, py - 26, 26, 6);
+      context.fillRect(px - 13 * g, py - 26 * g, 26 * g, 6 * g);
     });
 
     // The keeper. A ring of held breath before it lunges.

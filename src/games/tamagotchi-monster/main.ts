@@ -7,8 +7,10 @@ import {
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { GAME_TITLE } from "./gigantic";
 
 installOofShortcut();
+document.title = GAME_TITLE;
 
 const TM_TROPHY_DOOM_STARTED_KEY = "tamagotchi-monster-trophy-doom-started";
 

@@ -1,6 +1,13 @@
 // Bio Tech — a fanmade game for Bionic.
 // Full-screen canvas game. Opening cutscene.
-export {};
+import { isGigantic } from "../../shared/bigGames";
+
+// GIGANTIC Bio Tech: the hero and the scientist stay their normal size, and
+// the building, the lab, the knife, the Bio Arm, the walls, the shoes and
+// everything else are giant.
+const GIGANTIC = isGigantic("bio-tech");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) document.title = "GIGANTIC Bio Tech";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -376,8 +383,8 @@ let drillBannerT = 0;
 let drillSoundTimer = 0;
 let drillingNow = false;
 let leavingDrill = false; // fading out to the spring-shoes section
-const WALL_HALF = 22;
-const WALL_H = 170;
+const WALL_HALF = 22 * GIANT;
+const WALL_H = 170 * GIANT;
 
 // --- Spring shoes section ---
 const SPRINGS_WIDTH = 2000;
@@ -468,7 +475,7 @@ function update(dt: number): void {
       camX = Math.max(0, heroX - W * 0.35);
       updateParticles(dt);
       const groundY = H * GROUND_FRAC;
-      spawnSmokeAt(BUILDING_WORLD_X, groundY - H * 0.32); // smoke from the strange building's roof
+      spawnSmokeAt(BUILDING_WORLD_X, groundY - buildingHeight()); // smoke from the strange building's roof
       if (!entering && heroX >= BUILDING_WORLD_X - 60) {
         entering = true; // reached the door — start walking in
       }
@@ -495,10 +502,10 @@ function update(dt: number): void {
       camX = Math.max(0, Math.min(INTERIOR_WIDTH - W, heroX - W * 0.4));
       updateParticles(dt);
       // eerie glow rising off the knife (until it's grabbed)
-      const knifeY = H * GROUND_FRAC - 96;
+      const knifeY = H * GROUND_FRAC - 96 * GIANT;
       if (!grabbedKnife && particles.length < 60) {
         particles.push({
-          x: PEDESTAL_X + (Math.random() - 0.5) * 40,
+          x: PEDESTAL_X + (Math.random() - 0.5) * 40 * GIANT,
           y: knifeY,
           vx: (Math.random() - 0.5) * 10,
           vy: -20 - Math.random() * 20,
@@ -549,7 +556,7 @@ function update(dt: number): void {
       heroX = Math.max(40, Math.min(ARMRUN_WIDTH - 40, heroX));
       camX = Math.max(0, Math.min(ARMRUN_WIDTH - W, heroX - W * 0.4));
       updateParticles(dt);
-      if (!reachedArm && heroX >= BIOARM_X - 70) {
+      if (!reachedArm && heroX >= BIOARM_X - 70 * GIANT) {
         reachedArm = true;
         scene = "armCutscene";
         cutsceneTimer = 0;
@@ -575,7 +582,7 @@ function update(dt: number): void {
           const a = Math.random() * Math.PI * 2;
           const sp = 60 + Math.random() * 180;
           particles.push({
-            x: BIOARM_X - 80,
+            x: BIOARM_X - 80 * GIANT,
             y: H * GROUND_FRAC - 20 * (Math.max(4, Math.min(W, H) / 90)),
             vx: Math.cos(a) * sp,
             vy: Math.sin(a) * sp,
@@ -603,7 +610,7 @@ function update(dt: number): void {
     case "explore": {
       fade = Math.max(0, fade - dt * 1.2);
       const floorY = H * GROUND_FRAC;
-      const touchingSign = Math.abs(heroX - SIGN_X) < 60;
+      const touchingSign = Math.abs(heroX - SIGN_X) < 60 * GIANT;
 
       if (interactPressed) showSign = touchingSign ? !showSign : false;
       if (aimPressed && hasBioArm && !grappling) aiming = !aiming;
@@ -804,7 +811,7 @@ function update(dt: number): void {
       }
 
       // grab the spring shoes
-      if (!hasSpringShoes && Math.abs(heroX - SHOES_X) < 50 && heroY < 40) {
+      if (!hasSpringShoes && Math.abs(heroX - SHOES_X) < 50 * GIANT && heroY < 40) {
         hasSpringShoes = true;
         springBannerT = 0;
         ensureAudio();
@@ -953,7 +960,14 @@ function meteorPos(): { mx: number; my: number } {
 function impactPos(): { ix: number; iy: number } {
   // top of the building
   const groundY = H * GROUND_FRAC;
+  if (GIGANTIC) return { ix: W * 0.5, iy: groundY - buildingHeight() * 0.56 };
   return { ix: W * 0.5, iy: groundY - H * 0.18 };
+}
+
+// A giant building still leaves room at the top of the screen for its sign.
+function buildingHeight(): number {
+  if (!GIGANTIC) return H * 0.32;
+  return Math.min(H * 0.32 * GIANT, H * GROUND_FRAC - 40 * GIANT);
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,8 +1021,8 @@ function drawDialogueScene(): void {
   ctx.fillStyle = "#11161f";
   ctx.fillRect(0, groundY, W, H - groundY);
   ctx.strokeStyle = "rgba(120,200,255,0.08)";
-  ctx.lineWidth = 2;
-  for (let gx = 0; gx < W; gx += 64) {
+  ctx.lineWidth = 2 * GIANT;
+  for (let gx = 0; gx < W; gx += 64 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(gx, groundY);
     ctx.lineTo(gx, H);
@@ -1076,7 +1090,7 @@ function drawMeteorScene(): void {
   for (let i = 0; i < 60; i++) {
     const sx = (i * 97.13) % W;
     const sy = (i * 53.7) % (H * 0.5);
-    ctx.fillRect(sx, sy, 2, 2);
+    ctx.fillRect(sx, sy, 2 * GIANT, 2 * GIANT);
   }
 
   const groundY = H * GROUND_FRAC;
@@ -1092,15 +1106,15 @@ function drawMeteorScene(): void {
     const { mx, my } = meteorPos();
     ctx.fillStyle = "#3a2a22";
     ctx.beginPath();
-    ctx.arc(mx, my, 22, 0, Math.PI * 2);
+    ctx.arc(mx, my, 22 * GIANT, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#ff8a1f";
     ctx.beginPath();
-    ctx.arc(mx, my, 14, 0, Math.PI * 2);
+    ctx.arc(mx, my, 14 * GIANT, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#ffd23a";
     ctx.beginPath();
-    ctx.arc(mx - 4, my - 4, 7, 0, Math.PI * 2);
+    ctx.arc(mx - 4 * GIANT, my - 4 * GIANT, 7 * GIANT, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -1116,38 +1130,38 @@ function drawMeteorScene(): void {
 }
 
 function drawBuilding(cx: number, groundY: number, strange: boolean): void {
-  const bw = Math.min(360, W * 0.4);
-  const bh = H * 0.32;
+  const bw = Math.min(360, W * 0.4) * GIANT;
+  const bh = buildingHeight();
   const x = cx - bw / 2;
   const y = groundY - bh;
 
   ctx.fillStyle = strange ? "#2a2236" : "#3a4250";
   ctx.fillRect(x, y, bw, bh);
   ctx.fillStyle = strange ? "#211b2c" : "#2c333f";
-  ctx.fillRect(x, y, bw, 16);
+  ctx.fillRect(x, y, bw, 16 * GIANT);
 
   // windows
   ctx.fillStyle = strange ? "#7affde" : "#9fd2ff";
   const cols = 5;
   const rows = 4;
-  const pad = 18;
+  const pad = 18 * GIANT;
   const ww = (bw - pad * (cols + 1)) / cols;
-  const wh = (bh - 60 - pad * (rows + 1)) / rows;
+  const wh = (bh - 60 * GIANT - pad * (rows + 1)) / rows;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (strange && (r + c) % 3 === 0) continue; // broken windows
-      ctx.fillRect(x + pad + c * (ww + pad), y + 40 + pad + r * (wh + pad), ww, wh);
+      ctx.fillRect(x + pad + c * (ww + pad), y + 40 * GIANT + pad + r * (wh + pad), ww, wh);
     }
   }
 
   // sign
   ctx.fillStyle = "#05070a";
-  ctx.fillRect(x + bw * 0.1, y - 34, bw * 0.8, 28);
+  ctx.fillRect(x + bw * 0.1, y - 34 * GIANT, bw * 0.8, 28 * GIANT);
   ctx.fillStyle = strange ? "#ff5a5a" : "#9effa0";
   ctx.font = `bold ${Math.max(13, bw * 0.052)}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(strange ? "B?0T3CH 1NDU$TR13S" : "BioTech Industries", cx, y - 20);
+  ctx.fillText(strange ? "B?0T3CH 1NDU$TR13S" : "BioTech Industries", cx, y - 20 * GIANT);
 }
 
 function drawObjectiveOverlay(): void {
@@ -1223,15 +1237,15 @@ function drawInterior(): void {
   ctx.fillRect(0, 0, INTERIOR_WIDTH, floorY);
   // wall trim
   ctx.fillStyle = "#221830";
-  ctx.fillRect(0, floorY - 28, INTERIOR_WIDTH, 28);
+  ctx.fillRect(0, floorY - 28 * GIANT, INTERIOR_WIDTH, 28 * GIANT);
 
   // floor
   ctx.fillStyle = "#0e0b16";
   ctx.fillRect(0, floorY, INTERIOR_WIDTH, H - floorY);
   // floor tile lines
   ctx.strokeStyle = "rgba(122,255,222,0.07)";
-  ctx.lineWidth = 2;
-  for (let fx = 0; fx < INTERIOR_WIDTH; fx += 90) {
+  ctx.lineWidth = 2 * GIANT;
+  for (let fx = 0; fx < INTERIOR_WIDTH; fx += 90 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(fx, floorY);
     ctx.lineTo(fx, H);
@@ -1239,39 +1253,31 @@ function drawInterior(): void {
   }
 
   // broken lab machines along the wall
-  for (const mx of [180, 360, 1180, 1320]) {
-    ctx.fillStyle = "#2a2440";
-    ctx.fillRect(mx, floorY - 90, 70, 90);
-    ctx.fillStyle = "#3a3358";
-    ctx.fillRect(mx, floorY - 90, 70, 12);
-    // a flickering screen
-    const lit = Math.floor(performance.now() / 220 + mx) % 4 !== 0;
-    ctx.fillStyle = lit ? "#7affde" : "#163a33";
-    ctx.fillRect(mx + 12, floorY - 70, 46, 30);
-  }
+  for (const mx of [180, 360, 1180, 1320]) drawLabMachine(mx, floorY);
 
   // glow behind the pedestal
   const glow = ctx.createRadialGradient(
-    PEDESTAL_X, floorY - 90, 6,
-    PEDESTAL_X, floorY - 90, 130
+    PEDESTAL_X, floorY - 90 * GIANT, 6 * GIANT,
+    PEDESTAL_X, floorY - 90 * GIANT, 130 * GIANT
   );
   glow.addColorStop(0, grabbedKnife ? "rgba(122,255,222,0.08)" : "rgba(122,255,222,0.4)");
   glow.addColorStop(1, "rgba(122,255,222,0)");
   ctx.fillStyle = glow;
-  ctx.fillRect(PEDESTAL_X - 140, floorY - 220, 280, 240);
+  ctx.fillRect(PEDESTAL_X - 140 * GIANT, floorY - 220 * GIANT, 280 * GIANT, 240 * GIANT);
 
   // pedestal
   const px = PEDESTAL_X;
+  const g = GIANT;
   ctx.fillStyle = "#2b2740";
-  ctx.fillRect(px - 34, floorY - 14, 68, 14); // base
+  ctx.fillRect(px - 34 * g, floorY - 14 * g, 68 * g, 14 * g); // base
   ctx.fillStyle = "#221f33";
-  ctx.fillRect(px - 22, floorY - 64, 44, 50); // column
+  ctx.fillRect(px - 22 * g, floorY - 64 * g, 44 * g, 50 * g); // column
   ctx.fillStyle = "#36314f";
-  ctx.fillRect(px - 30, floorY - 74, 60, 12); // top slab
+  ctx.fillRect(px - 30 * g, floorY - 74 * g, 60 * g, 12 * g); // top slab
 
   // the knife (only while still on the pedestal)
   if (!grabbedKnife) {
-    drawKnife(px, floorY - 78, 1, false);
+    drawKnife(px, floorY - 78 * g, g, false);
   }
 
   // eerie glow particles
@@ -1284,7 +1290,7 @@ function drawInterior(): void {
   drawCharacter(heroX - camX, floorY + 6, u, HERO, facingRight);
   // knife held in hand once grabbed
   if (grabbedKnife) {
-    drawKnife(heroX - camX + (facingRight ? 9 * u : -9 * u), floorY - 12 * u, 0.7, !facingRight);
+    drawKnife(heroX - camX + (facingRight ? 9 * u : -9 * u), floorY - 12 * u, 0.7 * GIANT, !facingRight);
   }
 
   // pickup message
@@ -1309,13 +1315,13 @@ function drawLabRoom(width: number, floorY: number): void {
   ctx.fillStyle = "#161020";
   ctx.fillRect(0, 0, width, floorY);
   ctx.fillStyle = "#221830";
-  ctx.fillRect(0, floorY - 28, width, 28);
+  ctx.fillRect(0, floorY - 28 * GIANT, width, 28 * GIANT);
   ctx.fillStyle = "#0e0b16";
   ctx.fillRect(0, floorY, width, H - floorY);
 
   ctx.strokeStyle = "rgba(122,255,222,0.07)";
-  ctx.lineWidth = 2;
-  for (let fx = 0; fx < width; fx += 90) {
+  ctx.lineWidth = 2 * GIANT;
+  for (let fx = 0; fx < width; fx += 90 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(fx, floorY);
     ctx.lineTo(fx, H);
@@ -1323,16 +1329,29 @@ function drawLabRoom(width: number, floorY: number): void {
   }
 
   // broken machines along the wall
-  for (let mx = 140; mx < width - 120; mx += 320) {
-    ctx.fillStyle = "#2a2440";
-    ctx.fillRect(mx, floorY - 90, 70, 90);
-    ctx.fillStyle = "#3a3358";
-    ctx.fillRect(mx, floorY - 90, 70, 12);
-    const lit = Math.floor(performance.now() / 220 + mx) % 4 !== 0;
-    ctx.fillStyle = lit ? "#7affde" : "#163a33";
-    ctx.fillRect(mx + 12, floorY - 70, 46, 30);
-  }
+  for (let mx = 140; mx < width - 120; mx += 320) drawLabMachine(mx, floorY);
   ctx.restore();
+}
+
+// A broken lab machine against the wall, with a flickering screen.
+function drawLabMachine(mx: number, floorY: number): void {
+  const g = GIANT;
+  ctx.fillStyle = "#2a2440";
+  ctx.fillRect(mx, floorY - 90 * g, 70 * g, 90 * g);
+  ctx.fillStyle = "#3a3358";
+  ctx.fillRect(mx, floorY - 90 * g, 70 * g, 12 * g);
+  const lit = Math.floor(performance.now() / 220 + mx) % 4 !== 0;
+  ctx.fillStyle = lit ? "#7affde" : "#163a33";
+  ctx.fillRect(mx + 12 * g, floorY - 70 * g, 46 * g, 30 * g);
+}
+
+// The stand the Bio Arm waits on.
+function drawArmPod(floorY: number): void {
+  const g = GIANT;
+  ctx.fillStyle = "#1d2a30";
+  ctx.fillRect(BIOARM_X - 30 * g, floorY - 60 * g, 60 * g, 60 * g);
+  ctx.fillStyle = "#2b3d44";
+  ctx.fillRect(BIOARM_X - 38 * g, floorY - 70 * g, 76 * g, 12 * g);
 }
 
 // The Bio Arm — a robotic teal/metal arm. (x, y) is its center.
@@ -1382,30 +1401,28 @@ function drawArmRun(): void {
   // the Bio Arm pod at the end
   ctx.save();
   ctx.translate(-camX, 0);
-  const glow = ctx.createRadialGradient(BIOARM_X, floorY - 70, 6, BIOARM_X, floorY - 70, 120);
+  const g = GIANT;
+  const glow = ctx.createRadialGradient(BIOARM_X, floorY - 70 * g, 6 * g, BIOARM_X, floorY - 70 * g, 120 * g);
   glow.addColorStop(0, "rgba(122,255,222,0.4)");
   glow.addColorStop(1, "rgba(122,255,222,0)");
   ctx.fillStyle = glow;
-  ctx.fillRect(BIOARM_X - 120, floorY - 200, 240, 220);
+  ctx.fillRect(BIOARM_X - 120 * g, floorY - 200 * g, 240 * g, 220 * g);
   // pod / stand
-  ctx.fillStyle = "#1d2a30";
-  ctx.fillRect(BIOARM_X - 30, floorY - 60, 60, 60);
-  ctx.fillStyle = "#2b3d44";
-  ctx.fillRect(BIOARM_X - 38, floorY - 70, 76, 12);
-  drawBioArm(BIOARM_X, floorY - 96, 1.6);
+  drawArmPod(floorY);
+  drawBioArm(BIOARM_X, floorY - 96 * g, 1.6 * g);
   // label
   ctx.fillStyle = "#7affde";
-  ctx.font = "bold 14px system-ui, sans-serif";
+  ctx.font = `bold ${14 * g}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
-  ctx.fillText("BIO ARM", BIOARM_X, floorY - 132);
+  ctx.fillText("BIO ARM", BIOARM_X, floorY - 132 * g);
   drawParticles();
   ctx.restore();
 
   // wounded hero, missing the right arm, holding the knife in the left hand
   const facingRight = heroX <= BIOARM_X;
   drawCharacter(heroX - camX, floorY + 6, u, HERO, facingRight, "missing");
-  drawKnife(heroX - camX - 9 * u, floorY - 12 * u, 0.7, true);
+  drawKnife(heroX - camX - 9 * u, floorY - 12 * u, 0.7 * GIANT, true);
 
   // objective
   ctx.fillStyle = "rgba(255,120,120,0.9)";
@@ -1420,17 +1437,14 @@ function drawArmCutscene(): void {
   drawLabRoom(ARMRUN_WIDTH, floorY);
 
   const u = Math.max(4, Math.min(W, H) / 90);
-  const heroScreenX = BIOARM_X - 80 - camX; // hero stands just left of the pod
+  const heroScreenX = BIOARM_X - 80 * GIANT - camX; // hero stands just left of the pod
   const shoulderX = heroScreenX + 6 * u;
   const shoulderY = floorY - 20 * u;
 
   // pod
   ctx.save();
   ctx.translate(-camX, 0);
-  ctx.fillStyle = "#1d2a30";
-  ctx.fillRect(BIOARM_X - 30, floorY - 60, 60, 60);
-  ctx.fillStyle = "#2b3d44";
-  ctx.fillRect(BIOARM_X - 38, floorY - 70, 76, 12);
+  drawArmPod(floorY);
   ctx.restore();
 
   // hero — gains the bio arm partway through
@@ -1439,11 +1453,13 @@ function drawArmCutscene(): void {
   // the flying arm travels from the pod to the shoulder between t=1.0 and t=2.2
   if (!hasBioArm) {
     const podX = BIOARM_X - camX;
-    const podY = floorY - 96;
+    const podY = floorY - 96 * GIANT;
     const t = Math.max(0, Math.min(1, (cutsceneTimer - 1.0) / 1.2));
     const ax = podX + (shoulderX - podX) * t;
     const ay = podY + (shoulderY - podY) * t;
-    drawBioArm(ax, ay, 1.6 - 0.6 * t);
+    // It shrinks on the way, so once it's part of the hero it's hero-sized.
+    const startSize = 1.6 * GIANT;
+    drawBioArm(ax, ay, startSize - (startSize - 1) * t);
   }
 
   drawParticles();
@@ -1486,17 +1502,18 @@ function caption(text: string): void {
 }
 
 function drawSignPost(x: number, floorY: number): void {
+  const g = GIANT;
   ctx.fillStyle = "#4a3a22";
-  ctx.fillRect(x - 4, floorY - 64, 8, 64); // post
+  ctx.fillRect(x - 4 * g, floorY - 64 * g, 8 * g, 64 * g); // post
   ctx.fillStyle = "#6b5333";
-  ctx.fillRect(x - 36, floorY - 108, 72, 48); // board frame
+  ctx.fillRect(x - 36 * g, floorY - 108 * g, 72 * g, 48 * g); // board frame
   ctx.fillStyle = "#caa86a";
-  ctx.fillRect(x - 31, floorY - 103, 62, 38); // board face
+  ctx.fillRect(x - 31 * g, floorY - 103 * g, 62 * g, 38 * g); // board face
   ctx.fillStyle = "#3a2a14";
-  ctx.font = "bold 30px system-ui, sans-serif";
+  ctx.font = `bold ${30 * g}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("i", x, floorY - 82);
+  ctx.fillText("i", x, floorY - 82 * g);
 }
 
 function drawExplore(): void {
@@ -1510,20 +1527,19 @@ function drawExplore(): void {
   ctx.translate(-camX, 0);
 
   // the now-empty bio arm pod
-  ctx.fillStyle = "#1d2a30";
-  ctx.fillRect(BIOARM_X - 30, floorY - 60, 60, 60);
-  ctx.fillStyle = "#2b3d44";
-  ctx.fillRect(BIOARM_X - 38, floorY - 70, 76, 12);
+  drawArmPod(floorY);
 
-  // platforms (grapple ledges)
+  // platforms (grapple ledges). Giant ones are only thicker: you still stand
+  // on the same top.
+  const g = GIANT;
   for (const p of platforms) {
     ctx.fillStyle = "#2a2440";
-    ctx.fillRect(p.x, floorY - p.top, p.w, 16);
+    ctx.fillRect(p.x, floorY - p.top, p.w, 16 * g);
     ctx.fillStyle = "#3a3358";
-    ctx.fillRect(p.x, floorY - p.top, p.w, 4);
+    ctx.fillRect(p.x, floorY - p.top, p.w, 4 * g);
     // support strut
     ctx.fillStyle = "rgba(58,51,88,0.5)";
-    ctx.fillRect(p.x + p.w / 2 - 4, floorY - p.top + 16, 8, p.top - 16);
+    ctx.fillRect(p.x + p.w / 2 - 4 * g, floorY - p.top + 16 * g, 8 * g, p.top - 16 * g);
   }
 
   // sign
@@ -1541,14 +1557,14 @@ function drawExplore(): void {
     const shoulderX = heroX - camX + (heroFacing ? 6 : -6) * u;
     const shoulderY = yFeet - 18 * u;
     ctx.strokeStyle = "#7affde";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * GIANT;
     ctx.beginPath();
     ctx.moveTo(shoulderX, shoulderY);
     ctx.lineTo(targetWX - camX, floorY - targetH);
     ctx.stroke();
     // hook head
     ctx.fillStyle = "#cfe9ff";
-    ctx.fillRect(targetWX - camX - 5, floorY - targetH - 5, 10, 10);
+    ctx.fillRect(targetWX - camX - 5 * GIANT, floorY - targetH - 5 * GIANT, 10 * GIANT, 10 * GIANT);
   }
 
   // aiming reticle
@@ -1579,13 +1595,13 @@ function drawExplore(): void {
   ctx.fillText("← → / A D  move    ·    I  read sign    ·    1  grappling hook", 18, 56);
 
   // "press I" hint when touching the sign
-  const touchingSign = Math.abs(heroX - SIGN_X) < 60;
+  const touchingSign = Math.abs(heroX - SIGN_X) < 60 * GIANT;
   if (touchingSign && !showSign) {
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = "16px system-ui, sans-serif";
+    ctx.font = `${16 * GIANT}px system-ui, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText("Press I to read", SIGN_X - camX, floorY - 116);
+    ctx.fillText("Press I to read", SIGN_X - camX, floorY - 116 * GIANT);
   }
 
   // sign info panel
@@ -1645,11 +1661,11 @@ function drawCrackedWall(w: Wall, floorY: number): void {
   ctx.fillStyle = "#4a4458";
   ctx.fillRect(w.x - WALL_HALF, top, WALL_HALF * 2, WALL_H);
   ctx.fillStyle = "#39344a";
-  ctx.fillRect(w.x - WALL_HALF, top, WALL_HALF * 2, 8);
+  ctx.fillRect(w.x - WALL_HALF, top, WALL_HALF * 2, 8 * GIANT);
   // brick lines
   ctx.strokeStyle = "rgba(20,18,30,0.5)";
-  ctx.lineWidth = 1;
-  for (let by = top + 24; by < floorY; by += 24) {
+  ctx.lineWidth = GIANT;
+  for (let by = top + 24 * GIANT; by < floorY; by += 24 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(w.x - WALL_HALF, by);
     ctx.lineTo(w.x + WALL_HALF, by);
@@ -1658,7 +1674,7 @@ function drawCrackedWall(w: Wall, floorY: number): void {
 
   // cracks: jagged lines from the center, more as it breaks
   ctx.strokeStyle = "#15121f";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * GIANT;
   const cy = top + WALL_H * 0.45;
   const crackCount = 2 + Math.floor(broken * 4);
   for (let i = 0; i < crackCount; i++) {
@@ -1668,8 +1684,8 @@ function drawCrackedWall(w: Wall, floorY: number): void {
     let cx = w.x;
     let ccy = cy;
     for (let s = 0; s < 3; s++) {
-      cx += Math.cos(ang) * 10 + Math.sin(i * 3 + s) * 4;
-      ccy += Math.sin(ang) * 10 + Math.cos(i * 2 + s) * 4;
+      cx += (Math.cos(ang) * 10 + Math.sin(i * 3 + s) * 4) * GIANT;
+      ccy += (Math.sin(ang) * 10 + Math.cos(i * 2 + s) * 4) * GIANT;
       ctx.lineTo(cx, ccy);
     }
     ctx.stroke();
@@ -1677,7 +1693,7 @@ function drawCrackedWall(w: Wall, floorY: number): void {
 
   // a hole that grows open as you drill through
   if (broken > 0.15) {
-    const hole = (broken - 0.15) * (WALL_HALF + 6);
+    const hole = (broken - 0.15) * (WALL_HALF + 6 * GIANT);
     ctx.fillStyle = "#0a0810";
     ctx.beginPath();
     ctx.ellipse(w.x, cy, hole, hole * 1.3, 0, 0, Math.PI * 2);
@@ -1709,6 +1725,7 @@ function drawDrill(): void {
     ctx.save();
     ctx.translate(bx, by);
     if (!heroFacing) ctx.scale(-1, 1);
+    ctx.scale(GIANT, GIANT);
     ctx.fillStyle = "#9aa7ad";
     ctx.fillRect(0, -3, 16, 6);
     ctx.fillStyle = Math.floor(performance.now() / 40) % 2 ? "#cfe9ff" : "#9fc4e0";
@@ -1749,7 +1766,7 @@ function drawSpringShoes(x: number, yFeet: number, s: number): void {
   for (const dx of [-9 * s, 9 * s]) {
     // coil spring
     ctx.strokeStyle = "#9aa7ad";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * GIANT;
     ctx.beginPath();
     const baseY = yFeet;
     const topY = yFeet - 12 * s;
@@ -1811,8 +1828,8 @@ function drawSprings(): void {
   ctx.fillStyle = "#141a26";
   ctx.fillRect(0, floorY, SPRINGS_WIDTH, H - floorY);
   ctx.strokeStyle = "rgba(122,255,222,0.07)";
-  ctx.lineWidth = 2;
-  for (let fx = 0; fx < SPRINGS_WIDTH; fx += 90) {
+  ctx.lineWidth = 2 * GIANT;
+  for (let fx = 0; fx < SPRINGS_WIDTH; fx += 90 * GIANT) {
     ctx.beginPath();
     ctx.moveTo(fx, floorY);
     ctx.lineTo(fx, H);
@@ -1820,36 +1837,37 @@ function drawSprings(): void {
   }
 
   // platforms
+  const gs = GIANT;
   for (const p of springPlatforms) {
     ctx.fillStyle = "#2a3650";
-    ctx.fillRect(p.x, floorY - p.top, p.w, 16);
+    ctx.fillRect(p.x, floorY - p.top, p.w, 16 * gs);
     ctx.fillStyle = "#3d4f74";
-    ctx.fillRect(p.x, floorY - p.top, p.w, 4);
+    ctx.fillRect(p.x, floorY - p.top, p.w, 4 * gs);
     ctx.fillStyle = "rgba(42,54,80,0.5)";
-    ctx.fillRect(p.x + p.w / 2 - 4, floorY - p.top + 16, 8, p.top - 16);
+    ctx.fillRect(p.x + p.w / 2 - 4 * gs, floorY - p.top + 16 * gs, 8 * gs, p.top - 16 * gs);
   }
 
   // exit doorway on the high ledge
   const ex = SPRING_EXIT.x + SPRING_EXIT.w / 2;
   const eTop = floorY - SPRING_EXIT.top;
   ctx.fillStyle = "#7affde";
-  ctx.fillRect(ex - 26, eTop - 70, 52, 70);
+  ctx.fillRect(ex - 26 * gs, eTop - 70 * gs, 52 * gs, 70 * gs);
   ctx.fillStyle = "#0a0810";
-  ctx.fillRect(ex - 18, eTop - 60, 36, 60);
+  ctx.fillRect(ex - 18 * gs, eTop - 60 * gs, 36 * gs, 60 * gs);
   ctx.fillStyle = "#7affde";
-  ctx.font = "bold 13px system-ui, sans-serif";
+  ctx.font = `bold ${13 * gs}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
-  ctx.fillText("EXIT", ex, eTop - 76);
+  ctx.fillText("EXIT", ex, eTop - 76 * gs);
 
   // the spring shoes on the ground (until grabbed)
   if (!hasSpringShoes) {
-    const glow = ctx.createRadialGradient(SHOES_X, floorY - 20, 4, SHOES_X, floorY - 20, 90);
+    const glow = ctx.createRadialGradient(SHOES_X, floorY - 20 * gs, 4 * gs, SHOES_X, floorY - 20 * gs, 90 * gs);
     glow.addColorStop(0, "rgba(255,120,90,0.35)");
     glow.addColorStop(1, "rgba(255,120,90,0)");
     ctx.fillStyle = glow;
-    ctx.fillRect(SHOES_X - 90, floorY - 110, 180, 130);
-    drawSpringShoes(SHOES_X, floorY, 1.4);
+    ctx.fillRect(SHOES_X - 90 * gs, floorY - 110 * gs, 180 * gs, 130 * gs);
+    drawSpringShoes(SHOES_X, floorY, 1.4 * gs);
   }
 
   drawParticles();
@@ -1925,42 +1943,44 @@ function drawKnife(x: number, yTip: number, s: number, flip: boolean): void {
 
 // Repeating ground features drawn in world space so they scroll past the player.
 function drawGroundDetail(groundY: number): void {
-  const startX = Math.floor(camX / 120) * 120 - 120;
-  const endX = camX + W + 120;
+  const g = GIANT;
+  const tile = 120 * g;
+  const startX = Math.floor(camX / tile) * tile - tile;
+  const endX = camX + W + tile;
 
-  for (let wx = startX; wx < endX; wx += 120) {
+  for (let wx = startX; wx < endX; wx += tile) {
     // deterministic "random" per tile so it doesn't flicker
     const seed = Math.abs(Math.sin(wx * 0.013)) ;
 
     // grass tuft
     ctx.fillStyle = "#2c4a2c";
-    const gx = wx + 30;
-    ctx.fillRect(gx, groundY - 10, 4, 10);
-    ctx.fillRect(gx + 5, groundY - 14, 4, 14);
-    ctx.fillRect(gx + 10, groundY - 8, 4, 8);
+    const gx = wx + 30 * g;
+    ctx.fillRect(gx, groundY - 10 * g, 4 * g, 10 * g);
+    ctx.fillRect(gx + 5 * g, groundY - 14 * g, 4 * g, 14 * g);
+    ctx.fillRect(gx + 10 * g, groundY - 8 * g, 4 * g, 8 * g);
 
     // a rock every few tiles
     if (seed > 0.6) {
       ctx.fillStyle = "#3a3f46";
-      ctx.fillRect(wx + 70, groundY - 12, 22, 12);
+      ctx.fillRect(wx + 70 * g, groundY - 12 * g, 22 * g, 12 * g);
       ctx.fillStyle = "#2a2e34";
-      ctx.fillRect(wx + 70, groundY - 12, 22, 4);
+      ctx.fillRect(wx + 70 * g, groundY - 12 * g, 22 * g, 4 * g);
     }
 
     // dashed path line on the ground
     ctx.fillStyle = "rgba(120,150,120,0.25)";
-    ctx.fillRect(wx + 50, groundY + 18, 50, 4);
+    ctx.fillRect(wx + 50 * g, groundY + 18 * g, 50 * g, 4 * g);
   }
 
   // distance markers counting toward the building
   ctx.fillStyle = "rgba(158,255,160,0.35)";
-  ctx.font = "12px system-ui, sans-serif";
+  ctx.font = `${12 * g}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
   for (let mx = 400; mx < BUILDING_WORLD_X; mx += 400) {
-    ctx.fillRect(mx, groundY - 40, 3, 40);
+    ctx.fillRect(mx, groundY - 40 * g, 3 * g, 40 * g);
     const metersLeft = Math.max(0, Math.round((BUILDING_WORLD_X - mx) / 100));
-    ctx.fillText(`${metersLeft}m`, mx, groundY - 44);
+    ctx.fillText(`${metersLeft}m`, mx, groundY - 44 * g);
   }
 }
 
@@ -1969,7 +1989,8 @@ function drawParticles(): void {
     const a = 1 - p.life / p.max;
     ctx.globalAlpha = Math.max(0, a);
     ctx.fillStyle = p.color;
-    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    const size = p.size * GIANT;
+    ctx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
   }
   ctx.globalAlpha = 1;
 }

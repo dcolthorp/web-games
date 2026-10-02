@@ -8,6 +8,9 @@ import {
   drawRoomBox,
   drawSaw,
   drawVignette,
+  giant,
+  giantFont,
+  growAround,
   inRect,
   lerp,
   line,
@@ -261,6 +264,8 @@ export function createBoardBonus(leave: () => void): BonusLevel {
   // ---------- drawing ----------
 
   function drawTubeLight(): void {
+    ctx.save();
+    growAround(W / 2, 48);
     const glow = ctx.createRadialGradient(W / 2, 60, 10, W / 2, 60, 260);
     glow.addColorStop(0, "rgba(220, 240, 255, 0.35)");
     glow.addColorStop(1, "rgba(220, 240, 255, 0)");
@@ -271,6 +276,7 @@ export function createBoardBonus(leave: () => void): BonusLevel {
     ctx.fillStyle = "#f4fbff";
     roundRect(W / 2 - 100, 56, 200, 9, 4);
     ctx.fill();
+    ctx.restore();
   }
 
   function drawSlots(): void {
@@ -416,7 +422,7 @@ export function createBoardBonus(leave: () => void): BonusLevel {
   }
 
   function shout(text: string, y: number, size: number, color: string): void {
-    ctx.font = `${size}px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif`;
+    giantFont(`${size}px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif`, text);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 6;
@@ -455,7 +461,7 @@ export function createBoardBonus(leave: () => void): BonusLevel {
   }
 
   function drawFloaters(now: number): void {
-    ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
+    ctx.font = `bold ${22 * giant()}px 'Trebuchet MS', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 4;

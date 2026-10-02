@@ -7,6 +7,9 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  giant,
+  giantFont,
+  growAround,
   lerp,
   updateDust,
   type Dust,
@@ -46,6 +49,7 @@ const PALETTE = {
 // The corner it lives in: the bottom left one, where the wall meets the floor.
 const VIRUS_HOME = { x: 120, y: 330 };
 const GLOVES: Point = { x: W / 2, y: 470 };
+// How close a click has to be to pick the gloves up. Giant gloves reach further.
 const GLOVE_GRAB = 70;
 
 const RAIN_CHARS = "アカサタナハマヤラワ0123456789<>[]{}/\\|=+*#%&".split("");
@@ -235,7 +239,7 @@ export function createExeRoom(onEscaped: () => void): Room {
       if (stage === "engulfing" || stage === "escaped") return;
 
       if (stage === "barehanded") {
-        if (Math.hypot(p.x - GLOVES.x, p.y - GLOVES.y) < GLOVE_GRAB) {
+        if (Math.hypot(p.x - GLOVES.x, p.y - GLOVES.y) < GLOVE_GRAB * giant()) {
           stage = "gloved";
           sounds.grab();
           say("Gloves on. Now you can hit things.", now);
@@ -318,6 +322,8 @@ export function createExeRoom(onEscaped: () => void): Room {
   }
 
   function drawGloves(): void {
+    ctx.save();
+    growAround(GLOVES.x, GLOVES.y + 26);
     for (const side of [-1, 1]) {
       const x = GLOVES.x + side * 40;
       ctx.save();
@@ -333,6 +339,7 @@ export function createExeRoom(onEscaped: () => void): Room {
       drawGlove(0, 0, 1);
       ctx.restore();
     }
+    ctx.restore();
   }
 
   // One boxing glove, drawn around its middle.
@@ -377,8 +384,8 @@ export function createExeRoom(onEscaped: () => void): Room {
       const t = (now - hit.at) / 400;
       ctx.globalAlpha = 1 - t;
       ctx.strokeStyle = hit.bad ? "#7dff8f" : "#fff3c4";
-      ctx.lineWidth = 4 - t * 3;
-      const reach = lerp(10, 52, t);
+      ctx.lineWidth = (4 - t * 3) * giant();
+      const reach = lerp(10, 52, t) * giant();
       for (let spoke = 0; spoke < 8; spoke += 1) {
         const angle = (spoke / 8) * Math.PI * 2;
         ctx.beginPath();
@@ -489,12 +496,14 @@ export function createExeRoom(onEscaped: () => void): Room {
     if (!note || now - noteAt > 2600) return;
     const fade = clamp((2600 - (now - noteAt)) / 400, 0, 1);
     ctx.globalAlpha = fade;
-    ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
+    giantFont("bold 20px 'Trebuchet MS', sans-serif", note, W - 84);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const width = ctx.measureText(note).width + 44;
     ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-    ctx.fillRect(W / 2 - width / 2, H - 78, width, 40);
+    // A giant note gets a taller box, still sitting on the same line.
+    const tall = 40 + (giant() - 1) * 20;
+    ctx.fillRect(W / 2 - width / 2, H - 58 - tall / 2, width, tall);
     ctx.fillStyle = virus > 0 ? "#7dff8f" : "#f5efe6";
     ctx.fillText(note, W / 2, H - 58);
     ctx.globalAlpha = 1;

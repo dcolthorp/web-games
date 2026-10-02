@@ -1,4 +1,4 @@
-import { H, W, clamp, ctx, drawCaption, inRect, lerp, line, roundRect, type Point } from "./engine";
+import { H, W, clamp, ctx, drawCaption, giantFont, inRect, lerp, line, roundRect, type Point } from "./engine";
 import type { BonusLevel } from "./bonus2";
 import { sounds } from "./sound";
 import { collectSwitchPiece, drawSwitchPiece, hasSwitchPiece } from "./switchPieces";
@@ -462,7 +462,7 @@ export function createMathBonus(leave: (done: boolean) => void): BonusLevel {
   }
 
   function shout(text: string, y: number, font: string, color: string): void {
-    ctx.font = font;
+    giantFont(font, text);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 6;

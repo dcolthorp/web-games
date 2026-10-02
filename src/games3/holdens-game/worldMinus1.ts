@@ -3,6 +3,7 @@ import { installOofShortcut } from "../../shared/oofShortcut";
 import { startBoss } from "./boss";
 import { intro3Seen, playIntro3 } from "./intro";
 import { happyMinusOneName, isHappy } from "./mood";
+import { giganticName } from "./gigantic";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -14,13 +15,13 @@ const scramble = (): string =>
 
 const heading = document.querySelector<HTMLElement>("#world-name");
 if (isHappy()) {
-  document.title = happyMinusOneName;
-  if (heading) heading.textContent = happyMinusOneName;
+  document.title = giganticName(happyMinusOneName);
+  if (heading) heading.textContent = giganticName(happyMinusOneName);
 } else {
-  document.title = scramble();
+  document.title = giganticName(scramble());
   if (heading) {
-    heading.textContent = scramble();
-    window.setInterval(() => { heading.textContent = scramble(); }, 220);
+    heading.textContent = giganticName(scramble());
+    window.setInterval(() => { heading.textContent = giganticName(scramble()); }, 220);
   }
 }
 

@@ -155,3 +155,21 @@ h1 { margin: 0; font-size: clamp(2.8rem, 8vw, 6.2rem); line-height: 0.82; transf
 @media (max-width: 680px) { body { padding: 8px; } .note { min-height: 760px; padding: 96px 28px 34px 48px; background-size: cover; } .game-header { align-items: start; flex-direction: column; gap: 12px; } .stickman-field { height: 475px; } }
 /* The cage still lands under reduced motion — it just stops being a stunt. */
 @media (prefers-reduced-motion: reduce) { .clicked-away, .faded-away, .poisoned-away, .burst-away, .title-flinch, .title-cage, .shaking, .title-flag, .title-trophy, .title-lock, .title-emblem, .cage-crack, .field-blackout, .lock-letter.wrong, .title-box.busted, .title-box.why-wall h1 { animation-duration: 1ms; } .title-emblem { animation-iteration-count: 1; } }
+
+/* GIGANTIC: the stickmen stay normal size; everything written or drawn on the
+   paper around them goes giant. */
+body.gigantic .back-link { font-size: 2.6rem; }
+body.gigantic .game-header { flex-wrap: wrap; }
+body.gigantic h1 { font-size: clamp(5rem, 14vw, 14rem); }
+body.gigantic .title-box { font-size: clamp(4rem, 10vw, 9rem); }
+body.gigantic .gigantic-word { margin: 0; color: #9b3044; font-size: clamp(3rem, 9vw, 7rem); font-weight: 900; line-height: 0.9; transform: rotate(-3deg); }
+body.gigantic .scribble { font-size: 3rem; }
+body.gigantic .scoreboard { font-size: 3rem; }
+body.gigantic .instructions { max-width: none; font-size: 2.4rem; line-height: 1.2; }
+body.gigantic .stickman-field { border-width: 9px; }
+body.gigantic .start { padding: 36px 70px; border-width: 10px; box-shadow: 12px 15px 0 #242a4f; font-size: 3.4rem; }
+body.gigantic .message { max-width: none; font-size: 3.4rem; }
+body.gigantic .blindness { font-size: 42vw; }
+body.gigantic .flying-bomb { width: 66px !important; height: 66px !important; left: -16px !important; top: -4px !important; }
+body.gigantic .stickman-bomb::after { font-size: 54px; right: -30px; top: 0; }
+body.gigantic .secret-header h2 { font-size: clamp(3.4rem, 10vw, 8rem); }

@@ -1,4 +1,5 @@
 import { installDefiantTitle, isDefiant, notifyCageBreaker, notifyFieldCleared, notifyGameWon } from "./defiant";
+import { isGigantic } from "../../shared/bigGames";
 
 interface Stickman {
   element: HTMLButtonElement;
@@ -402,4 +403,19 @@ function eraseStickmen(): void {
   updateHud();
 }
 
+// GIGANTIC Click on Me: the stickmen stay normal size and the paper's
+// writing, buttons and bombs go giant (see body.gigantic in styles.css).
+const GIGANTIC = isGigantic("game-time");
+if (GIGANTIC) {
+  document.body.classList.add("gigantic");
+  const title = document.getElementById("game-title");
+  if (title) title.textContent = "GIGANTIC CLICK ON ME";
+}
+
 if (isDefiant()) installDefiantTitle(eraseStickmen);
+
+if (GIGANTIC) {
+  document.title = `GIGANTIC ${document.title}`;
+  // The defiant title rewrites itself, so it gets its GIGANTIC written above it.
+  if (isDefiant()) document.querySelector(".scribble")?.insertAdjacentHTML("afterend", '<p class="gigantic-word">GIGANTIC</p>');
+}

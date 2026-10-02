@@ -1,6 +1,6 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import { HEIGHT, PingPongMatch, WIDTH, otherSide, type Side } from "./game";
+import { GIGANTIC, HEIGHT, PingPongMatch, WIDTH, otherSide, type Side } from "./game";
 import {
   BADGE_ROLES,
   canBanRecords,
@@ -66,6 +66,13 @@ import {
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+if (GIGANTIC) {
+  document.title = "GIGANTIC Teleporting Ping Pong";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Teleporting Ping Pong";
+  document.body.classList.add("gigantic");
+}
 
 const SOLO_WIN_SCORE = 11;
 const TOURNAMENT_WIN_SCORE = 7;

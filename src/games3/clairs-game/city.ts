@@ -6,6 +6,7 @@
 
 import { CITY, DUKE_PRICE, QUESTS, SCENES, type NPC, type Rect, type Scene } from "./city-data";
 import { playCoin, playDoor, playFart, playTalk } from "./sfx";
+import { isGigantic } from "../../shared/bigGames";
 import {
   claim,
   coinsEarned,
@@ -25,6 +26,12 @@ const PLAYER_R = 14;
 const FART_RANGE = 95;
 const TALK_RANGE = 88;
 const BUBBLE_MS = 6200;
+/**
+ * GIGANTIC: you and the people stay normal size; the gas, the signs and the
+ * things lying about go giant. Walls and doors keep their real size, so where
+ * you can walk doesn't change.
+ */
+const GIANT = isGigantic("clairs-game") ? 3 : 1;
 
 type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number };
 type Bubble = { npc: NPC; text: string; left: number };
@@ -247,7 +254,7 @@ export function createCity(
         vy: Math.sin(angle) * speed,
         life: 0,
         max: 0.7 + Math.random() * 0.7,
-        r: 6 + Math.random() * 12,
+        r: (6 + Math.random() * 12) * GIANT,
       });
     }
 
@@ -366,7 +373,7 @@ export function createCity(
       puff.y += puff.vy * dt;
       puff.vx *= 0.96;
       puff.vy *= 0.96;
-      puff.r += dt * 16;
+      puff.r += dt * 16 * GIANT;
     }
 
     if (bubble) {
@@ -402,7 +409,7 @@ export function createCity(
     context.roundRect(x, y, rect.w, rect.h, round ? Math.min(rect.w, rect.h) / 2 : 6);
     context.fill();
     if (label) {
-      context.font = `${Math.min(34, rect.h * 0.6)}px system-ui`;
+      context.font = `${Math.min(34, rect.h * 0.6) * GIANT}px system-ui`;
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(label, x + rect.w / 2, y + rect.h / 2);
@@ -423,7 +430,7 @@ export function createCity(
       drawRect(building.door, "#3a2a1e", false);
 
       context.fillStyle = "#22103a";
-      context.font = "900 20px 'Courier New', monospace";
+      context.font = `900 ${20 * GIANT}px 'Courier New', monospace`;
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(building.name.toUpperCase(), x + rect.w / 2, y + 27);
@@ -439,7 +446,7 @@ export function createCity(
     const y = rect.y - camera.y;
     // Bars stand across the road when it's shut, and fold to the edges when open.
     context.strokeStyle = duke ? "#ffd166" : "#9aa2b8";
-    context.lineWidth = 5;
+    context.lineWidth = 5 * GIANT;
     context.lineCap = "round";
     for (let i = 0; i < 5; i += 1) {
       const along = y + 14 + i * ((rect.h - 28) / 4);

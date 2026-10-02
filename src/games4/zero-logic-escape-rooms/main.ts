@@ -1,6 +1,7 @@
+import { isGigantic } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
-import { H, W, canvas, ctx, type Point, type Room } from "./engine";
+import { H, W, canvas, ctx, giantFont, setGiant, type Point, type Room } from "./engine";
 import { createNothingRoom } from "./room1";
 import { createWorkbenchRoom } from "./room2";
 import { createComicalRoom } from "./room3";
@@ -43,6 +44,18 @@ if (hundred) {
     const value = credits[heading.textContent ?? ""];
     if (value !== undefined && heading.nextElementSibling) heading.nextElementSibling.textContent = value;
   }
+}
+
+// GIGANTIC Zero Logic Escape Rooms: the rooms and their puzzles stay normal
+// size, and everything else (lights, junk, items you carry, words, the page
+// around the game) goes giant. styles.css does the page off the body class.
+const GIGANTIC = isGigantic("zero-logic-escape-rooms");
+if (GIGANTIC) {
+  setGiant(3);
+  document.body.classList.add("gigantic");
+  const name = `GIGANTIC ${document.querySelector(".hero h1")?.textContent ?? "Zero Logic Escape Rooms"}`;
+  document.title = name;
+  for (const element of document.querySelectorAll(".hero h1, .credits-game")) element.textContent = name;
 }
 
 // Runs the rooms in order. Escaping one drops you straight into the next, and
@@ -299,15 +312,17 @@ function drawTitleCard(now: number): void {
   ctx.textBaseline = "middle";
   if (title.lead) {
     ctx.fillStyle = "#b9adc4";
-    ctx.font = "20px 'Trebuchet MS', sans-serif";
-    ctx.fillText(title.lead, W / 2, H / 2 - 80);
+    giantFont("20px 'Trebuchet MS', sans-serif", title.lead);
+    ctx.fillText(title.lead, W / 2, H / 2 - 80 * (GIGANTIC ? 2.4 : 1));
   }
+  const heading = `ESCAPE ROOM ${current + 1}`;
+  const name = (rooms[current]?.name ?? "").toUpperCase();
   ctx.fillStyle = "#ffcf5a";
-  ctx.font = "bold 26px 'Trebuchet MS', sans-serif";
-  ctx.fillText(`ESCAPE ROOM ${current + 1}`, W / 2, H / 2 - 30);
+  giantFont("bold 26px 'Trebuchet MS', sans-serif", heading);
+  ctx.fillText(heading, W / 2, H / 2 - 30 * (GIGANTIC ? 2.4 : 1));
   ctx.fillStyle = "#f5efe6";
-  ctx.font = "64px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
-  ctx.fillText((rooms[current]?.name ?? "").toUpperCase(), W / 2, H / 2 + 30);
+  giantFont("64px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif", name);
+  ctx.fillText(name, W / 2, H / 2 + 30 * (GIGANTIC ? 2.4 : 1));
   ctx.globalAlpha = 1;
 }
 

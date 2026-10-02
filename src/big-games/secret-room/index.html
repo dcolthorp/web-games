@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Secret Room</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      body {
+        --night: #07142e;
+      }
+
+      .room {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 60px 16px 80px;
+        text-align: center;
+      }
+
+      .room h1 {
+        margin: 0 0 16px;
+        font: 900 clamp(2.4rem, 9vw, 4rem) / 1.05 "Arial Black", Impact, sans-serif;
+        color: #8fd0ff;
+        text-shadow: 4px 4px 0 #000;
+      }
+
+      .room p {
+        font-size: 1.2rem;
+        line-height: 1.5;
+      }
+
+      /* The giant treasure chest. */
+      .chest {
+        position: relative;
+        width: min(86vw, 440px);
+        height: min(66vw, 340px);
+        margin: 40px auto 24px;
+      }
+
+      .chest-glow {
+        position: absolute;
+        inset: -30% -20% 10%;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 214, 60, 0.85), rgba(255, 214, 60, 0) 65%);
+        opacity: 0;
+        transition: opacity 0.4s ease;
+        pointer-events: none;
+      }
+
+      .chest.is-open .chest-glow {
+        opacity: calc(var(--gold, 1));
+      }
+
+      .chest-base,
+      .chest-lid {
+        position: absolute;
+        left: 0;
+        right: 0;
+        border: 6px solid #000;
+        background:
+          linear-gradient(90deg, transparent 0 12%, #d9a93a 12% 18%, transparent 18% 82%, #d9a93a 82% 88%, transparent 88%),
+          repeating-linear-gradient(180deg, #8b5427 0 26px, #6b3d1b 26px 30px);
+        box-shadow: 0 10px 0 rgba(0, 0, 0, 0.5);
+      }
+
+      .chest-base {
+        bottom: 0;
+        height: 58%;
+        border-radius: 0 0 14px 14px;
+        z-index: 2;
+      }
+
+      .chest.is-open:not(.is-empty) .chest-base {
+        cursor: pointer;
+      }
+
+      /* The lid is heavy: it only comes off if you drag it all the way off. */
+      .chest-lid {
+        bottom: 58%;
+        height: 42%;
+        border-radius: 50% 50% 0 0 / 70% 70% 0 0;
+        z-index: 4;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+      }
+
+      .chest-lid.is-dragging {
+        cursor: grabbing;
+        transition: none;
+      }
+
+      .chest-lid.is-snapping {
+        transition: transform 0.35s cubic-bezier(0.3, 1.5, 0.5, 1);
+      }
+
+      .chest-lock {
+        position: absolute;
+        left: 50%;
+        bottom: -22%;
+        width: 13%;
+        height: 40%;
+        margin-left: -6.5%;
+        border: 5px solid #000;
+        border-radius: 8px;
+        background: radial-gradient(circle at 50% 40%, #000 0 14%, transparent 15%), #ffd23b;
+      }
+
+      /* The pile of gold, sitting up out of the top of the chest. Each click
+         takes a bit off the top. */
+      .chest-gold {
+        position: absolute;
+        left: 6%;
+        right: 6%;
+        bottom: 57%;
+        /* Never shorter than a sliver, so the last bit of gold still shows. */
+        height: max(10px, calc(34% * var(--gold, 1)));
+        border: 4px solid #a3740c;
+        border-bottom: none;
+        border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+        background:
+          radial-gradient(circle at 25% 70%, #fff3a0 0 5%, transparent 6%),
+          radial-gradient(circle at 55% 45%, #fff3a0 0 4%, transparent 5%),
+          radial-gradient(circle at 78% 75%, #fff3a0 0 5%, transparent 6%),
+          #ffcc22;
+        z-index: 1;
+        cursor: pointer;
+        transition: height 0.25s ease;
+      }
+
+      .chest:not(.is-open) .chest-gold {
+        cursor: default;
+      }
+
+      .chest.is-empty .chest-gold {
+        display: none;
+      }
+
+      .coin {
+        position: fixed;
+        z-index: 10;
+        width: 26px;
+        height: 26px;
+        margin: -13px 0 0 -13px;
+        border: 3px solid #a3740c;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, #fff3a0, #ffcc22 60%);
+        pointer-events: none;
+      }
+
+      .title-card {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        background: rgba(4, 10, 24, 0.75);
+      }
+
+      .title-card[hidden] {
+        display: none;
+      }
+
+      .title-card-inner {
+        position: relative;
+        grid-area: 1 / 1;
+        z-index: 2;
+        cursor: pointer;
+        font: inherit;
+        user-select: none;
+        padding: 40px 36px;
+        border: 6px solid #000;
+        border-radius: 20px;
+        text-align: center;
+        background:
+          radial-gradient(circle at 20% 25%, rgba(255, 255, 255, 0.35) 0 6%, transparent 7%),
+          linear-gradient(135deg, #ff3b9a, #8a3bff 35%, #23c8ff 70%, #3bffb0);
+        box-shadow: 0 14px 0 #000, 0 0 60px rgba(140, 220, 255, 0.7);
+        animation: card-pop 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+      }
+
+      .title-card h2 {
+        margin: 0;
+        font: 900 clamp(2.6rem, 12vw, 5.5rem) / 1 "Arial Black", Impact, sans-serif;
+        color: #fff;
+        text-shadow: 5px 5px 0 #000, -2px -2px 0 #000;
+        letter-spacing: 0.04em;
+      }
+
+      .title-card-inner:hover {
+        filter: brightness(1.12);
+      }
+
+      /* Cracks spread across the title card with every click. */
+      .cracks {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      .cracks path {
+        fill: none;
+        stroke: #fff;
+        stroke-width: 3;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+        filter: drop-shadow(0 0 2px #000) drop-shadow(0 0 1px #000);
+        opacity: 0;
+        transition: opacity 0.1s ease;
+      }
+
+      .cracks path.is-cracked {
+        opacity: 1;
+      }
+
+      /* Once it's fully cracked, each piece can be dragged out. */
+      .shard {
+        position: absolute;
+        z-index: 3;
+        margin: 0;
+        cursor: grab;
+        touch-action: none;
+        animation: none;
+        transition: none;
+      }
+
+      .shard.is-snapping {
+        transition: transform 0.3s cubic-bezier(0.3, 1.5, 0.5, 1);
+      }
+
+      /* Under the pieces is the real title card: a proper card like the ones on
+         the BIG games page, but keeping its colours. */
+      .gem-card {
+        grid-area: 1 / 1;
+        z-index: 1;
+        transform: rotate(-3deg);
+        --card: #ff3b9a;
+        width: min(86vw, 320px);
+        height: auto;
+        text-align: left;
+        border-color: #000;
+        background:
+          radial-gradient(circle at 85% 20%, rgba(255, 255, 255, 0.35) 0 6%, transparent 7%),
+          linear-gradient(135deg, #ff3b9a, #8a3bff 35%, #23c8ff 70%, #3bffb0);
+        box-shadow: 0 10px 0 #000, 0 0 50px rgba(140, 220, 255, 0.7);
+        text-shadow: 2px 2px 0 #000;
+      }
+
+      .gem-card[hidden] {
+        display: none;
+      }
+
+      .gem-card .hub-tag {
+        background: #fff;
+        text-shadow: none;
+      }
+
+      .gem-card .big-blurb {
+        opacity: 1;
+      }
+
+      @keyframes card-pop {
+        from {
+          transform: scale(0) rotate(-20deg);
+        }
+        to {
+          transform: scale(1) rotate(-3deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="room">
+      <h1>The Secret Room</h1>
+      <p>You found the door behind the waterfall.</p>
+      <div class="chest" id="chest">
+        <span class="chest-glow"></span>
+        <button class="chest-gold" id="chest-gold" type="button" aria-label="Grab some gold" disabled></button>
+        <span class="chest-base"></span>
+        <span class="chest-lid" id="chest-lid" aria-label="The chest's lid. Drag it off.">
+          <span class="chest-lock"></span>
+        </span>
+      </div>
+      <p id="chest-note">There's a GIANT treasure chest in here. The lid looks heavy… drag it all the way off.</p>
+      <p><a class="back-link" href="../index.html">← Back out through the waterfall</a></p>
+    </main>
+
+    <div class="title-card" id="title-card" hidden>
+      <a class="big-card gem-card" id="gem-card" href="../gem-smasher/index.html" hidden>
+        <span class="big-card-top">
+          <span class="hub-tag">Secret Room</span>
+          <span class="secret-tag">Secret</span>
+        </span>
+        <span class="big-title">Gem Smasher</span>
+        <span class="big-blurb">Smash the gems in the dark before they fade away!</span>
+      </a>
+      <button class="title-card-inner" id="title-card-inner" type="button" aria-label="Gem Smasher. Keep clicking to crack it.">
+        <h2>Gem Smasher</h2>
+        <svg class="cracks" id="cracks" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </button>
+    </div>
+
+    <script type="module">
+      const chest = document.getElementById("chest");
+      const lid = document.getElementById("chest-lid");
+      const gold = document.getElementById("chest-gold");
+      const note = document.getElementById("chest-note");
+      const titleCard = document.getElementById("title-card");
+      const titleCardInner = document.getElementById("title-card-inner");
+
+      const gemCard = document.getElementById("gem-card");
+      const cracks = document.getElementById("cracks");
+
+      // The cracks all start from the middle and run out to the edge. The
+      // pieces are cut along exactly those lines, so they fit back together.
+      const MIDDLE = [52, 48];
+      const AROUND = [
+        { at: [0, 0] },
+        { at: [22, 0], crack: [36, 22] },
+        { at: [64, 0], crack: [60, 26] },
+        { at: [100, 0] },
+        { at: [100, 42], crack: [78, 40] },
+        { at: [100, 100] },
+        { at: [80, 100], crack: [68, 74] },
+        { at: [34, 100], crack: [40, 70] },
+        { at: [0, 100] },
+        { at: [0, 58], crack: [24, 56] },
+      ];
+      const CRACK_ENDS = AROUND.filter((spot) => spot.crack);
+      const HITS_TO_CRACK = 12;
+      let hits = 0;
+
+      cracks.innerHTML = CRACK_ENDS.map(
+        (end) => `<path d="M ${MIDDLE.join(" ")} L ${end.crack.join(" ")} L ${end.at.join(" ")}" />`
+      ).join("");
+      const crackLines = [...cracks.querySelectorAll("path")];
+
+      titleCardInner.addEventListener("click", () => {
+        if (hits >= HITS_TO_CRACK) return;
+        hits += 1;
+        // Another crack every couple of hits.
+        const showing = Math.ceil((hits / HITS_TO_CRACK) * crackLines.length);
+        crackLines.forEach((line, i) => line.classList.toggle("is-cracked", i < showing));
+        titleCardInner.animate(
+          [
+            { transform: "rotate(-3deg) translate(0, 0)" },
+            { transform: "rotate(-5deg) translate(-6px, 3px)" },
+            { transform: "rotate(-1deg) translate(6px, -3px)" },
+            { transform: "rotate(-3deg) translate(0, 0)" },
+          ],
+          { duration: 180 }
+        );
+        if (hits === HITS_TO_CRACK) window.setTimeout(breakIntoPieces, 250);
+      });
+
+      // Swap the cracked card for its pieces, cut along the cracks.
+      function breakIntoPieces() {
+        gemCard.hidden = false;
+        const pieces = [];
+        CRACK_ENDS.forEach((end, i) => {
+          const next = CRACK_ENDS[(i + 1) % CRACK_ENDS.length];
+          const from = AROUND.indexOf(end);
+          const to = AROUND.indexOf(next);
+          const outline = [MIDDLE, end.crack];
+          for (let k = from; ; k = (k + 1) % AROUND.length) {
+            outline.push(AROUND[k].at);
+            if (k === to) break;
+          }
+          outline.push(next.crack);
+          const shard = titleCardInner.cloneNode(true);
+          shard.removeAttribute("id");
+          shard.querySelector(".cracks")?.removeAttribute("id");
+          shard.classList.add("shard");
+          shard.setAttribute("aria-label", "A piece of the card. Drag it out.");
+          shard.style.left = `${titleCardInner.offsetLeft}px`;
+          shard.style.top = `${titleCardInner.offsetTop}px`;
+          shard.style.width = `${titleCardInner.offsetWidth}px`;
+          shard.style.height = `${titleCardInner.offsetHeight}px`;
+          shard.style.transform = "rotate(-3deg)";
+          shard.style.clipPath = `polygon(${outline.map(([x, y]) => `${x}% ${y}%`).join(", ")})`;
+          titleCard.appendChild(shard);
+          pieces.push(shard);
+          makeDraggable(shard, () => {
+            pieces.splice(pieces.indexOf(shard), 1);
+            if (pieces.length === 0) revealRealCard();
+          });
+        });
+        titleCardInner.style.visibility = "hidden";
+      }
+
+      // Pull a piece far enough and it's out for good; not far enough and it
+      // slides back into place.
+      function makeDraggable(shard, onPulledOut) {
+        shard.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          shard.setPointerCapture(event.pointerId);
+          shard.classList.remove("is-snapping");
+          const startX = event.clientX;
+          const startY = event.clientY;
+          let dx = 0;
+          let dy = 0;
+          const move = (moveEvent) => {
+            dx = moveEvent.clientX - startX;
+            dy = moveEvent.clientY - startY;
+            shard.style.transform = `translate(${dx}px, ${dy}px) rotate(${-3 + dx * 0.05}deg)`;
+          };
+          const drop = () => {
+            shard.removeEventListener("pointermove", move);
+            shard.removeEventListener("pointerup", drop);
+            shard.removeEventListener("pointercancel", drop);
+            if (Math.hypot(dx, dy) < 120) {
+              shard.classList.add("is-snapping");
+              shard.style.transform = "rotate(-3deg)";
+              return;
+            }
+            shard
+              .animate(
+                [
+                  { transform: shard.style.transform, opacity: 1 },
+                  { transform: `translate(${dx * 4}px, ${dy * 4 + 400}px) rotate(${dx * 0.4}deg)`, opacity: 0 },
+                ],
+                { duration: 700, easing: "ease-in", fill: "forwards" }
+              )
+              .finished.then(() => shard.remove());
+            onPulledOut();
+          };
+          shard.addEventListener("pointermove", move);
+          shard.addEventListener("pointerup", drop);
+          shard.addEventListener("pointercancel", drop);
+        });
+      }
+
+      function revealRealCard() {
+        gemCard.animate(
+          [
+            { transform: "rotate(-3deg) scale(1)" },
+            { transform: "rotate(-3deg) scale(1.15)" },
+            { transform: "rotate(-3deg) scale(1)" },
+          ],
+          { duration: 500, easing: "cubic-bezier(.2,1.4,.4,1)" }
+        );
+      }
+
+      const GRABS = 10;
+      let goldLeft = GRABS;
+
+      // Drag the lid. Let go while it still overlaps the chest and it drops
+      // back on; it only stays off once it's clear of the chest completely.
+      lid.addEventListener("pointerdown", (event) => {
+        if (chest.classList.contains("is-open")) return;
+        event.preventDefault();
+        lid.setPointerCapture(event.pointerId);
+        lid.classList.remove("is-snapping");
+        lid.classList.add("is-dragging");
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const chestBox = chest.getBoundingClientRect();
+        const baseBox = chest.querySelector(".chest-base").getBoundingClientRect();
+        // Where the lid sits when it's on, plus the chest under it.
+        const onChest = {
+          left: chestBox.left,
+          right: chestBox.right,
+          top: chestBox.top,
+          bottom: baseBox.bottom,
+        };
+
+        const move = (moveEvent) => {
+          const dx = moveEvent.clientX - startX;
+          const dy = moveEvent.clientY - startY;
+          lid.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx * 0.03}deg)`;
+        };
+        const drop = () => {
+          lid.removeEventListener("pointermove", move);
+          lid.removeEventListener("pointerup", drop);
+          lid.removeEventListener("pointercancel", drop);
+          lid.classList.remove("is-dragging");
+          const box = lid.getBoundingClientRect();
+          const overlaps =
+            box.left < onChest.right && box.right > onChest.left && box.top < onChest.bottom && box.bottom > onChest.top;
+          if (overlaps) {
+            lid.classList.add("is-snapping");
+            lid.style.transform = "";
+            note.textContent = "Not far enough! The lid has to come ALL the way off.";
+            return;
+          }
+          chest.classList.add("is-open");
+          lid.style.cursor = "default";
+          gold.disabled = false;
+          note.textContent = "It's FULL OF GOLD!!! Click the gold to grab some.";
+        };
+        lid.addEventListener("pointermove", move);
+        lid.addEventListener("pointerup", drop);
+        lid.addEventListener("pointercancel", drop);
+      });
+
+      // Every click flings a burst of gold out and the pile goes down a bit.
+      // Clicking the chest itself works too, so the last of the gold is
+      // never out of reach.
+      chest.querySelector(".chest-base").addEventListener("click", grabGold);
+      gold.addEventListener("click", grabGold);
+
+      function grabGold() {
+        if (!chest.classList.contains("is-open") || goldLeft <= 0) return;
+        const box = gold.getBoundingClientRect();
+        burstCoins(box.left + box.width / 2, box.top + box.height * 0.3);
+        goldLeft -= 1;
+        chest.style.setProperty("--gold", String(goldLeft / GRABS));
+        if (goldLeft > 0) {
+          note.textContent = `Grab more gold! (${goldLeft} left)`;
+          return;
+        }
+        chest.classList.add("is-empty");
+        gold.disabled = true;
+        note.textContent = "The chest is empty.";
+        window.setTimeout(() => {
+          titleCard.hidden = false;
+        }, 700);
+      }
+
+      function burstCoins(x, y) {
+        for (let i = 0; i < 30; i++) {
+          const coin = document.createElement("span");
+          coin.className = "coin";
+          coin.style.left = `${x}px`;
+          coin.style.top = `${y}px`;
+          document.body.appendChild(coin);
+          const dx = (Math.random() - 0.5) * 700;
+          const up = 200 + Math.random() * 350;
+          const fall = 300 + Math.random() * 400;
+          coin
+            .animate(
+              [
+                { transform: "translate(0, 0) scale(0.5)" },
+                { transform: `translate(${dx * 0.5}px, ${-up}px) scale(1.1) rotateY(360deg)`, offset: 0.4 },
+                { transform: `translate(${dx}px, ${fall}px) scale(1) rotateY(900deg)`, opacity: 0 },
+              ],
+              { duration: 1300 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.6,1)" }
+            )
+            .finished.then(() => coin.remove());
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -1,13 +1,10 @@
+import { isGigantic } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import {
-  BALL_SIZE,
   COIN_SIZE,
-  DOLLAR_HEIGHT,
-  DOLLAR_WIDTH,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
-  coinBox,
   dollarBox,
   newGame,
   shadowAt,
@@ -22,10 +19,20 @@ installForceRefreshHotkey();
 
 const BEST_KEY = "lost-wall-dodger-best";
 
+// GIGANTIC Wall Dodger: you stay your normal size, and the ball, the coins and
+// the dollars are giant.
+const GIGANTIC = isGigantic("wall-dodger");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Wall Dodger Survival";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Wall Dodger Survival";
+}
+
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 
-let game: Game = newGame();
+let game: Game = newGame(GIANT);
 let startedAt = performance.now();
 let best = readBest();
 const held = new Set<string>();
@@ -71,27 +78,27 @@ function draw(): void {
     const shadow = shadowAt(coin.x, coin.y, game.walls);
     ctx.fillStyle = darken([255, 220, 0], shadow);
     ctx.beginPath();
-    ctx.arc(coin.x, coin.y, COIN_SIZE / 2, 0, Math.PI * 2);
+    ctx.arc(coin.x, coin.y, (COIN_SIZE * GIANT) / 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = darken([255, 180, 0], shadow);
     ctx.beginPath();
-    ctx.arc(coin.x, coin.y, COIN_SIZE / 4, 0, Math.PI * 2);
+    ctx.arc(coin.x, coin.y, (COIN_SIZE * GIANT) / 4, 0, Math.PI * 2);
     ctx.fill();
-    void coinBox;
   }
 
   for (const dollar of game.dollars) {
     const shadow = shadowAt(dollar.x, dollar.y, game.walls);
-    const box = dollarBox(dollar);
+    const box = dollarBox(dollar, GIANT);
+    const edge = 3 * GIANT;
     ctx.fillStyle = darken([0, 180, 0], shadow);
-    ctx.fillRect(box.x, box.y, DOLLAR_WIDTH, DOLLAR_HEIGHT);
+    ctx.fillRect(box.x, box.y, box.width, box.height);
     ctx.fillStyle = darken([0, 120, 0], shadow);
-    ctx.fillRect(box.x + 3, box.y + 3, DOLLAR_WIDTH - 6, DOLLAR_HEIGHT - 6);
+    ctx.fillRect(box.x + edge, box.y + edge, box.width - 2 * edge, box.height - 2 * edge);
     ctx.fillStyle = darken([220, 255, 220], shadow);
-    ctx.font = "bold 9px 'Trebuchet MS', sans-serif";
+    ctx.font = `bold ${9 * GIANT}px 'Trebuchet MS', sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("$100", dollar.x, dollar.y + 1);
+    ctx.fillText("$100", dollar.x, dollar.y + GIANT);
   }
 
   const playerMiddle = middleOf(game.player);
@@ -105,11 +112,11 @@ function draw(): void {
   const ballShadow = shadowAt(ballMiddle.x, ballMiddle.y, game.walls);
   ctx.fillStyle = darken([255, 0, 0], ballShadow);
   ctx.beginPath();
-  ctx.arc(ballMiddle.x, ballMiddle.y, BALL_SIZE / 2, 0, Math.PI * 2);
+  ctx.arc(ballMiddle.x, ballMiddle.y, game.ball.width / 2, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = darken([255, 100, 100], ballShadow);
   ctx.beginPath();
-  ctx.arc(ballMiddle.x - 5, ballMiddle.y - 5, BALL_SIZE / 6, 0, Math.PI * 2);
+  ctx.arc(ballMiddle.x - 5 * GIANT, ballMiddle.y - 5 * GIANT, game.ball.width / 6, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = "rgb(255, 255, 255)";
@@ -174,7 +181,7 @@ window.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key.startsWith("arrow") || key === " ") event.preventDefault();
   if (game.over && (key === "enter" || key === " ")) {
-    game = newGame();
+    game = newGame(GIANT);
     startedAt = performance.now();
     return;
   }

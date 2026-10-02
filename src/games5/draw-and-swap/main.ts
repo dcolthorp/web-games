@@ -1,3 +1,4 @@
+import { isGigantic } from "../../shared/bigGames";
 import { createBoard, textFont, textHeight, type Point, type ToolName } from "./board";
 import { formatClock, swapOrder, type Door } from "./paint";
 import { openGuest, openHost, type Link } from "./net";
@@ -20,6 +21,16 @@ const COLORS = [
 // Round 3 they come home, so whoever started a drawing also finishes it.
 const SHIFTS = [0, 1, 0];
 const GRACE_MS = 8000;
+// GIGANTIC Draw and Swap: your pencil line stays normal, and every other tool
+// (lines, squares, the eraser, words and doors) comes out giant.
+const GIGANTIC = isGigantic("draw-and-swap");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Draw and Swap";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Draw and Swap";
+  document.body.classList.add("is-gigantic");
+}
 // Where a 🚪 goes when somebody opens it.
 const SECRET_GAME = "../behind-the-door/index.html";
 
@@ -78,7 +89,7 @@ const board = createBoard(ui.paper, ui.preview, {
   onTextSpot: (spot) => openTextBox(spot),
   onDoorOpen: () => openDoor(),
   onDoorsChanged: (doors) => paintDoorLine(doors),
-});
+}, GIANT);
 
 interface Seat {
   id: string;
@@ -469,11 +480,12 @@ function openTextBox(spot: Point): void {
   textSpot = spot;
   const box = ui.paper.getBoundingClientRect();
   const scale = box.width / ui.paper.width;
-  const height = textHeight(Number(ui.size.value));
+  const size = Number(ui.size.value) * GIANT;
+  const height = textHeight(size);
   ui.textBox.hidden = false;
   ui.textBox.style.left = `${spot.x * scale}px`;
   ui.textBox.style.top = `${spot.y * scale}px`;
-  ui.textInput.style.font = textFont(height >= 18 ? Number(ui.size.value) : 6);
+  ui.textInput.style.font = textFont(height >= 18 ? size : 6);
   ui.textInput.style.fontSize = `${Math.max(14, height * scale)}px`;
   ui.textInput.value = "";
   ui.textInput.focus();

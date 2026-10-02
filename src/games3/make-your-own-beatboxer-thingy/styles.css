@@ -314,3 +314,29 @@ input[type="range"] { width: 100%; accent-color: var(--yellow); cursor: pointer;
     linear-gradient(72deg, transparent 62%, rgb(255 255 255 / .25) 62.5%, transparent 63.1%);
   pointer-events: none;
 }
+
+/* GIGANTIC: the beat grid (lanes, steps, step numbers) stays normal size and
+   everything around it is zoomed up. Each giant block stacks into one column
+   so it still fits across the machine. */
+body.gigantic {
+  background:
+    radial-gradient(circle at 88% 4%, rgba(97, 214, 255, 0.14), transparent 70rem),
+    radial-gradient(circle at 4% 70%, rgba(255, 101, 123, 0.12), transparent 80rem),
+    #17131f;
+}
+body.gigantic .topbar,
+body.gigantic .machine-top,
+body.gigantic .transport,
+body.gigantic .vault,
+body.gigantic .machine-footer { zoom: 2.5; }
+body.gigantic .machine-top,
+body.gigantic .transport { grid-template-columns: 1fr; }
+body.gigantic .utility-buttons { justify-content: stretch; }
+body.gigantic .utility-buttons button { flex: 1; }
+body.gigantic .machine-footer { flex-direction: column; }
+body.gigantic .machine { border-width: 6px; border-radius: 70px; }
+body.gigantic .hero { padding: clamp(80px, 12vw, 180px) 0 clamp(60px, 8vw, 120px); }
+body.gigantic .kicker { font-size: 2rem; }
+body.gigantic h1 { max-width: none; font-size: clamp(5rem, 16vw, 18rem); overflow-wrap: anywhere; }
+body.gigantic h1 span { -webkit-text-stroke-width: 5px; }
+body.gigantic .hero-copy { max-width: none; font-size: clamp(2rem, 4.5vw, 3.4rem); }

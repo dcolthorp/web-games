@@ -1,8 +1,21 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+// GIGANTIC Zero Player Game: the cells on the grid are the main stuff, so they
+// stay normal size. The buttons, palette, writing and the words painted over
+// the grid go giant (the page part lives in styles.css under body.gigantic).
+const GIGANTIC = isGigantic("zero-player-game");
+const GIANT = GIGANTIC ? 2.5 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Zero Player Game";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Zero Player Game";
+  document.body.classList.add("gigantic");
+}
 
 // A Cell Machine style puzzle: you only ever build. Once you hit Play the
 // machine runs itself, which is the whole joke of the title.
@@ -1875,14 +1888,20 @@ function draw(): void {
   // and the pink zone are enough of a cue.
   if (running) {
     ctx.fillStyle = "rgba(121, 242, 234, 0.9)";
-    ctx.font = "bold 20px Impact, sans-serif";
+    ctx.font = `bold ${20 * GIANT}px Impact, sans-serif`;
     ctx.textAlign = "left";
-    ctx.fillText("RUNNING — HANDS OFF", 14, 28);
+    ctx.fillText("RUNNING — HANDS OFF", 14, 28 * GIANT);
   } else if (pendingPortal !== null) {
     ctx.fillStyle = portalColor(grid[pendingPortal]?.link);
-    ctx.font = "bold 20px Impact, sans-serif";
+    ctx.font = `bold ${20 * GIANT}px Impact, sans-serif`;
     ctx.textAlign = "left";
-    ctx.fillText("NOW CLICK WHERE THE OTHER END GOES — ESC CANCELS", 14, 28);
+    // Giant words would run off the grid in one line, so they take two.
+    if (GIGANTIC) {
+      ctx.fillText("NOW CLICK WHERE THE OTHER END GOES", 14, 28 * GIANT);
+      ctx.fillText("ESC CANCELS", 14, 56 * GIANT);
+    } else {
+      ctx.fillText("NOW CLICK WHERE THE OTHER END GOES — ESC CANCELS", 14, 28);
+    }
   }
 }
 

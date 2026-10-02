@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gem Smasher</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../secret-room/index.html">← The Secret Room</a>
+      <header class="hero">
+        <p class="eyebrow">Found in the treasure chest</p>
+        <h1>Gem Smasher</h1>
+      </header>
+
+      <section class="game-frame" aria-label="Gem Smasher play area">
+        <canvas id="game" width="960" height="600" tabindex="0" aria-label="Gem Smasher"></canvas>
+
+        <!-- Only shows while the game is paused. -->
+        <div class="pause-menu" id="pause-menu" hidden>
+          <button id="gem-index-button" class="menu-button" type="button">💎<span>Gem Index</span></button>
+          <button id="skins-button" class="menu-button" type="button">🔨<span>Mallet Skins</span></button>
+          <button id="shop-button" class="menu-button" type="button">🍔<span>Mineral-N-Crystal</span></button>
+        </div>
+
+        <section id="gem-index" class="panel" aria-labelledby="gem-index-title" hidden>
+          <h2 id="gem-index-title">Gem Index</h2>
+          <ul id="gem-index-list" class="card-list"></ul>
+          <button id="gem-index-back" class="game-button" type="button">← Back</button>
+        </section>
+
+        <section id="skins" class="panel" aria-labelledby="skins-title" hidden>
+          <h2 id="skins-title">Mallet Skins</h2>
+          <p id="skins-count" class="panel-note"></p>
+          <ul id="skins-list" class="card-list"></ul>
+          <button id="skins-back" class="game-button" type="button">← Back</button>
+        </section>
+
+        <section id="shop" class="panel shop" aria-labelledby="shop-title" hidden>
+          <h2 id="shop-title">Mineral-N-Crystal</h2>
+          <p id="shop-coins" class="panel-note"></p>
+          <canvas id="shop-scene" class="shop-scene" width="960" height="380" aria-label="The Mineral-N-Crystal kitchen"></canvas>
+          <p id="shop-notice" class="shop-notice"></p>
+          <h3 class="shop-menu-title">Menu</h3>
+          <div id="shop-menu" class="shop-menu"></div>
+          <button id="shop-back" class="game-button" type="button">← Back</button>
+        </section>
+      </section>
+      <div class="buttons">
+        <button id="pause" class="game-button" type="button" aria-pressed="false">❚❚ Pause</button>
+      </div>
+      <p class="help">Gems pop up in the dark. Click (or tap) to smash them before they fade away! Pause for the Gem Index, skins and Mineral-N-Crystal.</p>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

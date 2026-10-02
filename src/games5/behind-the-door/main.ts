@@ -1,3 +1,5 @@
+import { isGigantic, markFound } from "../../shared/bigGames";
+markFound("behind-the-door");
 import { markKickedOut } from "../../games4/wirePanel";
 import { DOORS_BEFORE_EXIT, exitDoor, roomFor, type Room } from "./hallway";
 
@@ -5,6 +7,18 @@ const canvas = document.getElementById("hall") as HTMLCanvasElement;
 const paint = canvas.getContext("2d") as CanvasRenderingContext2D;
 const countLine = document.getElementById("count");
 const tagline = document.getElementById("tagline");
+
+// GIGANTIC Behind the Door: the doors you pick from stay door-sized, and
+// everything around them goes giant: knobs, numbers, rooms, the way out.
+const GIGANTIC = isGigantic("behind-the-door");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Behind the Door";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Behind the Door";
+}
+// Giant words still have to fit on the screen.
+const FIT = GIGANTIC ? 860 : undefined;
 
 // The way out doesn't loop back into the hallway, and it doesn't explain
 // itself either. It shuts the whole thing down and leaves you on another hub.
@@ -39,7 +53,7 @@ function drawHallway(): void {
   paint.fillRect(0, 0, canvas.width, canvas.height);
 
   paint.strokeStyle = "rgba(255, 255, 255, 0.08)";
-  paint.lineWidth = 2;
+  paint.lineWidth = 2 * GIANT;
   for (const corner of [
     [0, 0],
     [canvas.width, 0],
@@ -65,11 +79,11 @@ function drawHallway(): void {
 
     paint.fillStyle = "#ffe066";
     paint.beginPath();
-    paint.arc(spot.x + spot.w - 26, spot.y + spot.h / 2, 7, 0, Math.PI * 2);
+    paint.arc(spot.x + spot.w - 26, spot.y + spot.h / 2, 7 * GIANT, 0, Math.PI * 2);
     paint.fill();
 
     paint.fillStyle = "rgba(255, 255, 255, 0.55)";
-    paint.font = "bold 26px 'Trebuchet MS', sans-serif";
+    paint.font = `bold ${26 * GIANT}px 'Trebuchet MS', sans-serif`;
     paint.textAlign = "center";
     paint.fillText(String(index + 1), spot.x + spot.w / 2, spot.y - 14);
   });
@@ -97,8 +111,8 @@ function drawRoom(): void {
   for (let i = 0; i < 14; i += 1) {
     const x = ((i * 137) % 860) + 20;
     const y = ((i * 211) % 420) + 60;
-    const size = 20 + ((i * 53) % 70);
-    paint.lineWidth = 3;
+    const size = (20 + ((i * 53) % 70)) * GIANT;
+    paint.lineWidth = 3 * GIANT;
     if (i % 3 === 0) paint.strokeRect(x, y, size, size);
     else if (i % 3 === 1) {
       paint.beginPath();
@@ -115,10 +129,10 @@ function drawRoom(): void {
 
   paint.fillStyle = room.ink;
   paint.textAlign = "center";
-  paint.font = "bold 46px Impact, 'Arial Narrow Bold', sans-serif";
-  paint.fillText(room.name, 450, 300);
+  paint.font = `bold ${46 * GIANT}px Impact, 'Arial Narrow Bold', sans-serif`;
+  paint.fillText(room.name, 450, GIGANTIC ? 330 : 300, FIT);
   paint.font = "20px 'Trebuchet MS', sans-serif";
-  paint.fillText(room.line, 450, 344);
+  paint.fillText(room.line, 450, GIGANTIC ? 400 : 344);
   paint.fillStyle = "rgba(255, 255, 255, 0.6)";
   paint.font = "16px 'Trebuchet MS', sans-serif";
   paint.fillText("Click to step back into the hallway.", 450, 500);
@@ -132,20 +146,20 @@ function drawWayOut(): void {
   paint.fillStyle = "#ffe066";
   for (let i = 0; i < 40; i += 1) {
     const angle = (i / 40) * Math.PI * 2 + sparkle / 60;
-    const reach = 140 + Math.sin(sparkle / 20 + i) * 30;
+    const reach = (140 + Math.sin(sparkle / 20 + i) * 30) * (GIGANTIC ? 1.6 : 1);
     paint.beginPath();
-    paint.arc(450 + Math.cos(angle) * reach, 280 + Math.sin(angle) * reach, 6, 0, Math.PI * 2);
+    paint.arc(450 + Math.cos(angle) * reach, 280 + Math.sin(angle) * reach, 6 * GIANT, 0, Math.PI * 2);
     paint.fill();
   }
 
   paint.fillStyle = "#2a1140";
   paint.textAlign = "center";
-  paint.font = "bold 54px Impact, 'Arial Narrow Bold', sans-serif";
-  paint.fillText("THE WAY OUT", 450, 265);
+  paint.font = `bold ${54 * GIANT}px Impact, 'Arial Narrow Bold', sans-serif`;
+  paint.fillText("THE WAY OUT", 450, GIGANTIC ? 290 : 265, FIT);
   paint.font = "22px 'Trebuchet MS', sans-serif";
-  paint.fillText(`You opened ${opened} doors to find it.`, 450, 310);
+  paint.fillText(`You opened ${opened} doors to find it.`, 450, GIGANTIC ? 350 : 310);
   paint.font = "17px 'Trebuchet MS', sans-serif";
-  paint.fillText("Click to go through.", 450, 360);
+  paint.fillText("Click to go through.", 450, GIGANTIC ? 390 : 360);
 }
 
 function drawScene(): void {

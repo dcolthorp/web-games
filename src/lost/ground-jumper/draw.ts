@@ -34,10 +34,25 @@ export function drawGame(
   ctx: CanvasRenderingContext2D,
   game: Game,
   outfit: Outfit,
-  laneColors: Record<number, string>
+  laneColors: Record<number, string>,
+  giant = 1
 ): void {
   ctx.fillStyle = "#0a0a10";
   ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+  // A giant moon hangs over the lanes when everything is giant.
+  if (giant > 1) {
+    ctx.fillStyle = "#e8e4d0";
+    ctx.beginPath();
+    ctx.arc(WINDOW_WIDTH * 0.6, 60, 65 * giant, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#cfc9b0";
+    for (const [dx, dy, r] of [[-25, 15, 12], [22, -18, 8], [12, 32, 10]] as const) {
+      ctx.beginPath();
+      ctx.arc(WINDOW_WIDTH * 0.6 + dx * giant, 60 + dy * giant, r * giant, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   LANE_ORDER.forEach((lane, index) => {
     ctx.fillStyle = laneColors[lane] ?? LANE_COLORS[lane] ?? "#444";
@@ -49,8 +64,10 @@ export function drawGame(
     for (const entity of game.entities) {
       if (entity.lane === lane) drawEntity(ctx, entity);
     }
-    if (game.player.lane === lane) drawPlayer(ctx, game, outfit);
+    if (game.player.lane === lane && giant === 1) drawPlayer(ctx, game, outfit);
   }
+  // Giant towers in the front lanes would hide you, so you go on top.
+  if (giant > 1) drawPlayer(ctx, game, outfit);
 
   drawHud(ctx, game);
 
@@ -84,7 +101,12 @@ function drawEntity(ctx: CanvasRenderingContext2D, entity: Entity): void {
       ctx.fillRect(baseX, top, entity.width, entity.height);
       // A little arrow so you can tell which way it's about to hop.
       ctx.fillStyle = "#6a6a80";
-      ctx.fillRect(baseX + 14, top + (entity.direction === 1 ? 10 : entity.height - 18), 12, 8);
+      ctx.fillRect(
+        baseX + entity.width * 0.35,
+        top + (entity.direction === 1 ? 10 : entity.height - 18),
+        entity.width * 0.3,
+        8
+      );
       return;
     case "block":
       ctx.fillStyle = "#8c8cc8";
@@ -158,13 +180,15 @@ function drawEntity(ctx: CanvasRenderingContext2D, entity: Entity): void {
       return;
     }
     case "heart":
-      drawHeart(ctx, baseX, entity.y, 10);
+      drawHeart(ctx, baseX, entity.y, entity.width / 2);
       return;
     case "rainbow": {
       const radius = entity.width / 2;
-      ctx.lineWidth = 3;
+      // Rings sized to the circle, so a giant one is still a rainbow.
+      const ring = (3 * entity.width) / 40;
+      ctx.lineWidth = ring;
       RAINBOW_RING_COLORS.forEach((color, index) => {
-        const ringRadius = radius - index * 3;
+        const ringRadius = radius - index * ring;
         if (ringRadius <= 0) return;
         ctx.strokeStyle = color;
         ctx.beginPath();

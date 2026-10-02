@@ -1,5 +1,6 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 import kickUrl from "./assets/oscars-voice.m4a?url";
 import snareUrl from "./assets/oscars-snare.m4a?url";
 import hihatUrl from "./assets/oscars-hihat.m4a?url";
@@ -11,6 +12,16 @@ import gdFaceUrl from "./assets/geometry-dash-face.jpg?url";
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+// GIGANTIC Beatboxer Thingy: the beat grid is the main stuff, so the squares
+// you poke stay normal size and the whole machine around them goes giant.
+// The sizes live in styles.css under body.gigantic.
+const GIGANTIC = isGigantic("make-your-own-beatboxer-thingy");
+if (GIGANTIC) {
+  document.title = "GIGANTIC Make Your Own Beatboxer Thingy";
+  document.querySelector("h1")?.insertAdjacentHTML("afterbegin", "GIGANTIC<br />");
+  document.body.classList.add("gigantic");
+}
 
 const STEPS = 16;
 const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v9";
@@ -720,7 +731,8 @@ SCREW_IDS.forEach((id) => {
 });
 
 document.querySelector<HTMLButtonElement>("#guts-enter")?.addEventListener("click", () => {
-  window.location.href = "../holdens-game/index.html";
+  // A GIGANTIC beatboxer's guts lead into a GIGANTIC Holden's Game.
+  window.location.href = `../holdens-game/index.html${GIGANTIC ? "?gigantic" : ""}`;
 });
 
 gutsReset?.addEventListener("click", () => {

@@ -32,6 +32,7 @@ import {
 import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 
 installOofShortcut();
 import {
@@ -56,6 +57,18 @@ import {
 } from "./model";
 
 const TILE_SIZE = 24;
+// GIGANTIC Oscar's Untitled Maze Game: the maze is drawn GIANT times bigger
+// but the player dot stays its normal size, and the view follows the player
+// around the huge maze. 2.5 keeps every tile on whole pixels (24 * 2.5 = 60).
+const GIGANTIC = isGigantic("oscars-untitled-maze-game");
+const GIANT = GIGANTIC ? 2.5 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Oscar's Untitled Maze Game";
+  const heading = document.querySelector(".game-shell > h1");
+  if (heading) heading.textContent = "GIGANTIC Oscar's Untitled Maze Game";
+  const kicker = document.querySelector(".start-menu-kicker");
+  if (kicker) kicker.textContent = "GIGANTIC Oscar's Untitled Maze Game";
+}
 const WELL_FADE_MS = 1_500;
 const WALL = "#";
 const OPEN = ".";
@@ -648,9 +661,10 @@ function loadLevel(index: number): void {
   state.wellOpenUntil = {};
   stopWellTicker();
 
-  const sceneWidth = level.cols * TILE_SIZE;
-  const sceneHeight = level.rows * TILE_SIZE;
-  const stageSize = Math.max(sceneWidth, sceneHeight);
+  const sceneWidth = level.cols * TILE_SIZE * GIANT;
+  const sceneHeight = level.rows * TILE_SIZE * GIANT;
+  // The stage stays normal size, so in GIGANTIC it only shows part of the maze.
+  const stageSize = Math.max(sceneWidth, sceneHeight) / GIANT;
   sceneCanvas.width = sceneWidth;
   sceneCanvas.height = sceneHeight;
   canvas.width = stageSize;
@@ -1241,14 +1255,16 @@ function drawPlayer(drawCtx: CanvasRenderingContext2D): void {
   const cx = state.player.x * TILE_SIZE + TILE_SIZE / 2;
   const cy = state.player.y * TILE_SIZE + TILE_SIZE / 2;
 
+  // The scene is scaled up by GIANT, so shrink the player back to normal.
+  const unit = 1 / GIANT;
   drawCtx.fillStyle = palette.player;
   drawCtx.beginPath();
-  drawCtx.arc(cx, cy, TILE_SIZE * 0.34, 0, Math.PI * 2);
+  drawCtx.arc(cx, cy, TILE_SIZE * 0.34 * unit, 0, Math.PI * 2);
   drawCtx.fill();
 
   drawCtx.fillStyle = "#ffffff";
   drawCtx.beginPath();
-  drawCtx.arc(cx + 2, cy - 2, TILE_SIZE * 0.1, 0, Math.PI * 2);
+  drawCtx.arc(cx + 2 * unit, cy - 2 * unit, TILE_SIZE * 0.1 * unit, 0, Math.PI * 2);
   drawCtx.fill();
 }
 
@@ -1260,6 +1276,8 @@ function drawScene(): void {
   sceneCtx.fillStyle = palette.sceneBg;
   sceneCtx.fillRect(0, 0, sceneCanvas.width, sceneCanvas.height);
 
+  sceneCtx.save();
+  sceneCtx.scale(GIANT, GIANT);
   for (let y = 0; y < state.level.rows; y += 1) {
     for (let x = 0; x < state.level.cols; x += 1) {
       drawTerrainCell(sceneCtx, x, y);
@@ -1273,6 +1291,7 @@ function drawScene(): void {
   drawPortalLinks(sceneCtx);
   drawBridgeShadows(sceneCtx);
   drawPlayer(sceneCtx);
+  sceneCtx.restore();
 }
 
 function draw(): void {
@@ -1284,7 +1303,14 @@ function draw(): void {
   ctx.save();
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate(state.rotationQuarter * (Math.PI / 2));
-  ctx.drawImage(sceneCanvas, -sceneCanvas.width / 2, -sceneCanvas.height / 2);
+  if (GIGANTIC) {
+    // Keep the player in the middle of the view.
+    const playerX = (state.player.x * TILE_SIZE + TILE_SIZE / 2) * GIANT;
+    const playerY = (state.player.y * TILE_SIZE + TILE_SIZE / 2) * GIANT;
+    ctx.drawImage(sceneCanvas, -playerX, -playerY);
+  } else {
+    ctx.drawImage(sceneCanvas, -sceneCanvas.width / 2, -sceneCanvas.height / 2);
+  }
   ctx.restore();
 }
 
@@ -1661,9 +1687,10 @@ function loadMazeXSecret(index = 0): void {
   state.wellOpenUntil = {};
   stopWellTicker();
 
-  const sceneWidth = map.cols * TILE_SIZE;
-  const sceneHeight = map.rows * TILE_SIZE;
-  const stageSize = Math.max(sceneWidth, sceneHeight);
+  const sceneWidth = map.cols * TILE_SIZE * GIANT;
+  const sceneHeight = map.rows * TILE_SIZE * GIANT;
+  // The stage stays normal size, so in GIGANTIC it only shows part of the maze.
+  const stageSize = Math.max(sceneWidth, sceneHeight) / GIANT;
   sceneCanvas.width = sceneWidth;
   sceneCanvas.height = sceneHeight;
   canvas.width = stageSize;

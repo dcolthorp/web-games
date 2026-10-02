@@ -33,7 +33,10 @@ export const MAX_DOLLARS = 1;
 export const MAX_SHADOW_DISTANCE = 100;
 export const SHADOW_INTENSITY = 0.7;
 
-export const MIN_WALL_GAP = PLAYER_SIZE + BALL_SIZE + 10;
+// In GIGANTIC Wall Dodger everything but you is giant, the ball too, so the
+// walls have to stop further apart.
+export const minWallGap = (giant: number): number => PLAYER_SIZE + BALL_SIZE * giant + 10;
+export const MIN_WALL_GAP = minWallGap(1);
 
 export interface Box {
   x: number;
@@ -71,6 +74,7 @@ export interface Game {
   lastDollarSpawn: number;
   lastSpeedIncrease: number;
   over: boolean;
+  giant: number;
 }
 
 export const overlaps = (one: Box, other: Box): boolean =>
@@ -79,21 +83,21 @@ export const overlaps = (one: Box, other: Box): boolean =>
   one.y < other.y + other.height &&
   one.y + one.height > other.y;
 
-export const coinBox = (coin: Coin): Box => ({
-  x: coin.x - COIN_SIZE / 2,
-  y: coin.y - COIN_SIZE / 2,
-  width: COIN_SIZE,
-  height: COIN_SIZE,
+export const coinBox = (coin: Coin, giant = 1): Box => ({
+  x: coin.x - (COIN_SIZE * giant) / 2,
+  y: coin.y - (COIN_SIZE * giant) / 2,
+  width: COIN_SIZE * giant,
+  height: COIN_SIZE * giant,
 });
 
-export const dollarBox = (dollar: Coin): Box => ({
-  x: dollar.x - DOLLAR_WIDTH / 2,
-  y: dollar.y - DOLLAR_HEIGHT / 2,
-  width: DOLLAR_WIDTH,
-  height: DOLLAR_HEIGHT,
+export const dollarBox = (dollar: Coin, giant = 1): Box => ({
+  x: dollar.x - (DOLLAR_WIDTH * giant) / 2,
+  y: dollar.y - (DOLLAR_HEIGHT * giant) / 2,
+  width: DOLLAR_WIDTH * giant,
+  height: DOLLAR_HEIGHT * giant,
 });
 
-export function newGame(): Game {
+export function newGame(giant = 1): Game {
   const angle = Math.random() * Math.PI * 2;
   return {
     player: {
@@ -102,7 +106,7 @@ export function newGame(): Game {
       width: PLAYER_SIZE,
       height: PLAYER_SIZE,
     },
-    ball: { x: SCREEN_WIDTH / 4, y: SCREEN_HEIGHT / 4, width: BALL_SIZE, height: BALL_SIZE },
+    ball: { x: SCREEN_WIDTH / 4, y: SCREEN_HEIGHT / 4, width: BALL_SIZE * giant, height: BALL_SIZE * giant },
     ballDx: BALL_INITIAL_SPEED * Math.cos(angle),
     ballDy: BALL_INITIAL_SPEED * Math.sin(angle),
     ballSpeed: BALL_INITIAL_SPEED,
@@ -117,6 +121,7 @@ export function newGame(): Game {
     lastDollarSpawn: 0,
     lastSpeedIncrease: 0,
     over: false,
+    giant,
   };
 }
 
@@ -127,8 +132,8 @@ export function spawnSpot(game: Game, width: number, height: number): Coin | nul
     const y = game.walls.top + height + Math.random() * Math.max(0, game.walls.bottom - game.walls.top - 2 * height);
     const box = { x: x - width / 2, y: y - height / 2, width, height };
     const clashes =
-      game.coins.some((coin) => overlaps(box, coinBox(coin))) ||
-      game.dollars.some((dollar) => overlaps(box, dollarBox(dollar))) ||
+      game.coins.some((coin) => overlaps(box, coinBox(coin, game.giant))) ||
+      game.dollars.some((dollar) => overlaps(box, dollarBox(dollar, game.giant))) ||
       overlaps(box, game.player) ||
       overlaps(box, game.ball);
     if (!clashes) return { x, y };
@@ -169,8 +174,8 @@ export function step(game: Game, moves: Moves, seconds: number): void {
     game.ballDy += nudge();
     bounced = true;
   }
-  if (game.ball.x + BALL_SIZE >= game.walls.right) {
-    game.ball.x = game.walls.right - BALL_SIZE - buffer;
+  if (game.ball.x + game.ball.width >= game.walls.right) {
+    game.ball.x = game.walls.right - game.ball.width - buffer;
     game.ballDx = -Math.abs(game.ballDx);
     game.ballDy += nudge();
     bounced = true;
@@ -181,8 +186,8 @@ export function step(game: Game, moves: Moves, seconds: number): void {
     game.ballDx += nudge();
     bounced = true;
   }
-  if (game.ball.y + BALL_SIZE >= game.walls.bottom) {
-    game.ball.y = game.walls.bottom - BALL_SIZE - buffer;
+  if (game.ball.y + game.ball.height >= game.walls.bottom) {
+    game.ball.y = game.walls.bottom - game.ball.height - buffer;
     game.ballDy = -Math.abs(game.ballDy);
     game.ballDx += nudge();
     bounced = true;
@@ -211,19 +216,20 @@ export function step(game: Game, moves: Moves, seconds: number): void {
   game.walls.bottom -= game.shrinkRate;
   game.shrinkRate += WALL_SHRINK_ACCELERATION;
 
+  const gap = minWallGap(game.giant);
   const middleX = SCREEN_WIDTH / 2;
   const middleY = SCREEN_HEIGHT / 2;
-  game.walls.left = Math.min(game.walls.left, middleX - MIN_WALL_GAP / 2);
-  game.walls.right = Math.max(game.walls.right, middleX + MIN_WALL_GAP / 2);
-  game.walls.top = Math.min(game.walls.top, middleY - MIN_WALL_GAP / 2);
-  game.walls.bottom = Math.max(game.walls.bottom, middleY + MIN_WALL_GAP / 2);
-  if (game.walls.right - game.walls.left < MIN_WALL_GAP || game.walls.bottom - game.walls.top < MIN_WALL_GAP) {
+  game.walls.left = Math.min(game.walls.left, middleX - gap / 2);
+  game.walls.right = Math.max(game.walls.right, middleX + gap / 2);
+  game.walls.top = Math.min(game.walls.top, middleY - gap / 2);
+  game.walls.bottom = Math.max(game.walls.bottom, middleY + gap / 2);
+  if (game.walls.right - game.walls.left < gap || game.walls.bottom - game.walls.top < gap) {
     game.over = true;
   }
 
   // Coins, and the rare dollar.
   if (seconds - game.lastCoinSpawn > COIN_SPAWN_SECONDS && game.coins.length < MAX_COINS) {
-    const spot = spawnSpot(game, COIN_SIZE, COIN_SIZE);
+    const spot = spawnSpot(game, COIN_SIZE * game.giant, COIN_SIZE * game.giant);
     if (spot) game.coins.push(spot);
     game.lastCoinSpawn = seconds;
   }
@@ -232,7 +238,7 @@ export function step(game: Game, moves: Moves, seconds: number): void {
     game.dollars.length < MAX_DOLLARS &&
     Math.random() < DOLLAR_SPAWN_CHANCE
   ) {
-    const spot = spawnSpot(game, DOLLAR_WIDTH, DOLLAR_HEIGHT);
+    const spot = spawnSpot(game, DOLLAR_WIDTH * game.giant, DOLLAR_HEIGHT * game.giant);
     if (spot) game.dollars.push(spot);
     game.lastDollarSpawn = seconds;
   }
@@ -240,7 +246,7 @@ export function step(game: Game, moves: Moves, seconds: number): void {
   if (overlaps(game.player, game.ball)) game.over = true;
 
   game.coins = game.coins.filter((coin) => {
-    if (!overlaps(game.player, coinBox(coin))) return true;
+    if (!overlaps(game.player, coinBox(coin, game.giant))) return true;
     game.coinsCollected += 1;
     game.score += 1;
     pushWallsBack(game, COIN_PUSHBACK);
@@ -248,7 +254,7 @@ export function step(game: Game, moves: Moves, seconds: number): void {
   });
 
   game.dollars = game.dollars.filter((dollar) => {
-    if (!overlaps(game.player, dollarBox(dollar))) return true;
+    if (!overlaps(game.player, dollarBox(dollar, game.giant))) return true;
     game.score += DOLLAR_VALUE;
     pushWallsBack(game, DOLLAR_PUSHBACK);
     return false;

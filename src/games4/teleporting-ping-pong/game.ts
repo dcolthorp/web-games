@@ -1,12 +1,20 @@
+import { isGigantic } from "../../shared/bigGames";
+
+// GIGANTIC Teleporting Ping Pong: the paddles stay normal size, the ball, table,
+// lights and everything else goes giant.
+export const GIGANTIC = isGigantic("teleporting-ping-pong");
+const GIANT = GIGANTIC ? 3 : 1;
+
 export const WIDTH = 960;
 export const HEIGHT = 600;
 const TABLE_TOP = 440;
 const TABLE_LEFT = 80;
 const TABLE_RIGHT = 880;
 const NET_X = 480;
-const NET_TOP = 400;
+// A giant net only grows twice as tall, so shots can still get over it.
+const NET_TOP = TABLE_TOP - 40 * (GIGANTIC ? 2 : 1);
 const GRAVITY = 1400;
-const BALL_RADIUS = 8;
+const BALL_RADIUS = 8 * GIANT;
 const PADDLE_RADIUS = 34;
 const SERVE_BOUNCE_SPEED = 560;
 const CPU_SPEED = 470;
@@ -337,7 +345,7 @@ export class PingPongMatch {
   }
 
   private startMatrixRain(): void {
-    this.matrixDrops = Array.from({ length: 48 }, () => randomBetween(-HEIGHT, 0));
+    this.matrixDrops = Array.from({ length: 48 / GIANT }, () => randomBetween(-HEIGHT, 0));
   }
 
   private burst(x: number, y: number, count: number, color: string, speed: number, life: number): void {
@@ -352,7 +360,7 @@ export class PingPongMatch {
         vy: Math.sin(angle) * velocity,
         life,
         maxLife: life,
-        size: randomBetween(2, 6),
+        size: randomBetween(2, 6) * GIANT,
         color,
       });
     }
@@ -582,9 +590,9 @@ export class PingPongMatch {
     }
 
     const touchingNet =
-      Math.abs(ball.x - NET_X) < BALL_RADIUS + 3 && ball.y + BALL_RADIUS > NET_TOP && ball.y < TABLE_TOP;
+      Math.abs(ball.x - NET_X) < BALL_RADIUS + 2 * GIANT + 1 && ball.y + BALL_RADIUS > NET_TOP && ball.y < TABLE_TOP;
     if (touchingNet) {
-      ball.x = ball.vx > 0 ? NET_X - BALL_RADIUS - 3 : NET_X + BALL_RADIUS + 3;
+      ball.x = ball.vx > 0 ? NET_X - BALL_RADIUS - 2 * GIANT - 1 : NET_X + BALL_RADIUS + 2 * GIANT + 1;
       ball.vx *= -0.25;
     }
 
@@ -651,14 +659,22 @@ export class PingPongMatch {
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Block party string lights.
-    const bulbCount = 16;
+    // A giant moon, which only comes out when everything is giant.
+    if (GIGANTIC) {
+      ctx.fillStyle = "rgba(255, 244, 214, 0.85)";
+      ctx.beginPath();
+      ctx.arc(WIDTH * 0.8, 60, 170, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Block party string lights. Giant bulbs need fewer of them to fill the string.
+    const bulbCount = 16 / (GIGANTIC ? 4 : 1);
     const bulbs = Array.from({ length: bulbCount + 1 }, (_, i) => ({
       x: (i / bulbCount) * WIDTH,
       y: 30 + Math.sin((i / bulbCount) * Math.PI) * 40 + Math.sin(this.elapsed * 2 + i) * 2,
     }));
     ctx.strokeStyle = "#3a3f5c";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * GIANT;
     ctx.beginPath();
     bulbs.forEach((bulb, i) => (i === 0 ? ctx.moveTo(bulb.x, bulb.y) : ctx.lineTo(bulb.x, bulb.y)));
     ctx.stroke();
@@ -666,11 +682,11 @@ export class PingPongMatch {
       ctx.fillStyle = BULB_COLORS[i % BULB_COLORS.length] ?? "#ffd166";
       ctx.globalAlpha = 0.25;
       ctx.beginPath();
-      ctx.arc(bulb.x, bulb.y + 8, 14, 0, Math.PI * 2);
+      ctx.arc(bulb.x, bulb.y + 8 * GIANT, 14 * GIANT, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.beginPath();
-      ctx.arc(bulb.x, bulb.y + 8, 6, 0, Math.PI * 2);
+      ctx.arc(bulb.x, bulb.y + 8 * GIANT, 6 * GIANT, 0, Math.PI * 2);
       ctx.fill();
     });
 
@@ -680,23 +696,26 @@ export class PingPongMatch {
 
   private drawTable(): void {
     const ctx = this.ctx;
+    // The top of the table stays where the ball bounces; a giant table is just thicker.
+    const thickness = 14 * GIANT;
+    const leg = 14 * GIANT;
     ctx.fillStyle = "#3b2f2a";
-    ctx.fillRect(TABLE_LEFT + 50, TABLE_TOP + 14, 14, 530 - TABLE_TOP - 14);
-    ctx.fillRect(TABLE_RIGHT - 64, TABLE_TOP + 14, 14, 530 - TABLE_TOP - 14);
+    ctx.fillRect(TABLE_LEFT + 50, TABLE_TOP + thickness, leg, 530 - TABLE_TOP - thickness);
+    ctx.fillRect(TABLE_RIGHT - 50 - leg, TABLE_TOP + thickness, leg, 530 - TABLE_TOP - thickness);
 
     ctx.fillStyle = "#1b7f5a";
-    ctx.fillRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, 14);
+    ctx.fillRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, thickness);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, 3);
+    ctx.fillRect(TABLE_LEFT, TABLE_TOP, TABLE_RIGHT - TABLE_LEFT, 3 * GIANT);
 
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillRect(NET_X - 2, NET_TOP - 4, 4, TABLE_TOP - NET_TOP + 4);
+    ctx.fillRect(NET_X - 2 * GIANT, NET_TOP - 4 * GIANT, 4 * GIANT, TABLE_TOP - NET_TOP + 4 * GIANT);
     ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 1;
-    for (let y = NET_TOP + 8; y < TABLE_TOP; y += 8) {
+    ctx.lineWidth = GIANT;
+    for (let y = NET_TOP + 8 * GIANT; y < TABLE_TOP; y += 8 * GIANT) {
       ctx.beginPath();
-      ctx.moveTo(NET_X - 6, y);
-      ctx.lineTo(NET_X + 6, y);
+      ctx.moveTo(NET_X - 6 * GIANT, y);
+      ctx.lineTo(NET_X + 6 * GIANT, y);
       ctx.stroke();
     }
   }
@@ -709,7 +728,7 @@ export class PingPongMatch {
       const closeness = clamp(1 - (TABLE_TOP - ball.y) / 300, 0.15, 1);
       ctx.fillStyle = `rgba(0,0,0,${0.35 * closeness})`;
       ctx.beginPath();
-      ctx.ellipse(ball.x, TABLE_TOP + 1, BALL_RADIUS * 1.4 * closeness, 3, 0, 0, Math.PI * 2);
+      ctx.ellipse(ball.x, TABLE_TOP + 1, BALL_RADIUS * 1.4 * closeness, 3 * GIANT, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     this.trail.forEach((point, i) => {
@@ -772,9 +791,9 @@ export class PingPongMatch {
 
     if (this.cpuConfusedTimer > 0) {
       ctx.textAlign = "center";
-      ctx.font = "bold 28px system-ui, sans-serif";
+      ctx.font = `bold ${28 * GIANT}px system-ui, sans-serif`;
       ctx.fillStyle = "#ffd166";
-      ctx.fillText("???", this.paddles.right.x, this.paddles.right.y - PADDLE_RADIUS - 40);
+      ctx.fillText("???", this.paddles.right.x, this.paddles.right.y - PADDLE_RADIUS - 40 * GIANT);
     }
 
     this.drawPowerMeter();
@@ -828,7 +847,7 @@ export class PingPongMatch {
     const strength = Math.min(1, this.matrixTimer / 0.4);
     ctx.fillStyle = `rgba(0,12,0,${0.85 * strength})`;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    ctx.font = "16px monospace";
+    ctx.font = `${16 * GIANT}px monospace`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     const columnWidth = WIDTH / Math.max(1, this.matrixDrops.length);
@@ -836,7 +855,7 @@ export class PingPongMatch {
       for (let row = 0; row < 12; row += 1) {
         ctx.fillStyle = `rgba(80,255,120,${strength * (1 - row / 12)})`;
         const glyph = MATRIX_GLYPHS[Math.floor(Math.random() * MATRIX_GLYPHS.length)] ?? "0";
-        ctx.fillText(glyph, column * columnWidth, dropY - row * 18);
+        ctx.fillText(glyph, column * columnWidth, dropY - row * 18 * GIANT);
       }
     });
   }
@@ -848,8 +867,15 @@ export class PingPongMatch {
     const big = this.messageKind === "teleport" || this.messageKind === "matrix";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = big ? "bold 56px system-ui, sans-serif" : "bold 26px system-ui, sans-serif";
-    ctx.lineWidth = 6;
+    // Giant words still have to fit on the screen.
+    let size = (big ? 56 : 26) * GIANT;
+    ctx.font = `bold ${size}px system-ui, sans-serif`;
+    const fullWidth = ctx.measureText(text).width;
+    if (GIGANTIC && fullWidth > WIDTH - 40) {
+      size = Math.floor((size * (WIDTH - 40)) / fullWidth);
+      ctx.font = `bold ${size}px system-ui, sans-serif`;
+    }
+    ctx.lineWidth = Math.min(6 * GIANT, size / 4);
     ctx.strokeStyle = "#0b1026";
     ctx.strokeText(text, WIDTH / 2, 240);
     ctx.fillStyle = this.messageKind === "matrix" ? "#50ff78" : big ? "#7df9ff" : "#ffffff";

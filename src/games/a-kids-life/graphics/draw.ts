@@ -2,6 +2,7 @@ import { SIMPLE_FONT } from "../constants";
 import type { FamilySave, HomeStyle, LifeStage, Mood, NeedKind, PersonState } from "../model/types";
 import { getNeedIcon } from "../systems/visualHints";
 import { roundRect } from "../ui/Button";
+import { drawGiant } from "../gigantic";
 
 const STAGE_COLORS: Record<LifeStage, { sky: string; wall: string; floor: string; accent: string }> = {
   baby: { sky: "#fff4d7", wall: "#ffe2ec", floor: "#f8d4bf", accent: "#fca6c3" },
@@ -38,41 +39,47 @@ export function drawBackground(
   ctx.fillStyle = palette.floor;
   ctx.fillRect(50, 550, 1100, 160);
 
-  ctx.fillStyle = "rgba(255,255,255,0.45)";
-  ctx.beginPath();
-  ctx.arc(160, 135, 60, 0, Math.PI * 2);
-  ctx.arc(210, 128, 48, 0, Math.PI * 2);
-  ctx.arc(120, 128, 44, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = HOME_ACCENTS[homeStyle];
-  roundRect(ctx, 870, 140, 190, 120, 26);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.44)";
-  roundRect(ctx, 888, 158, 154, 84, 20);
-  ctx.fill();
-
-  const sway = Math.sin(time * 1.4) * 4;
-  ctx.strokeStyle = palette.accent;
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(965, 140);
-  ctx.lineTo(965, 100);
-  ctx.stroke();
-
-  for (let index = 0; index < 3; index += 1) {
-    const x = 928 + index * 34;
+  drawGiant(ctx, 160, 135, () => {
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
     ctx.beginPath();
-    ctx.moveTo(x, 104);
-    ctx.lineTo(x + sway * (index - 1), 132);
-    ctx.stroke();
-    ctx.fillStyle = "#fff7da";
-    ctx.beginPath();
-    ctx.arc(x + sway * (index - 1), 136, 14 + index * 2, 0, Math.PI * 2);
+    ctx.arc(160, 135, 60, 0, Math.PI * 2);
+    ctx.arc(210, 128, 48, 0, Math.PI * 2);
+    ctx.arc(120, 128, 44, 0, Math.PI * 2);
     ctx.fill();
-  }
+  });
 
-  drawRoomProps(ctx, stage, palette.accent);
+  // Grows from a point that keeps the giant picture on the wall.
+  drawGiant(ctx, 1000, 150, () => {
+    ctx.fillStyle = HOME_ACCENTS[homeStyle];
+    roundRect(ctx, 870, 140, 190, 120, 26);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.44)";
+    roundRect(ctx, 888, 158, 154, 84, 20);
+    ctx.fill();
+
+    const sway = Math.sin(time * 1.4) * 4;
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(965, 140);
+    ctx.lineTo(965, 100);
+    ctx.stroke();
+
+    for (let index = 0; index < 3; index += 1) {
+      const x = 928 + index * 34;
+      ctx.beginPath();
+      ctx.moveTo(x, 104);
+      ctx.lineTo(x + sway * (index - 1), 132);
+      ctx.stroke();
+      ctx.fillStyle = "#fff7da";
+      ctx.beginPath();
+      ctx.arc(x + sway * (index - 1), 136, 14 + index * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // Giant furniture stands on the same floor.
+  drawGiant(ctx, 260, 600, () => drawRoomProps(ctx, stage, palette.accent));
 }
 
 function drawRoomProps(ctx: CanvasRenderingContext2D, stage: LifeStage, accent: string): void {

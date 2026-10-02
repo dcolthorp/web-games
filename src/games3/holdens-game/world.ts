@@ -4,6 +4,7 @@ import { startWorld } from "./engine";
 import { worldSpecs } from "./worldDefs";
 import { brighten, happyNames, isHappy } from "./mood";
 import { markCleared, worlds } from "./worlds";
+import { giganticName } from "./gigantic";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -14,9 +15,9 @@ const raw = worldSpecs[index];
 const spec = raw ? brighten(raw, index) : undefined;
 
 if (spec) {
-  document.title = spec.name;
+  document.title = giganticName(spec.name);
   const heading = document.querySelector<HTMLElement>("#world-name");
-  if (heading) heading.textContent = spec.name;
+  if (heading) heading.textContent = giganticName(spec.name);
 
   const next = worlds[index + 1];
   const nextLink = document.querySelector<HTMLAnchorElement>("#banner-next");

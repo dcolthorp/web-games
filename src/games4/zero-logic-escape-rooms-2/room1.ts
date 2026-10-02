@@ -9,6 +9,7 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  growAround,
   inRect,
   lerp,
   roundRect,
@@ -258,8 +259,11 @@ export function createBlankRoom(onEscaped: () => void): Room {
     ctx.restore();
   }
 
+  // GIGANTIC: these four aren't the room, so they're what goes giant, each
+  // growing up from where it stands. blankFade's save and restore undo it.
   function drawRug(alpha: number): void {
     blankFade(alpha, () => {
+      growAround(W / 2, 520);
       ctx.fillStyle = "#b8524f";
       ctx.beginPath();
       ctx.ellipse(W / 2, 520, 260, 60, 0, 0, Math.PI * 2);
@@ -274,6 +278,7 @@ export function createBlankRoom(onEscaped: () => void): Room {
 
   function drawShelf(alpha: number): void {
     blankFade(alpha, () => {
+      growAround(BACK.left + 105, 302);
       ctx.fillStyle = "#9a7b52";
       ctx.fillRect(BACK.left + 30, 250, 150, 12);
       ctx.fillStyle = "#7c6241";
@@ -290,6 +295,7 @@ export function createBlankRoom(onEscaped: () => void): Room {
 
   function drawLamp(alpha: number): void {
     blankFade(alpha, () => {
+      growAround(BACK.right - 120, 417);
       const x = BACK.right - 120;
       ctx.fillStyle = "#6f6a63";
       ctx.fillRect(x - 4, 300, 8, 110);
@@ -314,6 +320,7 @@ export function createBlankRoom(onEscaped: () => void): Room {
 
   function drawPlant(alpha: number): void {
     blankFade(alpha, () => {
+      growAround(BACK.left + 70, 452);
       const x = BACK.left + 70;
       ctx.fillStyle = "#b07a4e";
       ctx.beginPath();

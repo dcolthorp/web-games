@@ -1,4 +1,10 @@
-export {};
+import { isGigantic } from "../../shared/bigGames";
+
+// GIGANTIC Feed Your Fire: your fire stays its normal size; the log, the
+// sparks, the city, the rain and everything else go giant.
+const GIGANTIC = isGigantic("feed-your-fire");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) document.title = "GIGANTIC Feed Your Fire";
 
 interface Gasoline {
   id: string;
@@ -82,7 +88,7 @@ surrenderBtn.addEventListener("click", () => {
   }
 });
 
-type Mode = "play" | "takeover" | "boss" | "watering" | "ending";
+type Mode = "play" | "takeover" | "boss" | "watering" | "ending" | "kaboom";
 
 interface WaterDrop {
   x: number;
@@ -345,6 +351,9 @@ function startTakeover() {
 function startBoss() {
   state.mode = "boss";
   state.modeTimer = 0;
+  // Whatever it was doing, it's back on the stick to be eaten.
+  marshmallow.flying = -1;
+  chomped = false;
   state.bossHp = BOSS_MAX_HP;
   state.bossMaxHp = BOSS_MAX_HP;
   state.bossShake = 0;
@@ -499,6 +508,12 @@ function tick(now: number) {
     p.y += p.vy * dt;
   }
 
+  if (state.mode === "play") updateMarshmallow(dt);
+  if (state.mode === "kaboom") {
+    updateKaboom(dt);
+    if (state.modeTimer >= KABOOM_DURATION) endKaboom();
+  }
+
   // mode transitions
   if (state.mode === "takeover" && state.modeTimer >= TAKEOVER_DURATION) {
     startBoss();
@@ -620,6 +635,10 @@ function draw() {
     drawEnding();
     return;
   }
+  if (state.mode === "kaboom") {
+    drawKaboom();
+    return;
+  }
 
   drawPlay();
 }
@@ -632,6 +651,7 @@ function drawPlay() {
   // Log / floor
   ctx.save();
   ctx.translate(cx, cy + 40);
+  ctx.scale(GIANT, GIANT);
   ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.beginPath();
   ctx.ellipse(0, 12, 140, 18, 0, 0, Math.PI * 2);
@@ -643,6 +663,8 @@ function drawPlay() {
     ctx.fillRect(i, -6, 2, 18);
   }
   ctx.restore();
+
+  drawMarshmallow(t);
 
   // Fire core
   const lvl = state.level;
@@ -730,13 +752,429 @@ function drawPlay() {
   drawFloatingTexts();
 }
 
+// A marshmallow on a stick, held over the fire from off the screen. It toasts
+// slowly, then burns, then catches fire, then falls off the stick and lands in
+// the gasoline shop. A GIGANTIC one blows the shop up; a normal one is too
+// small to do anything.
+const TOAST_SECONDS = 45;
+const BURN_SECONDS = 4;
+const FLIGHT_SECONDS = 1.1;
+const marshmallow = { toast: 0, burning: 0, flying: -1, warned: 0 };
+
+// White, then golden, then brown, then burnt black.
+const TOAST_COLORS: [number, [number, number, number]][] = [
+  [0, [255, 247, 234]],
+  [0.35, [242, 196, 109]],
+  [0.65, [154, 90, 38]],
+  [0.85, [58, 36, 22]],
+  [1, [20, 16, 16]],
+];
+
+function toastColor(toast: number): string {
+  for (let i = 1; i < TOAST_COLORS.length; i++) {
+    const [to, end] = TOAST_COLORS[i]!;
+    const [from, start] = TOAST_COLORS[i - 1]!;
+    if (toast <= to) {
+      const k = (toast - from) / (to - from);
+      const mix = start.map((c, j) => Math.round(c + (end[j]! - c) * k));
+      return `rgb(${mix.join(",")})`;
+    }
+  }
+  return "rgb(20,16,16)";
+}
+
+function updateMarshmallow(dt: number) {
+  if (marshmallow.flying >= 0) {
+    marshmallow.flying += dt;
+    const { x, y } = marshmallowSpot();
+    fireTrail(x, y, 3);
+    if (marshmallow.flying >= FLIGHT_SECONDS) {
+      if (GIGANTIC) startKaboom();
+      else fizzle();
+    }
+    return;
+  }
+  if (marshmallow.toast < 1) {
+    // A bigger fire toasts it faster.
+    marshmallow.toast = Math.min(1, marshmallow.toast + (dt * (1 + (state.level - 1) * 0.15)) / TOAST_SECONDS);
+    const warnings: [number, string][] = [
+      [0.35, "🍡 The marshmallow is getting toasty…"],
+      [0.65, "🍡 Mmm, golden brown. Maybe take it out?"],
+      [0.85, "🍡 It's burning…"],
+      [1, "🔥 THE MARSHMALLOW IS ON FIRE!"],
+    ];
+    const next = warnings[marshmallow.warned];
+    if (next && marshmallow.toast >= next[0]) {
+      showToast(next[1], 2600);
+      marshmallow.warned += 1;
+    }
+    return;
+  }
+  marshmallow.burning += dt;
+  if (marshmallow.burning >= BURN_SECONDS) {
+    marshmallow.flying = 0;
+    showToast("😱 It fell off the stick!", 1600);
+  }
+}
+
+// Secret: type "boom" and the marshmallow skips straight to being on fire.
+const BOOM_WORD = "boom";
+let typedBoom = "";
+window.addEventListener("keydown", (event) => {
+  if (event.key.length !== 1) return;
+  typedBoom = (typedBoom + event.key.toLowerCase()).slice(-BOOM_WORD.length);
+  if (typedBoom !== BOOM_WORD || state.mode !== "play" || marshmallow.flying >= 0) return;
+  typedBoom = "";
+  marshmallow.toast = 1;
+  marshmallow.warned = 4;
+  marshmallow.burning = BURN_SECONDS - 0.8;
+  showToast("🔥 BOOM? Okay then.", 1200);
+});
+
+function stickTip(t: number): { x: number; y: number } {
+  const sway = Math.sin(t * 0.8) * 10;
+  return { x: canvasWidth / 2 + 150, y: canvasHeight * 0.62 - 170 + sway };
+}
+
+// Where the shop is on the screen, which is where the marshmallow is headed.
+function shopSpot(): { x: number; y: number } {
+  const rect = shopWrap.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+// On the stick, or partway along its flight into the shop.
+function marshmallowSpot(): { x: number; y: number } {
+  const tip = stickTip(performance.now() / 1000);
+  if (marshmallow.flying < 0) return tip;
+  const k = Math.min(1, marshmallow.flying / FLIGHT_SECONDS);
+  const shop = shopSpot();
+  return {
+    x: tip.x + (shop.x - tip.x) * k,
+    y: tip.y + (shop.y - tip.y) * k - Math.sin(k * Math.PI) * 220,
+  };
+}
+
+function fireTrail(x: number, y: number, n: number) {
+  for (let i = 0; i < n; i++) {
+    state.particles.push({
+      x: x + (Math.random() - 0.5) * 40 * GIANT,
+      y: y + (Math.random() - 0.5) * 30 * GIANT,
+      vx: (Math.random() - 0.5) * 60,
+      vy: -40 - Math.random() * 80,
+      life: 0,
+      maxLife: 0.4 + Math.random() * 0.5,
+      size: 3 + Math.random() * 4,
+      hue: 20 + Math.random() * 30,
+      rainbow: false,
+    });
+  }
+}
+
+function drawMarshmallow(t: number) {
+  const tip = stickTip(t);
+  ctx.save();
+  ctx.strokeStyle = "#6b4426";
+  ctx.lineWidth = 8 * GIANT;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(canvasWidth + 40, tip.y - 160);
+  ctx.lineTo(tip.x, tip.y);
+  ctx.stroke();
+  ctx.restore();
+  // Once it's in the shop there's nothing left on the stick.
+  if (marshmallow.flying >= FLIGHT_SECONDS) return;
+
+  const { x, y } = marshmallowSpot();
+  const spin = marshmallow.flying >= 0 ? marshmallow.flying * 9 : 0;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.25 + spin);
+  ctx.fillStyle = toastColor(marshmallow.toast);
+  ctx.strokeStyle = marshmallow.toast > 0.6 ? "#1d120b" : "#e8c9a0";
+  ctx.lineWidth = 3 * GIANT;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 26 * GIANT, 20 * GIANT, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // The side nearest the fire toasts first.
+  ctx.fillStyle = `rgba(90, 45, 15, ${0.35 + marshmallow.toast * 0.5})`;
+  ctx.beginPath();
+  ctx.ellipse(-8 * GIANT, 10 * GIANT, 14 * GIANT, 8 * GIANT, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Smoke once it starts to burn.
+  if (marshmallow.toast > 0.7) {
+    const puffs = Math.round((marshmallow.toast - 0.7) * 20);
+    for (let i = 0; i < puffs; i++) {
+      const k = (t * 0.6 + i / Math.max(1, puffs)) % 1;
+      ctx.fillStyle = `rgba(60, 60, 60, ${0.45 * (1 - k)})`;
+      ctx.beginPath();
+      ctx.arc(x + Math.sin(t * 2 + i) * 12 * GIANT, y - 20 * GIANT - k * 90 * GIANT, (6 + k * 14) * GIANT, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // And then it catches fire.
+  if (marshmallow.toast >= 1) {
+    const size = Math.min(1, marshmallow.burning / 1.5 + 0.3);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) {
+      const fx = x + (i - 2) * 9 * GIANT;
+      const h = (34 + Math.sin(t * 13 + i * 2) * 8) * GIANT * size;
+      const w = 12 * GIANT * size;
+      const g = ctx.createLinearGradient(fx, y - h, fx, y);
+      g.addColorStop(0, "rgba(255, 240, 150, 0)");
+      g.addColorStop(0.4, "rgba(255, 170, 40, 0.9)");
+      g.addColorStop(1, "rgba(255, 70, 0, 0.9)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(fx, y - h);
+      ctx.bezierCurveTo(fx + w, y - h * 0.5, fx + w, y, fx, y + 4 * GIANT);
+      ctx.bezierCurveTo(fx - w, y, fx - w, y - h * 0.5, fx, y - h);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function resetMarshmallow() {
+  marshmallow.toast = 0;
+  marshmallow.burning = 0;
+  marshmallow.flying = -1;
+  marshmallow.warned = 0;
+}
+
+// A normal-sized marshmallow lands in the shop and... nothing. A puff of
+// smoke, a little wobble, and that's it.
+function fizzle() {
+  const shop = shopSpot();
+  for (let i = 0; i < 14; i++) {
+    state.particles.push({
+      x: shop.x + (Math.random() - 0.5) * 20,
+      y: shop.y,
+      vx: (Math.random() - 0.5) * 50,
+      vy: -20 - Math.random() * 40,
+      life: 0,
+      maxLife: 0.5 + Math.random() * 0.4,
+      size: 2 + Math.random() * 2,
+      hue: 0,
+      rainbow: false,
+    });
+  }
+  shopWrap.animate(
+    [
+      { transform: "rotate(0deg)" },
+      { transform: "rotate(-1.5deg)" },
+      { transform: "rotate(1.5deg)" },
+      { transform: "rotate(0deg)" },
+    ],
+    { duration: 300 }
+  );
+  showToast("🍡 *pff*… It was too small to do anything.", 3000);
+  resetMarshmallow();
+}
+
+// ── The gasoline shop explodes ────────────────────────────────────────────
+
+const KABOOM_DURATION = 9;
+const shopWrap = document.querySelector(".shop-wrap") as HTMLElement;
+const appEl = document.getElementById("app") as HTMLElement;
+
+interface Debris {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  spin: number;
+  angle: number;
+  size: number;
+  color: string;
+  landed: boolean;
+}
+
+const kaboom = { x: 0, y: 0, debris: [] as Debris[] };
+
+function startKaboom() {
+  state.mode = "kaboom";
+  state.modeTimer = 0;
+  const shop = shopSpot();
+  kaboom.x = shop.x;
+  kaboom.y = shop.y;
+  kaboom.debris = [];
+  for (let i = 0; i < 90; i++) {
+    const gas = GASOLINES[i % GASOLINES.length]!;
+    // Mostly up and away from the corner the shop is in.
+    const angle = -Math.PI / 2 - Math.random() * Math.PI * 0.75 + 0.2;
+    const speed = 500 + Math.random() * 1300;
+    kaboom.debris.push({
+      x: shop.x,
+      y: shop.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      spin: (Math.random() - 0.5) * 18,
+      angle: Math.random() * Math.PI * 2,
+      size: (6 + Math.random() * 10) * GIANT,
+      color: gas.color,
+      landed: false,
+    });
+  }
+
+  // Blow the shop's own buttons off the screen.
+  shopWrap.querySelectorAll<HTMLElement>(".gas-btn, .shop h2").forEach((piece) => {
+    const dx = -200 - Math.random() * 900;
+    const dy = -300 - Math.random() * 700;
+    piece.animate(
+      [
+        { transform: "none", opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${(Math.random() - 0.5) * 1440}deg) scale(${1 + Math.random() * 2})`, opacity: 0 },
+      ],
+      { duration: 1400 + Math.random() * 800, easing: "cubic-bezier(.2,.7,.4,1)", fill: "forwards" }
+    );
+  });
+  shopWrap.querySelector<HTMLElement>(".shop")?.animate(
+    [
+      { transform: "scale(1)", opacity: 1, filter: "brightness(1)" },
+      { transform: "scale(1.3)", opacity: 1, filter: "brightness(4)", offset: 0.15 },
+      { transform: "scale(0.2) rotate(40deg)", opacity: 0, filter: "brightness(1)" },
+    ],
+    { duration: 900, fill: "forwards" }
+  );
+  appEl.animate(
+    Array.from({ length: 24 }, (_, i) => {
+      const k = 40 * (1 - i / 24);
+      return { transform: `translate(${(Math.random() - 0.5) * k}px, ${(Math.random() - 0.5) * k}px)` };
+    }),
+    { duration: 2200 }
+  );
+
+  showCutsceneText("KA-BOOOOOM!!!", "fire", 2300);
+  setTimeout(() => {
+    if (state.mode === "kaboom") showCutsceneText("The gasoline shop exploded", "fire", 2600);
+  }, 2800);
+  setTimeout(() => {
+    if (state.mode === "kaboom") showCutsceneText("Your fire is fine. Somehow.", "fire", 2400);
+  }, 5900);
+}
+
+function updateKaboom(dt: number) {
+  const ground = canvasHeight * 0.62 + 40 + 20 * GIANT;
+  for (const d of kaboom.debris) {
+    if (d.landed) continue;
+    d.vy += 1400 * dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.angle += d.spin * dt;
+    // Spilled gas lands and keeps burning in its own colour.
+    if (d.vy > 0 && d.y >= ground) {
+      d.y = ground;
+      d.landed = true;
+    }
+  }
+  if (state.modeTimer < 3) fireTrail(kaboom.x, kaboom.y, 4);
+}
+
+function endKaboom() {
+  state.mode = "play";
+  state.modeTimer = 0;
+  hideCutsceneText();
+  resetMarshmallow();
+  shopWrap.querySelectorAll<HTMLElement>(".gas-btn, .shop h2, .shop").forEach((piece) => {
+    piece.getAnimations().forEach((animation) => animation.cancel());
+  });
+  renderShop();
+  shopWrap.animate(
+    [
+      { transform: "translateY(120%)", opacity: 0 },
+      { transform: "none", opacity: 1 },
+    ],
+    { duration: 600, easing: "cubic-bezier(.2,1.4,.4,1)" }
+  );
+  showToast("🏗️ The shop has been rebuilt. Keep marshmallows away from the gasoline!", 3600);
+}
+
+function drawKaboom() {
+  const t = state.modeTimer;
+  const now = performance.now() / 1000;
+  drawPlay();
+
+  // The fireball: giant, of course.
+  const grow = Math.min(1, t / 1.1);
+  const fade = t < 2.6 ? 1 : Math.max(0, 1 - (t - 2.6) / 2);
+  const maxR = Math.hypot(canvasWidth, canvasHeight) * 0.9;
+  const r = maxR * (1 - Math.pow(1 - grow, 3));
+  if (fade > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(kaboom.x, kaboom.y, 0, kaboom.x, kaboom.y, Math.max(1, r));
+    g.addColorStop(0, `rgba(255, 255, 220, ${fade})`);
+    g.addColorStop(0.25, `rgba(255, 200, 60, ${0.9 * fade})`);
+    g.addColorStop(0.55, `rgba(255, 80, 0, ${0.7 * fade})`);
+    g.addColorStop(1, "rgba(120, 0, 0, 0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(kaboom.x, kaboom.y, Math.max(1, r), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Shockwaves.
+  for (let i = 0; i < 4; i++) {
+    const ring = t - i * 0.3;
+    if (ring <= 0 || ring > 1.6) continue;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - ring / 1.6)})`;
+    ctx.lineWidth = 6 * GIANT * (1 - ring / 1.6) + 1;
+    ctx.beginPath();
+    ctx.arc(kaboom.x, kaboom.y, ring * 1300, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Flying gas cans, and puddles of burning gas where they land.
+  for (const d of kaboom.debris) {
+    if (d.landed) {
+      const h = (14 + Math.sin(now * 12 + d.x) * 5) * GIANT * 0.6;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = d.color;
+      ctx.globalAlpha = Math.max(0, Math.min(1, (KABOOM_DURATION - t) / 1.5));
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y - h);
+      ctx.quadraticCurveTo(d.x + d.size * 0.6, d.y, d.x, d.y);
+      ctx.quadraticCurveTo(d.x - d.size * 0.6, d.y, d.x, d.y - h);
+      ctx.fill();
+      ctx.restore();
+      continue;
+    }
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.angle);
+    ctx.fillStyle = d.color;
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 2;
+    ctx.fillRect(-d.size / 2, -d.size * 0.7, d.size, d.size * 1.4);
+    ctx.strokeRect(-d.size / 2, -d.size * 0.7, d.size, d.size * 1.4);
+    ctx.fillStyle = "#222";
+    ctx.fillRect(-d.size * 0.2, -d.size * 0.95, d.size * 0.4, d.size * 0.25);
+    ctx.restore();
+  }
+
+  // The flash right at the start.
+  if (t < 0.5) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${1 - t / 0.5})`;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  }
+
+  drawParticles("#ffd27a");
+}
+
 function drawParticles(sparkColor = "#ffffff") {
   const t = performance.now() / 1000;
   ctx.globalCompositeOperation = "lighter";
   for (const p of state.particles) {
     const lifeT = p.life / p.maxLife;
     const alpha = (1 - lifeT) * 0.9;
-    const size = p.size * (1 - lifeT * 0.5);
+    const size = p.size * GIANT * (1 - lifeT * 0.5);
     if (p.rainbow) {
       ctx.fillStyle = `hsla(${(p.hue + t * 120) % 360}, 95%, 65%, ${alpha})`;
     } else {
@@ -750,7 +1188,7 @@ function drawParticles(sparkColor = "#ffffff") {
 }
 
 function drawFloatingTexts() {
-  ctx.font = "bold 18px system-ui, sans-serif";
+  ctx.font = `bold ${18 * GIANT}px system-ui, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (const f of floatingTexts) {
@@ -781,9 +1219,9 @@ function drawTakeover() {
   let bx = 0;
   while (bx < canvasWidth) {
     const bw = 30 + Math.random() * 0; // deterministic-ish
-    const bh = 40 + ((bx * 37) % 90);
-    ctx.rect(bx, groundY - bh, 28, bh);
-    bx += 32;
+    const bh = (40 + ((bx * 37) % 90)) * GIANT;
+    ctx.rect(bx, groundY - bh, 28 * GIANT, bh);
+    bx += 32 * GIANT;
   }
   ctx.fill();
   ctx.fillRect(0, groundY, canvasWidth, canvasHeight - groundY);
@@ -887,6 +1325,7 @@ function drawBoss() {
     drawEvenCreepierFace(flameW, flameH, t);
   }
   ctx.restore();
+  drawBossMarshmallow(cx, cy, flameW, flameH);
 
   // HP bar
   const barW = canvasWidth * 0.5;
@@ -909,6 +1348,82 @@ function drawBoss() {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(`THE FIRE — ${state.bossHp} / ${state.bossMaxHp}`, canvasWidth / 2, barY + barH / 2);
+}
+
+// The boss chomps the marshmallow off its stick as it arrives, and it stays
+// stuck in its teeth for the whole fight.
+const CHOMP_AT = 1.1;
+let chomped = false;
+
+function drawBossMarshmallow(cx: number, cy: number, flameW: number, flameH: number) {
+  const t = state.modeTimer;
+  const mouthW = flameW * 0.72;
+  const mouthH = flameH * 0.22;
+  const size = flameW * 0.09 * (GIGANTIC ? 2 : 1);
+  const bite = { x: cx + mouthW * 0.15, y: cy + mouthH * 0.5 };
+
+  if (t >= CHOMP_AT && !chomped) {
+    chomped = true;
+    state.bossShake = 0.5;
+  }
+
+  // The stick: in towards the mouth, then pulled back out snapped off.
+  if (t < CHOMP_AT + 0.8) {
+    const inK = Math.min(1, t / CHOMP_AT);
+    const outK = Math.max(0, (t - CHOMP_AT) / 0.8);
+    const reach = (1 - Math.pow(1 - inK, 3)) * (1 - outK * outK);
+    const startX = canvasWidth + 60;
+    const startY = cy - flameH * 0.6;
+    const tipX = startX + (bite.x - startX) * reach;
+    const tipY = startY + (bite.y - startY) * reach;
+    ctx.save();
+    ctx.strokeStyle = "#6b4426";
+    ctx.lineWidth = 8 * GIANT;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(startX + 300, startY - 160);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+    ctx.restore();
+    if (!chomped) drawMarshmallowBlob(tipX, tipY, size, -0.25);
+  }
+
+  if (!chomped) return;
+
+  // Stuck between the teeth. It wobbles when the boss gets hit.
+  const stuck = { x: cx + mouthW * 0.38, y: cy + mouthH * 0.12 };
+  drawMarshmallowBlob(stuck.x, stuck.y, size * 0.85, 0.4 + Math.sin(t * 3) * 0.08);
+
+  const chompAge = t - CHOMP_AT;
+  if (chompAge < 1) {
+    ctx.save();
+    ctx.globalAlpha = 1 - chompAge;
+    ctx.font = `900 ${Math.round(flameW * 0.3)}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 6;
+    const y = bite.y + mouthH * 1.6 - chompAge * 40;
+    ctx.strokeText("CHOMP!", cx, y);
+    ctx.fillText("CHOMP!", cx, y);
+    ctx.restore();
+  }
+}
+
+// One marshmallow, toasted however far it got before the boss showed up.
+function drawMarshmallowBlob(x: number, y: number, size: number, angle: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = toastColor(marshmallow.toast);
+  ctx.strokeStyle = marshmallow.toast > 0.6 ? "#1d120b" : "#e8c9a0";
+  ctx.lineWidth = Math.max(2, size * 0.1);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size, size * 0.78, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 // Boss face flicker: every ~0.9–1.8s, show the cute face for ~220ms.
@@ -1106,7 +1621,7 @@ function drawWatering() {
   for (let i = 0; i < 6; i++) {
     const cx = (i + 0.5) * (canvasWidth / 6);
     ctx.beginPath();
-    ctx.ellipse(cx, cloudY, 90, 38, 0, 0, Math.PI * 2);
+    ctx.ellipse(cx, cloudY, 90 * GIANT, 38 * GIANT, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -1142,11 +1657,11 @@ function drawWatering() {
 
   // Water drops
   ctx.strokeStyle = "rgba(150, 210, 255, 0.85)";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * GIANT;
   for (const d of state.waterDrops) {
     ctx.beginPath();
     ctx.moveTo(d.x, d.y);
-    ctx.lineTo(d.x - d.vx * 0.02, d.y - d.vy * 0.02);
+    ctx.lineTo(d.x - d.vx * 0.02 * GIANT, d.y - d.vy * 0.02 * GIANT);
     ctx.stroke();
   }
 
@@ -1157,7 +1672,7 @@ function drawWatering() {
     const alpha = (1 - lifeT) * 0.4;
     ctx.fillStyle = `rgba(220, 230, 240, ${alpha})`;
     ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.arc(s.x, s.y, s.size * GIANT, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalCompositeOperation = "source-over";
@@ -1175,7 +1690,7 @@ function drawEnding() {
   // Sun
   ctx.fillStyle = "#fff5d0";
   ctx.beginPath();
-  ctx.arc(canvasWidth * 0.5, canvasHeight * 0.45, 60, 0, Math.PI * 2);
+  ctx.arc(canvasWidth * 0.5, canvasHeight * 0.45, 60 * GIANT, 0, Math.PI * 2);
   ctx.fill();
 
   // Ground
@@ -1186,40 +1701,48 @@ function drawEnding() {
   // Log
   const cx = canvasWidth / 2;
   ctx.fillStyle = "#4a2e1c";
-  ctx.fillRect(cx - 70, groundY - 8, 140, 16);
+  ctx.fillRect(cx - 70 * GIANT, groundY - 8 * GIANT, 140 * GIANT, 16 * GIANT);
 
-  // Tiny ember
+  // Tiny ember, sitting on top of the log however big the log is
   const t = performance.now() / 1000;
   const emberSize = 8 + Math.sin(t * 3) * 2;
+  const emberY = groundY - 8 * GIANT - 6;
   ctx.fillStyle = "#ff6633";
   ctx.beginPath();
-  ctx.arc(cx, groundY - 14, emberSize, 0, Math.PI * 2);
+  ctx.arc(cx, emberY, emberSize, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#ffd97a";
   ctx.beginPath();
-  ctx.arc(cx, groundY - 14, emberSize * 0.5, 0, Math.PI * 2);
+  ctx.arc(cx, emberY, emberSize * 0.5, 0, Math.PI * 2);
   ctx.fill();
 
   // Steam wisps
   ctx.globalCompositeOperation = "lighter";
   for (let i = 0; i < 3; i++) {
     const wave = Math.sin(t * 1.5 + i) * 8;
-    const wy = groundY - 24 - i * 20 - (t * 18) % 20;
+    const wy = emberY - 10 - (i * 20 + (t * 18) % 20) * GIANT;
     ctx.fillStyle = `rgba(255, 255, 255, ${0.18 - i * 0.04})`;
     ctx.beginPath();
-    ctx.arc(cx + wave, wy, 10 + i * 3, 0, Math.PI * 2);
+    ctx.arc(cx + wave * GIANT, wy, (10 + i * 3) * GIANT, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalCompositeOperation = "source-over";
 
   // Text
   ctx.fillStyle = "#3a1a0a";
-  ctx.font = "bold 32px system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  // Giant words still have to fit on the screen.
+  let words = 32 * GIANT;
+  ctx.font = `bold ${words}px system-ui, sans-serif`;
+  const fits = (canvasWidth * 0.95) / ctx.measureText("The fire is at peace.").width;
+  if (fits < 1) {
+    words = Math.max(32, words * fits);
+    ctx.font = `bold ${words}px system-ui, sans-serif`;
+  }
   ctx.fillText("The fire is at peace.", cx, canvasHeight * 0.25);
-  ctx.font = "16px system-ui, sans-serif";
-  ctx.fillText("…for now.", cx, canvasHeight * 0.25 + 36);
+  ctx.font = `${words / 2}px system-ui, sans-serif`;
+  ctx.fillText("…for now.", cx, canvasHeight * 0.25 + words + 4);
 }
 
 function hexAlpha(hex: string, alpha: number): string {
@@ -1234,7 +1757,8 @@ const restored = loadGame();
 renderShop();
 renderHud();
 checkSecretAvailability();
-hintEl.textContent = "Click the fire for coins · Buy gasoline in the shop to level up 🔥";
+hintEl.textContent = (GIGANTIC ? "GIGANTIC Feed Your Fire · " : "") +
+  "Click the fire for coins · Buy gasoline in the shop to level up 🔥";
 if (restored) {
   showToast(`Welcome back — Level ${state.level}, 🪙${Math.floor(state.coins)}`, 2400);
 }

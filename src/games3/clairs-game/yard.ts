@@ -7,12 +7,15 @@
 import { fartImpulse, wrap, wrappedCopies } from "./physics";
 import { FRONT_YARD, type Body } from "./bodies";
 import { playFart } from "./sfx";
+import { isGigantic } from "../../shared/bigGames";
 
 const MAX_CHARGE = 1.15;
 const MIN_PUSH = 200;
 const MAX_PUSH = 880;
 const AIM_SPEED = 3.1;
 const PLAYER_R = 15;
+/** GIGANTIC: you stay normal size; the clouds, stars, code and gas go giant. */
+const GIANT = isGigantic("clairs-game") ? 3 : 1;
 
 type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number };
 type Cloud = { x: number; y: number; r: number; drift: number; tone: number };
@@ -50,14 +53,14 @@ export function createYard(
     return Array.from({ length: 190 }, () => ({
       x: Math.random() * W,
       y: Math.random() * H,
-      r: 0.4 + Math.random() * 1.7,
+      r: (0.4 + Math.random() * 1.7) * GIANT,
       tone: 0.35 + Math.random() * 0.65,
       drift: 1 + Math.random() * 5,
     }));
   }
 
   function makeColumns(): Column[] {
-    const step = 18;
+    const step = 18 * GIANT;
     return Array.from({ length: Math.ceil(W / step) }, (_, i) => ({
       x: i * step + 4,
       y: Math.random() * H * 2 - H,
@@ -70,7 +73,7 @@ export function createYard(
     return Array.from({ length: from.hazeCount }, () => ({
       x: Math.random() * W,
       y: Math.random() * H,
-      r: 40 + Math.random() * 90,
+      r: (40 + Math.random() * 90) * GIANT,
       drift: 4 + Math.random() * 12,
       tone: 0.5 + Math.random() * 0.5,
     }));
@@ -120,7 +123,7 @@ export function createYard(
         vy: Math.sin(angle) * speed + player.vy * 0.2,
         life: 0,
         max: 0.5 + Math.random() * (0.5 + power),
-        r: 4 + Math.random() * (6 + power * 12),
+        r: (4 + Math.random() * (6 + power * 12)) * GIANT,
       });
     }
   }
@@ -152,7 +155,7 @@ export function createYard(
       puff.vy *= 0.985;
       puff.x = wrap(puff.x + puff.vx * dt, W);
       puff.y = wrap(puff.y + puff.vy * dt, H);
-      puff.r += dt * 22;
+      puff.r += dt * 22 * GIANT;
     }
 
     for (const cloud of clouds) cloud.x = wrap(cloud.x + cloud.drift * dt, W);
@@ -160,7 +163,7 @@ export function createYard(
 
     for (const column of columns) {
       column.y += column.speed * dt;
-      if (column.y - column.glyphs.length * 16 > H) {
+      if (column.y - column.glyphs.length * 16 * GIANT > H) {
         column.y = -Math.random() * H * 0.6;
         column.speed = 60 + Math.random() * 190;
       }
@@ -182,13 +185,13 @@ export function createYard(
   }
 
   function drawRain(): void {
-    context.font = "700 15px 'Courier New', monospace";
+    context.font = `700 ${15 * GIANT}px 'Courier New', monospace`;
     context.textAlign = "center";
     context.textBaseline = "middle";
     for (const column of columns) {
       for (let i = 0; i < column.glyphs.length; i += 1) {
-        const y = column.y - i * 16;
-        if (y < -20 || y > H + 20) continue;
+        const y = column.y - i * 16 * GIANT;
+        if (y < -20 * GIANT || y > H + 20 * GIANT) continue;
         const head = i === 0;
         const fade = 1 - i / column.glyphs.length;
         context.fillStyle = head ? "rgba(210, 255, 225, 0.95)" : `rgba(70, 255, 130, ${fade * 0.55})`;

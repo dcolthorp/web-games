@@ -8,6 +8,8 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  giant,
+  growAround,
   inRect,
   lerp,
   line,
@@ -939,6 +941,8 @@ export function createChalkboardRoom(escape: () => void): Room {
   }
 
   function drawCloud(x: number, y: number): void {
+    ctx.save();
+    growAround(x + 30, y);
     ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
     for (const [dx, dy, r] of [
       [0, 0, 26],
@@ -949,6 +953,7 @@ export function createChalkboardRoom(escape: () => void): Room {
       ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
   }
 
   function drawSpike(x: number): void {
@@ -1001,7 +1006,7 @@ export function createChalkboardRoom(escape: () => void): Room {
     ctx.fillRect(0, 0, W, GROUND_Y);
     ctx.fillStyle = "#fff4b0";
     ctx.beginPath();
-    ctx.arc(780, 130, 40, 0, Math.PI * 2);
+    ctx.arc(780, 130, 40 * giant(), 0, Math.PI * 2);
     ctx.fill();
 
     // Clouds and hills go by slower than the grass, so they look far away.

@@ -1,3 +1,5 @@
+import { markFound } from "../../shared/bigGames";
+markFound("clairs-game");
 /**
  * Claire's game. Three kinds of place: the front yard you start in, Farttopia,
  * which is a city you walk around, and the planets — which are the yard's
@@ -14,6 +16,7 @@ import { playWarp } from "./sfx";
 import { WORLDS } from "./worlds";
 import { createYard } from "./yard";
 import { BREAK_POINT, fartsInWindow, formatVelocity, prune, velocityFor } from "./velocity";
+import { isGigantic } from "../../shared/bigGames";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#farttopia")!;
 const context = canvas.getContext("2d")!;
@@ -33,6 +36,15 @@ const velocityRate = document.querySelector<HTMLElement>("#velocity-rate")!;
 
 const W = canvas.width;
 const H = canvas.height;
+
+// GIGANTIC Claire's Game: the heading names the world you're in, so GIGANTIC
+// goes in the line above it. yard.ts and city.ts make the world giant.
+if (isGigantic("clairs-game")) {
+  document.title = "GIGANTIC Claire's Game";
+  const eyebrow = document.querySelector<HTMLElement>(".clairs-eyebrow");
+  if (eyebrow) eyebrow.textContent = "GIGANTIC Claire's Game";
+  document.body.classList.add("gigantic");
+}
 
 /** Long enough to see the flash, short enough to spam the button. */
 const WARP_MS = 520;

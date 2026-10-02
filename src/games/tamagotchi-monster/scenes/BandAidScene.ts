@@ -5,6 +5,7 @@ import { getBackgroundColor, getTextColor, getAccentColor, isNu11Mode } from "..
 import { rgb } from "../systems/utils";
 import { drawPet } from "../graphics/Sprites";
 import { drawNu11Background } from "../graphics/Nu11Background";
+import { GIANT } from "../gigantic";
 import { Button } from "../ui/Button";
 
 export class BandAidScene implements Scene {
@@ -80,8 +81,13 @@ export class BandAidScene implements Scene {
     const title = isSpookyMedical(this.stage, this.theme) ? "Patch It Up!" : "Time for a Band-Aid!";
     ctx.fillText(title, 400, 40);
     drawPet(ctx, this.stage, 400, 240, 100, { theme: this.theme, mood: this.isComplete ? "happy" : "sad" });
+    ctx.save();
+    ctx.translate(450, 200);
+    ctx.scale(GIANT, GIANT);
+    ctx.translate(-450, -200);
     if (!this.isComplete) drawOuchie(ctx, 450, 200);
     if (this.currentStep >= 1 || this.isComplete) drawBandaid(ctx, 450, 200, this.bandaidStyle.color);
+    ctx.restore();
 
     ctx.fillStyle = rgb(getAccentColor(this.stage, this.theme));
     ctx.font = "20px system-ui, sans-serif";

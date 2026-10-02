@@ -1,4 +1,14 @@
-export {};
+import { isGigantic } from "../../shared/bigGames";
+
+// GIGANTIC: the hero and the walkers stay normal size; the sun, the hills,
+// the moons, the cap and the spooky words go giant. Platforms keep their size
+// so every jump is still the same jump.
+const GIGANTIC = isGigantic("game-time");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  const heading = document.getElementById("secret-title");
+  if (heading) heading.textContent = "GIGANTIC 2D MARIO ODYSSEY";
+}
 
 interface Platform { x: number; y: number; width: number; height: number }
 interface Moon { x: number; y: number; collected: boolean }
@@ -72,7 +82,7 @@ function reveal(): void {
   if (!game || game.classList.contains("revealed")) return;
   game.classList.add("revealed");
   game.setAttribute("aria-hidden", "false");
-  document.title = "2D Mario Odyssey";
+  document.title = GIGANTIC ? "GIGANTIC 2D Mario Odyssey" : "2D Mario Odyssey";
   window.dispatchEvent(new Event("secret-game-revealed"));
   window.setTimeout(() => startButton?.focus(), 450);
 }
@@ -184,7 +194,8 @@ function update(delta: number, timestamp: number): void {
     }
   }
   for (const moon of moons) {
-    if (!moon.collected && Math.hypot(player.x + 15 - moon.x, player.y + 20 - moon.y) < 42) {
+    // A giant moon is grabbed anywhere on its giant body.
+    if (!moon.collected && Math.hypot(player.x + 15 - moon.x, player.y + 20 - moon.y) < 20 + 22 * GIANT) {
       moon.collected = true;
       moonCount += 1;
       updateHud();
@@ -194,7 +205,7 @@ function update(delta: number, timestamp: number): void {
     if (!enemy.alive) continue;
     enemy.x += enemy.direction * 65 * delta;
     if (enemy.x < enemy.minX || enemy.x > enemy.maxX) enemy.direction *= -1;
-    if (cap.active && Math.hypot(cap.x - enemy.x, cap.y - enemy.y) < 34) enemy.alive = false;
+    if (cap.active && Math.hypot(cap.x - enemy.x, cap.y - enemy.y) < 16 + 18 * GIANT) enemy.alive = false;
     if (Math.abs(player.x + 15 - enemy.x) < 28 && Math.abs(player.y + 28 - enemy.y) < 35) hurt(timestamp);
   }
   if (moonCount === moons.length && player.x > WORLD_WIDTH - 150) finish(true);
@@ -211,38 +222,46 @@ function draw(timestamp: number): void {
   ctx.fillStyle = skies[kingdom]!;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = kingdom === KINGDOM_COUNT - 1 ? "#d9c9d8" : "#fffbd1";
-  ctx.beginPath(); ctx.arc(780, 90, 46, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(780, 90, 46 * GIANT, 0, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.translate(-cameraX, 0);
   const visibleLeft = cameraX - 280;
   const visibleRight = cameraX + canvas.width + 280;
   // Each kingdom has its own skyline instead of one stretched environment.
-  for (let x = 0; x < KINGDOM_WIDTH; x += 240) {
+  // The scenery is drawn grown up out of the ground, so GIANT makes it giant.
+  ctx.save();
+  ctx.translate(0, GROUND_Y);
+  ctx.scale(GIANT, GIANT);
+  ctx.translate(0, -GROUND_Y);
+  const sceneryStart = (kingdomStart: number): number => kingdomStart / GIANT;
+  const sceneryEnd = (kingdomStart: number): number => (kingdomStart + KINGDOM_WIDTH) / GIANT;
+  for (let x = sceneryStart(0); x < sceneryEnd(0); x += 240) {
     ctx.fillStyle = x % 480 ? "#5ebf68" : "#3d9b62";
     ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 110, 260 - (x % 70)); ctx.lineTo(x + 230, GROUND_Y); ctx.fill();
   }
-  for (let x = KINGDOM_WIDTH; x < KINGDOM_WIDTH * 2; x += 260) {
+  for (let x = sceneryStart(KINGDOM_WIDTH); x < sceneryEnd(KINGDOM_WIDTH); x += 260) {
     ctx.fillStyle = x % 520 ? "#d98d40" : "#c77a36";
     ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.quadraticCurveTo(x + 130, 260 - (x % 55), x + 255, GROUND_Y); ctx.fill();
     ctx.fillStyle = "#8b5938"; ctx.fillRect(x + 105, 300, 28, 150);
     ctx.beginPath(); ctx.moveTo(x + 75, 300); ctx.lineTo(x + 120, 235); ctx.lineTo(x + 164, 300); ctx.fill();
   }
-  for (let x = KINGDOM_WIDTH * 2; x < KINGDOM_WIDTH * 3; x += 150) {
+  for (let x = sceneryStart(KINGDOM_WIDTH * 2); x < sceneryEnd(KINGDOM_WIDTH * 2); x += 150) {
     const height = 150 + (x % 260);
     ctx.fillStyle = x % 300 ? "#34314d" : "#27243d";
     ctx.fillRect(x, GROUND_Y - height, 125, height);
     ctx.fillStyle = "#ffd56a"; ctx.fillRect(x + 25, GROUND_Y - height + 30, 16, 22);
   }
-  for (let x = KINGDOM_WIDTH * 3; x < KINGDOM_WIDTH * 4; x += 230) {
+  for (let x = sceneryStart(KINGDOM_WIDTH * 3); x < sceneryEnd(KINGDOM_WIDTH * 3); x += 230) {
     ctx.fillStyle = x % 460 ? "#d8f2f4" : "#b7dce5";
     ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 100, 210 - (x % 80)); ctx.lineTo(x + 220, GROUND_Y); ctx.fill();
   }
-  for (let x = KINGDOM_WIDTH * 4; x < WORLD_WIDTH; x += 250) {
+  for (let x = sceneryStart(KINGDOM_WIDTH * 4); x < sceneryEnd(KINGDOM_WIDTH * 4); x += 250) {
     const height = 120 + (x % 180);
     ctx.fillStyle = x % 500 ? "#271528" : "#35162b";
     ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 80, GROUND_Y - height); ctx.lineTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 240, GROUND_Y); ctx.fill();
     ctx.strokeStyle = "rgba(242,205,232,.28)"; ctx.beginPath(); ctx.moveTo(x + 125, GROUND_Y - height - 70); ctx.lineTo(x + 105, GROUND_Y); ctx.stroke();
   }
+  ctx.restore();
   for (const platform of platforms) {
     if (platform.x + platform.width < visibleLeft || platform.x > visibleRight) continue;
     const platformKingdom = Math.min(KINGDOM_COUNT - 1, Math.floor(platform.x / KINGDOM_WIDTH));
@@ -256,6 +275,7 @@ function draw(timestamp: number): void {
     ctx.save(); ctx.translate(moon.x, moon.y); ctx.rotate(-0.25 + Math.sin(timestamp / 500) * 0.08);
     ctx.shadowColor = "#fff5a8"; ctx.shadowBlur = 18; ctx.fillStyle = "#ffe66d";
     ctx.beginPath();
+    ctx.scale(GIANT, GIANT);
     ctx.arc(0, 0, 22, 0, Math.PI * 2);
     ctx.arc(9, -7, 19, 0, Math.PI * 2, true);
     ctx.fill("evenodd"); ctx.restore();
@@ -268,8 +288,8 @@ function draw(timestamp: number): void {
     ctx.fillStyle = "#fff"; ctx.fillRect(enemy.x - 9, enemy.y - 10, 6, 7); ctx.fillRect(enemy.x + 4, enemy.y - 10, 6, 7);
   }
   if (cap.active) {
-    ctx.fillStyle = "#ef344d"; ctx.beginPath(); ctx.ellipse(cap.x, cap.y, 18, 6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fff"; ctx.fillRect(cap.x - 7, cap.y - 8, 14, 5);
+    ctx.fillStyle = "#ef344d"; ctx.beginPath(); ctx.ellipse(cap.x, cap.y, 18 * GIANT, 6 * GIANT, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.fillRect(cap.x - 7 * GIANT, cap.y - 8 * GIANT, 14 * GIANT, 5 * GIANT);
   }
   const blinking = timestamp < player.invulnerableUntil && Math.floor(timestamp / 90) % 2 === 0;
   if (!blinking) {
@@ -280,7 +300,7 @@ function draw(timestamp: number): void {
   }
   if (progress > 0.78) {
     ctx.fillStyle = `rgba(255,240,245,${0.12 + Math.sin(timestamp / 300) * 0.05})`;
-    ctx.font = "bold 54px monospace";
+    ctx.font = `bold ${54 * GIANT}px monospace`;
     const words = ["TURN BACK", "IT KNOWS", "KEEP GOING"];
     for (let i = 0; i < 5; i += 1) ctx.fillText(words[i % words.length]!, cameraX + 170 + i * 390, 100 + (i % 3) * 105);
   }

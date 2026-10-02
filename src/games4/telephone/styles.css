@@ -179,3 +179,64 @@
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+
+/* GIGANTIC Telephone: everything about the phone goes giant, but the people
+   in the players list stay their normal size. */
+body.gigantic h1 {
+  font-size: clamp(5rem, 17vw, 18rem);
+  overflow-wrap: anywhere;
+}
+
+body.gigantic .eyebrow,
+body.gigantic .subtitle {
+  max-width: none;
+  font-size: 3rem;
+}
+
+body.gigantic .section-header h2 {
+  font-size: clamp(4rem, 11vw, 8rem);
+  overflow-wrap: anywhere;
+}
+
+body.gigantic .section-copy,
+body.gigantic .tele-hint {
+  font-size: 2.6rem;
+}
+
+body.gigantic .tele-form {
+  gap: 24px;
+  max-width: none;
+}
+
+body.gigantic .tele-label {
+  font-size: 2.6rem;
+}
+
+body.gigantic .tele-input,
+body.gigantic .tele-toggle-option,
+body.gigantic .tele-button {
+  padding: 24px 28px;
+  border-width: 8px;
+  font-size: clamp(2rem, 6vw, 3.4rem);
+}
+
+body.gigantic .tele-toggle {
+  gap: 20px;
+}
+
+body.gigantic .tele-word,
+body.gigantic .tele-result {
+  font-size: clamp(3rem, 10vw, 5rem);
+}
+
+body.gigantic .tele-mic {
+  width: min(480px, 80vw);
+  height: min(480px, 80vw);
+  border-width: 16px;
+  font-size: min(10rem, 26vw);
+}
+
+/* The players are the main stuff, so they keep their usual size. */
+body.gigantic .tele-players li {
+  font-size: 1rem;
+}

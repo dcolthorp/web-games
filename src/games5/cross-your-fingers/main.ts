@@ -1,5 +1,6 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 import {
   COIN_VALUES,
   COLS,
@@ -36,6 +37,18 @@ const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
 const W = canvas.width;
 const H = canvas.height;
 const caption = document.getElementById("caption");
+
+// GIGANTIC Cross Your Fingers: the little guy stays little, and everything else
+// goes giant. The land keeps its shape, so he can still jump everything, but
+// it's drawn as blocks three tiles across, and the coins and clouds are huge.
+const GIGANTIC = isGigantic("cross-your-fingers");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Cross Your Fingers";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Cross Your Fingers";
+}
+const COIN_RADIUS = 8 * GIANT;
 
 let piece: Piece = makePiece(Math.floor(Math.random() * 1000000));
 let walker: Walker = newWalker(piece.spawnX, piece.spawnY);
@@ -113,7 +126,8 @@ function collectCoins(): void {
     if (coin.taken) continue;
     const middleX = coin.x * TILE;
     const middleY = coin.y * TILE;
-    const near = Math.hypot(middleX - walker.x, middleY - (walker.y - HEIGHT / 2)) < TILE * 0.9;
+    // A giant coin is grabbed as soon as he touches the edge of it.
+    const near = Math.hypot(middleX - walker.x, middleY - (walker.y - HEIGHT / 2)) < TILE * 0.9 + COIN_RADIUS - 8;
     if (!near) continue;
     coin.taken = true;
     const worth = COIN_VALUES[coin.kind];
@@ -142,8 +156,8 @@ function drawSky(now: number): void {
   // A few clouds, drifting along slowly, different on every piece of land.
   ctx.fillStyle = "rgba(255, 255, 255, 0.16)";
   for (let cloud = 0; cloud < 5; cloud += 1) {
-    const drift = (now / 90 + cloud * 220 + piece.seed * 13) % (W + 260);
-    const x = W + 130 - drift;
+    const drift = (now / 90 + cloud * 220 + piece.seed * 13) % (W + 260 * GIANT);
+    const x = W + 130 * GIANT - drift;
     const y = 50 + ((cloud * 37 + piece.seed) % 120);
     for (const [dx, dy, r] of [
       [0, 0, 26],
@@ -151,7 +165,7 @@ function drawSky(now: number): void {
       [62, 2, 24],
     ] as const) {
       ctx.beginPath();
-      ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2);
+      ctx.arc(x + dx * GIANT, y + dy * GIANT, r * GIANT, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -168,23 +182,62 @@ function drawLand(): void {
         ctx.fillStyle = "#6b4a2a";
         ctx.fillRect(left, top, TILE, TILE);
         ctx.fillStyle = "#4bb14b";
-        ctx.fillRect(left, top, TILE, 7);
+        ctx.fillRect(left, top, TILE, 7 * GIANT);
       } else if (tile === 2) {
         ctx.fillStyle = "#6b4a2a";
         ctx.fillRect(left, top, TILE, TILE);
         ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
-        ctx.fillRect(left + ((x * 7 + y * 3) % 10), top + ((y * 5) % 12), 6, 5);
+        // Kept inside the tile, so a giant speck never pokes out into the air.
+        ctx.fillRect(
+          left + Math.min((x * 7 + y * 3) % 10, TILE - 6 * GIANT),
+          top + Math.min((y * 5) % 12, TILE - 5 * GIANT),
+          6 * GIANT,
+          5 * GIANT
+        );
       } else {
         ctx.fillStyle = "#59606b";
         ctx.fillRect(left, top, TILE, TILE);
         ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-        ctx.fillRect(left + ((x * 5) % 14), top + ((y * 9) % 14), 5, 4);
+        ctx.fillRect(
+          left + Math.min((x * 5) % 14, TILE - 5 * GIANT),
+          top + Math.min((y * 9) % 14, TILE - 4 * GIANT),
+          5 * GIANT,
+          4 * GIANT
+        );
       }
       ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(left + 0.5, top + 0.5, TILE - 1, TILE - 1);
+      ctx.lineWidth = GIANT;
+      if (GIGANTIC) drawGiantSeams(x, y, tile);
+      else ctx.strokeRect(left + 0.5, top + 0.5, TILE - 1, TILE - 1);
     }
   }
+}
+
+// Gigantic land only has a seam every few tiles, so it looks like it's made of
+// huge blocks. The outline of the land is still drawn tile by tile, so what you
+// see is exactly what he bumps into.
+function drawGiantSeams(x: number, y: number, tile: number): void {
+  const left = x * TILE;
+  const top = y * TILE;
+  const edge = (otherX: number, otherY: number): boolean => tileAt(piece, otherX, otherY) !== tile;
+  ctx.beginPath();
+  if (x % GIANT === 0 || edge(x - 1, y)) {
+    ctx.moveTo(left, top);
+    ctx.lineTo(left, top + TILE);
+  }
+  if (y % GIANT === 0 || edge(x, y - 1)) {
+    ctx.moveTo(left, top);
+    ctx.lineTo(left + TILE, top);
+  }
+  if (edge(x + 1, y)) {
+    ctx.moveTo(left + TILE, top);
+    ctx.lineTo(left + TILE, top + TILE);
+  }
+  if (edge(x, y + 1)) {
+    ctx.moveTo(left, top + TILE);
+    ctx.lineTo(left + TILE, top + TILE);
+  }
+  ctx.stroke();
 }
 
 // The water goes on top of everything in the land, so whatever is under it
@@ -202,14 +255,14 @@ function drawWater(now: number): void {
 
   // A wave along the top of the water.
   ctx.strokeStyle = "rgba(190, 235, 255, 0.55)";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * GIANT;
   ctx.beginPath();
   for (let x = 0; x <= COLS; x += 1) {
     if (tileAt(piece, Math.min(x, COLS - 1), piece.waterLevel) !== WATER) continue;
-    const wave = Math.sin(now / 400 + x / 2) * 2.5;
+    const wave = Math.sin(now / 400 + x / 2) * 2.5 * GIANT;
     const left = x * TILE;
     ctx.moveTo(left, piece.waterLevel * TILE + wave);
-    ctx.lineTo(left + TILE, piece.waterLevel * TILE + Math.sin(now / 400 + (x + 1) / 2) * 2.5);
+    ctx.lineTo(left + TILE, piece.waterLevel * TILE + Math.sin(now / 400 + (x + 1) / 2) * 2.5 * GIANT);
   }
   ctx.stroke();
 }
@@ -219,19 +272,19 @@ function drawCoins(now: number): void {
     if (coin.taken) continue;
     const look = COIN_LOOKS[coin.kind];
     const x = coin.x * TILE;
-    const y = coin.y * TILE + Math.sin(now / 320 + coin.x) * 3;
+    const y = coin.y * TILE + Math.sin(now / 320 + coin.x) * 3 * GIANT;
     const squash = Math.abs(Math.cos(now / 400 + coin.x)) * 0.75 + 0.25;
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(squash, 1);
     ctx.shadowColor = look.glow;
-    ctx.shadowBlur = coin.kind === "black" ? 18 : 10;
+    ctx.shadowBlur = (coin.kind === "black" ? 18 : 10) * GIANT;
     ctx.fillStyle = look.face;
     ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.arc(0, 0, COIN_RADIUS, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * GIANT;
     ctx.strokeStyle = look.edge;
     ctx.stroke();
     ctx.restore();

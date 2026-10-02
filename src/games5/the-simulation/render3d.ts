@@ -77,10 +77,12 @@ export function renderWorld(
   world: World,
   player: Player,
   sprites: Sprite[],
-  now: number
+  now: number,
+  // How high your eyes are off your feet. Lower than EYE makes the blocks loom.
+  eye = EYE
 ): void {
   const focal = W / 2 / Math.tan(FIELD_OF_VIEW / 2);
-  const eyeY = player.y + EYE;
+  const eyeY = player.y + eye;
   const sinYaw = Math.sin(player.yaw);
   const cosYaw = Math.cos(player.yaw);
   const sinPitch = Math.sin(player.pitch);

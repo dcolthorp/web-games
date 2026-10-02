@@ -7,6 +7,8 @@ import {
   drawCaption,
   drawSaw,
   drawVignette,
+  giant,
+  giantFont,
   inRect,
   roundRect,
   type Point,
@@ -281,7 +283,7 @@ export function createPosterBonus(leave: () => void): BonusLevel {
   }
 
   function drawFloaters(now: number): void {
-    ctx.font = `bold 18px ${COMIC_FONT}`;
+    ctx.font = `bold ${18 * giant()}px ${COMIC_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 4;
@@ -297,7 +299,7 @@ export function createPosterBonus(leave: () => void): BonusLevel {
   }
 
   function shout(text: string, y: number, font: string, color: string): void {
-    ctx.font = font;
+    giantFont(font, text);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 6;

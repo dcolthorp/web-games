@@ -54,6 +54,10 @@ export const COIN_VALUE = 1;
 export const BAG_VALUE = 10;
 export const DIAMOND_VALUE = 100;
 
+// GIGANTIC Police Chase turns these up from main.ts. The stickmen keep their
+// size; the loot and the chimneys go giant, hit boxes and all.
+export const GIANT_STUFF = { loot: 1, chimneyWidth: 1, chimneyHeight: 1 };
+
 export const clamp = (value: number, low: number, high: number): number =>
   value < low ? low : value > high ? high : value;
 
@@ -126,7 +130,10 @@ export const copRect = (cop: Cop): Rect => ({
   h: cop.h,
 });
 
-export const lootRect = (loot: Loot): Rect => ({ x: loot.x - 10, y: loot.y - 10, w: 20, h: 20 });
+export function lootRect(loot: Loot): Rect {
+  const half = 10 * GIANT_STUFF.loot;
+  return { x: loot.x - half, y: loot.y - half, w: half * 2, h: half * 2 };
+}
 
 export const chimneyRect = (chimney: Chimney): Rect => ({
   x: chimney.x,
@@ -260,8 +267,8 @@ export function ensureAhead(world: World, options: GenerateOptions): void {
       world.chimneys.push({
         x: between(world.random, start + 60, end - 60),
         y: roofY,
-        w: 34,
-        h: 52,
+        w: 34 * GIANT_STUFF.chimneyWidth,
+        h: 52 * GIANT_STUFF.chimneyHeight,
         isBonus: world.random() < BONUS_CHIMNEY_CHANCE,
       });
     }

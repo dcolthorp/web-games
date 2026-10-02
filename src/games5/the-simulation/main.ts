@@ -1,10 +1,21 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isGigantic } from "../../shared/bigGames";
 import { LETTER_MS, VOICES, speakLetter } from "./babble";
 import { createWorldGame, type WorldGame, type WorldSounds } from "./worldGame";
 
 installOofShortcut();
 installForceRefreshHotkey();
+
+// GIGANTIC The Simulation: you, the glitches and the fragments stay your size
+// and every block goes three times bigger (see worldGame.ts).
+const GIGANTIC = isGigantic("the-simulation");
+const GIANT = GIGANTIC ? 3 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC The Simulation";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC The Simulation";
+}
 
 // The Simulation. It opens on a blank screen with two people you can't see
 // talking about you. Their words type out as they say them, in made-up
@@ -410,7 +421,7 @@ function enterTheSimulation(): void {
   // Coming straight here (with #world) skips the opening, and the opening is
   // what normally wakes the sound up.
   if (!audio) startAudio();
-  worldGame = createWorldGame(ctx, W, H, worldSounds);
+  worldGame = createWorldGame(ctx, W, H, worldSounds, GIANT);
   if (caption) caption.textContent = "Inside The Simulation.";
   lockPointer();
   // Only while the dev server is running: a peek at where you are, for checking

@@ -8,6 +8,9 @@ import {
   drawDust,
   drawRoomBox,
   drawVignette,
+  giant,
+  giantFont,
+  growAround,
   lerp,
   roundRect,
   updateDust,
@@ -352,16 +355,18 @@ export function createDoorRoom(onEscaped: () => void): Room {
     const handY = lerp(HAND_HOME.y, target.y + DOOR.h / 2 - 20, out);
 
     ctx.save();
+    // The sentence is giant, so the arm out of it is too.
     ctx.strokeStyle = "#e8c9a8";
-    ctx.lineWidth = 34;
+    ctx.lineWidth = 34 * giant();
     ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(HAND_HOME.x, HAND_HOME.y);
     ctx.quadraticCurveTo(lerp(HAND_HOME.x, handX, 0.4), lerp(HAND_HOME.y, handY, 0.8), handX, handY);
     ctx.stroke();
     ctx.strokeStyle = "#d8b592";
-    ctx.lineWidth = 26;
+    ctx.lineWidth = 26 * giant();
     ctx.stroke();
+    growAround(handX, handY);
 
     // The hand: a fist that opens on the way out and closes on the door.
     const grip = reaching ? clamp((t - 0.35) / 0.2, 0, 1) : 0;
@@ -401,12 +406,14 @@ export function createDoorRoom(onEscaped: () => void): Room {
               ? "It will do that every time."
               : "Stop going near the door. Go and read the sentence.";
     if (!text) return;
-    ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
+    giantFont("bold 20px 'Trebuchet MS', sans-serif", text, W - 84);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const width = ctx.measureText(text).width + 44;
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-    roundRect(W / 2 - width / 2, H - 78, width, 40, 10);
+    // A giant note gets a taller box, still sitting on the same line.
+    const tall = 40 + (giant() - 1) * 20;
+    roundRect(W / 2 - width / 2, H - 58 - tall / 2, width, tall, 10);
     ctx.fill();
     ctx.fillStyle = stage === "safe" ? "#7dffb0" : "#ffcf5a";
     ctx.fillText(text, W / 2, H - 58);

@@ -11,6 +11,7 @@ import {
   WINDOW_WIDTH,
 } from "./constants";
 import { drawGame } from "./draw";
+import { SHAPES, type EntityKind } from "./entities";
 import { laneChange, newGame, pressJump, step, type Controls, type Game, type ModeName } from "./game";
 import {
   buy,
@@ -25,6 +26,7 @@ import {
   type ItemType,
   type Profile,
 } from "./shop";
+import { isGigantic } from "../../shared/bigGames";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -32,6 +34,29 @@ const context = canvas.getContext("2d");
 if (!context) throw new Error("no 2d context");
 // Named again so every helper below knows it's really there.
 const ctx: CanvasRenderingContext2D = context;
+
+// GIGANTIC Ground Jumper: the jumper stays its normal size and the world goes
+// giant. Walls grow into towers (you dodge those by lane anyway) and the
+// treasure gets huge. Blocks, spikes and holes keep their size, because you
+// have to be able to jump them.
+const GIGANTIC = isGigantic("ground-jumper");
+const GIANT = GIGANTIC ? 3 : 1;
+const TITLE = GIGANTIC ? "GIGANTIC Ground Jumper" : "Ground Jumper";
+if (GIGANTIC) {
+  const towers: EntityKind[] = ["wall", "longWall", "movingWall", "disguisedWall"];
+  for (const kind of towers) {
+    SHAPES[kind].height *= GIANT;
+    SHAPES[kind].width *= 2;
+  }
+  const treasure: EntityKind[] = ["coin", "dollar", "diamond", "mystery", "heart", "rainbow"];
+  for (const kind of treasure) {
+    SHAPES[kind].width *= GIANT;
+    SHAPES[kind].height *= GIANT;
+  }
+  document.title = TITLE;
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = TITLE;
+}
 
 type Scene = "menu" | "reveal" | "playing" | "gameOver" | "dressingRoom";
 
@@ -270,9 +295,9 @@ function drawMenu(): void {
 
   ctx.textBaseline = "top";
   ctx.textAlign = "center";
-  ctx.font = "56px monospace";
+  ctx.font = `${GIGANTIC ? 64 : 56}px monospace`;
   ctx.fillStyle = "#f0f0f0";
-  ctx.fillText("Ground Jumper", WINDOW_WIDTH / 2, 140);
+  ctx.fillText(TITLE, WINDOW_WIDTH / 2, GIGANTIC ? 120 : 140);
 
   const options = menuOptions();
   ctx.textAlign = "left";
@@ -321,7 +346,7 @@ function drawReveal(): void {
 
 function drawGameOver(): void {
   if (!game) return;
-  drawGame(ctx, game, outfitOf(profile), laneColorsOf(profile) ?? LANE_COLORS);
+  drawGame(ctx, game, outfitOf(profile), laneColorsOf(profile) ?? LANE_COLORS, GIANT);
   ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
   ctx.fillRect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
   ctx.textAlign = "center";
@@ -433,7 +458,7 @@ function frame(now: number): void {
     if (revealTime >= 3) startGame("lost_levels");
   } else if (scene === "playing" && game) {
     step(game, controls, seconds);
-    drawGame(ctx, game, outfitOf(profile), laneColorsOf(profile) ?? LANE_COLORS);
+    drawGame(ctx, game, outfitOf(profile), laneColorsOf(profile) ?? LANE_COLORS, GIANT);
     if (game.paused) drawPaused();
     if (game.over) {
       endGame();
