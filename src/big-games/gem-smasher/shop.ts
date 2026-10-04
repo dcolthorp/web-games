@@ -2,7 +2,7 @@
 // drop it under the stations to stack the order, and carry it to the gem at
 // the counter. Built the same way as the Cat Cafe in Catch the Kitties.
 
-export type Topping = "patty" | "cheese" | "lettuce" | "tomato";
+export type Topping = "patty" | "cheese" | "lettuce" | "tomato" | "bun";
 
 export interface ShopCustomerArt {
   name: string;
@@ -46,7 +46,7 @@ const H = 380;
 const COUNTER_Y = 282;
 const BUN_W = 92;
 const LAYER_H = 14;
-const MAX_LAYERS = 4;
+const TOP_BUN_H = 34;
 const DROP_MS = 600;
 const SERVE_X = 770;
 const TRASH_X = 160;
@@ -54,10 +54,11 @@ const RED = "#d6202c";
 const YELLOW = "#ffd23b";
 
 const STATIONS: Station[] = [
-  { id: "patty", name: "Lava Grill", x: 290, body: "#4a2a1a", color: "#5b3420" },
-  { id: "cheese", name: "Sulfur Slicer", x: 430, body: "#c9a10a", color: YELLOW },
-  { id: "lettuce", name: "Jade Garden", x: 570, body: "#1f8a4c", color: "#3fd17a" },
-  { id: "tomato", name: "Jasper Chopper", x: 710, body: "#9e1b1b", color: "#e8383d" },
+  { id: "patty", name: "Lava Grill", x: 260, body: "#4a2a1a", color: "#5b3420" },
+  { id: "cheese", name: "Sulfur Slicer", x: 375, body: "#c9a10a", color: YELLOW },
+  { id: "lettuce", name: "Jade Garden", x: 490, body: "#1f8a4c", color: "#3fd17a" },
+  { id: "tomato", name: "Jasper Chopper", x: 605, body: "#9e1b1b", color: "#e8383d" },
+  { id: "bun", name: "Top Buns", x: 720, body: "#a8692a", color: "#e8a85a" },
 ];
 
 // The real In-N-Out names, made out of rocks.
@@ -75,7 +76,13 @@ const TOPPING_NAMES: Record<Topping, string> = {
   cheese: "Sulfur Cheese",
   lettuce: "Jade Lettuce",
   tomato: "Jasper Tomato",
+  bun: "Top Bun",
 };
+
+// Every burger needs its top bun on last, and the top bun is taller than the
+// rest. There's no limit to how much goes in between.
+const layerHeight = (id: Topping): number => (id === "bun" ? TOP_BUN_H : LAYER_H);
+const stackHeight = (layers: Topping[]): number => layers.reduce((sum, id) => sum + layerHeight(id), 0);
 
 function rr(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | number[]): void {
   g.beginPath();
@@ -120,6 +127,8 @@ function drawTopping(g: CanvasRenderingContext2D, id: Topping, y: number): void 
     g.lineTo(-BUN_W / 2, y - LAYER_H);
     g.closePath();
     g.fill();
+  } else if (id === "bun") {
+    drawBun(g, true, y);
   } else {
     for (const x of [-26, 0, 26]) {
       g.beginPath();
@@ -182,7 +191,7 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
 
   function overBurger(p: { x: number; y: number }): boolean {
     if (!burger) return false;
-    const top = burger.y - 16 - burger.layers.length * LAYER_H - 20;
+    const top = burger.y - 16 - stackHeight(burger.layers) - 20;
     return Math.abs(p.x - burger.x) < BUN_W * 0.7 && p.y > top && p.y < burger.y + 16;
   }
 
@@ -231,13 +240,9 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
       return;
     }
     burger.y = COUNTER_Y;
-    const station = STATIONS.find((s) => Math.abs(burger!.x - s.x) < 60);
+    const station = STATIONS.find((s) => Math.abs(burger!.x - s.x) < 50);
     if (station) {
       burger.x = station.x;
-      if (burger.layers.length >= MAX_LAYERS) {
-        options.say("That burger is stacked to the top! Serve it or toss it.");
-        return;
-      }
       burger.drop = { id: station.id, start: now };
       options.say(`${TOPPING_NAMES[station.id]} coming up!`);
     }
@@ -245,7 +250,15 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
 
   function serve(now: number): void {
     if (!burger || !customer) return;
-    const right = burger.layers.length === order.recipe.length && burger.layers.every((l, i) => l === order.recipe[i]);
+    if (burger.layers[burger.layers.length - 1] !== "bun") {
+      // No top bun: it's not finished, so it stays on the counter.
+      options.say("Where's the top bun?!");
+      floaters.push({ x: customerX, y: 90, text: "Top bun?!", born: now });
+      burger.y = COUNTER_Y;
+      return;
+    }
+    const wanted: Topping[] = [...order.recipe, "bun"];
+    const right = burger.layers.length === wanted.length && burger.layers.every((l, i) => l === wanted[i]);
     if (right) {
       const message = options.onServed(customer);
       floaters.push({ x: customerX, y: 90, text: message, born: now });
@@ -261,7 +274,7 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
   function drawStation(s: Station, now: number): void {
     const busy = burger?.drop?.id === s.id;
     g.fillStyle = s.body;
-    rr(g, s.x - 56, 38, 112, 112, 14);
+    rr(g, s.x - 50, 38, 100, 112, 14);
     g.fill();
     g.strokeStyle = "rgba(0,0,0,0.3)";
     g.lineWidth = 4;
@@ -289,7 +302,7 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
     }
     g.fillStyle = busy ? "#6dff8a" : "#c9c9d6";
     g.beginPath();
-    g.arc(s.x + 40, 118, 6, 0, Math.PI * 2);
+    g.arc(s.x + 36, 118, 6, 0, Math.PI * 2);
     g.fill();
     g.fillStyle = "#fff";
     g.font = "bold 13px 'Trebuchet MS', sans-serif";
@@ -304,12 +317,16 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
     g.save();
     g.translate(b.x, b.y - (b.held ? 8 : 0));
     drawBun(g, false, 0);
-    b.layers.forEach((id, i) => drawTopping(g, id, -16 - i * LAYER_H));
+    let y = -16;
+    for (const id of b.layers) {
+      drawTopping(g, id, y);
+      y -= layerHeight(id);
+    }
     g.restore();
     // The topping falling out of the station onto the burger.
     if (b.drop) {
       const t = Math.min(1, (now - b.drop.start) / DROP_MS);
-      const landY = b.y - 16 - b.layers.length * LAYER_H;
+      const landY = b.y - 16 - stackHeight(b.layers);
       g.save();
       g.translate(b.x, 172 + (landY - 172) * t * t);
       drawTopping(g, b.drop.id, 0);
@@ -443,9 +460,10 @@ export function createShop(options: ShopOptions): { start(): void; stop(): void 
       g.fillText(`"${order.name}"`, bx + 95, 30);
       g.font = "10px 'Trebuchet MS', sans-serif";
       g.fillText("bottom to top", bx + 95, 44);
-      const step = 42;
-      const startX = bx + 95 - ((order.recipe.length - 1) * step) / 2;
-      order.recipe.forEach((id, i) => {
+      const step = 36;
+      const wanted: Topping[] = [...order.recipe, "bun"];
+      const startX = bx + 95 - ((wanted.length - 1) * step) / 2;
+      wanted.forEach((id, i) => {
         const s = STATIONS.find((st) => st.id === id)!;
         const x = startX + i * step;
         g.fillStyle = s.color;

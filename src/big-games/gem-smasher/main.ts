@@ -1,4 +1,4 @@
-import { markFound } from "../../shared/bigGames";
+import { isGigantic, markFound } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { createShop } from "./shop";
@@ -6,6 +6,16 @@ import { createShop } from "./shop";
 installOofShortcut();
 installForceRefreshHotkey();
 markFound("gem-smasher");
+
+// GIGANTIC Gem Smasher: your mallet stays its normal size and everything else
+// goes giant, the gems most of all.
+const GIGANTIC = isGigantic("gem-smasher");
+const GIANT = GIGANTIC ? 2.5 : 1;
+if (GIGANTIC) {
+  document.title = "GIGANTIC Gem Smasher";
+  const heading = document.querySelector("h1");
+  if (heading) heading.textContent = "GIGANTIC Gem Smasher";
+}
 
 // Gem Smasher: Catch the Kitties, but with gems. You're in a dark room, gems
 // pop up in random spots, and you smash them with a hammer before they fade.
@@ -147,7 +157,7 @@ const scatter = (n: number): number => {
 const SPECKS = Array.from({ length: 70 }, (_, i) => ({
   x: scatter(i + 1) * W,
   y: scatter(i + 101) * H,
-  r: 0.6 + ((i * 7) % 5) * 0.3,
+  r: (0.6 + ((i * 7) % 5) * 0.3) * GIANT,
   phase: i,
 }));
 
@@ -190,11 +200,14 @@ function pickType(): GemType {
 
 // A random spot that isn't on top of another gem or under the score.
 function spawnGem(now: number): void {
-  const size = 34 + Math.random() * 14;
+  const size = (34 + Math.random() * 14) * GIANT;
+  // Giant gems need more room, so they keep further from the edges.
+  const top = 110 + (GIANT - 1) * 40;
+  const bottom = H - 70 * GIANT;
   for (let tries = 0; tries < 20; tries++) {
-    const x = 70 + Math.random() * (W - 140);
-    const y = 110 + Math.random() * (H - 180);
-    if (gems.every((g) => Math.hypot(g.x - x, g.y - y) > 110)) {
+    const x = 70 * GIANT + Math.random() * (W - 140 * GIANT);
+    const y = top + Math.random() * (bottom - top);
+    if (gems.every((g) => Math.hypot(g.x - x, g.y - y) > 110 * GIANT)) {
       gems.push({ type: pickType(), x, y, size, stay: now < effectEnds.stay ? STAY_MS + 3000 : STAY_MS, born: now });
       break;
     }
@@ -228,7 +241,7 @@ function shatter(gem: Gem, now: number): void {
       vy: Math.sin(angle) * speed - 200,
       spin: (Math.random() - 0.5) * 14,
       angle: Math.random() * Math.PI,
-      size: 5 + Math.random() * 9,
+      size: (5 + Math.random() * 9) * GIANT,
       // A diamond breaks into every colour.
       color: gem.type.id === "diamond" ? `hsl(${Math.random() * 360}, 95%, 70%)` : [gem.type.color, gem.type.light, gem.type.dark][i % 3]!,
       born: now,
@@ -572,7 +585,7 @@ function frame(real: number): void {
     ctx.fillStyle = f.color;
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 5;
-    ctx.font = "bold 38px 'Trebuchet MS', sans-serif";
+    ctx.font = `bold ${Math.min(38 * GIANT, 70)}px 'Trebuchet MS', sans-serif`;
     ctx.textAlign = "center";
     ctx.strokeText(f.text, f.x, f.y - age * 50);
     ctx.fillText(f.text, f.x, f.y - age * 50);
@@ -730,7 +743,7 @@ shopMenu.addEventListener("click", (event) => {
 });
 
 shopButton.addEventListener("click", () => {
-  say("Welcome to Mineral-N-Crystal! Grab a bun from the BUNS stack and drag it under the stations.");
+  say("Welcome to Mineral-N-Crystal! Grab a bun from the BUNS stack, drag it under the stations, and finish it with a Top Bun.");
   renderShop();
   shopPanel.hidden = false;
   shop.start();

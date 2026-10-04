@@ -166,6 +166,7 @@ const CAN_GO_GIGANTIC = new Set([
   "telephone",
   "zero-logic-escape-rooms",
   "zero-logic-escape-rooms-2",
+  "gem-smasher",
 ]);
 const placed: Partial<Record<Letter, string>> = {};
 
