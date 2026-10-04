@@ -36,6 +36,13 @@ const games: Game[] = [
     blurb: "Solve cozy math facts, earn coins, and dress up Penelope's cat.",
   },
   {
+    id: "cats-for-kitties",
+    name: "Catch the Kitties!!!",
+    path: "../games/cats-for-kitties/index.html",
+    genre: "Net Catching",
+    blurb: "Kitties pop up in the rainbow room. Catch the rare ones for big points!",
+  },
+  {
     id: "sharks-in-the-water",
     name: "Sharks in the Water",
     menuLabel: "Sharks in the Water",

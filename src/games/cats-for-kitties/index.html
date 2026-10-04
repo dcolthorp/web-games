@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Catch the Kitties!!!</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../penelope/index.html">← Penelope's Games</a>
+      <header class="hero">
+        <p class="eyebrow">Penelope's rainbow room</p>
+        <h1>Catch the Kitties!!!</h1>
+      </header>
+
+      <section class="game-frame" aria-label="Catch the Kitties play area">
+        <canvas id="game" width="960" height="600" tabindex="0" aria-label="Catch the Kitties"></canvas>
+        <button id="cat-index-button" class="pause-button cat-index-button" type="button" aria-label="Open the Cat Index" hidden><canvas id="cat-index-pic" width="120" height="120" aria-hidden="true"></canvas></button>
+        <button id="skins-button" class="pause-button skins-button" type="button" aria-label="Open the Net Skins menu" hidden><canvas id="skins-pic" width="120" height="120" aria-hidden="true"></canvas></button>
+        <section id="skins" class="cat-index skins" aria-labelledby="skins-title" hidden>
+          <h2 id="skins-title">Net Skins</h2>
+          <p id="skins-count" class="skins-count"></p>
+          <button id="creative" class="creative-button" type="button" aria-pressed="false">Creative Mode: OFF</button>
+          <p class="creative-note">Creative Mode: every net unlocked, and kitties stay until you catch them. Nothing is saved while it is on.</p>
+          <ul id="skins-list" class="cat-index-list skins-list"></ul>
+          <button id="skins-back" class="pause-button cat-index-back" type="button">← Back</button>
+        </section>
+        <button id="cafe-button" class="pause-button cafe-button" type="button" aria-label="Open the Cat Cafe" hidden><canvas id="cafe-pic" width="120" height="120" aria-hidden="true"></canvas></button>
+        <section id="cafe" class="cat-index cafe" aria-labelledby="cafe-title" hidden>
+          <h2 id="cafe-title">Cat Cafe</h2>
+          <p id="cafe-coins" class="skins-count"></p>
+          <canvas id="cafe-scene" class="cafe-scene" width="960" height="380" aria-label="The Cat Cafe machines"></canvas>
+          <p id="cafe-notice" class="cafe-notice"></p>
+          <h3 class="cafe-menu-title">Cafe Menu</h3>
+          <div id="cafe-treats" class="cafe-treats"></div>
+          <button id="cafe-back" class="pause-button cat-index-back" type="button">← Back</button>
+        </section>
+        <section id="cat-index" class="cat-index" aria-labelledby="cat-index-title" hidden>
+          <h2 id="cat-index-title">Cat Index</h2>
+          <ul id="cat-index-list" class="cat-index-list"></ul>
+          <button id="cat-index-back" class="pause-button cat-index-back" type="button">← Back</button>
+        </section>
+      </section>
+      <button id="pause" class="pause-button" type="button" aria-pressed="false">❚❚ Pause</button>
+      <p class="help">Move the net and click (or tap) to catch the kitties before they hide!</p>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
