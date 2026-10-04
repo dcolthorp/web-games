@@ -5,6 +5,7 @@ import {
   TM_DELETED_FROM_HUB_KEY,
   drawAhegTrophyGraphic,
 } from "./shared/ahegTrophy";
+import { isDevZeroRebuilt, runDevZeroRebuild, showDevOneHello } from "./shared/devZero";
 import { initEscapedAhegPlayer } from "./shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "./shared/forceRefreshHotkey";
 import { installOofShortcut } from "./shared/oofShortcut";
@@ -36,13 +37,20 @@ function installCrashLockout(): void {
   lockout.append(heading, detail, countdown);
   document.documentElement.appendChild(lockout);
 
+  const finish = (): void => {
+    stopStatic();
+    lockout.remove();
+    revealDevTab();
+  };
+
   let remaining = CRASH_LOCKOUT_SECONDS;
   const tick = (): void => {
     countdown.textContent = String(remaining);
     if (remaining <= 0) {
       localStorage.removeItem(ZERO_BOMB_CRASH_KEY);
-      stopStatic();
-      lockout.remove();
+      // Once the countdown is over, dev.0 finally says who it is.
+      if (isDevZeroRebuilt()) finish();
+      else runDevZeroRebuild(lockout, finish);
       return;
     }
     remaining -= 1;
@@ -115,6 +123,13 @@ function playStaticHiss(): () => void {
   };
 }
 
+// Rebuilding dev.0 earns it a tab of its own, next to Penelope's.
+function revealDevTab(): void {
+  const tab = document.getElementById("dev-tab");
+  if (tab && isDevZeroRebuilt()) tab.hidden = false;
+}
+
+revealDevTab();
 installCrashLockout();
 
 interface Game {
@@ -226,6 +241,8 @@ function installHeroTitleGlitch(): void {
   if (!title) return;
 
   const realTitle = title.textContent ?? "";
+  // After dev.0 is rebuilt, the title glitches into dev.1 instead.
+  const glitchName = (): string => (isDevZeroRebuilt() ? "dev.1" : "dev.0");
   let restoreTimeout = 0;
 
   function showText(text: string, glitching: boolean): void {
@@ -233,6 +250,7 @@ function installHeroTitleGlitch(): void {
     title.textContent = text;
     title.dataset["glitchText"] = text;
     title.classList.toggle("is-glitching", glitching);
+    title.classList.toggle("is-rebuilt", glitching && isDevZeroRebuilt());
   }
 
   function runGlitchBurst(): void {
@@ -244,7 +262,7 @@ function installHeroTitleGlitch(): void {
     for (let i = 0; i < flickers; i += 1) {
       const glitched = i % 2 === 0;
       const at = elapsed;
-      window.setTimeout(() => showText(glitched ? "dev.0" : realTitle, glitched), at);
+      window.setTimeout(() => showText(glitched ? glitchName() : realTitle, glitched), at);
       // Glitched frames hold longer than the snap-backs, so dev.0 is readable.
       elapsed += glitched ? 180 + Math.floor(Math.random() * 220) : 60 + Math.floor(Math.random() * 90);
     }
@@ -267,13 +285,18 @@ function installHeroTitleGlitch(): void {
 }
 
 // Click the title while it reads dev.0 (or type "oscar" then) and the hub
-// drowns in zeros until it seizes up. Only a reload brings it back.
+// drowns in zeros until it seizes up. Only a reload brings it back. Once
+// dev.0 has been rebuilt, it just says hello instead.
 function installOscarZeroBomb(title: HTMLElement, isGlitched: () => boolean): void {
   const secret = "oscar";
   let typed = "";
   let detonated = false;
 
   const detonate = (): void => {
+    if (isDevZeroRebuilt()) {
+      showDevOneHello(title);
+      return;
+    }
     if (detonated) return;
     detonated = true;
     detonateZeroBomb();

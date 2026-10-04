@@ -503,10 +503,6 @@ h1.is-glitching::after {
   background: linear-gradient(180deg, #f2c230, #c8941b);
 }
 
-.owner-switch-games3 {
-  background: linear-gradient(180deg, #7ff4ed, #2baebc);
-}
-
 .mods-hub {
   --bg: #150a2e;
   --bg-accent: #2a1350;
@@ -2809,5 +2805,197 @@ h1.is-glitching::after {
 
   .kitty {
     transform-origin: center bottom;
+  }
+}
+
+h1.is-glitching.is-rebuilt {
+  color: #e6ffe9;
+  text-shadow:
+    0 4px 0 #000,
+    0 8px 0 #1d6b34,
+    0 14px 24px rgba(0, 0, 0, 0.42);
+}
+
+h1.is-glitching.is-rebuilt::before {
+  color: #5cff8a;
+}
+
+h1.is-glitching.is-rebuilt::after {
+  color: #ffffff;
+}
+
+.dev-one-hello {
+  margin-top: 10px;
+  color: #5cff8a;
+  font-family: "Courier New", monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.dev-zero-story {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 34rem;
+  min-height: 7.5em;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.dev-zero-line {
+  color: #d8fbff;
+  font-family: "Courier New", monospace;
+  font-size: 1.05rem;
+}
+
+.dev-zero-field {
+  background: rgba(0, 0, 0, 0.6);
+  width: min(560px, 90vw);
+  height: min(260px, 34vh);
+  border: 2px dashed rgba(70, 224, 240, 0.45);
+}
+
+.dev-zero-piece {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 0;
+  padding: 0 6px;
+  background: none;
+  color: #46e0f0;
+  font-family: Impact, Haettenschweiler, sans-serif;
+  font-size: 2.6rem;
+  line-height: 1;
+  text-shadow: 2px 0 var(--danger), -2px 0 #46e0f0;
+  cursor: pointer;
+  transition: left 0.45s ease-in-out, top 0.45s ease-in-out;
+  animation: zero-bomb-flicker 0.5s steps(2, end) infinite;
+}
+
+.dev-zero-piece.is-fixed {
+  color: #5cff8a;
+  text-shadow: 0 0 12px rgba(92, 255, 138, 0.8);
+  cursor: default;
+  animation: none;
+}
+
+.dev-zero-leave {
+  margin-top: 6px;
+  border: 2px solid var(--muted);
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: #000000;
+  color: var(--muted);
+  font: 700 0.85rem "Trebuchet MS", sans-serif;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.crash-lockout.is-rebuilt .crash-lockout-title {
+  color: #5cff8a;
+  text-shadow: 0 0 18px rgba(92, 255, 138, 0.7);
+  animation: none;
+}
+
+.crash-lockout.is-rebuilt .dev-zero-leave {
+  border-color: #5cff8a;
+  color: #5cff8a;
+}
+
+.owner-switch[hidden] {
+  display: none;
+}
+
+.owner-switch-dev {
+  background: linear-gradient(180deg, #8dffad, #2fb85a);
+  font-family: "Courier New", monospace;
+  font-weight: 900;
+  text-transform: none;
+}
+
+.dev-hub {
+  --bg: #020805;
+  --bg-accent: #06170d;
+  --ink: #d9ffe3;
+  --muted: #7fc896;
+  --danger: #5cff8a;
+  --danger-dark: #145c2a;
+  --warn: #5cff8a;
+  background:
+    repeating-linear-gradient(0deg, rgba(92, 255, 138, 0.04) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, var(--bg-accent), var(--bg));
+}
+
+.dev-hub h1 {
+  text-transform: none;
+}
+
+.dev-hero {
+  background: linear-gradient(135deg, #0b2615, #030b06 65%);
+}
+
+.dev-typed {
+  min-height: 3em;
+  color: #5cff8a;
+  font-family: "Courier New", monospace;
+}
+
+.dev-hub.is-broken .dev-typed {
+  color: #f24d3d;
+}
+
+.dev-monitor {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+}
+
+.dev-system {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 2px solid #1d6b34;
+  background: #04110a;
+  color: var(--ink);
+  font-family: "Courier New", monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-decoration: none;
+  opacity: 0;
+  animation: dev-boot 0.3s steps(3, end) forwards;
+}
+
+.dev-system:hover,
+.dev-system:focus-visible {
+  border-color: #5cff8a;
+  background: #0a2614;
+  outline: none;
+}
+
+.dev-system-name::before {
+  content: "> ";
+  color: #5cff8a;
+}
+
+.dev-system-status {
+  color: #5cff8a;
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+}
+
+.dev-system-status::before {
+  content: "● ";
+}
+
+@keyframes dev-boot {
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-system {
+    opacity: 1;
+    animation: none;
   }
 }

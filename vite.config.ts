@@ -14,6 +14,8 @@ export default defineConfig({
               '  <script type="module" src="/shared/domGallery.ts"></script>',
               // The way into the lost games: type the word on any page.
               '  <script type="module" src="/shared/lostDoor.ts"></script>',
+              // Credits on every page, with every name scribbled out.
+              '  <script type="module" src="/shared/credits.ts"></script>',
               "  </body>",
             ].join("\n")
           );
@@ -70,6 +72,7 @@ export default defineConfig({
           "src/games3/make-your-own-beatboxer-thingy/index.html"
         ),
         mods: resolve(__dirname, "src/mods/index.html"),
+        dev: resolve(__dirname, "src/dev/index.html"),
         corruptedGames: resolve(__dirname, "src/corrupted-games/index.html"),
         bioTech: resolve(__dirname, "src/corrupted-games/bio-tech/index.html"),
         drawingBossMania: resolve(__dirname, "src/games2/drawing-boss-mania/index.html"),
