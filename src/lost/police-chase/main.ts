@@ -4,6 +4,7 @@ import {
   BONUS_DISTANCE,
   GIANT_STUFF,
   GROUND_Y,
+  JUMP_VELOCITY_PX_S,
   ROOF_THICKNESS,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
@@ -18,6 +19,7 @@ import {
 } from "./world";
 import { newChase, step, type Chase, type Keys } from "./game";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -38,6 +40,56 @@ if (GIGANTIC) {
   document.title = TITLE;
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = TITLE;
+}
+
+// Supercharged by dev.1: your shoes are full of lightning. Land on a cop's
+// head and you zap them off the roof for 250 points and bounce up high,
+// instead of just having to jump over them.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_POINTS = 250;
+let zaps: { x: number; y: number; time: number }[] = [];
+
+// Runs just before the chase moves, so you zap the cop before they catch you.
+function stompCops(seconds: number): void {
+  if (chase.phase !== "run") return;
+  const player = chase.player;
+  if (player.vy <= 0) return;
+  const feet = playerRect(player);
+  const landing = player.y + player.vy * seconds + 4;
+  chase.world.cops = chase.world.cops.filter((cop) => {
+    const body = copRect(cop);
+    const overX = feet.x < body.x + body.w && body.x < feet.x + feet.w;
+    const onHead = player.y <= body.y + body.h * 0.35 && landing >= body.y;
+    if (!overX || !onHead) return true;
+    zaps.push({ x: cop.x, y: body.y + body.h / 2, time: chase.time });
+    chase.scoreFloat += ZAP_POINTS;
+    player.vy = -JUMP_VELOCITY_PX_S * 0.9;
+    return false;
+  });
+}
+
+function drawZaps(): void {
+  zaps = zaps.filter((zap) => chase.time - zap.time < 0.8);
+  for (const zap of zaps) {
+    const age = chase.time - zap.time;
+    const x = zap.x - chase.camera;
+    ctx.strokeStyle = `rgba(120, 220, 255, ${1 - age / 0.8})`;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (Math.PI * 2 * i) / 6 + age * 8;
+      const reach = 20 + age * 90;
+      ctx.beginPath();
+      ctx.moveTo(x, zap.y);
+      ctx.lineTo(x + Math.cos(angle) * reach * 0.5 + 6, zap.y + Math.sin(angle) * reach * 0.5 - 6);
+      ctx.lineTo(x + Math.cos(angle) * reach, zap.y + Math.sin(angle) * reach);
+      ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(255, 255, 120, ${1 - age / 0.8})`;
+    ctx.font = "bold 22px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(`⚡ ZAPPED +${ZAP_POINTS}`, x, zap.y - 50 - age * 40);
+    ctx.textAlign = "left";
+  }
 }
 
 const HIGH_SCORE_KEY = "police-chase-high-score";
@@ -326,7 +378,7 @@ function drawPlayer(player: Player, screenX: number): void {
   drawStickman(
     screenX,
     rect.y + rect.h,
-    "#f5f5ff",
+    SUPERCHARGED ? "#9ce8ff" : "#f5f5ff",
     "#ff4060",
     1.05,
     chase.time * 12 + player.x * 0.012,
@@ -378,6 +430,7 @@ function drawTitle(): void {
   ctx.font = "18px monospace";
   ctx.fillText("Run the rooftops. Jump the cops. Green chimneys are the good ones.", SCREEN_WIDTH / 2, 200);
   ctx.fillText("←/→ move · SPACE or ↑ jump (let go to cut it short) · ↓ drop in · ESC pause", SCREEN_WIDTH / 2, 240);
+  if (SUPERCHARGED) ctx.fillText("⚡ Land on a cop's head to zap them! ⚡", SCREEN_WIDTH / 2, 280);
   ctx.fillText("Press SPACE to start", SCREEN_WIDTH / 2, 320);
   ctx.fillText(`High score: ${highScore}`, SCREEN_WIDTH / 2, 360);
   ctx.textAlign = "left";
@@ -387,6 +440,7 @@ function drawTitle(): void {
 
 function startRun(): void {
   chase = newChase(highScore);
+  zaps = [];
   scene = "playing";
 }
 
@@ -468,6 +522,7 @@ function frame(now: number): void {
   lastFrame = now;
 
   if (scene === "playing") {
+    if (SUPERCHARGED) stompCops(seconds);
     step(chase, keys, seconds);
     if (chase.phase === "over") {
       scene = "gameOver";
@@ -483,6 +538,7 @@ function frame(now: number): void {
     drawTitle();
   } else {
     drawWorld();
+    if (SUPERCHARGED) drawZaps();
     drawHud();
     if (scene === "paused") drawOverlay("Paused", "ESC to resume · Q for the title");
     if (scene === "gameOver") drawOverlay("Game Over", `${chase.reason}  ·  R to run again · Q for the title`);

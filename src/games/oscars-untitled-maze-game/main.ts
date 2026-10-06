@@ -33,6 +33,7 @@ import { initEscapedAhegPlayer } from "../../shared/escapedAhegPlayer";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 import {
@@ -69,6 +70,15 @@ if (GIGANTIC) {
   const kicker = document.querySelector(".start-menu-kicker");
   if (kicker) kicker.textContent = "GIGANTIC Oscar's Untitled Maze Game";
 }
+// Supercharged by dev.1: you move like lightning. One press zaps you all the
+// way down a hallway, leaving a crackling bolt behind you, and only stops at a
+// turn, a wall, or anything special (so no secret is ever skipped).
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_FADE_MS = 350;
+const MAX_ZAP_STEPS = 80;
+let zapPath: Point[] = [];
+let zapAt = 0;
+let zapRedrawQueued = false;
 const WELL_FADE_MS = 1_500;
 const WALL = "#";
 const OPEN = ".";
@@ -806,7 +816,78 @@ function moveByScreenInput(dx: number, dy: number): void {
   const effectiveDy = state.controlsReversed ? -dy : dy;
   const [worldDx, worldDy] = screenDeltaToWorldDelta(effectiveDx, effectiveDy);
   lastMoveDelta = [worldDx, worldDy];
+  if (SUPERCHARGED) {
+    zapAlong(worldDx, worldDy);
+    return;
+  }
   tryMove(worldDx, worldDy);
+}
+
+// Keep stepping the same way until something worth stopping for.
+function zapAlong(dx: number, dy: number): void {
+  const level = state.level;
+  const path: Point[] = [{ ...state.player }];
+  for (let step = 0; step < MAX_ZAP_STEPS; step += 1) {
+    const before = { ...state.player };
+    tryMove(dx, dy);
+    if (samePoint(before, state.player) || state.level !== level) {
+      break;
+    }
+    path.push({ ...state.player });
+    if (state.won || isZapStop(state.player.x, state.player.y, dx, dy)) {
+      break;
+    }
+  }
+  if (path.length > 1) {
+    zapPath = path;
+    zapAt = performance.now();
+    draw();
+  }
+}
+
+// Stop on anything special, or where a side hallway opens up.
+function isZapStop(x: number, y: number, dx: number, dy: number): boolean {
+  if (!state.level) {
+    return true;
+  }
+  if (featureAt(state.level, { x, y }) || walkieAt(x, y) || rotorAt(x, y) || breakableAt(x, y)) {
+    return true;
+  }
+  return isWalkable(x + dy, y + dx) || isWalkable(x - dy, y - dx);
+}
+
+// The bolt along the hallway you just zapped down, fading out.
+function drawZapTrail(drawCtx: CanvasRenderingContext2D): void {
+  const age = performance.now() - zapAt;
+  if (zapPath.length < 2 || age > ZAP_FADE_MS) {
+    return;
+  }
+  drawCtx.save();
+  drawCtx.globalAlpha = 1 - age / ZAP_FADE_MS;
+  drawCtx.strokeStyle = "#ffffff";
+  drawCtx.shadowColor = "#5ad0ff";
+  drawCtx.shadowBlur = 12;
+  drawCtx.lineWidth = 3 / GIANT;
+  drawCtx.lineJoin = "round";
+  drawCtx.beginPath();
+  zapPath.forEach((point, index) => {
+    const jitter = index === 0 || index === zapPath.length - 1 ? 0 : (Math.random() - 0.5) * TILE_SIZE * 0.6;
+    const px = point.x * TILE_SIZE + TILE_SIZE / 2 + jitter;
+    const py = point.y * TILE_SIZE + TILE_SIZE / 2 - jitter;
+    if (index === 0) drawCtx.moveTo(px, py);
+    else drawCtx.lineTo(px, py);
+  });
+  drawCtx.stroke();
+  drawCtx.restore();
+
+  // The maze only redraws when you move, so keep it going until the bolt fades.
+  if (!zapRedrawQueued) {
+    zapRedrawQueued = true;
+    requestAnimationFrame(() => {
+      zapRedrawQueued = false;
+      draw();
+    });
+  }
 }
 
 let lastMoveDelta: [number, number] = [0, -1];
@@ -1290,6 +1371,7 @@ function drawScene(): void {
 
   drawPortalLinks(sceneCtx);
   drawBridgeShadows(sceneCtx);
+  if (SUPERCHARGED) drawZapTrail(sceneCtx);
   drawPlayer(sceneCtx);
   sceneCtx.restore();
 }

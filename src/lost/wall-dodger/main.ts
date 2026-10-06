@@ -1,15 +1,21 @@
 import { isGigantic } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import {
   COIN_SIZE,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
+  coinBox,
   dollarBox,
   newGame,
+  overlaps,
+  pushWallsBack,
   shadowAt,
+  spawnSpot,
   step,
   type Box,
+  type Coin,
   type Game,
   type Walls,
 } from "./wallDodger";
@@ -56,6 +62,76 @@ const middleOf = (box: Box): { x: number; y: number } => ({
   x: box.x + box.width / 2,
   y: box.y + box.height / 2,
 });
+
+// Supercharged by dev.1: every so often a blue lightning coin turns up. Grab
+// it and lightning strikes the ball, freezing it solid for four seconds (you
+// can walk right through it), and the blast throws the walls all the way back.
+const SUPERCHARGED = isThisGameSupercharged();
+const LIGHTNING_COIN_SECONDS = 12;
+const FREEZE_SECONDS = 4;
+let lightningCoin: Coin | null = null;
+let lastLightningCoin = 0;
+let strike: { x: number; y: number; time: number } | null = null;
+
+function superchargedStep(): void {
+  if (game.over) return;
+  if (!lightningCoin && game.elapsed - lastLightningCoin > LIGHTNING_COIN_SECONDS) {
+    lightningCoin = spawnSpot(game, COIN_SIZE * GIANT, COIN_SIZE * GIANT);
+    lastLightningCoin = game.elapsed;
+  }
+  if (lightningCoin && overlaps(game.player, coinBox(lightningCoin, GIANT))) {
+    lightningCoin = null;
+    lastLightningCoin = game.elapsed;
+    game.frozenUntil = game.elapsed + FREEZE_SECONDS;
+    pushWallsBack(game, SCREEN_WIDTH);
+    strike = { ...middleOf(game.ball), time: performance.now() };
+  }
+}
+
+function drawSupercharged(now: number): void {
+  if (lightningCoin) {
+    ctx.fillStyle = Math.floor(now / 150) % 2 === 0 ? "rgb(60, 200, 255)" : "rgb(160, 240, 255)";
+    ctx.beginPath();
+    ctx.arc(lightningCoin.x, lightningCoin.y, (COIN_SIZE * GIANT) / 2 + 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgb(255, 255, 90)";
+    ctx.font = `bold ${14 * GIANT}px 'Trebuchet MS', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("⚡", lightningCoin.x, lightningCoin.y + 1);
+  }
+
+  // The frozen ball gets a coat of ice.
+  if ((game.frozenUntil ?? 0) > game.elapsed && !game.over) {
+    const ball = middleOf(game.ball);
+    ctx.fillStyle = "rgba(170, 230, 255, 0.75)";
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, game.ball.width / 2 + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgb(255, 255, 255)";
+    ctx.font = "bold 16px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const left = Math.ceil((game.frozenUntil ?? 0) - game.elapsed);
+    ctx.fillText(`FROZEN ${left}`, ball.x, ball.y - game.ball.width / 2 - 14);
+  }
+
+  // The strike itself: a bolt from the top of the screen down to the ball.
+  if (strike && now - strike.time < 400) {
+    const fade = 1 - (now - strike.time) / 400;
+    ctx.fillStyle = `rgba(200, 240, 255, ${fade * 0.4})`;
+    ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    ctx.strokeStyle = `rgba(255, 255, 140, ${fade})`;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(strike.x, 0);
+    for (let i = 1; i <= 8; i += 1) {
+      const wiggle = i === 8 ? 0 : (Math.random() - 0.5) * 50;
+      ctx.lineTo(strike.x + wiggle, (strike.y * i) / 8);
+    }
+    ctx.stroke();
+  }
+}
 
 function drawWalls(walls: Walls): void {
   ctx.fillStyle = "rgb(50, 50, 50)";
@@ -119,6 +195,8 @@ function draw(): void {
   ctx.arc(ballMiddle.x - 5 * GIANT, ballMiddle.y - 5 * GIANT, game.ball.width / 6, 0, Math.PI * 2);
   ctx.fill();
 
+  if (SUPERCHARGED) drawSupercharged(performance.now());
+
   ctx.fillStyle = "rgb(255, 255, 255)";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
@@ -160,6 +238,7 @@ let lastStep = performance.now();
 function frame(now: number): void {
   while (now - lastStep >= 1000 / 60) {
     step(game, moves(), (now - startedAt) / 1000);
+    if (SUPERCHARGED) superchargedStep();
     lastStep += 1000 / 60;
   }
   if (now - lastStep > 500) lastStep = now;
@@ -183,6 +262,9 @@ window.addEventListener("keydown", (event) => {
   if (game.over && (key === "enter" || key === " ")) {
     game = newGame(GIANT);
     startedAt = performance.now();
+    lightningCoin = null;
+    lastLightningCoin = 0;
+    strike = null;
     return;
   }
   held.add(key);

@@ -1,9 +1,15 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 // GIGANTIC Teleporting Ping Pong: the paddles stay normal size, the ball, table,
 // lights and everything else goes giant.
 export const GIGANTIC = isGigantic("teleporting-ping-pong");
 const GIANT = GIGANTIC ? 3 : 1;
+// Supercharged by dev.1: the swing power bar doesn't stop at the end any more.
+const SUPERCHARGED = isThisGameSupercharged();
+// How tall each wrapped row of overflowing power is, and how much power fills one.
+const OVERFLOW_ROW_HEIGHT = 24;
+const OVERFLOW_POWER_PER_ROW = 450;
 
 export const WIDTH = 960;
 export const HEIGHT = 600;
@@ -840,6 +846,55 @@ export class PingPongMatch {
       ctx.fillStyle = "#b9b3d9";
       ctx.fillText(label, Math.min(markX, x + width - 18), y - 3);
     });
+    if (SUPERCHARGED) this.drawPowerOverflow(x + width, y, height);
+  }
+
+  // Smash harder than the bar goes and the power spills out of the end, runs
+  // to the edge of the screen, wraps round to the other side a row higher, and
+  // keeps going. Hard enough and it fills the whole screen.
+  private drawPowerOverflow(barEnd: number, y: number, height: number): void {
+    const overflow = this.shownPower - MATRIX_POWER;
+    if (overflow <= 0) return;
+    const ctx = this.ctx;
+    // Its fonts and colours stay in here, so nothing drawn later picks them up.
+    ctx.save();
+    ctx.fillStyle = "#46a8ff";
+
+    // The rest of the bar's own row first, then full-width rows above it.
+    const firstRowPower = ((WIDTH - barEnd) / WIDTH) * OVERFLOW_POWER_PER_ROW;
+    ctx.fillRect(barEnd, y, Math.min(overflow / firstRowPower, 1) * (WIDTH - barEnd), height);
+    let left = overflow - firstRowPower;
+    let rowY = y;
+    let endX = barEnd + Math.min(overflow / firstRowPower, 1) * (WIDTH - barEnd);
+    let endY = y;
+    while (left > 0 && rowY > -OVERFLOW_ROW_HEIGHT) {
+      rowY -= OVERFLOW_ROW_HEIGHT;
+      const fraction = Math.min(left / OVERFLOW_POWER_PER_ROW, 1);
+      ctx.fillRect(0, rowY, fraction * WIDTH, OVERFLOW_ROW_HEIGHT);
+      endX = fraction * WIDTH;
+      endY = rowY;
+      left -= OVERFLOW_POWER_PER_ROW;
+    }
+
+    const number = `${Math.round(this.shownPower).toLocaleString()}!`;
+    // Filled the whole screen: the number takes over the middle of it.
+    if (left > 0) {
+      ctx.font = "bold 120px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(number, WIDTH / 2, HEIGHT / 2);
+      ctx.restore();
+      return;
+    }
+
+    // Otherwise it rides along at the very end of the spill.
+    ctx.font = "bold 22px system-ui, sans-serif";
+    ctx.textBaseline = "top";
+    ctx.textAlign = endX > WIDTH - 140 ? "right" : "left";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(number, endX + (ctx.textAlign === "right" ? -6 : 6), Math.max(endY, 4));
+    ctx.restore();
   }
 
   private drawMatrix(): void {

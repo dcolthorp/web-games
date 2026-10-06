@@ -15,6 +15,7 @@ import {
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 
@@ -32,6 +33,15 @@ if (GIGANTIC) {
   gigantic.textContent = "GIGANTIC";
   lockup?.prepend(gigantic);
 }
+
+// Supercharged by dev.1: you're a ball of lightning. You zoom nearly twice as
+// fast with a crackling trail behind you, and bumping a real wall throws off
+// a shower of sparks.
+const SUPERCHARGED = isThisGameSupercharged();
+const TRAIL_MS = 260;
+const trail: { x: number; y: number; at: number }[] = [];
+let sparks: { x: number; y: number; vx: number; vy: number; born: number }[] = [];
+let lastSparkAt = 0;
 
 interface Vector2 {
   x: number;
@@ -310,7 +320,7 @@ let carriedTrophyTargetLevel: 2 | 4 | 5 | null = null;
 const keys = new Set<string>();
 const player = {
   radius: 14,
-  speed: 240,
+  speed: SUPERCHARGED ? 420 : 240,
   position: { ...course.start },
 };
 let controlsReversed = consumeLinkedReverseControls();
@@ -628,6 +638,7 @@ function movePlayer(dx: number, dy: number): void {
   const nextX = clamp(player.position.x + dx, player.radius, WORLD.width - player.radius);
   const nextY = clamp(player.position.y + dy, player.radius, WORLD.height - player.radius);
   if (isPlayerBlockedAt(nextX, nextY)) {
+    if (SUPERCHARGED) throwSparks(player.position.x + Math.sign(dx) * player.radius, player.position.y + Math.sign(dy) * player.radius);
     if (currentLevel === 4) {
       triggerLocalhostCrash();
       return;
@@ -687,8 +698,60 @@ function render(timestamp: number): void {
   drawHazards();
   drawGoal(timestamp);
   drawStart();
+  if (SUPERCHARGED) drawLightningTrail(timestamp);
   drawPlayer();
   drawTrophy();
+}
+
+// Sparks fly off whatever real wall you just bumped. Only a few times a
+// second, or holding a key against a wall would make a firework.
+function throwSparks(x: number, y: number): void {
+  const now = performance.now();
+  if (now - lastSparkAt < 90) return;
+  lastSparkAt = now;
+  for (let i = 0; i < 8; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 80 + Math.random() * 160;
+    sparks.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, born: now });
+  }
+}
+
+// A jagged bolt along where you've just been, then the sparks on top.
+function drawLightningTrail(timestamp: number): void {
+  if (!isEscapedAhegPlayerActive()) {
+    const last = trail[trail.length - 1];
+    if (!last || last.x !== player.position.x || last.y !== player.position.y) {
+      trail.push({ x: player.position.x, y: player.position.y, at: timestamp });
+    }
+  }
+  while (trail.length > 0 && timestamp - (trail[0]?.at ?? timestamp) > TRAIL_MS) trail.shift();
+
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "#6dd3ff";
+  ctx.shadowBlur = 16;
+  for (let i = 1; i < trail.length; i += 1) {
+    const from = trail[i - 1];
+    const to = trail[i];
+    if (!from || !to) continue;
+    const fade = 1 - (timestamp - to.at) / TRAIL_MS;
+    ctx.strokeStyle = `rgba(230, 248, 255, ${fade})`;
+    ctx.lineWidth = 2 + fade * 4;
+    ctx.beginPath();
+    ctx.moveTo(from.x + (Math.random() - 0.5) * 8, from.y + (Math.random() - 0.5) * 8);
+    ctx.lineTo(to.x + (Math.random() - 0.5) * 8, to.y + (Math.random() - 0.5) * 8);
+    ctx.stroke();
+  }
+
+  sparks = sparks.filter((spark) => timestamp - spark.born < 400);
+  ctx.fillStyle = "#fff6a8";
+  ctx.shadowColor = "#ffe45e";
+  for (const spark of sparks) {
+    const age = (timestamp - spark.born) / 1000;
+    ctx.globalAlpha = 1 - age / 0.4;
+    ctx.fillRect(spark.x + spark.vx * age - 2, spark.y + spark.vy * age - 2, 4, 4);
+  }
+  ctx.restore();
 }
 
 function drawBackground(timestamp: number): void {

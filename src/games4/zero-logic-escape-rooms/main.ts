@@ -1,4 +1,5 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { H, W, canvas, ctx, giantFont, setGiant, type Point, type Room } from "./engine";
@@ -50,6 +51,12 @@ if (hundred) {
 // size, and everything else (lights, junk, items you carry, words, the page
 // around the game) goes giant. styles.css does the page off the body class.
 const GIGANTIC = isGigantic("zero-logic-escape-rooms");
+// Supercharged by dev.1: the rooms have a storm going on outside. Every so
+// often lightning cracks across the room and everything flashes, and the card
+// between rooms says SUPERCHARGED.
+const SUPERCHARGED = isThisGameSupercharged();
+let nextLightning = performance.now() + 8000;
+let lightning: { start: number; points: Point[] } | null = null;
 if (GIGANTIC) {
   setGiant(3);
   document.body.classList.add("gigantic");
@@ -315,7 +322,7 @@ function drawTitleCard(now: number): void {
     giantFont("20px 'Trebuchet MS', sans-serif", title.lead);
     ctx.fillText(title.lead, W / 2, H / 2 - 80 * (GIGANTIC ? 2.4 : 1));
   }
-  const heading = `ESCAPE ROOM ${current + 1}`;
+  const heading = `${SUPERCHARGED ? "⚡ SUPERCHARGED " : ""}ESCAPE ROOM ${current + 1}${SUPERCHARGED ? " ⚡" : ""}`;
   const name = (rooms[current]?.name ?? "").toUpperCase();
   ctx.fillStyle = "#ffcf5a";
   giantFont("bold 26px 'Trebuchet MS', sans-serif", heading);
@@ -372,6 +379,40 @@ canvas.addEventListener("pointercancel", endPointer);
 
 overlay.querySelector('[data-action="restart"]')?.addEventListener("click", () => enterRoom(0));
 
+// A jagged bolt from the top of the room to somewhere near the floor, a quick
+// double flash, and then nothing again for a while. It's only light, so it
+// never gets in the way of a puzzle.
+function drawLightning(now: number): void {
+  if (!lightning && now >= nextLightning) {
+    const points: Point[] = [{ x: W * (0.15 + Math.random() * 0.7), y: 0 }];
+    while ((points[points.length - 1]?.y ?? H) < H * 0.75) {
+      const last = points[points.length - 1] ?? { x: W / 2, y: 0 };
+      points.push({ x: last.x + (Math.random() - 0.5) * 90, y: last.y + 30 + Math.random() * 40 });
+    }
+    lightning = { start: now, points };
+  }
+  if (!lightning) return;
+  const age = now - lightning.start;
+  if (age > 450) {
+    lightning = null;
+    nextLightning = now + 12000 + Math.random() * 10000;
+    return;
+  }
+  // Two flashes: bright, a gap, then a fainter one.
+  const strength = age < 120 ? 1 : age < 200 ? 0 : 0.6 * (1 - (age - 200) / 250);
+  ctx.save();
+  ctx.fillStyle = `rgba(200, 230, 255, ${0.35 * strength})`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${strength})`;
+  ctx.shadowColor = "#7fd0ff";
+  ctx.shadowBlur = 18;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  lightning.points.forEach((point, index) => (index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y)));
+  ctx.stroke();
+  ctx.restore();
+}
+
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
@@ -380,6 +421,7 @@ function frame(now: number): void {
     room.update(now, dt);
     room.draw(now);
   }
+  if (SUPERCHARGED) drawLightning(now);
   drawTitleCard(now);
   canvas.style.cursor = title || !overlay.hidden || !room ? "default" : room.cursor(pointer);
   requestAnimationFrame(frame);

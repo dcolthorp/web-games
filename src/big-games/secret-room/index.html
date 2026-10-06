@@ -148,6 +148,13 @@
         pointer-events: none;
       }
 
+      /* Supercharged coins are electric blue and glow. */
+      .coin.is-zappy {
+        border-color: #0b5fa8;
+        background: radial-gradient(circle at 35% 35%, #ffffff, #4fc3ff 60%);
+        box-shadow: 0 0 12px #7fd8ff;
+      }
+
       .title-card {
         position: fixed;
         inset: 0;
@@ -270,6 +277,72 @@
           transform: scale(1) rotate(-3deg);
         }
       }
+
+      /* Supercharged secrets. */
+      .lid-message {
+        position: absolute;
+        inset: 22% 10% 10%;
+        display: grid;
+        place-items: center;
+        color: #e3f1ff;
+        font: 900 clamp(1rem, 4vw, 1.6rem) / 1.1 "Comic Sans MS", "Bradley Hand", cursive;
+        letter-spacing: 0.04em;
+        text-shadow: 0 0 10px #46a8ff;
+        transform: scaleY(-1) rotate(-4deg);
+        pointer-events: none;
+      }
+
+      .secret-word {
+        border: 0;
+        padding: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-shadow: inherit;
+        cursor: pointer;
+      }
+
+      .lightning-door {
+        position: fixed;
+        z-index: 10;
+        right: max(16px, 6vw);
+        bottom: 12vh;
+        display: grid;
+        place-items: center;
+        width: 96px;
+        height: 150px;
+        border: 5px solid #000;
+        border-radius: 48px 48px 6px 6px;
+        background: linear-gradient(180deg, #0f3a78, #071a3a);
+        color: #ffe14d;
+        font-size: 3rem;
+        text-decoration: none;
+        box-shadow: 0 0 30px #46a8ff, inset 0 0 22px #46a8ff;
+        animation: door-crackle 0.4s steps(2, end) infinite alternate;
+      }
+
+      .lightning-door small {
+        position: absolute;
+        bottom: -1.8em;
+        color: #8fd0ff;
+        font: 800 0.8rem/1 "Trebuchet MS", sans-serif;
+        white-space: nowrap;
+      }
+
+      @keyframes door-crackle {
+        from { box-shadow: 0 0 22px #46a8ff, inset 0 0 16px #46a8ff; }
+        to { box-shadow: 0 0 44px #7fd0ff, inset 0 0 30px #7fd0ff; }
+      }
+
+      .glitched-title {
+        animation: title-glitch 0.12s steps(2, end) infinite;
+        color: #5cff8a !important;
+      }
+
+      @keyframes title-glitch {
+        from { transform: translate(-3px, 1px) skewX(-4deg); }
+        to { transform: translate(3px, -1px) skewX(3deg); }
+      }
     </style>
   </head>
   <body>
@@ -304,6 +377,14 @@
     </div>
 
     <script type="module">
+      import { isThisGameSupercharged } from "../../shared/superchargedHub.ts";
+      import * as sfx from "../../shared/sfx.ts";
+
+      // SUPERCHARGED Secret Room: the chest is full of electric blue gold.
+      // Every grab flings three times as many coins, and the very last grab
+      // sets off a GIANT coin fountain that fills the whole screen.
+      const SUPERCHARGED = isThisGameSupercharged();
+
       const chest = document.getElementById("chest");
       const lid = document.getElementById("chest-lid");
       const gold = document.getElementById("chest-gold");
@@ -505,8 +586,9 @@
       function grabGold() {
         if (!chest.classList.contains("is-open") || goldLeft <= 0) return;
         const box = gold.getBoundingClientRect();
-        burstCoins(box.left + box.width / 2, box.top + box.height * 0.3);
         goldLeft -= 1;
+        const coinCount = !SUPERCHARGED ? 30 : goldLeft === 0 ? 400 : 90;
+        burstCoins(box.left + box.width / 2, box.top + box.height * 0.3, coinCount);
         chest.style.setProperty("--gold", String(goldLeft / GRABS));
         if (goldLeft > 0) {
           note.textContent = `Grab more gold! (${goldLeft} left)`;
@@ -514,21 +596,82 @@
         }
         chest.classList.add("is-empty");
         gold.disabled = true;
-        note.textContent = "The chest is empty.";
+        note.textContent = SUPERCHARGED ? "⚡ KA-BOOM! ⚡ The supercharged gold went EVERYWHERE. The chest is empty." : "The chest is empty.";
         window.setTimeout(() => {
           titleCard.hidden = false;
         }, 700);
       }
 
-      function burstCoins(x, y) {
-        for (let i = 0; i < 30; i++) {
+      // Three secrets that are only here when the room is supercharged:
+      //   1. Once the lid is off, click its lock three times: it flips over,
+      //      and someone scratched a message on the underside.
+      //   2. Click "Secret" in the title: it turns SUPER SECRET and a door
+      //      made of lightning appears in the wall. It leads to dev.1.
+      //   3. Type "dev.0" and the room isn't the Secret Room any more.
+      if (SUPERCHARGED) {
+        const lock = lid.querySelector(".chest-lock");
+        let lockClicks = 0;
+        lock.addEventListener("click", (event) => {
+          if (!chest.classList.contains("is-open") || lid.classList.contains("is-flipped")) return;
+          event.stopPropagation();
+          lockClicks += 1;
+          sfx.zap(0.12);
+          if (lockClicks < 3) return;
+          lid.classList.add("is-flipped");
+          const message = document.createElement("span");
+          message.className = "lid-message";
+          message.textContent = "dev.0 WAS HERE ⚡";
+          lid.appendChild(message);
+          // Flip it over where it lies, so the scratched words face up.
+          lid.style.transform += " scaleY(-1)";
+          sfx.chime();
+          note.textContent = "Somebody scratched something under the lid…";
+        });
+
+        const heading = document.querySelector(".room h1");
+        heading.innerHTML = 'The <button class="secret-word" type="button">Secret</button> Room';
+        heading.querySelector(".secret-word").addEventListener("click", (event) => {
+          if (document.querySelector(".lightning-door")) return;
+          event.currentTarget.textContent = "SUPER SECRET";
+          sfx.thunder();
+          const door = document.createElement("a");
+          door.className = "lightning-door";
+          door.href = "../../dev/index.html";
+          door.setAttribute("aria-label", "A door made of lightning. It leads to dev.1's Games.");
+          door.innerHTML = "⚡<small>Back to dev.1</small>";
+          document.body.appendChild(door);
+          door.animate([{ transform: "scale(0)" }, { transform: "scale(1.15)" }, { transform: "scale(1)" }], {
+            duration: 450,
+            easing: "cubic-bezier(.2,1.4,.4,1)",
+          });
+        });
+
+        const secretWord = "dev.0";
+        let typed = "";
+        window.addEventListener("keydown", (event) => {
+          if (event.key.length !== 1) return;
+          typed = (typed + event.key.toLowerCase()).slice(-secretWord.length);
+          if (typed !== secretWord) return;
+          typed = "";
+          heading.textContent = "The dev.0 Room";
+          heading.classList.add("glitched-title");
+          note.textContent = "psst… the bombs in the Earth's inner core? That was me. — dev.0";
+          sfx.bleep(6);
+          window.setTimeout(() => heading.classList.remove("glitched-title"), 1200);
+        });
+      }
+
+      function burstCoins(x, y, count) {
+        // The giant last burst flies further, so it covers the screen.
+        const spread = count > 100 ? 2.5 : 1;
+        for (let i = 0; i < count; i++) {
           const coin = document.createElement("span");
-          coin.className = "coin";
+          coin.className = SUPERCHARGED ? "coin is-zappy" : "coin";
           coin.style.left = `${x}px`;
           coin.style.top = `${y}px`;
           document.body.appendChild(coin);
-          const dx = (Math.random() - 0.5) * 700;
-          const up = 200 + Math.random() * 350;
+          const dx = (Math.random() - 0.5) * 700 * spread;
+          const up = (200 + Math.random() * 350) * spread;
           const fall = 300 + Math.random() * 400;
           coin
             .animate(

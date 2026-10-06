@@ -1,5 +1,6 @@
 import { installDefiantTitle, isDefiant, notifyCageBreaker, notifyFieldCleared, notifyGameWon } from "./defiant";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 interface Stickman {
   element: HTMLButtonElement;
@@ -23,6 +24,12 @@ const BLINDNESS_MS = 5_000;
 const STICKMAN_RADIUS = 18;
 const CORNER_RADIUS = 82;
 const EDGE_HITS_BEFORE_BURST = 7;
+// Supercharged by dev.1: your clicks are electric. Click a stickman and
+// lightning jumps from it to the plain stickmen nearby and zaps them too.
+// It never jumps to bombers, expanders or poisoners, so it can't hurt you.
+const SUPERCHARGED = isThisGameSupercharged();
+const CHAIN_JUMPS = 3;
+const CHAIN_REACH = 190;
 
 const field = document.getElementById("stickman-field");
 const countLabel = document.getElementById("count");
@@ -253,8 +260,63 @@ function removeStickman(id: number): void {
   if (stickman.kind === "expander") {
     for (let index = 0; index < 5; index += 1) spawnStickman("normal");
   }
+  if (SUPERCHARGED) chainLightning(stickman.x, stickman.y);
   updateHud();
   if (stickmen.size === 0) finish(true);
+}
+
+// Each jump goes to the closest plain stickman in reach of the last one zapped.
+function chainLightning(fromX: number, fromY: number): void {
+  const points = [{ x: fromX, y: fromY }];
+  let x = fromX;
+  let y = fromY;
+  for (let jump = 0; jump < CHAIN_JUMPS; jump += 1) {
+    let closest: [number, Stickman] | null = null;
+    let closestDistance = CHAIN_REACH;
+    for (const entry of stickmen) {
+      if (entry[1].kind !== "normal") continue;
+      const distance = Math.hypot(entry[1].x - x, entry[1].y - y);
+      if (distance < closestDistance) {
+        closest = entry;
+        closestDistance = distance;
+      }
+    }
+    if (!closest) break;
+    const [id, zapped] = closest;
+    for (const timer of zapped.timers) window.clearTimeout(timer);
+    stickmen.delete(id);
+    zapped.element.disabled = true;
+    zapped.element.classList.add("clicked-away");
+    window.setTimeout(() => zapped.element.remove(), FADE_MS);
+    playPianoNote(10 + jump * 3, true);
+    x = zapped.x;
+    y = zapped.y;
+    points.push({ x, y });
+  }
+  if (points.length > 1) drawLightning(points);
+}
+
+// A jagged blue bolt drawn over the paper for a moment, then gone.
+function drawLightning(points: { x: number; y: number }[]): void {
+  if (!field) return;
+  const path = points
+    .flatMap((point, index) => {
+      if (index === 0) return [`${point.x},${point.y}`];
+      const previous = points[index - 1]!;
+      const wiggles = [1, 2, 3].map((step) => {
+        const along = step / 4;
+        const wx = previous.x + (point.x - previous.x) * along + (Math.random() - 0.5) * 22;
+        const wy = previous.y + (point.y - previous.y) * along + (Math.random() - 0.5) * 22;
+        return `${wx},${wy}`;
+      });
+      return [...wiggles, `${point.x},${point.y}`];
+    })
+    .join(" ");
+  const bolt = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  bolt.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;filter:drop-shadow(0 0 6px #46a8ff)");
+  bolt.innerHTML = `<polyline points="${path}" fill="none" stroke="#bfe4ff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" />`;
+  field.appendChild(bolt);
+  window.setTimeout(() => bolt.remove(), 260);
 }
 
 function splitStickman(id: number): void {

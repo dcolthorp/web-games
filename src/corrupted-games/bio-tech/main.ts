@@ -1,6 +1,7 @@
 // Bio Tech — a fanmade game for Bionic.
 // Full-screen canvas game. Opening cutscene.
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 // GIGANTIC Bio Tech: the hero and the scientist stay their normal size, and
 // the building, the lab, the knife, the Bio Arm, the walls, the shoes and
@@ -8,6 +9,12 @@ import { isGigantic } from "../../shared/bigGames";
 const GIGANTIC = isGigantic("bio-tech");
 const GIANT = GIGANTIC ? 3 : 1;
 if (GIGANTIC) document.title = "GIGANTIC Bio Tech";
+
+// SUPERCHARGED Bio Tech: the Bio Arm's drill is electric. It drills three
+// times faster, lightning crackles from the bit into the wall, and each wall
+// blows apart in a big blue blast.
+const SUPERCHARGED = isThisGameSupercharged();
+const DRILL_POWER = SUPERCHARGED ? 3 : 1;
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -380,6 +387,7 @@ const walls: Wall[] = [
   { x: 1960, hp: 2.0, maxHp: 2.0 },
 ];
 let drillBannerT = 0;
+let wallBlastT = 99; // time since a supercharged wall blew apart (for the flash)
 let drillSoundTimer = 0;
 let drillingNow = false;
 let leavingDrill = false; // fading out to the spring-shoes section
@@ -698,6 +706,7 @@ function update(dt: number): void {
     case "drill": {
       fade = Math.max(0, fade - dt * 1.2);
       drillBannerT += dt;
+      wallBlastT += dt;
       const speed = 230;
       const prevX = heroX;
       if (keys.has("arrowright") || keys.has("d")) {
@@ -731,7 +740,7 @@ function update(dt: number): void {
         }
         if (target) {
           drillingNow = true;
-          target.hp -= dt;
+          target.hp -= dt * DRILL_POWER;
           // debris flying off the wall
           if (particles.length < 90) {
             particles.push({
@@ -742,7 +751,7 @@ function update(dt: number): void {
               life: 0,
               max: 0.5 + Math.random() * 0.4,
               size: 3 + Math.random() * 5,
-              color: Math.random() > 0.5 ? "#5a5468" : "#6b6478",
+              color: SUPERCHARGED && Math.random() > 0.5 ? "#7fd8ff" : Math.random() > 0.5 ? "#5a5468" : "#6b6478",
             });
           }
           drillSoundTimer -= dt;
@@ -753,6 +762,7 @@ function update(dt: number): void {
           }
           if (target.hp <= 0) {
             // wall shatters
+            if (SUPERCHARGED) zapBlast(target.x, H * GROUND_FRAC - WALL_H * 0.5);
             for (let i = 0; i < 30; i++) {
               const a = Math.random() * Math.PI * 2;
               const sp = 60 + Math.random() * 200;
@@ -882,6 +892,45 @@ function update(dt: number): void {
   aimPressed = false;
   grappleClick = false;
   jumpPressed = false;
+}
+
+// A ring of blue and white sparks flying out from where a supercharged wall
+// broke.
+function zapBlast(x: number, y: number): void {
+  for (let i = 0; i < 80; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 200 + Math.random() * 500;
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp,
+      life: 0,
+      max: 0.5 + Math.random() * 0.6,
+      size: 3 + Math.random() * 6,
+      color: Math.random() > 0.4 ? "#4fc3ff" : "#ffffff",
+    });
+  }
+  wallBlastT = 0;
+}
+
+// A jagged lightning bolt from (x1, y1) to (x2, y2). It's different every
+// frame, so it flickers.
+function drawBolt(x1: number, y1: number, x2: number, y2: number, width: number): void {
+  const steps = 7;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    ctx.lineTo(x1 + (x2 - x1) * t + (Math.random() - 0.5) * 18, y1 + (y2 - y1) * t + (Math.random() - 0.5) * 40);
+  }
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = "rgba(79,195,255,0.6)";
+  ctx.lineWidth = width * 3;
+  ctx.stroke();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = width;
+  ctx.stroke();
 }
 
 function spawnMeteorTrail(): void {
@@ -1736,6 +1785,21 @@ function drawDrill(): void {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
+
+    // Supercharged: lightning jumps from the drill bit all over the wall.
+    if (SUPERCHARGED) {
+      const tipX = bx + (heroFacing ? 1 : -1) * 30 * GIANT;
+      for (let i = 0; i < 3; i++) {
+        const endX = tipX + (heroFacing ? 1 : -1) * Math.random() * 50 * GIANT;
+        drawBolt(tipX, by, endX, floorY - WALL_H * Math.random(), 2);
+      }
+    }
+  }
+
+  // A blue flash when a supercharged wall blows apart.
+  if (wallBlastT < 0.3) {
+    ctx.fillStyle = `rgba(160,225,255,${0.6 * (1 - wallBlastT / 0.3)})`;
+    ctx.fillRect(0, 0, W, H);
   }
 
   // intro banner
@@ -1747,7 +1811,7 @@ function drawDrill(): void {
     ctx.textBaseline = "middle";
     ctx.fillStyle = `rgba(122,255,222,${a})`;
     ctx.font = "bold 32px system-ui, sans-serif";
-    ctx.fillText("DRILL MANEUVER", W / 2, H / 2 - 14);
+    ctx.fillText(SUPERCHARGED ? "⚡ SUPERCHARGED DRILL ⚡" : "DRILL MANEUVER", W / 2, H / 2 - 14);
     ctx.fillStyle = `rgba(255,255,255,${0.85 * a})`;
     ctx.font = "18px system-ui, sans-serif";
     ctx.fillText("Hold  2  to drill through cracked walls!", W / 2, H / 2 + 22);

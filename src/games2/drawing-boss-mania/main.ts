@@ -1,5 +1,6 @@
 import { isGigantic } from "../../shared/bigGames";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 
@@ -13,6 +14,14 @@ if (GIGANTIC) {
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC Drawing Boss Mania";
 }
+
+// Supercharged by dev.1: eating a pellet charges you up with lightning. While
+// the boss is vulnerable you don't have to touch it any more — get close and
+// a bolt jumps from you to the boss and zaps it. The crackly blue ring around
+// you shows how far the zap reaches.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_REACH = 150;
+let zapBolt: { fromX: number; fromY: number; toX: number; toY: number; life: number } | null = null;
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) {
@@ -3478,12 +3487,19 @@ function updateBossDamageContact(): void {
   const closestY = Math.max(aabb.y, Math.min(boss.y, aabb.y + aabb.h));
   const dx = boss.x - closestX;
   const dy = boss.y - closestY;
-  if (dx * dx + dy * dy < boss.radius * boss.radius) {
+  const distSq = dx * dx + dy * dy;
+  const touching = distSq < boss.radius * boss.radius;
+  const zapping = SUPERCHARGED && !touching && distSq < (boss.radius + ZAP_REACH) ** 2;
+  if (touching || zapping) {
     boss.hp = Math.max(0, boss.hp - HIT_DAMAGE);
     boss.hitCooldown = HIT_COOLDOWN;
-    player.vy = -700;
-    player.vx = (player.x < boss.x ? -1 : 1) * 260;
-    player.onGround = false;
+    if (touching) {
+      player.vy = -700;
+      player.vx = (player.x < boss.x ? -1 : 1) * 260;
+      player.onGround = false;
+    } else {
+      zapBolt = { fromX: aabb.x + aabb.w / 2, fromY: aabb.y + aabb.h / 2, toX: boss.x, toY: boss.y, life: 0.3 };
+    }
     if (boss.hp <= 0) {
       if (currentBossId === "elemental") {
         advanceElementalPhase(false);
@@ -7598,6 +7614,54 @@ function drawLevelSelectScene(): void {
   }
 }
 
+// The zap ring around you while the boss is vulnerable, and the bolt itself
+// for a split second after it hits.
+function drawSuperchargedZap(dt: number): void {
+  const aabb = getPlayerAabb();
+  const cx = aabb.x + aabb.w / 2;
+  const cy = aabb.y + aabb.h / 2;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (boss.vulnerableTime > 0 && boss.phase !== "transitioning") {
+    ctx.strokeStyle = "rgba(102, 204, 255, 0.55)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let i = 0; i <= 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const r = ZAP_REACH + 15 + (Math.random() - 0.5) * 10;
+      if (i === 0) ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      else ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    }
+    ctx.stroke();
+  }
+  if (zapBolt) {
+    zapBolt.life -= dt;
+    const bolt = zapBolt;
+    for (const [color, width] of [["#66ccff", 12], ["#ffffff", 4]] as const) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(bolt.fromX, bolt.fromY);
+      for (let i = 1; i < 8; i++) {
+        const t = i / 8;
+        ctx.lineTo(
+          bolt.fromX + (bolt.toX - bolt.fromX) * t + (Math.random() - 0.5) * 30,
+          bolt.fromY + (bolt.toY - bolt.fromY) * t + (Math.random() - 0.5) * 30
+        );
+      }
+      ctx.lineTo(bolt.toX, bolt.toY);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#1f4ea8";
+    ctx.font = "italic bold 28px 'Comic Sans MS', cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("ZAP!", bolt.toX, bolt.toY - 60);
+    if (zapBolt.life <= 0) zapBolt = null;
+  }
+  ctx.restore();
+}
+
 function frame(timestamp: number): void {
   const dtRaw = Math.min((timestamp - lastTimestamp) / 1000, 0.05);
   lastTimestamp = timestamp;
@@ -7615,6 +7679,7 @@ function frame(timestamp: number): void {
       else update(dt);
     }
     drawArenaSnapshot();
+    if (SUPERCHARGED && !bossMode) drawSuperchargedZap(dt);
     if (gameState !== "playing") {
       if (!bossMode && gameState === "won") {
         recordBossBeaten(currentBossId);

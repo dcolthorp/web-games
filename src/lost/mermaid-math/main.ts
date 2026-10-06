@@ -11,6 +11,7 @@ import {
   type Game,
 } from "./rounds";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -35,6 +36,47 @@ if (GIGANTIC) {
   document.title = "GIGANTIC Mermaid Math";
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC Mermaid Math";
+}
+
+// Supercharged by dev.1: answers in a row are worth more and more (the third
+// one in a row is worth 3, the fourth 4...), and every fifth one in a row an
+// electric eel swims across the sea zapping lightning everywhere.
+const SUPERCHARGED = isThisGameSupercharged();
+let eel: { x: number; y: number } | null = null;
+const EEL_SPEED = 520;
+const EEL_LENGTH = 16;
+
+function drawEel(): void {
+  if (!eel) return;
+  const head = eel;
+  const segment = 22;
+  const glow = Math.floor(time * 12) % 2 === 0 ? "#fff36a" : "#7fe9ff";
+  ctx.save();
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 20;
+  for (let i = EEL_LENGTH - 1; i >= 0; i -= 1) {
+    const x = head.x - i * segment;
+    const y = head.y + Math.sin(time * 9 - i * 0.6) * 22;
+    ctx.fillStyle = i === 0 ? "#2fd17c" : i % 2 === 0 ? "#22a865" : "#1b8a54";
+    ctx.beginPath();
+    ctx.arc(x, y, (i === 0 ? 20 : 17 - i * 0.6) * GIANT, 0, Math.PI * 2);
+    ctx.fill();
+    // Lightning crackles off its back.
+    if (Math.random() < 0.25) {
+      ctx.strokeStyle = glow;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.random() * 40 - 20, y - 30 - Math.random() * 30);
+      ctx.lineTo(x + Math.random() * 60 - 30, y - 70 - Math.random() * 40);
+      ctx.stroke();
+    }
+  }
+  ctx.fillStyle = INK;
+  ctx.beginPath();
+  ctx.arc(head.x + 8 * GIANT, head.y + Math.sin(time * 9) * 22 - 6 * GIANT, 4 * GIANT, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 const BEST_STREAK_KEY = "mermaid-math-best-streak";
@@ -282,6 +324,7 @@ function drawFrame(): void {
 
   game.round.choices.forEach((value, index) => drawBubbleButton(index, value));
   drawSparkles();
+  drawEel();
 
   if (feedback) {
     const progress = 1 - feedback.remaining / feedback.total;
@@ -336,6 +379,12 @@ function answerWith(index: number): void {
     remaining: outcome.correct ? 0.85 : 0.55,
     total: outcome.correct ? 0.85 : 0.55,
   };
+  if (outcome.correct && SUPERCHARGED && game.streak > 1) {
+    // answer() already gave 1 point; the streak tops it up.
+    game.score += game.streak - 1;
+    feedback.message = `+${game.streak} ⚡`;
+    if (game.streak % 5 === 0) eel = { x: -EEL_LENGTH * 22, y: WINDOW_HEIGHT * (0.3 + Math.random() * 0.4) };
+  }
   if (outcome.correct) {
     const center = buttonCenter(index);
     celebrate(center.x, center.y);
@@ -414,6 +463,12 @@ function frame(now: number): void {
     const next = amount - seconds * 8 * amount;
     if (next <= 0.01) wiggle.delete(index);
     else wiggle.set(index, next);
+  }
+
+  if (eel) {
+    eel.x += EEL_SPEED * seconds;
+    if (Math.random() < 0.12) celebrate(eel.x, eel.y);
+    if (eel.x > WINDOW_WIDTH + EEL_LENGTH * 22 * GIANT) eel = null;
   }
 
   if (feedback) {

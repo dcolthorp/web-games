@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -16,6 +17,15 @@ if (GIGANTIC) {
   if (heading) heading.textContent = "GIGANTIC Zero Player Game";
   document.body.classList.add("gigantic");
 }
+
+// Supercharged by dev.1: a thunderstorm rolls over the grid while the machine
+// runs. Every few ticks lightning strikes an enemy cell and fries it. Glued
+// enemies still ride it out, because nothing deletes glue.
+const SUPERCHARGED = isThisGameSupercharged();
+const TICKS_BETWEEN_STRIKES = 7;
+let ticksToStrike = TICKS_BETWEEN_STRIKES;
+// The square the last bolt hit, drawn for just the tick it lands on.
+let strike: number | null = null;
 
 // A Cell Machine style puzzle: you only ever build. Once you hit Play the
 // machine runs itself, which is the whole joke of the title.
@@ -753,6 +763,9 @@ function restoreBuildState(): void {
   grid = buildSnapshot.map((cell) => (cell ? { ...cell } : null));
   inventory = new Map(buildInventory);
   won = false;
+  // The storm starts over with the machine.
+  strike = null;
+  ticksToStrike = TICKS_BETWEEN_STRIKES;
   if (winOverlay) winOverlay.hidden = true;
   renderPalette();
   draw();
@@ -1421,12 +1434,56 @@ function step(): void {
   // actually ended up this tick rather than where they started.
   runHunters();
   runLife();
+  if (SUPERCHARGED) runStorm();
   draw();
 
   // A level you built with no enemies in it has nothing to win, so don't pop
   // the banner the instant a bare sandbox starts running.
   const startedWithEnemies = buildSnapshot.some((cell) => cell && isEnemyKind(cell.kind));
   if (startedWithEnemies && !grid.some((cell) => cell && isEnemyKind(cell.kind))) declareWin();
+}
+
+function runStorm(): void {
+  strike = null;
+  ticksToStrike -= 1;
+  if (ticksToStrike > 0) return;
+  ticksToStrike = TICKS_BETWEEN_STRIKES;
+  const targets: number[] = [];
+  grid.forEach((cell, idx) => {
+    if (cell && isEnemyKind(cell.kind) && !isPermanent(cell)) targets.push(idx);
+  });
+  const target = targets[Math.floor(Math.random() * targets.length)];
+  if (target === undefined) return;
+  grid[target] = null;
+  strike = target;
+}
+
+// A jagged bolt from the top of the grid down to the square it fried.
+function drawStrike(): void {
+  if (strike === null) return;
+  const x = originX + (strike % cols) * tile + tile / 2;
+  const y = originY + Math.floor(strike / cols) * tile + tile / 2;
+  ctx.save();
+  ctx.fillStyle = "rgba(191, 228, 255, 0.18)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#e6f4ff";
+  ctx.shadowColor = "#46a8ff";
+  ctx.shadowBlur = 20;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  let boltX = x + (Math.random() - 0.5) * 120;
+  ctx.moveTo(boltX, 0);
+  const steps = 7;
+  for (let i = 1; i < steps; i += 1) {
+    boltX += (x - boltX) / (steps - i) + (Math.random() - 0.5) * 40;
+    ctx.lineTo(boltX, (y * i) / steps);
+  }
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, tile * 0.45, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function declareWin(): void {
@@ -1886,11 +1943,12 @@ function draw(): void {
 
   // Hovering brush preview would need pointer tracking; the palette highlight
   // and the pink zone are enough of a cue.
+  if (running && SUPERCHARGED) drawStrike();
   if (running) {
     ctx.fillStyle = "rgba(121, 242, 234, 0.9)";
     ctx.font = `bold ${20 * GIANT}px Impact, sans-serif`;
     ctx.textAlign = "left";
-    ctx.fillText("RUNNING — HANDS OFF", 14, 28 * GIANT);
+    ctx.fillText(SUPERCHARGED ? "RUNNING — HANDS OFF ⚡ STORM ⚡" : "RUNNING — HANDS OFF", 14, 28 * GIANT);
   } else if (pendingPortal !== null) {
     ctx.fillStyle = portalColor(grid[pendingPortal]?.link);
     ctx.font = `bold ${20 * GIANT}px Impact, sans-serif`;

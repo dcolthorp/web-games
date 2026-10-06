@@ -1,4 +1,5 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { createBoard, textFont, textHeight, type Point, type ToolName } from "./board";
 import { formatClock, swapOrder, type Door } from "./paint";
 import { openGuest, openHost, type Link } from "./net";
@@ -31,6 +32,9 @@ if (GIGANTIC) {
   if (heading) heading.textContent = "GIGANTIC Draw and Swap";
   document.body.classList.add("is-gigantic");
 }
+// Supercharged by dev.1: there's a lightning pen in the toolbox, which draws
+// crackling, glowing bolts in whatever colour you've picked.
+const SUPERCHARGED = isThisGameSupercharged();
 // Where a 🚪 goes when somebody opens it.
 const SECRET_GAME = "../behind-the-door/index.html";
 
@@ -527,6 +531,16 @@ function openDoor(): void {
 }
 
 // ---------------------------------------------------------------- toolbar
+
+if (SUPERCHARGED) {
+  const pen = document.createElement("button");
+  pen.className = "tool";
+  pen.type = "button";
+  pen.dataset["tool"] = "lightning";
+  pen.setAttribute("aria-pressed", "false");
+  pen.textContent = "⚡ Lightning";
+  ui.tools.insertBefore(pen, ui.eraseAll);
+}
 
 ui.tools.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-tool]");

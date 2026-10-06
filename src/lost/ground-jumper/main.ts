@@ -5,6 +5,7 @@
 import { drawOutfit } from "./appearance";
 import {
   DRESSING_ROOM_UNLOCK_SCORE,
+  JUMP_VELOCITY,
   LANE_COLORS,
   LANE_ORDER,
   WINDOW_HEIGHT,
@@ -13,6 +14,7 @@ import {
 import { drawGame } from "./draw";
 import { SHAPES, type EntityKind } from "./entities";
 import { laneChange, newGame, pressJump, step, type Controls, type Game, type ModeName } from "./game";
+import { playerRect } from "./player";
 import {
   buy,
   equip,
@@ -27,6 +29,7 @@ import {
   type Profile,
 } from "./shop";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -56,6 +59,55 @@ if (GIGANTIC) {
   document.title = TITLE;
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = TITLE;
+}
+
+// Supercharged by dev.1: the jumper can jump again in mid-air. The second jump
+// is a lightning jump that goes even higher and leaves a bolt crackling down
+// to where you jumped from, so holes and walls are easier to get over.
+const SUPERCHARGED = isThisGameSupercharged();
+let lightningJumpUsed = false;
+let bolt: { x: number; top: number; bottom: number; time: number } | null = null;
+const BOLT_TIME = 0.35;
+
+function jumpPressed(current: Game): void {
+  const player = current.player;
+  if (!SUPERCHARGED || player.onGround || lightningJumpUsed || current.paused || current.over) {
+    pressJump(current);
+    return;
+  }
+  lightningJumpUsed = true;
+  const rect = playerRect(player);
+  bolt = { x: rect.x + rect.width / 2, top: rect.y + rect.height, bottom: rect.y + rect.height + 140, time: 0 };
+  player.vy = JUMP_VELOCITY * 1.15;
+}
+
+function drawBolt(seconds: number): void {
+  if (!bolt) return;
+  bolt.time += seconds;
+  if (bolt.time > BOLT_TIME) {
+    bolt = null;
+    return;
+  }
+  const fade = 1 - bolt.time / BOLT_TIME;
+  ctx.save();
+  ctx.strokeStyle = `rgba(150, 230, 255, ${fade})`;
+  ctx.shadowColor = "#3cf";
+  ctx.shadowBlur = 16;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(bolt.x, bolt.top);
+  const zigs = 6;
+  for (let i = 1; i <= zigs; i += 1) {
+    const wiggle = i === zigs ? 0 : (Math.random() - 0.5) * 30;
+    ctx.lineTo(bolt.x + wiggle, bolt.top + ((bolt.bottom - bolt.top) * i) / zigs);
+  }
+  ctx.stroke();
+  ctx.fillStyle = `rgba(255, 255, 120, ${fade})`;
+  ctx.font = "bold 18px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("⚡ ZAP JUMP ⚡", bolt.x, bolt.top + 6);
+  ctx.textAlign = "left";
+  ctx.restore();
 }
 
 type Scene = "menu" | "reveal" | "playing" | "gameOver" | "dressingRoom";
@@ -312,6 +364,11 @@ function drawMenu(): void {
   ctx.font = "20px monospace";
   ctx.fillStyle = "#787878";
   ctx.fillText("ENTER to confirm · ↑/↓ to choose", WINDOW_WIDTH / 2, WINDOW_HEIGHT - 80);
+  if (SUPERCHARGED) {
+    ctx.fillStyle = "#7fe9ff";
+    ctx.fillText("⚡ Press SPACE again in mid-air for a ZAP JUMP ⚡", WINDOW_WIDTH / 2, WINDOW_HEIGHT - 110);
+    ctx.fillStyle = "#787878";
+  }
   if (!dressingRoomUnlocked()) {
     ctx.fillStyle = "#5a5a5a";
     ctx.font = "16px monospace";
@@ -422,7 +479,7 @@ window.addEventListener("keydown", (event) => {
     }
     if (key === "ArrowUp") laneChange(game, +1);
     else if (key === "ArrowDown") laneChange(game, -1);
-    else if (key === " ") pressJump(game);
+    else if (key === " ") jumpPressed(game);
     else if (key === "ArrowLeft" || key === "a") controls.left = true;
     else if (key === "ArrowRight" || key === "d") controls.right = true;
   }
@@ -458,7 +515,9 @@ function frame(now: number): void {
     if (revealTime >= 3) startGame("lost_levels");
   } else if (scene === "playing" && game) {
     step(game, controls, seconds);
+    if (game.player.onGround) lightningJumpUsed = false;
     drawGame(ctx, game, outfitOf(profile), laneColorsOf(profile) ?? LANE_COLORS, GIANT);
+    if (SUPERCHARGED) drawBolt(seconds);
     if (game.paused) drawPaused();
     if (game.over) {
       endGame();
@@ -487,5 +546,5 @@ canvas.addEventListener("pointerdown", (event) => {
   const y = event.clientY - bounds.top;
   if (y < third) laneChange(game, +1);
   else if (y > third * 2) laneChange(game, -1);
-  else pressJump(game);
+  else jumpPressed(game);
 });

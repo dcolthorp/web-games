@@ -1,4 +1,5 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 
@@ -113,6 +114,11 @@ const ALL_THE_MONEY_IN_THE_WORLD = 100_000_000_000_000;
 const GIGANTIC = isGigantic("cat-math");
 const GIANT = GIGANTIC ? 3 : 1;
 const GAME_NAME = GIGANTIC ? "GIGANTIC Cat Math" : "Cat Math";
+// Supercharged by dev.1: the cat charges up with every right answer in a row.
+// Each answer in your streak multiplies the coins you earn (up to x10), and the
+// cat crackles with more and more lightning the higher it gets.
+const SUPERCHARGED = isThisGameSupercharged();
+const MAX_CHARGE = 10;
 if (GIGANTIC) {
   document.title = GAME_NAME;
   const heading = document.querySelector("h1");
@@ -1363,7 +1369,43 @@ function drawEquationClash(timestamp: number): void {
   });
   drawProblemPanel(timestamp);
   drawCat(704, 455, 1.28, timestamp);
+  if (SUPERCHARGED) drawCatCharge(704, 370, timestamp);
   drawMessage(timestamp);
+}
+
+// How many times over the next right answer pays out.
+function chargeMultiplier(): number {
+  return Math.min(MAX_CHARGE, save.streak + 1);
+}
+
+// Little lightning bolts jumping around the cat. One more bolt for every
+// answer in the streak, so a long streak makes the cat a thunderstorm.
+function drawCatCharge(cx: number, cy: number, timestamp: number): void {
+  const bolts = chargeMultiplier() - 1;
+  if (bolts <= 0) return;
+  ctx.save();
+  ctx.strokeStyle = "#fff8ff";
+  ctx.shadowColor = "#5ad0ff";
+  ctx.shadowBlur = 16;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = "round";
+  // A new zigzag shape every tenth of a second, so it flickers.
+  const flicker = Math.floor(timestamp / 100);
+  for (let i = 0; i < bolts; i += 1) {
+    const angle = (i / bolts) * Math.PI * 2 + timestamp / 900;
+    let x = cx + Math.cos(angle) * 88;
+    let y = cy + Math.sin(angle) * 100;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let step = 1; step <= 4; step += 1) {
+      const wobble = Math.sin(flicker * 7.3 + i * 3.1 + step * 5.7) * 12;
+      x += Math.cos(angle) * 14 - Math.sin(angle) * wobble;
+      y += Math.sin(angle) * 14 + Math.cos(angle) * wobble;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function saveCreatorEquation(): void {
@@ -1525,6 +1567,7 @@ function drawQuiz(timestamp: number): void {
   drawTopBar(timestamp);
   drawProblemPanel(timestamp);
   drawCat(704, 455, 1.28, timestamp);
+  if (SUPERCHARGED) drawCatCharge(704, 370, timestamp);
   drawMessage(timestamp);
 }
 
@@ -1539,7 +1582,7 @@ function drawTopBar(timestamp: number): void {
   });
 
   drawRoundedRect(252, 22, 206, 64, 16, "#fff8ff", "#321545", 3);
-  drawText(`Streak ${save.streak}`, 355, 62, {
+  drawText(SUPERCHARGED ? `Streak ${save.streak} ⚡x${chargeMultiplier()}` : `Streak ${save.streak}`, 355, 62, {
     font: "900 27px Trebuchet MS, Segoe UI, sans-serif",
     color: "#321545",
     align: "center",
@@ -1847,12 +1890,14 @@ function answerProblem(choice: number): void {
 
   if (choice === currentProblem.answer) {
     const streakBonus = (save.streak + 1) % 5 === 0 ? 3 : 0;
-    const earned = 2 + streakBonus;
+    const charge = SUPERCHARGED ? chargeMultiplier() : 1;
+    const earned = (2 + streakBonus) * charge;
     save.coins += earned;
     save.correctCount += 1;
     save.streak += 1;
     saveGame();
     message = streakBonus > 0 ? `Great streak! +$${earned}` : `Purrfect! +$${earned}`;
+    if (charge > 1) message = `⚡x${charge}! +$${earned}`;
     messageUntil = now + 1100;
     cheerUntil = now + 900;
     lockedUntil = now + 1050;

@@ -47,6 +47,14 @@ import {
   type MapSizeId,
   type Spot,
 } from "./world";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
+
+// Supercharged by dev.1: every few fragments you pick up charge a meter, and
+// when it's full it lets off a ZAP that freezes every glitch on the map for a
+// few seconds. Frozen glitches can't catch you, so it's your moment to run.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_EVERY = 5;
+const ZAP_MS = 5000;
 
 const BLACKEN_EVERY_MS = 55;
 const FALL_AWAY_MS = 260;
@@ -170,6 +178,8 @@ export function createWorldGame(
   let shards: Shard[] = [];
   // When you got on the ladder you're on, so the boss knows when to take it away.
   let climbingSince = 0;
+  // When the supercharged zap wears off. Zero when nothing's frozen.
+  let zappedUntil = 0;
   const held = new Set<string>();
   const seen = loadSeen();
 
@@ -206,6 +216,7 @@ export function createWorldGame(
       spawnGlitches();
     }
     blackened = [];
+    zappedUntil = 0;
     startedAt = 0;
     mood = "playing";
     screen = "world";
@@ -361,6 +372,9 @@ export function createWorldGame(
         mood = "forging";
         forgeAt = performance.now();
         sounds.forge();
+      } else if (SUPERCHARGED && player.fragments % ZAP_EVERY === 0) {
+        zappedUntil = performance.now() + ZAP_MS;
+        sounds.block();
       }
       return false;
     });
@@ -451,6 +465,8 @@ export function createWorldGame(
 
       // They hold still at first, so you get a look at the place before the running starts.
       if (now - startedAt < HEAD_START_MS) return;
+      // Zapped glitches stand frozen where they are until the charge wears off.
+      if (now < zappedUntil) return;
       for (const [index, glitch] of glitches.entries()) {
         updateGlitch(arena.world, glitch, player, dt, now, watching[index] ?? false);
         if (!hasCaught(glitch, player)) continue;
@@ -774,6 +790,7 @@ export function createWorldGame(
       ctx.fillText("ON A LADDER — THEY CAN'T FOLLOW", 18, 68);
     }
     drawDashBar();
+    if (SUPERCHARGED && mode === "survival") drawZap();
 
     // The moment you can see one, it says so.
     const watched = glitches.filter((glitch) => !glitch.hiding && canSee(glitch)).length;
@@ -811,6 +828,33 @@ export function createWorldGame(
     ctx.textAlign = "left";
     ctx.textBaseline = "bottom";
     ctx.fillText(ready ? "DASH READY (SHIFT)" : "DASH", 18, H - 40);
+  }
+
+  // The zap meter fills a fifth for each fragment. While a zap is going, the
+  // screen flickers blue and counts down until they wake up again.
+  function drawZap(): void {
+    const now = performance.now();
+    const left = 190;
+    const width = 150;
+    const charge = (player.fragments % ZAP_EVERY) / ZAP_EVERY;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.fillRect(left, H - 34, width, 12);
+    ctx.fillStyle = "#5fd0ff";
+    ctx.fillRect(left, H - 34, width * charge, 12);
+    ctx.fillStyle = "#bff0ff";
+    ctx.font = "bold 13px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("⚡ ZAP CHARGE", left, H - 40);
+
+    if (now >= zappedUntil || mood !== "playing") return;
+    ctx.fillStyle = `rgba(80, 190, 255, ${0.1 + 0.08 * Math.random()})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = "bold 40px Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#e6f8ff";
+    ctx.fillText(`⚡ GLITCHES ZAPPED ⚡ ${Math.ceil((zappedUntil - now) / 1000)}`, W / 2, 90);
   }
 
   function drawBossBar(): void {

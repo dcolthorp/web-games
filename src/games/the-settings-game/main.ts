@@ -1,4 +1,5 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 // GIGANTIC Settings Game: the level is GIANT times bigger than you and the
 // camera is zoomed way out to fit it all in, so you look tiny. Your runs and
@@ -10,6 +11,14 @@ if (GIGANTIC) {
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC The Settings Game";
 }
+
+// Supercharged by dev.1: every level gets one extra setting at the top,
+// "⚡ Supercharged Boots". Switch it on and you can jump again in mid-air,
+// with a lightning blast under your feet. It stays on from level to level.
+const SUPERCHARGED = isThisGameSupercharged();
+let superBoots = false;
+let airJumpReady = false;
+let bootBlast: { x: number; y: number; start: number } | null = null;
 
 interface Rect {
   x: number;
@@ -1041,6 +1050,25 @@ function renderSettings(level: Level): void {
 
     settingsBody.appendChild(wrap);
   }
+  if (SUPERCHARGED) renderBootsSetting();
+}
+
+function renderBootsSetting(): void {
+  const wrap = document.createElement("div");
+  wrap.className = "setting checkbox";
+  wrap.style.cssText = "border:2px solid #6cf;border-radius:8px;box-shadow:0 0 12px #6cf;";
+  wrap.innerHTML = `
+    <label class="setting-row" for="s-super-boots">
+      <span>⚡ Supercharged Boots</span>
+      <input type="checkbox" id="s-super-boots" ${superBoots ? "checked" : ""} />
+    </label>
+  `;
+  const input = wrap.querySelector("input") as HTMLInputElement;
+  input.addEventListener("change", () => {
+    superBoots = input.checked;
+    flash(superBoots ? "⚡ Jump again in mid-air! ⚡" : "Boots powered down.");
+  });
+  settingsBody.prepend(wrap);
 }
 
 function formatValue(s: SliderSetting): string {
@@ -1115,16 +1143,25 @@ function step(dt: number): void {
   const jumpHeld = Boolean(jump);
   const jumpEdge = jumpHeld && !prevJump;
   prevJump = jumpHeld;
+  if (player.onGround) airJumpReady = true;
   if (jump && player.onGround) {
     player.vy = -jumpStrength;
     player.onGround = false;
   } else if (jumpEdge && !player.onGround) {
     // Geometry-Dash-style orb: tap jump while overlapping an orb to jump again.
+    let usedOrb = false;
     for (const e of entities) {
       if (e.visible && e.kind === "orb" && rectsOverlap(player, e)) {
         player.vy = -jumpStrength;
+        usedOrb = true;
         break;
       }
+    }
+    // No orb nearby? The supercharged boots give one mid-air jump of their own.
+    if (!usedOrb && SUPERCHARGED && superBoots && airJumpReady) {
+      player.vy = -jumpStrength;
+      airJumpReady = false;
+      bootBlast = { x: player.x + player.w / 2, y: player.y + player.h, start: performance.now() };
     }
   }
 
@@ -1428,6 +1465,7 @@ function render(): void {
     ctx.fillStyle = "rgba(60, 255, 220, 0.6)";
     ctx.fillRect(player.x + shift, player.y, player.w, player.h);
   }
+  if (SUPERCHARGED) drawBootBlast();
   ctx.fillStyle = noClip ? "rgba(109, 211, 255, 0.85)" : "#6dd3ff";
   ctx.fillRect(player.x, player.y, player.w, player.h);
   ctx.fillStyle = "#0c1a2e";
@@ -1460,6 +1498,36 @@ function render(): void {
       ctx.fillRect(0, 0, W, H);
     }
   }
+}
+
+// Jagged lightning bolts shooting down from where the boots jumped, fading
+// out fast. Sized off the player so it looks right in GIGANTIC mode too.
+function drawBootBlast(): void {
+  if (!bootBlast) return;
+  const age = (performance.now() - bootBlast.start) / 350;
+  if (age >= 1) {
+    bootBlast = null;
+    return;
+  }
+  const size = player.h * 2.5;
+  ctx.save();
+  ctx.globalAlpha = 1 - age;
+  ctx.strokeStyle = "#e8fbff";
+  ctx.shadowColor = "#6cf";
+  ctx.shadowBlur = 14;
+  ctx.lineWidth = Math.max(1, player.w / 8);
+  for (let bolt = 0; bolt < 5; bolt++) {
+    const angle = Math.PI / 2 + (bolt - 2) * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(bootBlast.x, bootBlast.y);
+    for (let i = 1; i <= 4; i++) {
+      const r = (size * i) / 4;
+      const wiggle = (Math.random() - 0.5) * size * 0.25;
+      ctx.lineTo(bootBlast.x + Math.cos(angle) * r + wiggle, bootBlast.y + Math.sin(angle) * r);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // ----- Loop -----

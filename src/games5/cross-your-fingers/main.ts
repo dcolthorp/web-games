@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import {
   COIN_VALUES,
   COLS,
@@ -49,6 +50,13 @@ if (GIGANTIC) {
   if (heading) heading.textContent = "GIGANTIC Cross Your Fingers";
 }
 const COIN_RADIUS = 8 * GIANT;
+
+// Supercharged by dev.1: the little guy turns into a coin magnet. Any coin that
+// gets close enough is grabbed by a lightning bolt and dragged straight to him,
+// even through the ground.
+const SUPERCHARGED = isThisGameSupercharged();
+const MAGNET_REACH = 6;
+const MAGNET_PULL = 9;
 
 let piece: Piece = makePiece(Math.floor(Math.random() * 1000000));
 let walker: Walker = newWalker(piece.spawnX, piece.spawnY);
@@ -119,6 +127,55 @@ function controls(): { move: number; jump: boolean } {
     move: Number(down("d", "arrowright")) - Number(down("a", "arrowleft")),
     jump: down("w", "arrowup", " ", "space"),
   };
+}
+
+// The middle of him, in tiles, which is where the magnet pulls to.
+function walkerMiddle(): { x: number; y: number } {
+  return { x: walker.x / TILE, y: (walker.y - HEIGHT / 2) / TILE };
+}
+
+function pullCoins(dt: number): void {
+  const middle = walkerMiddle();
+  for (const coin of piece.coins) {
+    if (coin.taken) continue;
+    const dx = middle.x - coin.x;
+    const dy = middle.y - coin.y;
+    const away = Math.hypot(dx, dy);
+    if (away > MAGNET_REACH || away < 0.01) continue;
+    // The closer it gets, the harder it's yanked in.
+    const step = Math.min(away, MAGNET_PULL * (1 + (MAGNET_REACH - away) / 2) * dt);
+    coin.x += (dx / away) * step;
+    coin.y += (dy / away) * step;
+  }
+}
+
+// A crackly bolt from him to every coin the magnet has hold of.
+function drawMagnet(): void {
+  const middle = walkerMiddle();
+  ctx.save();
+  ctx.strokeStyle = "#bff0ff";
+  ctx.shadowColor = "#5fd0ff";
+  ctx.shadowBlur = 12;
+  ctx.lineWidth = 2 * GIANT;
+  for (const coin of piece.coins) {
+    if (coin.taken || Math.hypot(middle.x - coin.x, middle.y - coin.y) > MAGNET_REACH) continue;
+    const fromX = walker.x;
+    const fromY = walker.y - HEIGHT / 2;
+    const toX = coin.x * TILE;
+    const toY = coin.y * TILE;
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    for (let i = 1; i < 5; i += 1) {
+      const t = i / 5;
+      ctx.lineTo(
+        fromX + (toX - fromX) * t + (Math.random() - 0.5) * 12,
+        fromY + (toY - fromY) * t + (Math.random() - 0.5) * 12
+      );
+    }
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function collectCoins(): void {
@@ -363,10 +420,12 @@ function frame(now: number): void {
   lastFrame = now;
 
   updateWalker(piece, walker, controls(), dt);
+  if (SUPERCHARGED) pullCoins(dt);
   collectCoins();
 
   drawSky(now);
   drawLand();
+  if (SUPERCHARGED) drawMagnet();
   drawCoins(now);
   drawWalker(now);
   drawWater(now);

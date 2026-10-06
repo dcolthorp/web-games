@@ -1,6 +1,7 @@
 import { AKL_DELETED_FROM_HUB_KEY } from "../../shared/ahegTrophy";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { NIGHTMARE_TOAST_KEY, PENELOPE_CAT_SKIN_KEY, PENELOPE_DOG_BREED_KEY, PENELOPE_NIGHTMARE_PET_KEY, PENELOPE_PET_FORM_KEY, TOAST_FOR_PENELOPE_KEY } from "../../shared/glitchedToast";
 
 installOofShortcut();
@@ -94,6 +95,11 @@ function isGameDeletedFromHub(gameId: string): boolean {
 }
 
 renderGameList();
+
+// Supercharged by dev.1: stroking the pet with the mouse builds up static,
+// like rubbing a real cat. When the static meter is full the pet puffs up and
+// ZAPS a lightning bolt into one of the games, picking it for you.
+const SUPERCHARGED = isThisGameSupercharged();
 
 const kittyStage = document.querySelector<HTMLElement>(".kitty-stage");
 const kitty = document.querySelector<HTMLElement>(".kitty");
@@ -360,4 +366,95 @@ async function playRefreshScareSound(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+if (SUPERCHARGED) installStaticPet();
+
+function installStaticPet(): void {
+  if (!kittyStage || !kitty) return;
+  const meter = document.createElement("div");
+  const fill = document.createElement("div");
+  const label = document.createElement("div");
+  meter.style.cssText =
+    "position:absolute;left:50%;bottom:-18px;width:160px;height:12px;transform:translateX(-50%);border-radius:6px;background:#1d2a6b;box-shadow:0 0 8px #6cf;overflow:hidden;z-index:9;pointer-events:none";
+  fill.style.cssText = "width:0%;height:100%;background:linear-gradient(90deg,#6cf,#fff,#6cf)";
+  label.style.cssText =
+    "position:absolute;left:50%;bottom:-40px;transform:translateX(-50%);font:bold 13px sans-serif;color:#3a7bff;white-space:nowrap;pointer-events:none;z-index:9";
+  label.textContent = "⚡ Stroke the pet to build static!";
+  meter.append(fill);
+  kittyStage.append(meter, label);
+
+  // How far the mouse has to stroke the pet to fill the meter, in pixels.
+  const FULL_CHARGE = 2400;
+  let charge = 0;
+  let last: { x: number; y: number } | null = null;
+  let zapping = false;
+  kittyStage.addEventListener("pointerleave", () => (last = null));
+  kittyStage.addEventListener("pointermove", (event) => {
+    if (zapping) return;
+    if (last) charge += Math.hypot(event.clientX - last.x, event.clientY - last.y);
+    last = { x: event.clientX, y: event.clientY };
+    fill.style.width = `${Math.min(100, (charge / FULL_CHARGE) * 100)}%`;
+    if (charge >= FULL_CHARGE) zap();
+  });
+
+  function zap(): void {
+    if (!kitty || !kittyStage) return;
+    const cards = [...document.querySelectorAll<HTMLElement>(".penelope-game-card")];
+    const card = cards[Math.floor(Math.random() * cards.length)];
+    zapping = true;
+    // The pet's fur stands straight up with all that static.
+    kitty.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(1.35) rotate(-4deg)", filter: "drop-shadow(0 0 18px #6cf)" }, { transform: "scale(1)" }],
+      { duration: 900, easing: "ease-out" }
+    );
+    if (card) {
+      drawBolt(kitty.getBoundingClientRect(), card.getBoundingClientRect());
+      card.animate(
+        [
+          { transform: "translateX(0)", boxShadow: "0 0 0 #6cf" },
+          { transform: "translateX(-8px)", boxShadow: "0 0 40px #6cf" },
+          { transform: "translateX(8px)", boxShadow: "0 0 40px #fff" },
+          { transform: "translateX(0)", boxShadow: "0 0 0 #6cf" },
+        ],
+        { duration: 600, iterations: 2 }
+      );
+      label.textContent = `ZAP! Your pet picked ${card.getAttribute("aria-label") ?? "a game"}!`;
+    } else {
+      label.textContent = "ZAP!";
+    }
+    window.setTimeout(() => {
+      charge = 0;
+      zapping = false;
+      fill.style.width = "0%";
+    }, 1200);
+  }
+}
+
+// A jagged bolt from the pet to the game it picked, gone in a flash.
+function drawBolt(from: DOMRect, to: DOMRect): void {
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("style", "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:1000");
+  const x1 = from.left + from.width / 2;
+  const y1 = from.top + from.height / 3;
+  const x2 = to.left + to.width / 2;
+  const y2 = to.top + to.height / 2;
+  const points: string[] = [`${x1},${y1}`];
+  for (let step = 1; step < 9; step += 1) {
+    const t = step / 9;
+    points.push(`${x1 + (x2 - x1) * t + (Math.random() - 0.5) * 50},${y1 + (y2 - y1) * t + (Math.random() - 0.5) * 50}`);
+  }
+  points.push(`${x2},${y2}`);
+  for (const [color, width] of [["#6cf", 12], ["#fff", 4]] as const) {
+    const line = document.createElementNS(svgNs, "polyline");
+    line.setAttribute("points", points.join(" "));
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", String(width));
+    line.setAttribute("stroke-linejoin", "round");
+    svg.append(line);
+  }
+  document.body.append(svg);
+  svg.animate([{ opacity: 1 }, { opacity: 1, offset: 0.3 }, { opacity: 0 }], { duration: 700 }).onfinish = () => svg.remove();
 }

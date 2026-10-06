@@ -1,6 +1,9 @@
 import { doorAt, doorBoxes, floodFill, parseColor, type Door } from "./paint";
 
-export type ToolName = "freeform" | "line" | "square" | "fill" | "eraser" | "text";
+export type ToolName = "freeform" | "line" | "square" | "fill" | "eraser" | "text" | "lightning";
+// The lightning pen only shows up when the game is supercharged. It draws a
+// jagged, glowing bolt instead of a smooth line, and every so often it forks.
+const BOLT_STEP = 16;
 
 export const PAPER_WIDTH = 900;
 export const PAPER_HEIGHT = 620;
@@ -105,6 +108,53 @@ export function createBoard(
     ink.stroke();
   };
 
+  const drawBolt = (from: Point, to: Point): void => {
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    // Sideways, so the zigzag goes across the line instead of along it.
+    const sideX = length > 0 ? -(to.y - from.y) / length : 0;
+    const sideY = length > 0 ? (to.x - from.x) / length : 0;
+    // Like every tool but the pencil, it comes out giant in GIGANTIC mode.
+    const thick = size * giant;
+    const jag = Math.max(4, thick * 0.8);
+    const kink = (Math.random() - 0.5) * 2 * jag;
+    const middle = {
+      x: (from.x + to.x) / 2 + sideX * kink,
+      y: (from.y + to.y) / 2 + sideY * kink,
+    };
+    ink.save();
+    ink.lineCap = "round";
+    ink.lineJoin = "miter";
+    ink.shadowColor = color;
+    ink.shadowBlur = 18;
+    // A coloured glow first, then a hot white middle on top of it.
+    for (const [stroke, width] of [
+      [color, thick],
+      ["#ffffff", Math.max(1, thick / 3)],
+    ] as const) {
+      ink.strokeStyle = stroke;
+      ink.lineWidth = width;
+      ink.beginPath();
+      ink.moveTo(from.x, from.y);
+      ink.lineTo(middle.x, middle.y);
+      ink.lineTo(to.x, to.y);
+      ink.stroke();
+    }
+    // Now and then a little fork crackles off the side.
+    if (Math.random() < 0.3) {
+      const side = Math.random() < 0.5 ? 1 : -1;
+      ink.strokeStyle = color;
+      ink.lineWidth = Math.max(1, thick / 2);
+      ink.beginPath();
+      ink.moveTo(middle.x, middle.y);
+      ink.lineTo(
+        middle.x + sideX * side * jag * 3 + (to.x - from.x) * 0.5,
+        middle.y + sideY * side * jag * 3 + (to.y - from.y) * 0.5
+      );
+      ink.stroke();
+    }
+    ink.restore();
+  };
+
   const drawShape = (context: CanvasRenderingContext2D, from: Point, to: Point): void => {
     strokeStyle(context);
     context.beginPath();
@@ -153,6 +203,14 @@ export function createBoard(
   paper.addEventListener("pointermove", (event) => {
     if (locked || !start || !event.isPrimary) return;
     const spot = spotFor(event);
+    if (tool === "lightning") {
+      // Wait until the pen has gone far enough to make a proper zigzag.
+      const from = last ?? spot;
+      if (Math.hypot(spot.x - from.x, spot.y - from.y) < BOLT_STEP) return;
+      drawBolt(from, spot);
+      last = spot;
+      return;
+    }
     if (tool === "freeform" || tool === "eraser") {
       drawSegment(last ?? spot, spot);
       if (tool === "eraser") eraseDoorsUnder(spot);

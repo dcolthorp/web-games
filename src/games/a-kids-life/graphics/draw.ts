@@ -3,6 +3,7 @@ import type { FamilySave, HomeStyle, LifeStage, Mood, NeedKind, PersonState } fr
 import { getNeedIcon } from "../systems/visualHints";
 import { roundRect } from "../ui/Button";
 import { drawGiant } from "../gigantic";
+import { SUPERCHARGED, drawLightningAura } from "../supercharged";
 
 const STAGE_COLORS: Record<LifeStage, { sky: string; wall: string; floor: string; accent: string }> = {
   baby: { sky: "#fff4d7", wall: "#ffe2ec", floor: "#f8d4bf", accent: "#fca6c3" },
@@ -137,6 +138,7 @@ export function drawCharacter(
     ctx.beginPath();
     ctx.arc(x, y - 20, opts.size * 0.78, 0, Math.PI * 2);
     ctx.fill();
+    if (SUPERCHARGED) drawLightningAura(ctx, x, y - 20, opts.size * 0.62, opts.time ?? 0);
   }
 
   ctx.fillStyle = skin;

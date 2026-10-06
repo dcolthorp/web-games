@@ -1,6 +1,7 @@
 import { isGigantic } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import {
   BASE_SNAKE_SIZE,
   DARK_GREEN,
@@ -37,6 +38,14 @@ if (GIGANTIC) {
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC Snake";
 }
+
+// Supercharged by dev.1: every fifth food charges the snake up with lightning
+// for five seconds. While it's charged it flashes blue and yellow and zaps
+// poop out of the way instead of dying on it, and every zapped poop is a point.
+const SUPERCHARGED = isThisGameSupercharged();
+const CHARGE_FRAMES = 5 * 60;
+let chargeFrames = 0;
+let zaps: { spot: Spot; frames: number }[] = [];
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
@@ -147,6 +156,7 @@ function draw(now: number): void {
   drawRainbow();
 
   ctx.fillStyle = "rgb(255, 255, 255)";
+  if (chargeFrames > 0) ctx.fillStyle = Math.floor(now / 80) % 2 === 0 ? "rgb(80, 220, 255)" : "rgb(255, 255, 90)";
   for (const part of snake.positions) ctx.fillRect(part.x, part.y, snake.size, snake.size);
 
   ctx.fillStyle = FOOD_COLOR;
@@ -163,6 +173,7 @@ function draw(now: number): void {
   }
 
   if (starFood) drawStarFood(starFood, now);
+  drawZaps();
 
   ctx.fillStyle = "rgb(255, 255, 255)";
   ctx.textAlign = "center";
@@ -171,6 +182,11 @@ function draw(now: number): void {
   ctx.fillText(`Score: ${score}`, WINDOW_WIDTH / 2, 50 * GIANT);
   ctx.font = `${13 * GIANT}px 'Trebuchet MS', sans-serif`;
   ctx.fillText(`High Score: ${highScore}`, WINDOW_WIDTH / 2, 74 * GIANT);
+  if (chargeFrames > 0) {
+    ctx.fillStyle = "rgb(255, 255, 90)";
+    ctx.font = `bold ${22 * GIANT}px 'Trebuchet MS', sans-serif`;
+    ctx.fillText(`⚡ CHARGED ${Math.ceil(chargeFrames / 60)} ⚡`, WINDOW_WIDTH / 2, 104 * GIANT);
+  }
 
   if (state === "paused" || state === "game over") {
     const over = state === "game over";
@@ -188,12 +204,30 @@ function draw(now: number): void {
   }
 }
 
+// A zapped poop goes off in a little starburst of lightning.
+function drawZaps(): void {
+  ctx.strokeStyle = "rgb(255, 255, 90)";
+  ctx.lineWidth = 3;
+  for (const zap of zaps) {
+    const reach = (20 - zap.frames) * 3 * GIANT;
+    for (let i = 0; i < 8; i += 1) {
+      const angle = (Math.PI * 2 * i) / 8 + zap.frames;
+      ctx.beginPath();
+      ctx.moveTo(zap.spot.x, zap.spot.y);
+      ctx.lineTo(zap.spot.x + reach * Math.cos(angle), zap.spot.y + reach * Math.sin(angle));
+      ctx.stroke();
+    }
+  }
+}
+
 // ---------- the game ----------
 
 function resetGame(): void {
   snake.reset({ x: WINDOW_WIDTH / 2, y: WINDOW_HEIGHT / 2 });
   poops = [];
   landingPoops = [];
+  chargeFrames = 0;
+  zaps = [];
 
   // Die three times in a row without scoring and you're given a lucky star.
   gameNumber = score === 0 ? gameNumber + 1 : 0;
@@ -213,6 +247,18 @@ function resetGame(): void {
 function step(now: number): void {
   if (state !== "playing") return;
 
+  if (chargeFrames > 0) {
+    chargeFrames -= 1;
+    poops = poops.filter((poop) => {
+      if (!snake.isTouching(poop, POOP_SIZE / 2)) return true;
+      const middle = GIGANTIC ? poop : { x: poop.x + BASE_SNAKE_SIZE / 2, y: poop.y + BASE_SNAKE_SIZE / 2 };
+      zaps.push({ spot: middle, frames: 20 });
+      score += 1;
+      return false;
+    });
+  }
+  zaps = zaps.filter((zap) => (zap.frames -= 1) > 0);
+
   if (
     snake.isTouchingItself() ||
     snake.isOutsideWindow() ||
@@ -230,6 +276,7 @@ function step(now: number): void {
     score += 1;
     snake.makePoop();
     foodLocation = randomSpot();
+    if (SUPERCHARGED && round % 5 === 0) chargeFrames = CHARGE_FRAMES;
     if (round % 3 === 0) starFood = { spot: randomSpot(), kind: "normal", addedAt: now };
   }
 

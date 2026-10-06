@@ -60,6 +60,7 @@ import {
   type RosterEntry,
 } from "./roster";
 import { H, W, type Thing } from "./world";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -70,6 +71,13 @@ if (GIGANTIC) {
   if (heading) heading.textContent = "GIGANTIC World Sandbox";
   document.body.classList.add("gigantic");
 }
+
+// Supercharged by dev.1: whatever you put on the map comes down from space in
+// a bolt of lightning, and plain things (animals, trees, rocks…) land as three
+// of them instead of one.
+const SUPERCHARGED = isThisGameSupercharged();
+const STRIKE_MS = 450;
+const strikes: { x: number; y: number; at: number; bolt: number[] }[] = [];
 
 // You look down on your world from space. Pick a kind of thing, pick which
 // one, and click the map to add it. The world is saved, so it's still there
@@ -413,9 +421,44 @@ canvas.addEventListener("pointerleave", () => {
   hoverText = null;
 });
 
+// A pixel bolt from the top of the map down to the spot, wiggling a pixel or
+// two either way on each row, and a ring where it hits.
+function strike(x: number, y: number): void {
+  const bolt: number[] = [];
+  let wiggle = 0;
+  for (let row = 0; row <= y; row += 1) {
+    wiggle = Math.max(-6, Math.min(6, wiggle + Math.floor(Math.random() * 5) - 2));
+    // It always ends up right on the spot you clicked.
+    bolt.push(Math.round(x + wiggle * (1 - row / Math.max(1, y))));
+  }
+  strikes.push({ x, y, at: performance.now(), bolt });
+}
+
+function drawStrikes(now: number): void {
+  for (let i = strikes.length - 1; i >= 0; i -= 1) {
+    const hit = strikes[i];
+    if (!hit) continue;
+    const t = (now - hit.at) / STRIKE_MS;
+    if (t >= 1) {
+      strikes.splice(i, 1);
+      continue;
+    }
+    ctx.globalAlpha = 1 - t;
+    ctx.fillStyle = t < 0.3 ? "#ffffff" : "#9fe8ff";
+    hit.bolt.forEach((boltX, row) => ctx.fillRect(boltX, row, 2, 1));
+    ctx.strokeStyle = "#bff0ff";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(hit.x + 0.5, hit.y + 0.5, 2 + t * 14, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
 canvas.addEventListener("pointerdown", (event) => {
   const { x, y } = toMap(event);
   const c = choice();
+  const things = world.things.length;
 
   if (caveGrid) {
     if (caveCategory === "Dig" || caveCategory === "Crystals") {
@@ -505,7 +548,18 @@ canvas.addEventListener("pointerdown", (event) => {
     say("RUN.");
   } else {
     world.things.push({ type: c.id, x, y });
+    if (SUPERCHARGED) {
+      // Two more, a little way off on either side, if there's room for them.
+      for (const side of [-1, 1]) {
+        const twinX = Math.max(0, Math.min(W - 1, x + side * 6 * giantOf({ type: c.id, x, y })));
+        const twinY = Math.max(0, Math.min(H - 1, y + Math.floor(Math.random() * 5) - 2));
+        if (!canBe(c.habitat, twinX, twinY)) continue;
+        world.things.push({ type: c.id, x: twinX, y: twinY });
+        strike(twinX, twinY);
+      }
+    }
   }
+  if (SUPERCHARGED && world.things.length > things) strike(x, y);
   save();
 });
 
@@ -1277,7 +1331,10 @@ function frame(realNow: number): void {
     }
     drawCave(ctx, caveGrid, clock, caveMountain);
     drawCaveBlasts(clock);
-  } else drawWorld(ctx, clock);
+  } else {
+    drawWorld(ctx, clock);
+    if (SUPERCHARGED) drawStrikes(realNow);
+  }
   if (physics.matrix) drawMatrix(ctx, realNow);
 
   const text = currentNote(realNow) ?? hoverText ?? hint();

@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import kickUrl from "./assets/oscars-voice.m4a?url";
 import snareUrl from "./assets/oscars-snare.m4a?url";
 import hihatUrl from "./assets/oscars-hihat.m4a?url";
@@ -22,6 +23,15 @@ if (GIGANTIC) {
   document.querySelector("h1")?.insertAdjacentHTML("afterbegin", "GIGANTIC<br />");
   document.body.classList.add("gigantic");
 }
+
+// Supercharged by dev.1: the tempo slider doesn't stop at 180 any more. Push
+// it past the end into OVERDRIVE and Oscar's voice speeds up into a chipmunk
+// and lightning cracks across the waveform on every step.
+const SUPERCHARGED = isThisGameSupercharged();
+const NORMAL_MAX_TEMPO = 180;
+const OVERDRIVE_MAX_TEMPO = 360;
+// The finished waveform, kept so lightning can be drawn over it and wiped off.
+let waveformPicture: ImageData | null = null;
 
 const STEPS = 16;
 const STORAGE_KEY = "make-your-own-beatboxer-thingy-pattern-v9";
@@ -381,7 +391,7 @@ function loadBeat(index: number): void {
   });
   if (tempoInput && save.tempo) {
     tempoInput.value = save.tempo;
-    if (tempoOutput) tempoOutput.textContent = `${save.tempo} BPM`;
+    showTempo();
   }
   if (swingInput && save.swing) {
     swingInput.value = save.swing;
@@ -491,7 +501,8 @@ function playVoice(laneIndex: number, time: number): void {
   const filter = audioContext.createBiquadFilter();
   const gain = audioContext.createGain();
   source.buffer = sample.buffer;
-  source.playbackRate.value = lane.playbackRate;
+  // In overdrive the voice gets squeakier the further past the end you go.
+  source.playbackRate.value = lane.playbackRate * (1 + overdrive() * 0.6);
   filter.type = lane.filter;
   filter.frequency.value = lane.frequency;
   filter.Q.value = lane.filter === "bandpass" ? 0.8 : 0.3;
@@ -511,6 +522,40 @@ function playVoice(laneIndex: number, time: number): void {
   source.stop(time + duration + 0.03);
 }
 
+function showTempo(): void {
+  if (!tempoOutput || !tempoInput) return;
+  tempoOutput.textContent = overdrive() > 0 ? `⚡ ${tempoInput.value} BPM ⚡` : `${tempoInput.value} BPM`;
+}
+
+// How far past the old end of the slider it's pushed: 0 normally, up to 1 at the very end.
+function overdrive(): number {
+  if (!SUPERCHARGED) return 0;
+  const tempo = Number(tempoInput?.value ?? 108);
+  return Math.max(0, (tempo - NORMAL_MAX_TEMPO) / (OVERDRIVE_MAX_TEMPO - NORMAL_MAX_TEMPO));
+}
+
+// A jagged blue bolt across the waveform, wiped off by the next one.
+function zapWaveform(): void {
+  const context = waveform?.getContext("2d");
+  if (!waveform || !context || !waveformPicture) return;
+  context.putImageData(waveformPicture, 0, 0);
+  const { width, height } = waveform;
+  context.save();
+  context.strokeStyle = "#bfe4ff";
+  context.shadowColor = "#46a8ff";
+  context.shadowBlur = 12;
+  context.lineWidth = 3;
+  context.beginPath();
+  let x = Math.random() * width * 0.3;
+  context.moveTo(x, Math.random() * height);
+  while (x < width) {
+    x += 20 + Math.random() * 50;
+    context.lineTo(x, Math.random() * height);
+  }
+  context.stroke();
+  context.restore();
+}
+
 function stepDuration(): number {
   return 60 / Number(tempoInput?.value ?? 108) / 4;
 }
@@ -520,7 +565,11 @@ function scheduleStep(step: number, time: number): void {
     if (pattern[laneIndex]?.[step]) playVoice(laneIndex, time);
   });
   const delay = Math.max(0, (time - (audioContext?.currentTime ?? 0)) * 1000);
-  window.setTimeout(() => showPlayhead(step), delay);
+  window.setTimeout(() => {
+    showPlayhead(step);
+    if (isPlaying && overdrive() > 0) zapWaveform();
+    else if (waveformPicture) waveform?.getContext("2d")?.putImageData(waveformPicture, 0, 0);
+  }, delay);
 }
 
 function scheduler(): void {
@@ -614,6 +663,7 @@ function drawWaveform(): void {
       context.fillRect(left + x, (height - barHeight) / 2, 2, barHeight);
     }
   });
+  if (SUPERCHARGED) waveformPicture = context.getImageData(0, 0, width, height);
 }
 
 function analyzeSample(buffer: AudioBuffer): LoadedSample {
@@ -779,7 +829,7 @@ playButton?.addEventListener("click", () => void togglePlayback());
 randomButton?.addEventListener("click", randomize);
 clearButton?.addEventListener("click", clearPattern);
 fillButton?.addEventListener("click", fillPattern);
-tempoInput?.addEventListener("input", () => { if (tempoOutput) tempoOutput.textContent = `${tempoInput.value} BPM`; });
+tempoInput?.addEventListener("input", showTempo);
 swingInput?.addEventListener("input", () => { if (swingOutput) swingOutput.textContent = `${swingInput.value}%`; });
 
 window.addEventListener("keydown", (event) => {
@@ -795,6 +845,9 @@ window.addEventListener("pagehide", () => {
   window.clearTimeout(schedulerTimer);
   void audioContext?.close();
 });
+
+// The slider's end moves out, so OVERDRIVE is the extra stretch past 180.
+if (SUPERCHARGED && tempoInput) tempoInput.max = String(OVERDRIVE_MAX_TEMPO);
 
 renderGrid();
 seedPresets();

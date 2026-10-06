@@ -9,6 +9,7 @@ import { createButtonRoom } from "./room2";
 import { createExeRoom } from "./room3";
 import { createDoorRoom } from "./room4";
 import { resetNoDoorLine } from "./noDoorLine";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 installForceRefreshHotkey();
@@ -29,6 +30,25 @@ if (GIGANTIC) {
   const heading = document.querySelector(".hero h1");
   if (heading) heading.textContent = "GIGANTIC Zero Logic Escape Rooms 2";
 }
+
+// Supercharged by dev.1: escaping a room doesn't just open the next one. A
+// lightning bolt smashes the room you were in into pieces that go flying off
+// the screen, and the next room is underneath.
+const SUPERCHARGED = isThisGameSupercharged();
+const SHATTER_MS = 1400;
+const SHARD_SIZE = 60;
+const SHARD_GRAVITY = 1100;
+
+interface Shard {
+  // Where the piece came from in the old room, and how it's flying.
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  spin: number;
+}
+
+let shatter: { start: number; picture: HTMLCanvasElement; shards: Shard[] } | null = null;
 
 const TITLE_MS = 2400;
 const UNLOCKED_KEY = "zero-logic-escape-rooms-2-unlocked";
@@ -80,6 +100,7 @@ function enterRoom(index: number, lead = ""): void {
 }
 
 function roomEscaped(): void {
+  if (SUPERCHARGED) smashRoom();
   const next = current + 1;
   const lead = rooms[current]?.exitLine ?? "";
   unlock(next + 1);
@@ -112,6 +133,75 @@ overlay.querySelector("[data-action='restart']")?.addEventListener("click", () =
   ensureAudio();
   enterRoom(0);
 });
+
+// Takes a picture of the room as it was, cut into squares that all blast away
+// from the middle of the screen.
+function smashRoom(): void {
+  const picture = document.createElement("canvas");
+  picture.width = W;
+  picture.height = H;
+  picture.getContext("2d")?.drawImage(canvas, 0, 0, W, H);
+  const shards: Shard[] = [];
+  for (let y = 0; y < H; y += SHARD_SIZE) {
+    for (let x = 0; x < W; x += SHARD_SIZE) {
+      const awayX = x + SHARD_SIZE / 2 - W / 2;
+      const awayY = y + SHARD_SIZE / 2 - H / 2;
+      const away = Math.hypot(awayX, awayY) || 1;
+      const speed = 300 + Math.random() * 500;
+      shards.push({
+        x,
+        y,
+        vx: (awayX / away) * speed,
+        vy: (awayY / away) * speed - 250,
+        spin: (Math.random() - 0.5) * 8,
+      });
+    }
+  }
+  shatter = { start: performance.now(), picture, shards };
+}
+
+function drawShatter(now: number): void {
+  if (!shatter) return;
+  const seconds = (now - shatter.start) / 1000;
+  const t = seconds / (SHATTER_MS / 1000);
+  if (t >= 1) {
+    shatter = null;
+    return;
+  }
+  for (const shard of shatter.shards) {
+    const x = shard.x + SHARD_SIZE / 2 + shard.vx * seconds;
+    const y = shard.y + SHARD_SIZE / 2 + shard.vy * seconds + (SHARD_GRAVITY * seconds * seconds) / 2;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(shard.spin * seconds);
+    const half = SHARD_SIZE / 2;
+    ctx.drawImage(shatter.picture, shard.x, shard.y, SHARD_SIZE, SHARD_SIZE, -half, -half, SHARD_SIZE, SHARD_SIZE);
+    ctx.strokeStyle = "#bff0ff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(-half, -half, SHARD_SIZE, SHARD_SIZE);
+    ctx.restore();
+  }
+
+  // The bolt that did it, and a blue flash, for the first moment only.
+  if (t < 0.25) {
+    ctx.fillStyle = `rgba(150, 220, 255, ${0.6 * (1 - t / 0.25)})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.shadowColor = "#5fd0ff";
+    ctx.shadowBlur = 24;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    let boltX = W / 2;
+    ctx.moveTo(boltX, 0);
+    for (let y = 0; y <= H; y += H / 8) {
+      boltX += (Math.random() - 0.5) * 120;
+      ctx.lineTo(boltX, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 
 // The room name card that sits over the room for the first couple of seconds.
 function drawTitle(now: number): boolean {
@@ -155,6 +245,7 @@ function frame(now: number): void {
     canvas.style.cursor = title ? "default" : room.cursor(pointer);
   }
   drawTitle(now);
+  if (SUPERCHARGED) drawShatter(now);
 
   window.requestAnimationFrame(frame);
 }

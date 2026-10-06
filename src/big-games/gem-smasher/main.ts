@@ -1,6 +1,7 @@
 import { isGigantic, markFound } from "../../shared/bigGames";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { createShop } from "./shop";
 
 installOofShortcut();
@@ -16,6 +17,14 @@ if (GIGANTIC) {
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC Gem Smasher";
 }
+
+// SUPERCHARGED Gem Smasher: the mallet is full of lightning. Smash a gem and
+// a bolt jumps from it to the nearest gems and smashes them too, and they can
+// pass it on, up to a chain of 5.
+const SUPERCHARGED = isThisGameSupercharged();
+const CHAIN_REACH = 340 * GIANT;
+const CHAIN_MAX = 5;
+const BOLT_MS = 350;
 
 // Gem Smasher: Catch the Kitties, but with gems. You're in a dark room, gems
 // pop up in random spots, and you smash them with a hammer before they fade.
@@ -132,6 +141,7 @@ const indexList = document.getElementById("gem-index-list") as HTMLUListElement;
 let gems: Gem[] = [];
 let shards: Shard[] = [];
 let floaters: Floater[] = [];
+let bolts: { x1: number; y1: number; x2: number; y2: number; born: number }[] = [];
 let score = 0;
 let smashed = 0;
 let highScore = readNumber(HIGH_SCORE_KEY);
@@ -212,7 +222,8 @@ function spawnGem(now: number): void {
       break;
     }
   }
-  nextSpawn = now + SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS);
+  // Supercharged gems pop up twice as often, so there's lots to chain.
+  nextSpawn = now + (SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS)) / (SUPERCHARGED ? 2 : 1);
 }
 
 function easeOutBack(t: number): number {
@@ -256,24 +267,46 @@ function smash(x: number, y: number): void {
   for (const gem of [...gems].reverse()) {
     if (popAmount(gem, now) < 0.5) continue;
     if (Math.hypot(gem.x - x, gem.y - y) > malletReach(now) + gem.size * 0.4) continue;
-    gems = gems.filter((other) => other !== gem);
-    shatter(gem, now);
-    const points = gem.type.points * (now < effectEnds.double ? 2 : 1);
-    score += points;
-    smashed += 1;
-    totalSmashed += 1;
-    save(TOTAL_SMASHED_KEY, String(totalSmashed));
-    const unlocked = MALLET_SKINS.find((s) => s.need === totalSmashed && s.need > 0);
-    if (unlocked) floaters.push({ x: W / 2, y: 110, text: `New mallet: ${unlocked.tier}!`, color: "#ffe45e", born: now });
-    floaters.push({ x: gem.x, y: gem.y - 50, text: `+${points}`, color: gem.type.light, born: now });
-    if (gem.type.id === "diamond") floaters.push({ x: W / 2, y: 150, text: "💎 A DIAMOND!!! 💎", color: "#ffffff", born: now });
-    if (score > highScore) {
-      highScore = score;
-      save(HIGH_SCORE_KEY, String(highScore));
-    }
+    smashGem(gem, now);
+    if (SUPERCHARGED) chainLightning(gem, now);
     return;
   }
   floaters.push({ x, y, text: "clink", color: "rgba(255,255,255,0.7)", born: now });
+}
+
+// Lightning hops from gem to gem, always to the closest one still showing.
+function chainLightning(from: Gem, now: number): void {
+  let chain = 1;
+  let at = from;
+  while (chain < CHAIN_MAX) {
+    const next = gems
+      .filter((g) => popAmount(g, now) >= 0.5 && Math.hypot(g.x - at.x, g.y - at.y) < CHAIN_REACH)
+      .sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y))[0];
+    if (!next) break;
+    bolts.push({ x1: at.x, y1: at.y, x2: next.x, y2: next.y, born: now });
+    smashGem(next, now);
+    chain += 1;
+    at = next;
+  }
+  if (chain > 1) floaters.push({ x: W / 2, y: 190, text: `⚡ CHAIN x${chain}! ⚡`, color: "#7fd8ff", born: now });
+}
+
+function smashGem(gem: Gem, now: number): void {
+  gems = gems.filter((other) => other !== gem);
+  shatter(gem, now);
+  const points = gem.type.points * (now < effectEnds.double ? 2 : 1);
+  score += points;
+  smashed += 1;
+  totalSmashed += 1;
+  save(TOTAL_SMASHED_KEY, String(totalSmashed));
+  const unlocked = MALLET_SKINS.find((s) => s.need === totalSmashed && s.need > 0);
+  if (unlocked) floaters.push({ x: W / 2, y: 110, text: `New mallet: ${unlocked.tier}!`, color: "#ffe45e", born: now });
+  floaters.push({ x: gem.x, y: gem.y - 50, text: `+${points}`, color: gem.type.light, born: now });
+  if (gem.type.id === "diamond") floaters.push({ x: W / 2, y: 150, text: "💎 A DIAMOND!!! 💎", color: "#ffffff", born: now });
+  if (score > highScore) {
+    highScore = score;
+    save(HIGH_SCORE_KEY, String(highScore));
+  }
 }
 
 function toCanvas(event: PointerEvent): { x: number; y: number } {
@@ -447,6 +480,28 @@ function drawGem(gem: Gem, now: number, real: number): void {
   ctx.restore();
 }
 
+// A flickery lightning bolt between two gems, fading out.
+function drawBolt(b: { x1: number; y1: number; x2: number; y2: number; born: number }, now: number): void {
+  const steps = 8;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - (now - b.born) / BOLT_MS);
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(b.x1, b.y1);
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    ctx.lineTo(b.x1 + (b.x2 - b.x1) * t + (Math.random() - 0.5) * 30, b.y1 + (b.y2 - b.y1) * t + (Math.random() - 0.5) * 30);
+  }
+  ctx.lineTo(b.x2, b.y2);
+  ctx.strokeStyle = "rgba(80, 190, 255, 0.6)";
+  ctx.lineWidth = 12;
+  ctx.stroke();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.restore();
+}
+
 // A mallet drawn around its head, in whichever skin you're using.
 function drawMalletShape(g: CanvasRenderingContext2D, skin: MalletSkin, now: number): void {
   const hue = (now / 12) % 360;
@@ -550,6 +605,7 @@ function frame(real: number): void {
   if (!paused && now >= nextSpawn) spawnGem(now);
   gems = gems.filter((gem) => now - gem.born < STAY_MS + POP_MS * 2);
   floaters = floaters.filter((f) => now - f.born < 900);
+  bolts = bolts.filter((b) => now - b.born < BOLT_MS);
   if (!paused) {
     const dt = step / 1000;
     for (const s of shards) {
@@ -578,6 +634,8 @@ function frame(real: number): void {
     ctx.fill();
     ctx.restore();
   }
+
+  bolts.forEach((b) => drawBolt(b, now));
 
   for (const f of floaters) {
     const age = (now - f.born) / 900;

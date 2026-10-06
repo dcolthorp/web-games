@@ -1,4 +1,10 @@
 import deathScreenUrl from "./geometrically-dominated-death-screen.jpg";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
+
+// Supercharged by dev.1: lightning portals show up. Fly through one and for a
+// few seconds you crackle with electricity and zap anything you crash into.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_SECONDS = 4.5;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const context = canvas.getContext("2d")!;
@@ -25,7 +31,7 @@ function startMusic(): void {
 musicToggle.addEventListener("click", startMusic);
 
 type PlayerMode = "cube" | "ship" | "ball" | "ufo" | "wave" | "robot" | "spider";
-type PortalEffect = PlayerMode | "fast" | "slow" | "gravity-up" | "gravity-down" | "mini" | "normal-size";
+type PortalEffect = PlayerMode | "fast" | "slow" | "gravity-up" | "gravity-down" | "mini" | "normal-size" | "supercharge";
 type Obstacle = {
   x: number;
   y: number;
@@ -33,6 +39,7 @@ type Obstacle = {
   height: number;
   kind: "spike" | "block";
   spikeDirection: "up" | "down";
+  zapped?: boolean;
 };
 type Gizmo = { x: number; y: number; kind: "pad" | "orb" | "portal"; used: boolean; portalEffect?: PortalEffect };
 
@@ -62,6 +69,7 @@ const portalStyles: Record<PortalEffect, { color: string; symbol: string; name: 
   "normal-size": { color: "#eab308", symbol: "+", name: "NORMAL SIZE" },
   fast: { color: "#14b8a6", symbol: "≫", name: "SPEED UP" },
   slow: { color: "#fb7185", symbol: "≪", name: "SLOW DOWN" },
+  supercharge: { color: "#46a8ff", symbol: "⚡", name: "⚡ SUPERCHARGED ⚡" },
 };
 
 const player = { x: 155, y: floorY - 42, size: 42, velocity: 0, rotation: 0, grounded: true };
@@ -81,6 +89,9 @@ let portalNotice = "";
 let portalNoticeTime = 0;
 let obstacles: Obstacle[] = [];
 let gizmos: Gizmo[] = [];
+// How much longer the lightning lasts, and the little zap flashes it leaves behind.
+let zapTime = 0;
+let zaps: { x: number; y: number; time: number }[] = [];
 
 bestDisplay.textContent = `BEST ${best}`;
 
@@ -99,6 +110,8 @@ function reset() {
   speed = 330;
   spawnTimer = 0.8;
   gizmoTimer = 2.4;
+  zapTime = 0;
+  zaps = [];
   dead = false;
   running = true;
   message.classList.remove("death-screen");
@@ -155,7 +168,9 @@ function addGizmo() {
   } else if (roll < 0.42) {
     gizmos.push({ x: canvas.width + 50, y: floorY - 135 - Math.random() * 90, kind: "orb", used: false });
   } else {
-    const portalEffect = portalEffects[Math.floor(Math.random() * portalEffects.length)];
+    const portalEffect = SUPERCHARGED && Math.random() < 0.3
+      ? "supercharge"
+      : portalEffects[Math.floor(Math.random() * portalEffects.length)];
     gizmos.push({ x: canvas.width + 50, y: floorY / 2, kind: "portal", used: false, portalEffect });
   }
   gizmoTimer = 3.2 + Math.random() * 3.7;
@@ -165,6 +180,10 @@ function applyPortal(effect: PortalEffect) {
   const style = portalStyles[effect];
   portalNotice = style.name;
   portalNoticeTime = 1.15;
+  if (effect === "supercharge") {
+    zapTime = ZAP_SECONDS;
+    return;
+  }
   if (["cube", "ship", "ball", "ufo", "wave", "robot", "spider"].includes(effect)) {
     const nextMode = effect as PlayerMode;
     if (nextMode !== mode) {
@@ -217,6 +236,9 @@ function update(dt: number) {
   spawnTimer -= dt;
   gizmoTimer -= dt;
   portalNoticeTime -= dt;
+  zapTime -= dt;
+  for (const zap of zaps) zap.time -= dt;
+  zaps = zaps.filter((zap) => zap.time > 0);
   if (spawnTimer <= 0) addObstacle();
   if (gizmoTimer <= 0) addGizmo();
 
@@ -281,12 +303,17 @@ function update(dt: number) {
       player.y = obstacleBottom;
       player.velocity = 0;
       player.grounded = true;
+    } else if (zapTime > 0) {
+      // Crackling with lightning: whatever you crash into gets zapped away.
+      obstacle.zapped = true;
+      zaps.push({ x: obstacle.x + obstacle.width / 2, y: obstacle.y + obstacle.height / 2, time: 0.4 });
+      distance += 10;
     } else {
       lose();
       break;
     }
   }
-  obstacles = obstacles.filter((item) => item.x + item.width > -30);
+  obstacles = obstacles.filter((item) => item.x + item.width > -30 && !item.zapped);
 
   for (const gizmo of gizmos) {
     gizmo.x -= speed * dt;
@@ -325,13 +352,54 @@ function drawBackground() {
   context.fillRect(0, floorY, canvas.width, 5);
 }
 
+// A jagged bolt between two points, different every frame so it flickers.
+function drawBolt(fromX: number, fromY: number, toX: number, toY: number) {
+  context.beginPath();
+  context.moveTo(fromX, fromY);
+  for (let step = 1; step < 6; step += 1) {
+    const along = step / 6;
+    context.lineTo(fromX + (toX - fromX) * along + (Math.random() - 0.5) * 18, fromY + (toY - fromY) * along + (Math.random() - 0.5) * 18);
+  }
+  context.lineTo(toX, toY);
+  context.stroke();
+}
+
+function drawZaps() {
+  const centerX = player.x + player.size / 2;
+  const centerY = player.y + player.size / 2;
+  context.save();
+  context.strokeStyle = "#bfe4ff";
+  context.shadowColor = "#46a8ff";
+  context.shadowBlur = 16;
+  context.lineWidth = 3;
+  for (const zap of zaps) {
+    context.globalAlpha = zap.time / 0.4;
+    drawBolt(centerX, centerY, zap.x, zap.y);
+    context.beginPath(); context.arc(zap.x, zap.y, 30 * (1 - zap.time / 0.4) + 6, 0, Math.PI * 2); context.stroke();
+  }
+  if (zapTime > 0) {
+    // Little sparks fizzing off the player; they flicker out as it wears off.
+    context.globalAlpha = zapTime < 1 ? (Math.random() < zapTime ? 1 : 0.2) : 1;
+    for (let spark = 0; spark < 3; spark += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const reach = player.size * (0.8 + Math.random() * 0.6);
+      drawBolt(centerX, centerY, centerX + Math.cos(angle) * reach, centerY + Math.sin(angle) * reach);
+    }
+  }
+  context.restore();
+}
+
 function drawPlayer() {
   const centerX = player.x + player.size / 2;
   const centerY = player.y + player.size / 2;
   context.save();
+  if (zapTime > 0) {
+    context.shadowColor = "#46a8ff";
+    context.shadowBlur = 28;
+  }
   context.translate(centerX, centerY);
   context.rotate(mode === "cube" || mode === "ball" ? player.rotation : 0);
-  context.fillStyle = "#ffe45c";
+  context.fillStyle = zapTime > 0 ? "#9fd8ff" : "#ffe45c";
   context.strokeStyle = "#161d52";
   context.lineWidth = Math.max(3, 5 * sizeScale);
   const s = player.size;
@@ -407,6 +475,7 @@ function draw() {
     }
   }
   drawPlayer();
+  drawZaps();
   if (portalNoticeTime > 0) {
     context.fillStyle = `rgba(255,255,255,${Math.min(1, portalNoticeTime * 2)})`;
     context.font = "bold 30px sans-serif"; context.textAlign = "center";

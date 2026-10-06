@@ -4,6 +4,8 @@
 // crashes everything when you poke it. Flip its broken zeros back into ones
 // and it's rebuilt as dev.1, which is friendly.
 
+import * as sfx from "./sfx";
+
 export const DEV_ZERO_REBUILT_KEY = "hub-dev0-rebuilt";
 
 const BROKEN_PIECES = 10;
@@ -61,6 +63,8 @@ export function runDevZeroRebuild(lockout: HTMLElement, finish: () => void): voi
     const type = (): void => {
       shown += 1;
       text.textContent = words.slice(0, shown);
+      // A quiet terminal tick for every few letters.
+      if (shown % 3 === 0) sfx.bleep(-12);
       if (shown < words.length) window.setTimeout(type, 38);
       else window.setTimeout(nextLine, 700);
     };
@@ -97,6 +101,8 @@ export function runDevZeroRebuild(lockout: HTMLElement, finish: () => void): voi
         piece.textContent = "1";
         piece.classList.add("is-fixed");
         fixed += 1;
+        // Each fixed piece blips a little higher than the last.
+        sfx.bleep(fixed);
         status.textContent = `CLICK THE ZEROS · ${fixed} / ${BROKEN_PIECES} FIXED`;
         if (fixed === BROKEN_PIECES) rebuilt();
       });
@@ -105,6 +111,7 @@ export function runDevZeroRebuild(lockout: HTMLElement, finish: () => void): voi
     function rebuilt(): void {
       timers.forEach((timer) => window.clearInterval(timer));
       localStorage.setItem(DEV_ZERO_REBUILT_KEY, "true");
+      sfx.powerUp();
       lockout.classList.add("is-rebuilt");
       title.textContent = "dev.1";
       story.replaceChildren();
@@ -125,6 +132,7 @@ export function showDevOneHello(title: HTMLElement): void {
   const bubble = document.createElement("p");
   bubble.className = "dev-one-hello";
   bubble.textContent = "dev.1: All fixed. Everything's running fine down here.";
+  sfx.chime();
   title.insertAdjacentElement("afterend", bubble);
   window.setTimeout(() => bubble.remove(), 3500);
 }

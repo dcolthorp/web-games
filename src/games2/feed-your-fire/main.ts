@@ -1,10 +1,19 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 // GIGANTIC Feed Your Fire: your fire stays its normal size; the log, the
 // sparks, the city, the rain and everything else go giant.
 const GIGANTIC = isGigantic("feed-your-fire");
 const GIANT = GIGANTIC ? 3 : 1;
 if (GIGANTIC) document.title = "GIGANTIC Feed Your Fire";
+
+// Supercharged by dev.1: there's a storm overhead. Every so often lightning
+// strikes your fire and supercharges it, and for a few seconds every click on
+// the fire gives five times the coins.
+const SUPERCHARGED = isThisGameSupercharged();
+const STORM_CHARGE_SECONDS = 8;
+const STORM_MULTIPLIER = 5;
+const storm = { nextStrike: 10 + Math.random() * 10, charged: 0, flash: 0 };
 
 interface Gasoline {
   id: string;
@@ -426,11 +435,12 @@ canvas.addEventListener("pointerdown", (e) => {
     const dx = x - cx;
     const dy = y - cy;
     if (dx * dx + dy * dy < 200 * 200) {
-      const gained = coinsPerClick();
+      const stormy = SUPERCHARGED && storm.charged > 0;
+      const gained = coinsPerClick() * (stormy ? STORM_MULTIPLIER : 1);
       state.coins += gained;
       floatingTexts.push({
         x, y, vy: -60, life: 0, maxLife: 0.9,
-        text: `+🪙${gained}`, color: "#ffd97a",
+        text: `+🪙${gained}${stormy ? " ⚡" : ""}`, color: stormy ? "#9fe6ff" : "#ffd97a",
       });
       for (let i = 0; i < 6; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -509,9 +519,10 @@ function tick(now: number) {
   }
 
   if (state.mode === "play") updateMarshmallow(dt);
+  if (state.mode === "play" && SUPERCHARGED) updateStorm(dt);
   if (state.mode === "kaboom") {
     updateKaboom(dt);
-    if (state.modeTimer >= KABOOM_DURATION) endKaboom();
+    if (state.modeTimer >= (SUPERCHARGED ? WORLD_END.over : KABOOM_DURATION)) endKaboom();
   }
 
   // mode transitions
@@ -641,6 +652,64 @@ function draw() {
   }
 
   drawPlay();
+  if (SUPERCHARGED) drawStorm();
+}
+
+function updateStorm(dt: number) {
+  storm.charged = Math.max(0, storm.charged - dt);
+  storm.flash = Math.max(0, storm.flash - dt);
+  storm.nextStrike -= dt;
+  if (storm.nextStrike > 0) return;
+  storm.nextStrike = 20 + Math.random() * 20;
+  storm.charged = STORM_CHARGE_SECONDS;
+  storm.flash = 0.35;
+  burstParticles(80);
+  showToast(`⚡ LIGHTNING! Click the fire for ×${STORM_MULTIPLIER} coins! ⚡`, 2400);
+}
+
+// The bolt itself, the white flash, and a countdown while the fire is charged.
+function drawStorm() {
+  const cx = canvasWidth / 2;
+  const cy = canvasHeight * 0.62;
+  if (storm.flash > 0) {
+    ctx.save();
+    ctx.fillStyle = `rgba(220, 240, 255, ${storm.flash})`;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.lineJoin = "round";
+    for (const [color, width] of [["#66ccff", 14], ["#ffffff", 5]] as const) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(cx + (Math.random() - 0.5) * 80, 0);
+      for (let i = 1; i < 10; i++) {
+        ctx.lineTo(cx + (Math.random() - 0.5) * 70, (cy * i) / 10);
+      }
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (storm.charged > 0) {
+    ctx.save();
+    ctx.fillStyle = "#9fe6ff";
+    ctx.shadowColor = "#3b7bff";
+    ctx.shadowBlur = 16;
+    ctx.font = "bold 28px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`⚡ SUPERCHARGED FIRE ×${STORM_MULTIPLIER} — ${Math.ceil(storm.charged)} ⚡`, cx, 48);
+    // Little sparks crackling off the fire.
+    ctx.strokeStyle = "#cdf3ff";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 90 + Math.random() * 60;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r, cy - 40 + Math.sin(a) * r);
+      ctx.lineTo(cx + Math.cos(a + 0.15) * (r + 25), cy - 40 + Math.sin(a + 0.15) * (r + 25));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
 
 function drawPlay() {
@@ -789,7 +858,8 @@ function updateMarshmallow(dt: number) {
     const { x, y } = marshmallowSpot();
     fireTrail(x, y, 3);
     if (marshmallow.flying >= FLIGHT_SECONDS) {
-      if (GIGANTIC) startKaboom();
+      // Supercharged, lightning sets the shop off no matter the size.
+      if (GIGANTIC || SUPERCHARGED) startKaboom();
       else fizzle();
     }
     return;
@@ -996,6 +1066,26 @@ interface Debris {
 
 const kaboom = { x: 0, y: 0, debris: [] as Debris[] };
 
+// Supercharged, the shop doesn't just explode. Lightning strikes it first, it
+// goes up twice as big, and then it keeps going: a man in Germany sipping a
+// coconut, three seconds later everything is exploding, the Earth splits in
+// half to show its inner core was a secret stash of bombs all along, and the
+// whole world blows up. Each number is when that part of the story ends, in
+// seconds from the strike.
+const WORLD_END = {
+  strike: 0.7,
+  boom: 4.7,
+  germany: 8.2,
+  later: 9.8,
+  everything: 12.8,
+  split: 16.3,
+  over: 19.6,
+};
+// Seconds into the explosion itself, after the lightning.
+function boomTime(): number {
+  return state.modeTimer - (SUPERCHARGED ? WORLD_END.strike : 0);
+}
+
 function startKaboom() {
   state.mode = "kaboom";
   state.modeTimer = 0;
@@ -1003,11 +1093,14 @@ function startKaboom() {
   kaboom.x = shop.x;
   kaboom.y = shop.y;
   kaboom.debris = [];
-  for (let i = 0; i < 90; i++) {
+  // Everything waits for the lightning to land.
+  const delay = SUPERCHARGED ? WORLD_END.strike * 1000 : 0;
+  const bigger = SUPERCHARGED ? 1.5 : 1;
+  for (let i = 0; i < 90 * (SUPERCHARGED ? 2 : 1); i++) {
     const gas = GASOLINES[i % GASOLINES.length]!;
     // Mostly up and away from the corner the shop is in.
     const angle = -Math.PI / 2 - Math.random() * Math.PI * 0.75 + 0.2;
-    const speed = 500 + Math.random() * 1300;
+    const speed = (500 + Math.random() * 1300) * bigger;
     kaboom.debris.push({
       x: shop.x,
       y: shop.y,
@@ -1030,7 +1123,7 @@ function startKaboom() {
         { transform: "none", opacity: 1 },
         { transform: `translate(${dx}px, ${dy}px) rotate(${(Math.random() - 0.5) * 1440}deg) scale(${1 + Math.random() * 2})`, opacity: 0 },
       ],
-      { duration: 1400 + Math.random() * 800, easing: "cubic-bezier(.2,.7,.4,1)", fill: "forwards" }
+      { duration: 1400 + Math.random() * 800, delay, easing: "cubic-bezier(.2,.7,.4,1)", fill: "forwards" }
     );
   });
   shopWrap.querySelector<HTMLElement>(".shop")?.animate(
@@ -1039,16 +1132,20 @@ function startKaboom() {
       { transform: "scale(1.3)", opacity: 1, filter: "brightness(4)", offset: 0.15 },
       { transform: "scale(0.2) rotate(40deg)", opacity: 0, filter: "brightness(1)" },
     ],
-    { duration: 900, fill: "forwards" }
+    { duration: 900, delay, fill: "forwards" }
   );
   appEl.animate(
     Array.from({ length: 24 }, (_, i) => {
       const k = 40 * (1 - i / 24);
       return { transform: `translate(${(Math.random() - 0.5) * k}px, ${(Math.random() - 0.5) * k}px)` };
     }),
-    { duration: 2200 }
+    { duration: 2200 * bigger, delay }
   );
 
+  if (SUPERCHARGED) {
+    tellTheEndOfTheWorld();
+    return;
+  }
   showCutsceneText("KA-BOOOOOM!!!", "fire", 2300);
   setTimeout(() => {
     if (state.mode === "kaboom") showCutsceneText("The gasoline shop exploded", "fire", 2600);
@@ -1058,7 +1155,23 @@ function startKaboom() {
   }, 5900);
 }
 
+// The captions for the supercharged version, each timed to its scene.
+function tellTheEndOfTheWorld() {
+  const at = (seconds: number, text: string, showFor: number) =>
+    setTimeout(() => {
+      if (state.mode === "kaboom") showCutsceneText(text, "fire", showFor);
+    }, seconds * 1000);
+  at(WORLD_END.strike, "⚡ KA-BOOOOOOOOOOM!!! ⚡", 2600);
+  at(WORLD_END.boom + 0.3, "Meanwhile, in Germany…", 3000);
+  at(WORLD_END.later + 0.6, "EVERYTHING IS EXPLODING", 2300);
+  // Two halves, so the long reveal fits across the screen.
+  at(WORLD_END.everything + 1.2, "The inner core was…", 1100);
+  at(WORLD_END.everything + 2.3, "…a SECRET STASH OF BOMBS all along!", 1300);
+  at(WORLD_END.split + 0.5, "THE WHOLE WORLD EXPLODED", 2700);
+}
+
 function updateKaboom(dt: number) {
+  if (SUPERCHARGED && (state.modeTimer < WORLD_END.strike || state.modeTimer > WORLD_END.boom)) return;
   const ground = canvasHeight * 0.62 + 40 + 20 * GIANT;
   for (const d of kaboom.debris) {
     if (d.landed) continue;
@@ -1072,7 +1185,7 @@ function updateKaboom(dt: number) {
       d.landed = true;
     }
   }
-  if (state.modeTimer < 3) fireTrail(kaboom.x, kaboom.y, 4);
+  if (boomTime() < 3) fireTrail(kaboom.x, kaboom.y, 4);
 }
 
 function endKaboom() {
@@ -1091,18 +1204,34 @@ function endKaboom() {
     ],
     { duration: 600, easing: "cubic-bezier(.2,1.4,.4,1)" }
   );
-  showToast("🏗️ The shop has been rebuilt. Keep marshmallows away from the gasoline!", 3600);
+  showToast(
+    SUPERCHARGED
+      ? "🌍 The whole world has been rebuilt. Your fire is fine. Somehow."
+      : "🏗️ The shop has been rebuilt. Keep marshmallows away from the gasoline!",
+    3600
+  );
 }
 
 function drawKaboom() {
-  const t = state.modeTimer;
+  if (SUPERCHARGED) {
+    if (state.modeTimer < WORLD_END.strike) {
+      drawPlay();
+      drawShopStrike(state.modeTimer / WORLD_END.strike);
+      return;
+    }
+    if (state.modeTimer >= WORLD_END.boom) {
+      drawEndOfTheWorld(state.modeTimer);
+      return;
+    }
+  }
+  const t = boomTime();
   const now = performance.now() / 1000;
   drawPlay();
 
-  // The fireball: giant, of course.
+  // The fireball: giant, of course. Supercharged, even more giant.
   const grow = Math.min(1, t / 1.1);
   const fade = t < 2.6 ? 1 : Math.max(0, 1 - (t - 2.6) / 2);
-  const maxR = Math.hypot(canvasWidth, canvasHeight) * 0.9;
+  const maxR = Math.hypot(canvasWidth, canvasHeight) * (SUPERCHARGED ? 1.4 : 0.9);
   const r = maxR * (1 - Math.pow(1 - grow, 3));
   if (fade > 0) {
     ctx.save();
@@ -1137,7 +1266,7 @@ function drawKaboom() {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.fillStyle = d.color;
-      ctx.globalAlpha = Math.max(0, Math.min(1, (KABOOM_DURATION - t) / 1.5));
+      ctx.globalAlpha = Math.max(0, Math.min(1, ((SUPERCHARGED ? WORLD_END.boom - WORLD_END.strike : KABOOM_DURATION) - t) / 1.5));
       ctx.beginPath();
       ctx.moveTo(d.x, d.y - h);
       ctx.quadraticCurveTo(d.x + d.size * 0.6, d.y, d.x, d.y);
@@ -1166,6 +1295,372 @@ function drawKaboom() {
   }
 
   drawParticles("#ffd27a");
+}
+
+// ── Supercharged: the end of the world ────────────────────────────────────
+
+// A jagged bolt from the top of the screen down onto the shop, flickering.
+function drawShopStrike(k: number) {
+  const flicker = Math.sin(k * 40) > -0.2 ? 1 : 0.3;
+  ctx.save();
+  ctx.fillStyle = `rgba(220, 240, 255, ${0.35 * flicker * (1 - k)})`;
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${flicker})`;
+  ctx.shadowColor = "#7fd0ff";
+  ctx.shadowBlur = 24;
+  ctx.lineWidth = 7 * GIANT;
+  ctx.beginPath();
+  const steps = 9;
+  ctx.moveTo(kaboom.x + 60, 0);
+  for (let i = 1; i <= steps; i++) {
+    const y = (kaboom.y * i) / steps;
+    const x = i === steps ? kaboom.x : kaboom.x + 60 * (1 - i / steps) + (i % 2 ? 40 : -40);
+    ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Stars for the space scenes, scattered once.
+const STARS = Array.from({ length: 140 }, () => ({ x: Math.random(), y: Math.random(), r: Math.random() * 1.6 + 0.4 }));
+
+function drawSpace() {
+  ctx.fillStyle = "#03030c";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fillStyle = "#ffffff";
+  for (const star of STARS) {
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(performance.now() / 400 + star.x * 50);
+    ctx.beginPath();
+    ctx.arc(star.x * canvasWidth, star.y * canvasHeight, star.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// A cartoon fireball that grows and fades over about a second, with chunks.
+function drawBoomAt(x: number, y: number, age: number, size: number) {
+  if (age < 0 || age > 1.3) return;
+  const k = age / 1.3;
+  const r = size * (0.3 + 1.2 * Math.sqrt(k));
+  ctx.save();
+  ctx.globalAlpha = 1 - k;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, "#fffbe0");
+  g.addColorStop(0.35, "#ffc23d");
+  g.addColorStop(0.7, "#ff5a1f");
+  g.addColorStop(1, "rgba(120, 0, 0, 0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#3a2a20";
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.4;
+    const d = r * 1.1 * k + 10;
+    ctx.fillRect(x + Math.cos(a) * d, y + Math.sin(a) * d + k * k * 120, 8, 8);
+  }
+  ctx.restore();
+}
+
+// Somewhere sunny in Germany: a house, a tree, a flag, and a man in a deck
+// chair sipping a coconut drink. `explodeFrom` is when each thing starts to
+// blow up (seconds into the scene), or Infinity while it's still peaceful.
+function drawGermany(t: number, explodeFrom: number) {
+  const W = canvasWidth;
+  const H = canvasHeight;
+  const groundY = H * 0.72;
+  const sky = ctx.createLinearGradient(0, 0, 0, groundY);
+  sky.addColorStop(0, "#5fb4ff");
+  sky.addColorStop(1, "#cfeaff");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, groundY);
+  ctx.fillStyle = "#5cbf4a";
+  ctx.fillRect(0, groundY, W, H - groundY);
+
+  // Each thing in the scene, and the order they explode in.
+  const things: { x: number; y: number; size: number; draw: () => void }[] = [
+    { x: W * 0.82, y: H * 0.16, size: 80, draw: () => drawSun(W * 0.82, H * 0.16) },
+    { x: W * 0.2, y: groundY - 70, size: 140, draw: () => drawHouse(W * 0.2, groundY) },
+    { x: W * 0.4, y: groundY - 90, size: 110, draw: () => drawTree(W * 0.4, groundY) },
+    { x: W * 0.88, y: groundY - 90, size: 90, draw: () => drawFlag(W * 0.88, groundY) },
+    { x: W * 0.62, y: groundY - 50, size: 130, draw: () => drawCoconutMan(W * 0.62, groundY, t) },
+  ];
+  things.forEach((thing, index) => {
+    const age = t - explodeFrom - index * 0.45;
+    if (age < 0.1) thing.draw();
+    drawBoomAt(thing.x, thing.y, age, thing.size * (GIGANTIC ? 1.6 : 1));
+  });
+  // The ground goes up last.
+  drawBoomAt(W * 0.5, groundY + 20, t - explodeFrom - things.length * 0.45, W * 0.45);
+}
+
+function drawSun(x: number, y: number) {
+  ctx.fillStyle = "#ffe14d";
+  ctx.beginPath();
+  ctx.arc(x, y, 36, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawHouse(x: number, groundY: number) {
+  // Black-and-white half-timbered, with a steep red roof.
+  ctx.fillStyle = "#f6f0e2";
+  ctx.fillRect(x - 70, groundY - 110, 140, 110);
+  ctx.strokeStyle = "#3a2a20";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(x - 70, groundY - 110, 140, 110);
+  ctx.beginPath();
+  ctx.moveTo(x - 70, groundY - 55);
+  ctx.lineTo(x + 70, groundY - 55);
+  ctx.moveTo(x - 70, groundY - 110);
+  ctx.lineTo(x - 20, groundY - 55);
+  ctx.moveTo(x + 70, groundY - 110);
+  ctx.lineTo(x + 20, groundY - 55);
+  ctx.stroke();
+  ctx.fillStyle = "#c0392b";
+  ctx.beginPath();
+  ctx.moveTo(x - 85, groundY - 108);
+  ctx.lineTo(x, groundY - 200);
+  ctx.lineTo(x + 85, groundY - 108);
+  ctx.fill();
+}
+
+function drawTree(x: number, groundY: number) {
+  ctx.fillStyle = "#7a4a22";
+  ctx.fillRect(x - 10, groundY - 80, 20, 80);
+  ctx.fillStyle = "#2f8f3a";
+  ctx.beginPath();
+  ctx.arc(x, groundY - 110, 50, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawFlag(x: number, groundY: number) {
+  ctx.fillStyle = "#555";
+  ctx.fillRect(x - 3, groundY - 170, 6, 170);
+  const colors = ["#111111", "#dd0000", "#ffce00"];
+  colors.forEach((color, i) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 3, groundY - 168 + i * 20, 80, 20);
+  });
+}
+
+function drawCoconutMan(x: number, groundY: number, t: number) {
+  // Deck chair.
+  ctx.strokeStyle = "#8a5a2b";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(x - 50, groundY);
+  ctx.lineTo(x + 20, groundY - 70);
+  ctx.moveTo(x + 40, groundY);
+  ctx.lineTo(x - 30, groundY - 40);
+  ctx.stroke();
+  ctx.fillStyle = "#ff7ab6";
+  ctx.beginPath();
+  ctx.moveTo(x - 30, groundY - 40);
+  ctx.lineTo(x + 20, groundY - 70);
+  ctx.lineTo(x + 35, groundY - 60);
+  ctx.lineTo(x - 15, groundY - 30);
+  ctx.fill();
+
+  // The man, leaning back.
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x - 5, groundY - 45);
+  ctx.lineTo(x + 15, groundY - 85);
+  ctx.moveTo(x - 5, groundY - 45);
+  ctx.lineTo(x - 40, groundY - 40);
+  ctx.lineTo(x - 50, groundY);
+  ctx.stroke();
+  ctx.fillStyle = "#f2c49b";
+  ctx.beginPath();
+  ctx.arc(x + 20, groundY - 100, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#111";
+  ctx.fillRect(x + 12, groundY - 106, 22, 6);
+
+  // Sipping: the coconut comes up to his mouth and back down.
+  const sip = (Math.sin(t * 2.2) + 1) / 2;
+  const cx = x + 48 - sip * 8;
+  const cy = groundY - 70 - sip * 22;
+  ctx.beginPath();
+  ctx.moveTo(x + 8, groundY - 72);
+  ctx.lineTo(cx - 10, cy + 6);
+  ctx.stroke();
+  ctx.fillStyle = "#6b3e1f";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, cy - 12);
+  ctx.lineTo(x + 30, groundY - 96);
+  ctx.stroke();
+  // A tiny umbrella in it, of course.
+  ctx.fillStyle = "#ff4fa0";
+  ctx.beginPath();
+  ctx.moveTo(cx + 4, cy - 30);
+  ctx.lineTo(cx + 22, cy - 18);
+  ctx.lineTo(cx - 12, cy - 18);
+  ctx.fill();
+  ctx.lineCap = "butt";
+}
+
+// "3 SECONDS LATER…" on a black card, the cartoon way.
+function drawThreeSecondsLater(k: number) {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.save();
+  ctx.translate(canvasWidth / 2, canvasHeight / 2);
+  ctx.rotate(-0.05);
+  ctx.scale(0.8 + 0.2 * Math.min(1, k * 4), 0.8 + 0.2 * Math.min(1, k * 4));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `bold ${Math.min(96, canvasWidth / 8)}px Impact, Haettenschweiler, sans-serif`;
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = "#5a2d00";
+  ctx.strokeText("3 SECONDS LATER…", 0, 0);
+  ctx.fillStyle = "#ffcf3a";
+  ctx.fillText("3 SECONDS LATER…", 0, 0);
+  ctx.restore();
+}
+
+// The Earth, cut in half down the middle to show its layers. The halves slide
+// apart by `apart` pixels; what's left in the middle is the inner core.
+function drawEarth(cx: number, cy: number, R: number, apart: number, crack: number) {
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.translate(side * apart, 0);
+    ctx.beginPath();
+    ctx.rect(side < 0 ? cx - R - 2 : cx, cy - R - 2, R + 2, R * 2 + 4);
+    ctx.clip();
+    if (apart <= 0) {
+      // Still whole: oceans and continents.
+      ctx.fillStyle = "#2a7fff";
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3fbf4f";
+      for (const [dx, dy, r] of [[-0.35, -0.3, 0.32], [0.3, 0.1, 0.38], [-0.15, 0.45, 0.22]] as const) {
+        ctx.beginPath();
+        ctx.arc(cx + dx * R, cy + dy * R, r * R, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Split open: crust, mantle, outer core.
+      for (const [r, color] of [[1, "#2a7fff"], [0.93, "#8a5a2b"], [0.8, "#ff7a1f"], [0.62, "#ffc23d"]] as const) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+  if (crack > 0 && apart <= 0) {
+    ctx.strokeStyle = "#111";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R);
+    const steps = 10;
+    for (let i = 1; i <= steps * crack; i++) ctx.lineTo(cx + (i % 2 ? 12 : -12), cy - R + (2 * R * i) / steps);
+    ctx.stroke();
+  }
+}
+
+// The inner core: a heap of round black bombs with lit fuses.
+function drawBombStash(cx: number, cy: number, R: number, panic: number) {
+  const now = performance.now() / 1000;
+  ctx.fillStyle = "#4a1a00";
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
+  const bombR = R * 0.22;
+  const spots: [number, number][] = [[0, 0]];
+  for (let i = 0; i < 6; i++) spots.push([Math.cos((i * Math.PI) / 3) * R * 0.48, Math.sin((i * Math.PI) / 3) * R * 0.48]);
+  for (let i = 0; i < 8; i++) spots.push([Math.cos((i * Math.PI) / 4 + 0.4) * R * 0.78, Math.sin((i * Math.PI) / 4 + 0.4) * R * 0.78]);
+  spots.forEach(([dx, dy], i) => {
+    const shake = panic * 4;
+    const x = cx + dx + (Math.random() - 0.5) * shake;
+    const y = cy + dy + (Math.random() - 0.5) * shake;
+    ctx.fillStyle = panic > 0 && Math.sin(now * 30 + i) > 0 ? "#ff2d2d" : "#151515";
+    ctx.beginPath();
+    ctx.arc(x, y, bombR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath();
+    ctx.arc(x - bombR * 0.35, y - bombR * 0.35, bombR * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#8a6a3a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x + bombR * 0.5, y - bombR * 0.8);
+    ctx.lineTo(x + bombR * 0.9, y - bombR * 1.3);
+    ctx.stroke();
+    ctx.fillStyle = Math.sin(now * 25 + i * 3) > 0 ? "#ffe14d" : "#ff7a1f";
+    ctx.beginPath();
+    ctx.arc(x + bombR * 0.9, y - bombR * 1.3, 4 + Math.random() * 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawEndOfTheWorld(time: number) {
+  const W = canvasWidth;
+  const H = canvasHeight;
+  const cx = W / 2;
+  const cy = H / 2;
+  const R = Math.min(W, H) * 0.3;
+
+  if (time < WORLD_END.germany) {
+    drawGermany(time - WORLD_END.boom, Infinity);
+    return;
+  }
+  if (time < WORLD_END.later) {
+    drawThreeSecondsLater((time - WORLD_END.germany) / (WORLD_END.later - WORLD_END.germany));
+    return;
+  }
+  if (time < WORLD_END.everything) {
+    const t = time - WORLD_END.later;
+    drawGermany(t + 3, 3);
+    return;
+  }
+  if (time < WORLD_END.split) {
+    // Out in space: the Earth cracks, then splits in half. Surprise.
+    const k = (time - WORLD_END.everything) / (WORLD_END.split - WORLD_END.everything);
+    drawSpace();
+    const apart = Math.max(0, (k - 0.3) / 0.4) * R * 0.9;
+    drawEarth(cx, cy, R, Math.min(apart, R * 0.9), Math.min(1, k / 0.3));
+    if (apart > 0) drawBombStash(cx, cy, R * 0.6 * Math.min(1, apart / (R * 0.6)), Math.max(0, (k - 0.75) * 4));
+    return;
+  }
+
+  // Every bomb goes off at once.
+  const k = (time - WORLD_END.split) / (WORLD_END.over - WORLD_END.split);
+  drawSpace();
+  const blast = Math.min(1, k / 0.35);
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2 + i;
+    const d = blast * Math.max(W, H) * (0.5 + (i % 5) * 0.12);
+    ctx.save();
+    ctx.translate(cx + Math.cos(a) * d, cy + Math.sin(a) * d);
+    ctx.rotate(a + k * 6);
+    ctx.fillStyle = i % 3 === 0 ? "#2a7fff" : i % 3 === 1 ? "#8a5a2b" : "#3fbf4f";
+    ctx.fillRect(-R * 0.12, -R * 0.08, R * 0.24, R * 0.16);
+    ctx.restore();
+  }
+  const fade = k < 0.6 ? 1 : Math.max(0, 1 - (k - 0.6) / 0.4);
+  const fire = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, Math.hypot(W, H) * blast));
+  fire.addColorStop(0, `rgba(255, 255, 230, ${fade})`);
+  fire.addColorStop(0.3, `rgba(255, 200, 60, ${fade})`);
+  fire.addColorStop(0.65, `rgba(255, 80, 0, ${0.8 * fade})`);
+  fire.addColorStop(1, "rgba(120, 0, 0, 0)");
+  ctx.fillStyle = fire;
+  ctx.fillRect(0, 0, W, H);
+  if (k < 0.12) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${1 - k / 0.12})`;
+    ctx.fillRect(0, 0, W, H);
+  }
 }
 
 function drawParticles(sparkColor = "#ffffff") {

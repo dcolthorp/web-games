@@ -28,6 +28,15 @@ import { checkEvolution } from "../systems/growth";
 import { applyMetabolism } from "../systems/metabolism";
 import { applyBandAid, completeDoctorVisit, completeDentistVisit, canPlay, getPetMood, interactEgg, setCondition } from "../systems/pet";
 import { rgb } from "../systems/utils";
+import { isThisGameSupercharged } from "../../../shared/superchargedHub";
+
+// Supercharged by dev.1: your monster is full of electricity. Lightning
+// crackles around it, every bit of care counts three times over so it
+// evolves way faster, eggs hatch in a few zaps, and each evolution comes with
+// a big lightning strike from the sky.
+const SUPERCHARGED = isThisGameSupercharged();
+const CARE_MULTIPLIER = 3;
+const STRIKE_SECONDS = 0.6;
 
 export class MainGameScene implements Scene {
   readonly profile: Profile;
@@ -58,6 +67,10 @@ export class MainGameScene implements Scene {
   private petX = 400;
   private petY = 350;
   private petSize = 120;
+  // Care points the last time we checked, so supercharging can tell how many are new.
+  private carePointsSeen: number;
+  // Seconds left on the big lightning strike that starts each evolution.
+  private strikeLeft = 0;
 
   private feedButton: IconButton;
   private playButton: IconButton;
@@ -95,6 +108,7 @@ export class MainGameScene implements Scene {
     this.onOpenLeschatChat = opts.onOpenLeschatChat;
     this.leschatAwakened = opts.leschatAwakened;
     this.isCurs3dProfile = this.profile.name.toUpperCase() === CURS3D_PROFILE_NAME;
+    this.carePointsSeen = this.profile.pet.carePoints;
 
     this.decorations.setStage(this.profile.pet.stage);
     if (isNu11Mode(getCurrentTheme())) {
@@ -292,11 +306,16 @@ export class MainGameScene implements Scene {
   }
 
   private tryEvolution(): void {
+    const gained = this.profile.pet.carePoints - this.carePointsSeen;
+    if (SUPERCHARGED && gained > 0) {
+      this.profile.pet.carePoints += gained * (CARE_MULTIPLIER - 1);
+    }
     const oldStage = this.profile.pet.stage;
     if (checkEvolution(this.profile.pet, getCurrentTheme())) {
       this.monsterIndexStore.discover(this.profile.pet.stage);
       this.startEvolution(oldStage);
     }
+    this.carePointsSeen = this.profile.pet.carePoints;
   }
 
   private startEvolution(fromStage: GrowthStage): void {
@@ -305,6 +324,7 @@ export class MainGameScene implements Scene {
     this.evolutionProgress = 0;
     this.animation.play("evolve");
     this.particles.spawnEvolutionEffect(this.petX, this.petY, this.profile.pet.stage);
+    if (SUPERCHARGED) this.strikeLeft = STRIKE_SECONDS;
   }
 
   private endEvolution(): void {
@@ -369,7 +389,10 @@ export class MainGameScene implements Scene {
     if (isNu11Mode(getCurrentTheme()) && this.glitchManager) {
       this.glitchManager.trigger("static" as GlitchType, 0.1);
     }
-    const hatched = interactEgg(this.profile.pet, getCurrentTheme());
+    let hatched = interactEgg(this.profile.pet, getCurrentTheme());
+    for (let zap = 1; SUPERCHARGED && !hatched && zap < CARE_MULTIPLIER; zap += 1) {
+      hatched = interactEgg(this.profile.pet, getCurrentTheme());
+    }
     this.particles.spawnSparkles(this.petX, this.petY, 3, "egg");
     if (hatched) {
       this.monsterIndexStore.discover("egg");
@@ -385,6 +408,9 @@ export class MainGameScene implements Scene {
   }
 
   update(dt: number): void {
+    this.strikeLeft = Math.max(0, this.strikeLeft - dt);
+    // A reset can take care points away; don't let that hide the next gain.
+    this.carePointsSeen = Math.min(this.carePointsSeen, this.profile.pet.carePoints);
     this.animation.update(dt);
     this.particles.update(dt);
     this.decorations.update(dt);
@@ -473,6 +499,7 @@ export class MainGameScene implements Scene {
       });
     }
     if (transformed) ctx.restore();
+    if (SUPERCHARGED) this.drawSupercharge(ctx, petX, petY, size);
 
     this.particles.draw(ctx);
     if (this.glitchManager) this.glitchManager.draw(ctx, 800, 600);
@@ -516,6 +543,51 @@ export class MainGameScene implements Scene {
       ctx.textAlign = "center";
       ctx.fillText("Click the egg to hatch!", 400, 480);
     }
+  }
+
+  // Little bolts flickering around the monster, plus the big strike from the
+  // top of the screen (and a white flash) when it starts to evolve.
+  private drawSupercharge(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+    const t = performance.now() / 1000;
+    ctx.save();
+    ctx.strokeStyle = "#ffffff";
+    ctx.shadowColor = "#5ad0ff";
+    ctx.shadowBlur = 16;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3;
+    const flicker = Math.floor(t * 10);
+    for (let i = 0; i < 5; i += 1) {
+      const angle = (i / 5) * Math.PI * 2 + t;
+      let bx = x + Math.cos(angle) * size * 0.65;
+      let by = y + Math.sin(angle) * size * 0.65;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      for (let step = 1; step <= 3; step += 1) {
+        const wobble = Math.sin(flicker * 7.3 + i * 3.1 + step * 5.7) * 10;
+        bx += Math.cos(angle) * 12 - Math.sin(angle) * wobble;
+        by += Math.sin(angle) * 12 + Math.cos(angle) * wobble;
+        ctx.lineTo(bx, by);
+      }
+      ctx.stroke();
+    }
+
+    if (this.strikeLeft > 0) {
+      const strength = this.strikeLeft / STRIKE_SECONDS;
+      ctx.fillStyle = `rgba(220, 240, 255, ${0.5 * strength})`;
+      ctx.fillRect(0, 0, 800, 600);
+      ctx.globalAlpha = strength;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      let bx = x + (Math.random() - 0.5) * 80;
+      ctx.moveTo(bx, 0);
+      for (let by = 40; by < y - size * 0.4; by += 40) {
+        bx += (Math.random() - 0.5) * 60;
+        ctx.lineTo(bx, by);
+      }
+      ctx.lineTo(x, y - size * 0.4);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 

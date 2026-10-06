@@ -16,6 +16,8 @@ export default defineConfig({
               '  <script type="module" src="/shared/lostDoor.ts"></script>',
               // Credits on every page, with every name scribbled out.
               '  <script type="module" src="/shared/credits.ts"></script>',
+              // Whichever hub dev.1 supercharged turns blue, with extras.
+              '  <script type="module" src="/shared/supercharged.ts"></script>',
               "  </body>",
             ].join("\n")
           );
@@ -73,6 +75,8 @@ export default defineConfig({
         ),
         mods: resolve(__dirname, "src/mods/index.html"),
         dev: resolve(__dirname, "src/dev/index.html"),
+        // dev.1's ultra secret game: on no hub, not even BIG games.
+        devStudio: resolve(__dirname, "src/dev/studio/index.html"),
         corruptedGames: resolve(__dirname, "src/corrupted-games/index.html"),
         bioTech: resolve(__dirname, "src/corrupted-games/bio-tech/index.html"),
         drawingBossMania: resolve(__dirname, "src/games2/drawing-boss-mania/index.html"),

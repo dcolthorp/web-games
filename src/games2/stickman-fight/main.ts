@@ -1,4 +1,5 @@
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 // Stickman Fight — ragdoll-physics brawler with a weapon shop.
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
@@ -51,6 +52,18 @@ if (GIGANTIC) {
   if (heading) heading.textContent = "GIGANTIC Stickman Fight";
   document.body.classList.add("gigantic");
 }
+
+// Supercharged by dev.1: swing really fast and your weapon crackles blue.
+// Land a hit with a crackling weapon and lightning comes down from the sky on
+// EVERY enemy at once, zapping each for half that hit's damage again.
+const SUPERCHARGED = isThisGameSupercharged();
+const THUNDER_SWING_SPEED = 20;
+interface Bolt {
+  points: { x: number; y: number }[];
+  life: number;
+}
+const bolts: Bolt[] = [];
+let playerTipSpeed = 0;
 
 const WEAPON_ORDER: WeaponId[] = ["fist", "stick", "bat", "sword", "spear", "hammer", "lightsaber", "ragequit"];
 
@@ -450,6 +463,9 @@ function checkWeaponHits(attacker: Stickman, defender: Stickman): void {
       applyImpulse(defender.hip, kx * 0.3, ky * 0.2);
 
       hits.push({ x: t.p.x, y: t.p.y, life: 14 });
+      if (SUPERCHARGED && attacker === player && speed >= THUNDER_SWING_SPEED && attacker.weapon !== "ragequit") {
+        thunderStrike(dmg * 0.5);
+      }
 
       // Rage Quit: any contact triggers the meltdown animation regardless of HP.
       if (attacker.weapon === "ragequit" && defender.ragequitTimer <= 0) {
@@ -465,6 +481,65 @@ function checkWeaponHits(attacker: Stickman, defender: Stickman): void {
       return;
     }
   }
+}
+
+// Lightning from the sky onto every enemy still standing.
+function thunderStrike(dmg: number): void {
+  for (const e of enemies) {
+    if (e.dead) continue;
+    e.hp -= dmg;
+    if (e.hp <= 0) {
+      e.dead = true;
+      e.uprightStrength = 0;
+    }
+    applyImpulse(e.head, 0, -4);
+    const points = [{ x: e.neck.x + (Math.random() - 0.5) * 120, y: 0 }];
+    for (let i = 1; i < 8; i++) {
+      const t = i / 8;
+      points.push({ x: points[0]!.x + (e.neck.x - points[0]!.x) * t + (Math.random() - 0.5) * 40, y: e.neck.y * t });
+    }
+    points.push({ x: e.neck.x, y: e.neck.y });
+    bolts.push({ points, life: 14 });
+    hits.push({ x: e.neck.x, y: e.neck.y, life: 14 });
+  }
+}
+
+function drawSupercharge(): void {
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  // Crackle around the weapon while it's swinging fast enough to call thunder.
+  if (playerTipSpeed >= THUNDER_SWING_SPEED && !player.dead) {
+    const tip = weaponTip(player);
+    ctx.strokeStyle = "rgba(102, 204, 255, 0.9)";
+    ctx.shadowColor = "#66ccff";
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(player.handR.x, player.handR.y);
+    for (let i = 1; i <= 5; i++) {
+      const t = i / 5;
+      ctx.lineTo(
+        player.handR.x + (tip.x - player.handR.x) * t + (Math.random() - 0.5) * 14,
+        player.handR.y + (tip.y - player.handR.y) * t + (Math.random() - 0.5) * 14
+      );
+    }
+    ctx.stroke();
+  }
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    const b = bolts[i]!;
+    for (const [color, width] of [["#66ccff", 10], ["#ffffff", 3]] as const) {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = b.life / 14;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      b.points.forEach((pt, j) => (j === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+      ctx.stroke();
+    }
+    b.life--;
+    if (b.life <= 0) bolts.splice(i, 1);
+  }
+  ctx.restore();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -915,6 +990,11 @@ function step(): void {
   // AI act
   for (const e of enemies) updateAI(e, 1);
 
+  if (SUPERCHARGED) {
+    const tip = weaponTip(player);
+    playerTipSpeed = Math.hypot(tip.x - tip.px, tip.y - tip.py);
+  }
+
   // Combat
   for (const e of enemies) {
     checkWeaponHits(player, e);
@@ -977,6 +1057,7 @@ function step(): void {
   }
 
   for (const s of all) drawStickman(s);
+  if (SUPERCHARGED) drawSupercharge();
 
   // Round / death checks
   if (!roundResolved) {

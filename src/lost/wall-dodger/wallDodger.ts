@@ -75,6 +75,8 @@ export interface Game {
   lastSpeedIncrease: number;
   over: boolean;
   giant: number;
+  // Supercharged lightning coins freeze the ball until this many seconds in.
+  frozenUntil?: number;
 }
 
 export const overlaps = (one: Box, other: Box): boolean =>
@@ -161,9 +163,12 @@ export function step(game: Game, moves: Moves, seconds: number): void {
   game.player.x = Math.max(game.walls.left, Math.min(game.walls.right - PLAYER_SIZE, game.player.x));
   game.player.y = Math.max(game.walls.top, Math.min(game.walls.bottom - PLAYER_SIZE, game.player.y));
 
-  // The ball.
-  game.ball.x += game.ballDx;
-  game.ball.y += game.ballDy;
+  // The ball. A frozen one just sits there, harmless, until it thaws.
+  const frozen = (game.frozenUntil ?? 0) > seconds;
+  if (!frozen) {
+    game.ball.x += game.ballDx;
+    game.ball.y += game.ballDy;
+  }
 
   const buffer = game.ballSpeed * 0.5;
   const nudge = (): number => (Math.random() * 2 - 1) * BALL_NUDGE_FACTOR * game.ballSpeed;
@@ -243,7 +248,7 @@ export function step(game: Game, moves: Moves, seconds: number): void {
     game.lastDollarSpawn = seconds;
   }
 
-  if (overlaps(game.player, game.ball)) game.over = true;
+  if (!frozen && overlaps(game.player, game.ball)) game.over = true;
 
   game.coins = game.coins.filter((coin) => {
     if (!overlaps(game.player, coinBox(coin, game.giant))) return true;

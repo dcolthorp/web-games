@@ -1,0 +1,492 @@
+/* dev.1 Studio: dev.1's ultra secret game. The dev.1 people themselves are
+   styled in main.css, shared with the cutscene. */
+
+.studio-shell {
+  width: min(1180px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+  display: grid;
+  gap: 16px;
+}
+
+.studio-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.studio-header h1 {
+  font-size: clamp(2.4rem, 7vw, 4.4rem);
+  text-transform: none;
+  color: #d9ffe3;
+}
+
+.studio button,
+.studio-file,
+.studio-select {
+  border: 2px solid #1d6b34;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #04110a;
+  color: #d9ffe3;
+  font: 700 0.95rem "Courier New", monospace;
+  cursor: pointer;
+}
+
+.studio button:hover,
+.studio button:focus-visible,
+.studio-file:hover,
+.studio-file:focus-within {
+  border-color: #5cff8a;
+  outline: none;
+}
+
+.studio .studio-play {
+  border-color: #5cff8a;
+  background: #0f3a1d;
+}
+
+.studio .studio-danger {
+  border-color: #6b1d2a;
+}
+
+.studio-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.studio-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.studio-file {
+  position: relative;
+}
+
+.studio-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio select,
+.studio input[type="text"],
+.studio input[type="number"] {
+  border: 2px solid #1d6b34;
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: #020805;
+  color: #d9ffe3;
+  font: 700 0.9rem "Courier New", monospace;
+}
+
+.prop-shelf {
+  border: 2px solid #1d6b34;
+  padding: 12px;
+  background: #04110a;
+  display: grid;
+  gap: 8px;
+}
+
+.shelf-label {
+  color: #7fc896;
+  font: 700 0.8rem "Courier New", monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.prop-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prop-grid button {
+  width: 56px;
+  height: 56px;
+  padding: 4px;
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.prop-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.shelf-empty {
+  color: #7fc896;
+  font: 0.9rem "Courier New", monospace;
+}
+
+.studio-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .studio-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stage-wrap {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The stage is always 16 by 9; everything on it is placed in percentages so
+   it looks the same at any size. */
+.stage {
+  --stage-scale: 1;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  overflow: hidden;
+  border: 3px solid #5cff8a;
+  box-shadow: 0 0 24px rgba(92, 255, 138, 0.25);
+  touch-action: none;
+  user-select: none;
+}
+
+.stage-grid {
+  background:
+    linear-gradient(rgba(92, 255, 138, 0.12) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(92, 255, 138, 0.12) 1px, transparent 1px) 0 0 / 40px 40px,
+    #020805;
+}
+
+.stage-night {
+  background:
+    radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 2px) 0 0 / 90px 70px,
+    radial-gradient(circle at 70% 60%, #fff 0 1px, transparent 2px) 0 0 / 130px 90px,
+    linear-gradient(#060a2a 0 75%, #0c2a14 75%);
+}
+
+.stage-day {
+  background: linear-gradient(#6cc3ff 0 72%, #5cbf4a 72%);
+}
+
+.stage-space {
+  background:
+    radial-gradient(circle at 30% 40%, #fff 0 1px, transparent 2px) 0 0 / 60px 60px,
+    radial-gradient(circle at 80% 20%, #9cf 0 1px, transparent 2px) 0 0 / 110px 80px,
+    #03030c;
+}
+
+.stage-theater {
+  background:
+    repeating-linear-gradient(90deg, #7a0f1d 0 30px, #5c0a15 30px 60px) top / 100% 70% no-repeat,
+    linear-gradient(#000 0 70%, #6b3d1b 70%);
+}
+
+.stage-hint {
+  color: #7fc896;
+  font: 0.85rem "Courier New", monospace;
+}
+
+/* Everything on the stage stands on its spot: the bottom middle of it sits
+   exactly at its x and y. */
+.stage-item {
+  position: absolute;
+  transform: translate(-50%, -100%)
+    scale(
+      calc(var(--size, 1) * var(--size-z, 1) * var(--frame-scale, 1) * var(--stage-scale)),
+      calc(var(--size, 1) * var(--size-y, 1) * var(--frame-scale, 1) * var(--stage-scale))
+    );
+  transform-origin: 50% 100%;
+  cursor: grab;
+}
+
+/* Flip the drawing, not its name tag, so names never read backwards. */
+.stage-item.is-flipped .rig,
+.stage-item.is-flipped .stage-prop {
+  scale: -1 1;
+}
+
+.stage-item.is-selected {
+  outline: 2px dashed #ffe14d;
+  outline-offset: 6px;
+}
+
+.stage-actor {
+  position: relative;
+}
+
+/* A bones dev.1: his SVG has room around him for bending limbs. His feet
+   are 50 units above the bottom edge, so pull that space back under him. */
+.rig {
+  display: block;
+  overflow: visible;
+  margin: -50px -60px -50px;
+}
+
+.rig-handle {
+  fill: #ffe14d;
+  stroke: #04110a;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.rig-handle:hover {
+  fill: #fff;
+}
+
+.frame-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.studio .frame-list button {
+  min-width: 34px;
+  padding: 4px 8px;
+}
+
+.studio .frame-list button[aria-pressed="true"] {
+  border-color: #ffe14d;
+  color: #ffe14d;
+}
+
+.stage-name {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-top: 6px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(2, 8, 5, 0.75);
+  color: #5cff8a;
+  font: 700 14px "Courier New", monospace;
+}
+
+.stage-prop {
+  font-size: 80px;
+  line-height: 1;
+}
+
+.stage-prop img {
+  display: block;
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.inspector {
+  border: 2px solid #1d6b34;
+  padding: 14px;
+  background: #04110a;
+  color: #d9ffe3;
+  font-family: "Courier New", monospace;
+}
+
+.inspector h2 {
+  color: #5cff8a;
+  font-size: 1.4rem;
+  margin-bottom: 10px;
+  text-transform: none;
+}
+
+.inspector-empty {
+  color: #7fc896;
+}
+
+#inspector-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.field small {
+  color: #7fc896;
+  font-weight: 400;
+}
+
+.name-input,
+.sound-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.name-input input,
+.sound-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio .swatches button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.studio .swatches button[aria-pressed="true"] {
+  border-color: #ffe14d;
+  box-shadow: 0 0 0 2px #ffe14d;
+}
+
+.inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sound-library h2 {
+  color: #5cff8a;
+  font-size: 1.3rem;
+  margin-bottom: 8px;
+}
+
+.sound-board {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.draw-dialog {
+  border: 3px solid #5cff8a;
+  background: #04110a;
+  color: #d9ffe3;
+  padding: 16px;
+}
+
+.draw-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.draw-form {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.draw-form h2 {
+  color: #5cff8a;
+  text-transform: none;
+}
+
+#draw-canvas {
+  width: 240px;
+  height: 240px;
+  border: 2px dashed #1d6b34;
+  background:
+    conic-gradient(#0a1a10 0 25%, #06120b 0 50%, #0a1a10 0 75%, #06120b 0) 0 0 / 20px 20px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.draw-tools,
+.draw-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Props can glitch out too. */
+.stage-actor.is-glitching {
+  animation: dev1-glitch 0.09s steps(2, end) infinite;
+}
+
+/* Grid and flex layouts above would otherwise beat the hidden attribute. */
+.studio [hidden] {
+  display: none !important;
+}
+
+.settings-box {
+  border: 2px solid #1d6b34;
+  padding: 12px;
+  background: #04110a;
+  color: #d9ffe3;
+  font: 700 0.95rem "Courier New", monospace;
+}
+
+.setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.setting small {
+  color: #7fc896;
+  font-weight: 400;
+}
+
+.sound-library {
+  display: grid;
+  gap: 8px;
+}
+
+.sound-mine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.my-sound {
+  display: inline-flex;
+}
+
+.studio .my-sound button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.studio .my-sound button:last-child {
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  border-color: #6b1d2a;
+}
+
+.studio .frame-list .frame-link {
+  min-width: 0;
+  padding: 4px 4px;
+  border-color: transparent;
+  background: none;
+  color: #7fc896;
+}
+
+.studio .frame-list .frame-link[aria-pressed="true"] {
+  border-color: #ffe14d;
+  color: #ffe14d;
+}
+
+.transition-panel {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 2px dashed #ffe14d;
+}
+
+.studio .transition-panel button[aria-pressed="true"] {
+  border-color: #ffe14d;
+  color: #ffe14d;
+}

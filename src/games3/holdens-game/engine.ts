@@ -49,6 +49,14 @@ export interface WorldSpec {
 
 import { addCoins, wornSkin } from "./shop";
 import { GIANT } from "./gigantic";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
+
+// Supercharged by dev.1: every coin is a battery. Grab one and you crackle
+// with lightning for a few seconds: you zoom faster, and any enemy you bump
+// into gets zapped all the way back to where it started instead of getting you.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_SECONDS = 4;
+const ZAP_SPEED = 1.6;
 
 export const MAP_W = 40;
 export const MAP_H = 28;
@@ -186,6 +194,8 @@ export function startWorld(
   let flashUntil = 0;
   let lastSign = "";
   let clock = 0;
+  // While the clock is under this, you are charged up from a coin.
+  let zapUntil = 0;
 
   const doorShut = (x: number, y: number): boolean =>
     spec.doors.some((door) => door.x === x && door.y === y && !openedDoors.has(`${door.x},${door.y}`));
@@ -290,6 +300,7 @@ export function startWorld(
     litCheckpoints.clear();
     respawn = { x: spec.start.x, y: spec.start.y };
     graceUntil = 0;
+    zapUntil = 0;
     enemies.forEach((enemy, i) => {
       const source = spec.enemies[i];
       if (!source) return;
@@ -470,7 +481,8 @@ export function startWorld(
 
     const under = tileAt(player);
     const wet = under === "water" && !skin.waterProof && !creative;
-    const speed = spec.playerSpeed * skin.speed * speedScale * (wet ? 0.5 : 1);
+    const zapped = clock < zapUntil;
+    const speed = spec.playerSpeed * skin.speed * speedScale * (wet ? 0.5 : 1) * (zapped ? ZAP_SPEED : 1);
     const grip = under === "ice" && !skin.iceGrip ? 0.045 : 0.34;
     player.vx += (dx * speed - player.vx) * grip;
     player.vy += (dy * speed - player.vy) * grip;
@@ -540,7 +552,12 @@ export function startWorld(
       coin.taken = true;
       addCoins(1);
       updateHud();
-      say("Coin.");
+      if (SUPERCHARGED) {
+        zapUntil = clock + ZAP_SECONDS;
+        say("⚡ SUPERCHARGED! Go zap something.");
+      } else {
+        say("Coin.");
+      }
     }
 
     for (const page of pages) {
@@ -597,7 +614,14 @@ export function startWorld(
       if (!enemy.visible) continue;
       if (creative || inSafeZone(player.x, player.y) || clock < graceUntil) continue;
       if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 0.75 - (0.34 - player.r)) {
-        sendBack(`The ${spec.enemyName} got you.`);
+        if (clock < zapUntil) {
+          enemy.x = enemy.homeX;
+          enemy.y = enemy.homeY;
+          enemy.dir = 1;
+          say(`ZAP! The ${spec.enemyName} got sent back home.`);
+        } else {
+          sendBack(`The ${spec.enemyName} got you.`);
+        }
       }
     }
 
@@ -925,6 +949,7 @@ export function startWorld(
       context.arc(player.x * TILE, player.y * TILE, 15 * you, 0, Math.PI * 2);
       context.stroke();
     }
+    if (clock < zapUntil) drawCharge(you);
     context.fillStyle = "#1b2630";
     context.fillRect(player.x * TILE - 5 * you, player.y * TILE - 3 * you, 3 * you, 4 * you);
     context.fillRect(player.x * TILE + 2 * you, player.y * TILE - 3 * you, 3 * you, 4 * you);
@@ -957,6 +982,33 @@ export function startWorld(
       context.fillStyle = bloom;
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
+  }
+
+  // Blue sparks crackling round you while a coin's charge lasts. They start
+  // flickering when it's about to run out.
+  function drawCharge(you: number): void {
+    if (!context) return;
+    const left = zapUntil - clock;
+    if (left < 1 && Math.random() > left) return;
+    const cx = player.x * TILE;
+    const cy = player.y * TILE;
+    context.save();
+    context.strokeStyle = "#bfe4ff";
+    context.shadowColor = "#46a8ff";
+    context.shadowBlur = 12;
+    context.lineWidth = 2 * you;
+    for (let spark = 0; spark < 4; spark += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      context.beginPath();
+      context.moveTo(cx + Math.cos(angle) * 11 * you, cy + Math.sin(angle) * 11 * you);
+      for (let step = 1; step <= 3; step += 1) {
+        const reach = (11 + step * 6) * you;
+        const bend = angle + (Math.random() - 0.5) * 0.9;
+        context.lineTo(cx + Math.cos(bend) * reach, cy + Math.sin(bend) * reach);
+      }
+      context.stroke();
+    }
+    context.restore();
   }
 
   function loop(now: number): void {

@@ -2,6 +2,7 @@ import { isGigantic, markFound } from "../../shared/bigGames";
 markFound("behind-the-door");
 import { markKickedOut } from "../../games4/wirePanel";
 import { DOORS_BEFORE_EXIT, exitDoor, roomFor, type Room } from "./hallway";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const canvas = document.getElementById("hall") as HTMLCanvasElement;
 const paint = canvas.getContext("2d") as CanvasRenderingContext2D;
@@ -17,6 +18,11 @@ if (GIGANTIC) {
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC Behind the Door";
 }
+// Supercharged by dev.1: one door in every hallway crackles with lightning.
+// Open it and it zaps you through three doors at once.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_DOORS = 3;
+
 // Giant words still have to fit on the screen.
 const FIT = GIGANTIC ? 860 : undefined;
 
@@ -37,11 +43,77 @@ let opened = 0;
 let exit: number | null = null;
 let room: Room = roomFor(0);
 let sparkle = 0;
+// Which door is the lightning door this time, and how many doors the last one
+// zapped you through (0 when it was an ordinary door).
+let charged: number | null = null;
+let zapped = 0;
+let crackling = false;
 
 function nextHallway(): void {
   exit = exitDoor(opened, Math.random());
+  charged = SUPERCHARGED ? Math.floor(Math.random() * DOOR_SPOTS.length) : null;
   scene = "hall";
   drawScene();
+  if (SUPERCHARGED && !crackling) {
+    crackling = true;
+    window.requestAnimationFrame(crackle);
+  }
+}
+
+// The lightning door never sits still, so the hallway keeps redrawing while
+// you're standing in it.
+function crackle(): void {
+  if (scene !== "hall") {
+    crackling = false;
+    return;
+  }
+  drawHallway();
+  window.requestAnimationFrame(crackle);
+}
+
+// A jagged bolt from one point to another, wobbling differently every frame.
+function bolt(fromX: number, fromY: number, toX: number, toY: number): void {
+  paint.beginPath();
+  paint.moveTo(fromX, fromY);
+  const steps = 6;
+  for (let i = 1; i < steps; i += 1) {
+    const t = i / steps;
+    paint.lineTo(
+      fromX + (toX - fromX) * t + (Math.random() - 0.5) * 26,
+      fromY + (toY - fromY) * t + (Math.random() - 0.5) * 26
+    );
+  }
+  paint.lineTo(toX, toY);
+  paint.stroke();
+}
+
+function drawLightningDoor(spot: (typeof DOOR_SPOTS)[number]): void {
+  paint.save();
+  paint.shadowColor = "#7fdcff";
+  paint.shadowBlur = 24 + Math.random() * 16;
+  paint.strokeStyle = "#bff0ff";
+  paint.lineWidth = 6;
+  paint.strokeRect(spot.x, spot.y, spot.w, spot.h);
+  paint.lineWidth = 3 * GIANT;
+  const corners = [
+    [spot.x, spot.y],
+    [spot.x + spot.w, spot.y],
+    [spot.x + spot.w, spot.y + spot.h],
+    [spot.x, spot.y + spot.h],
+  ];
+  // Two or three bolts jump between the corners of the frame each frame.
+  const bolts = 2 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < bolts; i += 1) {
+    const from = corners[Math.floor(Math.random() * 4)] ?? [spot.x, spot.y];
+    const to = corners[Math.floor(Math.random() * 4)] ?? [spot.x, spot.y];
+    if (from === to) continue;
+    bolt(from[0] ?? 0, from[1] ?? 0, to[0] ?? 0, to[1] ?? 0);
+  }
+  paint.fillStyle = "#ffffff";
+  paint.font = `bold ${30 * GIANT}px 'Trebuchet MS', sans-serif`;
+  paint.textAlign = "center";
+  paint.fillText("⚡", spot.x + spot.w / 2, spot.y + spot.h / 2 + 10 * GIANT);
+  paint.restore();
 }
 
 function drawHallway(): void {
@@ -86,6 +158,8 @@ function drawHallway(): void {
     paint.font = `bold ${26 * GIANT}px 'Trebuchet MS', sans-serif`;
     paint.textAlign = "center";
     paint.fillText(String(index + 1), spot.x + spot.w / 2, spot.y - 14);
+
+    if (index === charged) drawLightningDoor(spot);
   });
 
   paint.fillStyle = "rgba(233, 227, 245, 0.75)";
@@ -133,6 +207,11 @@ function drawRoom(): void {
   paint.fillText(room.name, 450, GIGANTIC ? 330 : 300, FIT);
   paint.font = "20px 'Trebuchet MS', sans-serif";
   paint.fillText(room.line, 450, GIGANTIC ? 400 : 344);
+  if (zapped > 0) {
+    paint.fillStyle = "#bff0ff";
+    paint.font = `bold ${28 * GIANT}px Impact, 'Arial Narrow Bold', sans-serif`;
+    paint.fillText(`⚡ ZAPPED THROUGH ${zapped} DOORS AT ONCE ⚡`, 450, 160, FIT);
+  }
   paint.fillStyle = "rgba(255, 255, 255, 0.6)";
   paint.font = "16px 'Trebuchet MS', sans-serif";
   paint.fillText("Click to step back into the hallway.", 450, 500);
@@ -178,6 +257,13 @@ function drawScene(): void {
 
 function openDoor(index: number): void {
   opened += 1;
+  zapped = 0;
+  // The lightning door counts as three. It never hides the way out, though:
+  // if the exit is behind it, you still just walk out.
+  if (index === charged && exit !== index) {
+    opened += ZAP_DOORS - 1;
+    zapped = ZAP_DOORS;
+  }
   if (exit === index) {
     scene = "out";
     sparkle = 0;

@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The dev.0 Machine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=JetBrains+Mono:wght@400;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: one giant top-to-bottom circuit, like a wiring diagram on a terminal screen. Each stage is a board; glowing wires carry you down to the next. */
+:root {
+  --screen: #020a06;
+  --board: #06160d;
+  --wire: #1d6b34;
+  --green: #5cff8a;
+  --ink: #d9ffe3;
+  --dim: #7fae8c;
+  --blue: #46a8ff;
+  --blue-ink: #d6ecff;
+  --orange: #ffb02e;
+  --red: #ff2d55;
+  --yellow: #ffe14d;
+  --display: "Chakra Petch", "Arial Narrow", sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+body {
+  background:
+    repeating-linear-gradient(0deg, rgba(92, 255, 138, 0.035) 0 2px, transparent 2px 5px),
+    var(--screen);
+  color: var(--ink);
+  font: 16px/1.55 var(--body);
+}
+.page { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+p { margin: 0; }
+
+.hero { display: grid; gap: 14px; padding-bottom: 8px; }
+.eyebrow { font: 700 12px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.hero h1 { font-size: clamp(2.6rem, 9vw, 6.2rem); line-height: .92; color: var(--ink); }
+.hero h1 .zero { color: var(--green); text-shadow: 0 0 22px rgba(92,255,138,.55); }
+.hero h1 .bolt { color: var(--blue); text-shadow: 0 0 22px rgba(70,168,255,.7); }
+.hero .lede { max-width: 62ch; color: var(--dim); font-size: 1.05rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 12px var(--mono); color: var(--dim); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.chip { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+
+/* A wire between stages, with what travels along it. */
+.wire { display: grid; justify-items: center; gap: 6px; padding-block: 10px; }
+.wire::before { content: ""; width: 4px; height: 46px; background: linear-gradient(var(--wire), var(--green)); box-shadow: 0 0 10px rgba(92,255,138,.5); border-radius: 2px; }
+.wire.blue::before { background: linear-gradient(var(--wire), var(--blue)); box-shadow: 0 0 10px rgba(70,168,255,.6); }
+.wire span { font: 700 12px var(--mono); letter-spacing: .08em; color: var(--green); text-transform: uppercase; text-align: center; }
+.wire.blue span { color: var(--blue); }
+.wire span::after { content: " ▼"; }
+
+.board { border: 2px solid var(--wire); background: var(--board); padding: 22px; display: grid; gap: 18px; }
+.board.blue { border-color: var(--blue); background: linear-gradient(160deg, #0a2350, #041127 70%); box-shadow: 0 0 34px rgba(70,168,255,.25); }
+.board-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.board-head h2 { font-size: clamp(1.5rem, 4vw, 2.3rem); color: var(--green); }
+.board.blue .board-head h2 { color: var(--blue); }
+.where { font: 12px var(--mono); color: var(--dim); }
+
+/* Steps inside a stage that happen in order. */
+.chain { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+.step { flex: 1 1 170px; min-width: 0; border: 1px solid var(--wire); padding: 12px 14px; display: grid; gap: 4px; align-content: start; background: rgba(2,10,6,.6); }
+.step b { font: 700 1rem var(--display); color: var(--ink); }
+.step small { color: var(--dim); font-size: .88rem; }
+.arrow { align-self: center; color: var(--green); font: 700 18px var(--mono); }
+.board.blue .arrow { color: var(--blue); }
+.board.blue .step { border-color: rgba(70,168,255,.45); background: rgba(2,10,28,.55); }
+
+/* The heading as a row of letter keys. */
+.letters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.key { border: 2px solid var(--wire); padding: 12px; display: grid; gap: 6px; align-content: start; background: rgba(2,10,6,.7); }
+.key .glyph { font: 700 2.6rem/1 var(--display); color: var(--ink); }
+.key .glyph small { font: 700 11px var(--mono); color: var(--dim); letter-spacing: .1em; margin-left: 6px; vertical-align: middle; }
+.key p { font-size: .9rem; color: var(--ink); }
+.result { font: 700 11px var(--mono); letter-spacing: .12em; padding: 3px 7px; justify-self: start; border-radius: 2px; }
+.r-unstable { color: #1a0f03; background: var(--orange); }
+.r-exploded { color: #fff; background: var(--red); }
+.r-super { color: #04122a; background: var(--blue); }
+
+.status-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.sys { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 2px solid var(--wire); font: 700 13px var(--mono); }
+.sys .s { letter-spacing: .12em; font-size: 11px; }
+.sys.run .s { color: var(--green); }
+.sys.uns { border-color: var(--orange); background: #1a0f03; } .sys.uns .s { color: var(--orange); }
+.sys.exp { border: 2px dashed var(--red); background: #140406; color: #6b4a4f; } .sys.exp .n { text-decoration: line-through; } .sys.exp .s { color: var(--red); }
+.sys.sup { border-color: var(--blue); background: linear-gradient(90deg, #04122a, #0a2a5c, #04122a); color: var(--blue-ink); box-shadow: 0 0 16px rgba(70,168,255,.6); } .sys.sup .s { color: var(--blue); }
+
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.rule { border-left: 4px solid var(--yellow); padding: 6px 12px; background: rgba(255,225,77,.05); }
+.rule b { font-family: var(--display); color: var(--yellow); display: block; }
+.rule span { font-size: .9rem; color: var(--ink); }
+
+.extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
+.extra { display: grid; grid-template-columns: 9.5em 1fr; gap: 10px; padding: 8px 12px; border: 1px solid rgba(70,168,255,.35); background: rgba(2,10,28,.55); font-size: .9rem; }
+.extra kbd { font: 700 12px var(--mono); color: var(--blue); align-self: center; }
+.extra span { color: var(--blue-ink); min-width: 0; }
+
+.title-demo { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.sc-word { position: relative; font: 700 clamp(1.1rem, 3.2vw, 1.8rem)/1 var(--display); letter-spacing: .08em; padding: 6px 14px; border: 3px solid var(--blue); color: #7fd0ff; background: #04122a; text-shadow: 0 0 10px var(--blue); }
+.sc-word svg { position: absolute; left: 50%; top: 50%; width: 40px; height: 150%; transform: translate(-50%, -50%) rotate(18deg); overflow: visible; filter: drop-shadow(0 0 6px var(--yellow)); }
+.hub-name { font: 700 clamp(1.8rem, 6vw, 3.4rem)/1 var(--display); color: var(--blue-ink); text-shadow: 0 0 22px rgba(70,168,255,.8); }
+
+/* Every game, grouped by the folder it lives in. */
+.shelves { display: grid; gap: 22px; }
+.shelf h3 { font-size: 1.25rem; color: var(--blue-ink); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.shelf h3 small { font: 12px var(--mono); color: #8fb8e8; }
+.games { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+.game { border: 1px solid rgba(70,168,255,.4); background: rgba(2,10,28,.6); padding: 11px 13px; display: grid; gap: 4px; align-content: start; }
+.game b { font: 700 1rem var(--display); color: var(--blue-ink); }
+.game span { font-size: .88rem; color: #b9d6f5; }
+.game.mine { border-color: var(--blue); }
+
+.all-games { border: 2px dashed rgba(70,168,255,.6); padding: 12px 14px; font-size: .95rem; color: var(--blue-ink); }
+.all-games b { color: var(--blue); font-family: var(--display); }
+
+.side { border: 2px solid var(--dim); padding: 16px 18px; display: grid; gap: 8px; }
+.side h2 { font-size: 1.3rem; color: var(--ink); }
+.side p { color: var(--dim); max-width: 70ch; }
+.scribble { display: inline-block; position: relative; color: var(--ink); font-weight: 700; padding: 0 6px; }
+.scribble::after { content: ""; position: absolute; inset: 2px -2px; background: repeating-linear-gradient(115deg, var(--ink) 0 3px, transparent 3px 7px); }
+
+.count { font: 700 12px var(--mono); color: var(--blue); }
+footer { margin-top: 30px; font: 12px var(--mono); color: var(--dim); }
+
+@media (max-width: 520px) {
+  .board { padding: 16px; }
+  .arrow { display: none; }
+  .extra { grid-template-columns: 1fr; gap: 2px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wire::before { animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="hero">
+    <p class="eyebrow">Oscar's Games · secret systems map</p>
+    <h1><span class="zero">dev.0</span> to <span class="bolt">SUPERCHARGED</span></h1>
+    <p class="lede">Everything that happens from the moment the hub title glitches into dev.0, all the way down to a supercharged hub where every single game has its own lightning twist. Follow the wires top to bottom.</p>
+    <div class="legend" aria-label="Colour key">
+      <span><i class="chip" style="background:var(--green)"></i>dev.0 / dev.1 world</span>
+      <span><i class="chip" style="background:var(--orange)"></i>UNSTABLE</span>
+      <span><i class="chip" style="background:var(--red)"></i>EXPLODED</span>
+      <span><i class="chip" style="background:var(--blue)"></i>SUPERCHARGED</span>
+      <span><i class="chip" style="background:var(--yellow)"></i>Rules</span>
+    </div>
+  </header>
+
+  <div class="wire"><span>Open Oscar's Games</span></div>
+
+  <section class="board" aria-labelledby="s1">
+    <div class="board-head"><h2 id="s1">1. The glitch</h2><span class="where">Oscar's Games hub</span></div>
+    <div class="chain">
+      <div class="step"><b>Title glitches</b><small>Every few seconds "Oscar's Games" flickers into <strong>dev.0</strong>.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Poke it</b><small>Click the title while it says dev.0, or type <strong>oscar</strong>.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Zero bomb</b><small>Zeros flood the screen, bigger every wave, until the page dies.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Reload</b><small>Locked out: static, "REBUILDING OSCAR'S GAMES", 10…9…8…</small></div>
+    </div>
+  </section>
+
+  <div class="wire"><span>Countdown hits 0</span></div>
+
+  <section class="board" aria-labelledby="s2">
+    <div class="board-head"><h2 id="s2">2. dev.0 speaks</h2><span class="where">The crash screen</span></div>
+    <div class="chain">
+      <div class="step"><b>Who it is</b><small>"I was the first Oscar's Games. Version zero." Left broken under everything else.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Fix me</b><small>10 broken <strong>0</strong>s skitter around a box. Click each one into a green <strong>1</strong>.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>dev.0 → dev.1</b><small>"REBUILT. Thank you." Or press "Leave it broken" and try another time.</small></div>
+    </div>
+  </section>
+
+  <div class="wire"><span>Rebuilt forever</span></div>
+
+  <section class="board" aria-labelledby="s3">
+    <div class="board-head"><h2 id="s3">3. dev.1 moves in</h2><span class="where">Back on the hub</span></div>
+    <div class="chain">
+      <div class="step"><b>Friendly glitch</b><small>The title now glitches into a green <strong>dev.1</strong>. Clicking it says hello, no crash.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>New tab</b><small>A green <strong>dev.1's Games</strong> tab appears next to Penelope's Games.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>System Monitor</b><small>dev.1's page: every hub booting up, one row each, all RUNNING.</small></div>
+    </div>
+    <div class="status-row" aria-label="The eight systems">
+      <div class="sys run"><span class="n">Oscar's Games</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">Penelope's Games</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">BIG games</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">Games 2</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">Games 3</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">Games 4</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">Games 5</span><span class="s">● RUNNING</span></div>
+      <div class="sys run"><span class="n">Mods &amp; DLCs</span><span class="s">● RUNNING</span></div>
+    </div>
+  </section>
+
+  <div class="wire"><span>Click the letters of MONITOR</span></div>
+
+  <section class="board" aria-labelledby="s4">
+    <div class="board-head"><h2 id="s4">4. Seven secret letters</h2><span class="where">"SYSTEM MONITOR" heading · each works once per visit</span></div>
+    <div class="letters">
+      <div class="key"><div class="glyph">M<small>→ W</small></div><p>Flips into a W, shoots out "W IN THE CHAT BOIIIIII".</p><span class="result r-exploded">EXPLODES ONE</span></div>
+      <div class="key"><div class="glyph">O<small>1st</small></div><p>Turns into a hula hoop. A game grows hands, tries to hula… FAIL. The screen blows up.</p><span class="result r-exploded">EXPLODES ONE</span></div>
+      <div class="key"><div class="glyph">N<small>→ Z</small></div><p>Tips into a Z. A pencil draws a giant Z, it shrinks and gets a random power.</p><span class="result r-exploded">EXPLODES ONE</span></div>
+      <div class="key"><div class="glyph">I</div><p>Becomes a pogo stick, boings around, lands on a game by accident.</p><span class="result r-unstable">CRACKS ONE</span></div>
+      <div class="key"><div class="glyph">T</div><p>Becomes a mallet, winds up, and SMASH.</p><span class="result r-unstable">CRACKS ONE</span></div>
+      <div class="key"><div class="glyph">O<small>2nd</small></div><p>A laser cannon. Zaps a random game.</p><span class="result r-unstable">CRACKS ONE</span></div>
+      <div class="key"><div class="glyph">R</div><p>Legs turn into rockets. Flies round calmly and rams a game from the side.</p><span class="result r-unstable">CRACKS ONE</span></div>
+    </div>
+    <div class="rules">
+      <div class="rule"><b>Dibs</b><span>Whatever picks a game calls dibs. Nothing else can aim at it until the hit lands.</span></div>
+      <div class="rule"><b>Running only</b><span>Every letter only hits games still RUNNING, so 7 letters hit 7 different games.</span></div>
+      <div class="rule"><b>Not Mods</b><span>Mods &amp; DLCs can never be the last one left. If it's in the final two, it gets hit.</span></div>
+    </div>
+    <p class="where">8 games − 7 letters = exactly 1 left standing:</p>
+    <div class="status-row" aria-label="After all seven letters">
+      <div class="sys exp"><span class="n">Oscar's Games</span><span class="s">● EXPLODED</span></div>
+      <div class="sys uns"><span class="n">Penelope's Games</span><span class="s">● UNSTABLE</span></div>
+      <div class="sys exp"><span class="n">BIG games</span><span class="s">● EXPLODED</span></div>
+      <div class="sys run"><span class="n">Games 2</span><span class="s">● RUNNING</span></div>
+      <div class="sys uns"><span class="n">Games 3</span><span class="s">● UNSTABLE</span></div>
+      <div class="sys exp"><span class="n">Games 4</span><span class="s">● EXPLODED</span></div>
+      <div class="sys uns"><span class="n">Games 5</span><span class="s">● UNSTABLE</span></div>
+      <div class="sys uns"><span class="n">Mods &amp; DLCs</span><span class="s">● UNSTABLE</span></div>
+    </div>
+  </section>
+
+  <div class="wire blue"><span>Click SYSTEM</span></div>
+
+  <section class="board blue" aria-labelledby="s5">
+    <div class="board-head"><h2 id="s5">5. SYSTEM supercharges the survivor</h2><span class="where">Only once all 7 letters have landed</span></div>
+    <div class="chain">
+      <div class="step"><b>The wave</b><small>S, S, E go up while Y, T, M go down, then swap. Five times.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Three wheels</b><small>Blue gear-wheels pop up and start turning.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>Roll onto it</b><small>They roll onto the last game running and spin fast.</small></div>
+      <div class="arrow">→</div>
+      <div class="step"><b>⚡ SUPERCHARGED</b><small>It glows blue, and that hub stays supercharged until a new one takes over.</small></div>
+    </div>
+    <div class="status-row">
+      <div class="sys sup"><span class="n">Games 2</span><span class="s">⚡ SUPERCHARGED</span></div>
+    </div>
+  </section>
+
+  <div class="wire blue"><span>Click the supercharged game</span></div>
+
+  <section class="board blue" aria-labelledby="s6">
+    <div class="board-head"><h2 id="s6">6. The supercharged hub</h2><span class="where">Always blue · remembered after reloading</span></div>
+    <div class="title-demo" aria-label="The hub's title">
+      <span class="sc-word">SUPERCHARGED<svg viewBox="0 0 54 110" preserveAspectRatio="none" aria-hidden="true"><polygon points="30,0 8,58 26,58 14,110 46,40 28,40 40,0" fill="#ffe14d" stroke="#000" stroke-width="2"/></svg></span>
+      <span class="hub-name">GAMES 2</span>
+    </div>
+    <div class="extras">
+      <div class="extra"><kbd>Click anywhere</kbd><span>Sparks burst out</span></div>
+      <div class="extra"><kbd>Move the mouse</kbd><span>Blue spark trail</span></div>
+      <div class="extra"><kbd>Hover a game</kbd><span>It crackles</span></div>
+      <div class="extra"><kbd>Keep clicking</kbd><span>Fills ⚡ ENERGY, then OVERCHARGE!</span></div>
+      <div class="extra"><kbd>Just wait</kbd><span>Lightning flickers in the sky</span></div>
+      <div class="extra"><kbd>Press Z</kbd><span>Lightning strikes a game</span></div>
+      <div class="extra"><kbd>Double-click</kbd><span>Drops a spinning gear</span></div>
+      <div class="extra"><kbd>Click SUPERCHARGED</kbd><span>Thunder</span></div>
+      <div class="extra"><kbd>Hold mouse down</kbd><span>Energy ball, let go for a shockwave</span></div>
+      <div class="extra"><kbd>Type boom</kbd><span>Blue fireworks</span></div>
+    </div>
+  </section>
+
+  <div class="wire blue"><span>Open any of its games</span></div>
+
+  <section class="board blue" aria-labelledby="s7">
+    <div class="board-head"><h2 id="s7">7. Every game, supercharged</h2><span class="count">37 games · 37 twists</span></div>
+    <p class="all-games"><b>All of them:</b> every colour turns blue, sparks where you click, a spark trail, a pulsing blue glow and a ⚡ SUPERCHARGED badge. Then each one plays a little differently:</p>
+
+    <div class="shelves">
+      <div class="shelf">
+        <h3>Oscar's &amp; Penelope's games <small>src/games</small></h3>
+        <div class="games">
+          <div class="game"><b>A Hard Easy Game</b><span>You're a ball of lightning: almost twice as fast, sparks off every wall.</span></div>
+          <div class="game"><b>A Kid's Life</b><span>Lightning around you, activities fill twice as fast, double hearts and stars.</span></div>
+          <div class="game"><b>Oscar's Untitled Maze Game</b><span>One press zaps you all the way down a hallway.</span></div>
+          <div class="game"><b>Tamagotchi Monster</b><span>Care counts 3×, and every evolution starts with a lightning strike.</span></div>
+          <div class="game"><b>Cat Math</b><span>Your streak multiplies coins up to ×10, and the cat builds a thunderstorm.</span></div>
+          <div class="game"><b>Catch the Kitties</b><span>Electric net: one catch chains lightning to every kitty on screen.</span></div>
+          <div class="game"><b>Penelope</b><span>Rub the pet to build static, then it zaps a game card.</span></div>
+          <div class="game"><b>The Settings Game</b><span>A ⚡ Supercharged Boots setting gives a lightning double jump.</span></div>
+        </div>
+      </div>
+      <div class="shelf">
+        <h3>Games 2 <small>src/games2</small></h3>
+        <div class="games">
+          <div class="game"><b>Drawing Boss Mania</b><span>When the boss is weak, zap it from a distance.</span></div>
+          <div class="game"><b>Feed Your Fire</b><span>Lightning strikes the fire: ×5 coins for 8 seconds.</span></div>
+          <div class="game"><b>Stickman Fight</b><span>Swing fast enough and lightning hits every enemy at once.</span></div>
+        </div>
+      </div>
+      <div class="shelf">
+        <h3>Games 3 <small>src/games3</small></h3>
+        <div class="games">
+          <div class="game"><b>Claire's Game</b><span>Overcharged farts: keep holding and fly up to 3× as far.</span></div>
+          <div class="game"><b>Holden's Game</b><span>Coins are batteries: zoom faster and zap enemies back home.</span></div>
+          <div class="game"><b>Click on Me</b><span>Chain lightning jumps to 3 stickmen per click.</span></div>
+          <div class="game"><b>Beatboxer Thingy</b><span>Tempo overdrive up to 360 BPM, with a chipmunk voice.</span></div>
+          <div class="game"><b>Sharks in the Water</b><span>A thunderstorm zaps the nearest shark and they all flee.</span></div>
+          <div class="game"><b>Zero Player Game</b><span>A storm over the machine deletes enemy cells.</span></div>
+          <div class="game"><b>Totally Not a Geometry Dash Rip-off</b><span>Lightning portals let you smash through anything for 4.5 seconds.</span></div>
+        </div>
+      </div>
+      <div class="shelf">
+        <h3>Games 4 <small>src/games4</small></h3>
+        <div class="games">
+          <div class="game mine"><b>Teleporting Ping Pong</b><span>The power bar spills off the end, wraps round and can fill the whole screen.</span></div>
+          <div class="game mine"><b>Telephone</b><span>A bonus Supercharged difficulty: "the lightning bolt ate my toaster".</span></div>
+          <div class="game mine"><b>Zero Logic Escape Rooms</b><span>A lightning storm outside cracks across the room.</span></div>
+          <div class="game"><b>Zero Logic Escape Rooms 2</b><span>Escape a room and it shatters into flying pieces.</span></div>
+          <div class="game"><b>World Sandbox</b><span>Things drop from space on lightning bolts, three at a time.</span></div>
+        </div>
+      </div>
+      <div class="shelf">
+        <h3>Games 5 <small>src/games5</small></h3>
+        <div class="games">
+          <div class="game"><b>Behind the Door</b><span>A crackling door zaps you through 3 doors at once.</span></div>
+          <div class="game"><b>Cross Your Fingers</b><span>A lightning coin magnet drags coins to you.</span></div>
+          <div class="game"><b>Draw and Swap</b><span>A ⚡ Lightning pen draws glowing zigzag bolts.</span></div>
+          <div class="game"><b>The Simulation</b><span>ZAP CHARGE: every 5 fragments freezes every glitch for 5 seconds. Ladders are still safe.</span></div>
+        </div>
+      </div>
+      <div class="shelf">
+        <h3>The lost games <small>src/lost · on BIG games</small></h3>
+        <div class="games">
+          <div class="game"><b>Ground Jumper</b><span>A ⚡ ZAP JUMP in mid-air.</span></div>
+          <div class="game"><b>Mermaid Math</b><span>Streaks are worth more, and an electric eel swims by.</span></div>
+          <div class="game"><b>Police Chase</b><span>Lightning shoes: stomp cops to zap them off the roof.</span></div>
+          <div class="game"><b>Roblox Trivia</b><span>One ZAP per quiz blasts away 2 wrong answers.</span></div>
+          <div class="game"><b>Snake</b><span>Every 5th food charges you to zap through poop.</span></div>
+          <div class="game"><b>Software Hack</b><span>Hacks can OVERLOAD and pay triple.</span></div>
+          <div class="game"><b>Wall Dodger</b><span>A lightning coin freezes the ball in ice.</span></div>
+        </div>
+      </div>
+      <div class="shelf">
+        <h3>BIG games &amp; corrupted <small>src/big-games · src/corrupted-games</small></h3>
+        <div class="games">
+          <div class="game"><b>Gem Smasher</b><span>Chain lightning smashes up to 5 gems in a row.</span></div>
+          <div class="game"><b>The Secret Room</b><span>Electric coins, and a 400-coin fountain at the end.</span></div>
+          <div class="game"><b>Bio Tech</b><span>A supercharged drill: 3× faster, with lightning.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wire"><span>Meanwhile, on every page</span></div>
+
+  <aside class="side" aria-labelledby="s8">
+    <h2 id="s8">The credits button</h2>
+    <p>Top right of every page. Credits roll for whatever you're playing, and every name is scribbled out: Made by <span class="scribble">Xqlmv Tropak</span>. The letters underneath are random each time, so nobody can ever find out who made it.</p>
+  </aside>
+
+  <footer>dev.0 · rebuilt as dev.1 · map of Oscar's Games secret systems</footer>
+</div>
+</body>
+</html>

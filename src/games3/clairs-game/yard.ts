@@ -8,16 +8,24 @@ import { fartImpulse, wrap, wrappedCopies } from "./physics";
 import { FRONT_YARD, type Body } from "./bodies";
 import { playFart } from "./sfx";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const MAX_CHARGE = 1.15;
 const MIN_PUSH = 200;
 const MAX_PUSH = 880;
 const AIM_SPEED = 3.1;
 const PLAYER_R = 15;
+/**
+ * Supercharged by dev.1: the charge bar doesn't stop when it's full. Keep
+ * holding and it fills up again in blue lightning — an OVERCHARGED fart that
+ * goes up to three times as far and comes out as crackling blue gas.
+ */
+const SUPERCHARGED = isThisGameSupercharged();
+const OVERCHARGE = SUPERCHARGED ? 3 : 1;
 /** GIGANTIC: you stay normal size; the clouds, stars, code and gas go giant. */
 const GIANT = isGigantic("clairs-game") ? 3 : 1;
 
-type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number };
+type Puff = { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; zap?: boolean };
 type Cloud = { x: number; y: number; r: number; drift: number; tone: number };
 /** One falling column of code. Only The Matrix uses these. */
 type Column = { x: number; y: number; speed: number; glyphs: string[] };
@@ -95,13 +103,15 @@ export function createYard(
   function releaseFart(): void {
     if (!charging) return;
     charging = false;
-    const power = charge / MAX_CHARGE;
-    const push = fartImpulse(charge, MAX_CHARGE, MIN_PUSH, MAX_PUSH);
+    const power = Math.min(1, charge / MAX_CHARGE);
+    // Past full, every extra bit of squeeze multiplies the shove.
+    const boost = Math.max(1, charge / MAX_CHARGE);
+    const push = fartImpulse(charge, MAX_CHARGE, MIN_PUSH, MAX_PUSH) * boost;
     // You go where you point; the gas goes the other way.
     player.vx += Math.cos(player.aim) * push;
     player.vy += Math.sin(player.aim) * push;
     player.lean = 1;
-    spawnPuffs(power);
+    spawnPuffs(power, boost > 1);
     playFart(power);
     farts += 1;
     hud.farts.textContent = `FARTS ${farts}`;
@@ -109,7 +119,7 @@ export function createYard(
     charge = 0;
   }
 
-  function spawnPuffs(power: number): void {
+  function spawnPuffs(power: number, zap = false): void {
     const back = player.aim + Math.PI;
     const count = 8 + Math.round(power * 16);
     for (let i = 0; i < count; i += 1) {
@@ -124,6 +134,7 @@ export function createYard(
         life: 0,
         max: 0.5 + Math.random() * (0.5 + power),
         r: (4 + Math.random() * (6 + power * 12)) * GIANT,
+        zap,
       });
     }
   }
@@ -132,8 +143,13 @@ export function createYard(
     if (keys.has("arrowleft") || keys.has("a")) player.aim -= AIM_SPEED * dt;
     if (keys.has("arrowright") || keys.has("d")) player.aim += AIM_SPEED * dt;
 
-    if (charging) charge = Math.min(MAX_CHARGE, charge + dt);
-    hud.charge.style.width = `${(charge / MAX_CHARGE) * 100}%`;
+    if (charging) charge = Math.min(MAX_CHARGE * OVERCHARGE, charge + dt);
+    hud.charge.style.width = `${Math.min(1, charge / MAX_CHARGE) * 100}%`;
+    // Overcharging paints a second, blue lap over the full bar.
+    const over = (charge - MAX_CHARGE) / (MAX_CHARGE * (OVERCHARGE - 1));
+    hud.charge.style.background = over > 0
+      ? `linear-gradient(90deg, #46a8ff, #e6f4ff) 0 0 / ${over * 100}% 100% no-repeat, linear-gradient(90deg, #a4d66a, #ffec78)`
+      : "";
 
     player.vy += body.gravity * dt;
     const keep = body.air ** dt;
@@ -234,7 +250,7 @@ export function createYard(
     for (const puff of puffs) {
       const t = puff.life / puff.max;
       eachWrapped(puff.x, puff.y, puff.r + 10, (x, y) => {
-        context.fillStyle = `rgba(164, 214, 106, ${(1 - t) * 0.42})`;
+        context.fillStyle = puff.zap ? `rgba(110, 190, 255, ${(1 - t) * 0.55})` : `rgba(164, 214, 106, ${(1 - t) * 0.42})`;
         context.beginPath();
         context.arc(x, y, puff.r, 0, Math.PI * 2);
         context.fill();
@@ -246,10 +262,13 @@ export function createYard(
       context.translate(x, y);
 
       // Aim pointer: where the next fart will send you. Grows as you squeeze.
-      const power = charge / MAX_CHARGE;
-      const reach = 30 + power * 62;
+      const power = Math.min(1, charge / MAX_CHARGE);
+      const overcharged = charge > MAX_CHARGE;
+      const reach = 30 + power * 62 + Math.max(0, charge / MAX_CHARGE - 1) * 60;
       context.rotate(player.aim);
-      context.strokeStyle = charging ? `rgba(255, 236, 120, ${0.55 + power * 0.45})` : "rgba(255, 255, 255, 0.32)";
+      context.strokeStyle = overcharged
+        ? "#bfe4ff"
+        : charging ? `rgba(255, 236, 120, ${0.55 + power * 0.45})` : "rgba(255, 255, 255, 0.32)";
       context.lineWidth = charging ? 3 + power * 3 : 2;
       context.setLineDash([7, 6]);
       context.beginPath();
@@ -262,8 +281,9 @@ export function createYard(
       context.lineTo(reach - 3, -6);
       context.lineTo(reach - 3, 6);
       context.closePath();
-      context.fillStyle = charging ? "#ffec78" : "rgba(255,255,255,0.4)";
+      context.fillStyle = overcharged ? "#46a8ff" : charging ? "#ffec78" : "rgba(255,255,255,0.4)";
       context.fill();
+      if (overcharged) drawCrackle(reach);
       context.restore();
 
       // The person. Upright, squashing a little on the recoil.
@@ -291,13 +311,28 @@ export function createYard(
       context.lineTo(7, 19);
       context.stroke();
       if (charging) {
-        context.fillStyle = `rgba(164, 214, 106, ${0.25 + power * 0.5})`;
+        context.fillStyle = overcharged ? "rgba(110, 190, 255, 0.7)" : `rgba(164, 214, 106, ${0.25 + power * 0.5})`;
         context.beginPath();
         context.arc(0, 4, 8 + power * 7, 0, Math.PI * 2);
         context.fill();
       }
       context.restore();
     });
+  }
+
+  /** Little sparks fizzing along the aim pointer while it's overcharged. */
+  function drawCrackle(reach: number): void {
+    context.strokeStyle = "#e6f4ff";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(PLAYER_R + 4, 0);
+    for (let x = PLAYER_R + 14; x < reach; x += 10) context.lineTo(x, (Math.random() - 0.5) * 16);
+    context.stroke();
+    context.fillStyle = "#e6f4ff";
+    context.font = `bold ${14 * GIANT}px system-ui, sans-serif`;
+    context.textAlign = "left";
+    context.textBaseline = "middle";
+    context.fillText(`⚡ x${(charge / MAX_CHARGE).toFixed(1)}`, reach + 14, 0);
   }
 
   function enter(arriving: Body): void {
@@ -317,6 +352,7 @@ export function createYard(
     charging = false;
     puffs.length = 0;
     hud.charge.style.width = "0%";
+    hud.charge.style.background = "";
   }
 
   function press(key: string): void {

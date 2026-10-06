@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dev.1 Studio</title>
+    <link rel="stylesheet" href="../../styles/main.css" />
+    <link rel="stylesheet" href="./studio.css" />
+  </head>
+  <body class="dev-hub studio">
+    <main class="studio-shell">
+      <header class="studio-header">
+        <div>
+          <p class="eyebrow">dev.1's game · ultra secret</p>
+          <h1>dev.1 Studio</h1>
+        </div>
+        <a class="owner-switch owner-switch-dev" href="../index.html">← dev.1's Games</a>
+      </header>
+
+      <div class="studio-toolbar" role="toolbar" aria-label="Studio tools">
+        <button type="button" id="add-dev1">＋ New dev.1</button>
+        <button type="button" id="open-props" aria-expanded="false" aria-controls="prop-shelf">🎁 Props</button>
+        <button type="button" id="draw-prop">✏️ Draw a prop</button>
+        <label class="studio-file">📁 Import a prop<input type="file" id="import-prop" accept="image/*" /></label>
+        <label class="studio-select">Stage
+          <select id="background">
+            <option value="grid">dev.1 grid</option>
+            <option value="night">Night sky</option>
+            <option value="day">Sunny day</option>
+            <option value="space">Outer space</option>
+            <option value="theater">Theater</option>
+          </select>
+        </label>
+        <button type="button" id="play" class="studio-play">▶ Play</button>
+        <button type="button" id="clear" class="studio-danger">🗑 Clear stage</button>
+        <button type="button" id="open-settings" aria-expanded="false" aria-controls="settings">⚙ Settings</button>
+      </div>
+
+      <div class="settings-box" id="settings" hidden>
+        <label class="setting"><input type="checkbox" id="infinite-sliders" /> Infinite sliders <small>slide the size bars up forever</small></label>
+      </div>
+
+      <div class="prop-shelf" id="prop-shelf" hidden>
+        <p class="shelf-label">Ready-made props</p>
+        <div class="prop-grid" id="ready-props"></div>
+        <p class="shelf-label">Your props</p>
+        <div class="prop-grid" id="my-props"><span class="shelf-empty">Draw or import a prop and it shows up here.</span></div>
+      </div>
+
+      <div class="studio-body">
+        <div class="stage-wrap">
+          <div class="stage stage-grid" id="stage" aria-label="The stage. Drag things around on it."></div>
+          <p class="stage-hint" id="stage-hint">Drag things around. Click one to change it.</p>
+        </div>
+
+        <aside class="inspector" id="inspector" aria-label="Change the selected thing">
+          <p class="inspector-empty" id="inspector-empty">Click a dev.1 or a prop on the stage to change it.</p>
+          <div id="inspector-fields" hidden>
+            <h2 id="inspector-title">dev.1</h2>
+            <label class="field" id="name-field">Name
+              <span class="name-input"><span>dev.</span><input id="name" type="text" maxlength="16" autocomplete="off" /></span>
+            </label>
+            <label class="field" id="hoodie-field">Hoodie <input id="hoodie" type="color" /></label>
+            <div class="field" id="skin-field">Skin
+              <div class="swatches" id="skin"></div>
+            </div>
+            <label class="field" id="eyes-field">Eyes <small>use \ / and &lt;&gt;</small>
+              <input id="eyes" type="text" maxlength="40" autocomplete="off" spellcheck="false" />
+            </label>
+            <div class="field" id="facing-field">
+              <label for="facing">Facing <small>degrees: 0 faces you, 180 shows his back</small></label>
+              <input id="facing" type="number" step="5" inputmode="numeric" />
+              <div class="inspector-actions">
+                <button type="button" data-facing="0">Front</button>
+                <button type="button" data-facing="90">Side</button>
+                <button type="button" data-facing="-90">Other side</button>
+                <button type="button" data-facing="180">Back</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="rotation">Rotation <small>degrees: 180 is upside down</small></label>
+              <input id="rotation" type="number" step="5" inputmode="numeric" />
+              <input id="rotation-bar" type="range" min="-180" max="180" step="1" aria-label="Rotation" />
+              <div class="inspector-actions">
+                <button type="button" data-rotation="0">Upright</button>
+                <button type="button" data-rotation="90">On its side</button>
+                <button type="button" data-rotation="180">Upside down</button>
+              </div>
+            </div>
+            <div class="field" id="background-field" hidden>
+              Picture
+              <div class="inspector-actions">
+                <button type="button" id="remove-bg">✂️ Remove background</button>
+                <button type="button" id="restore-bg" hidden>↩ Put background back</button>
+              </div>
+            </div>
+            <label class="field">Size <small>grows both ways</small> <input id="size" type="range" min="0.1" max="2.5" step="0.05" /></label>
+            <label class="field">Size Y <small>↕ up and down only</small> <input id="size-y" type="range" min="0.1" max="2.5" step="0.05" /></label>
+            <label class="field">Size Z <small>↔ side to side only</small> <input id="size-z" type="range" min="0.1" max="2.5" step="0.05" /></label>
+            <div class="field">
+              <span id="layer-label">Layer</span>
+              <div class="inspector-actions">
+                <button type="button" id="layer-front">⏫ To front</button>
+                <button type="button" id="layer-forward">⬆ Forward</button>
+                <button type="button" id="layer-back">⬇ Back</button>
+                <button type="button" id="layer-bottom">⏬ To back</button>
+              </div>
+            </div>
+            <label class="field">Animation <select id="animation"></select></label>
+            <div class="field" id="frames-field" hidden>
+              Frames
+              <div class="frame-list" id="frame-list" role="group" aria-label="Frames"></div>
+              <div class="transition-panel" id="transition-panel" hidden>
+                <strong id="transition-title">Frame 1 → 2</strong>
+                <div class="inspector-actions">
+                  <button type="button" id="transition-glide">〰 Glide</button>
+                  <button type="button" id="transition-cut">⚡ Teleport</button>
+                </div>
+                <small>Teleport skips the glide and jumps straight there, only between these two frames.</small>
+              </div>
+              <label class="field">Stage at this frame
+                <select id="frame-stage">
+                  <option value="">No change</option>
+                  <option value="grid">dev.1 grid</option>
+                  <option value="night">Night sky</option>
+                  <option value="day">Sunny day</option>
+                  <option value="space">Outer space</option>
+                  <option value="theater">Theater</option>
+                </select>
+              </label>
+              <div class="inspector-actions">
+                <button type="button" id="frame-add">＋ New frame</button>
+                <button type="button" id="frame-remove">🗑 Frame</button>
+                <button type="button" id="pose-reset">↺ Stand up</button>
+              </div>
+              <small id="prop-frames-hint">Drag it somewhere, turn it and size it on each frame, and Play slides it between them.</small>
+              <label class="field">Frame size <small>how big it is in this frame</small> <input id="frame-size" type="range" min="0.1" max="3" step="0.05" /></label>
+              <label class="field">Time per frame <input id="frame-speed" type="range" min="150" max="1500" step="50" /></label>
+              <div class="field" id="bones-part">
+                <small>Drag the yellow dots on the stage to bend his joints, and drag him to move him in this frame. Make a new frame, change a little more, and Play blends them.</small>
+                Add a joint <small>(extra bends, extra creepy)</small>
+                <div class="inspector-actions" id="joint-buttons"></div>
+                <div class="inspector-actions"><button type="button" id="joints-reset">Remove extra joints</button></div>
+              </div>
+            </div>
+            <label class="field">Sound
+              <span class="sound-row"><select id="sound"></select><button type="button" id="sound-test" aria-label="Hear the sound">🔊</button></span>
+            </label>
+            <label class="field">Sound plays
+              <select id="sound-when">
+                <option value="loop">Every time it loops</option>
+                <option value="once">Just once</option>
+              </select>
+            </label>
+            <div class="inspector-actions">
+              <button type="button" id="flip">↔ Flip</button>
+              <button type="button" id="duplicate">⧉ Copy</button>
+              <button type="button" id="remove" class="studio-danger">🗑 Remove</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <section class="sound-library" aria-labelledby="sound-library-title">
+        <h2 id="sound-library-title">Sound effect library</h2>
+        <div class="sound-board" id="sound-board"></div>
+        <div class="sound-mine">
+          <label class="studio-file">📁 Import a sound<input type="file" id="import-sound" accept="audio/*" /></label>
+          <span class="shelf-empty" id="sound-note" role="status"></span>
+        </div>
+        <p class="shelf-label">Your sounds</p>
+        <div class="sound-board" id="my-sound-board"></div>
+      </section>
+    </main>
+
+    <dialog class="draw-dialog" id="draw-dialog">
+      <form method="dialog" class="draw-form">
+        <h2>Draw a prop</h2>
+        <canvas id="draw-canvas" width="240" height="240" aria-label="Drawing space"></canvas>
+        <div class="draw-tools">
+          <input id="draw-color" type="color" value="#5cff8a" aria-label="Pen colour" />
+          <input id="draw-size" type="range" min="2" max="30" value="8" aria-label="Pen size" />
+          <button type="button" id="draw-clear">Clear</button>
+        </div>
+        <div class="draw-actions">
+          <button value="cancel">Cancel</button>
+          <button value="save" class="studio-play">Add to stage</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

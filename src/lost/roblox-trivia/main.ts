@@ -1,7 +1,7 @@
 // Roblox Trivia. Most of it is in plain sight; the rest has to be found by
 // clicking a letter, dragging a trophy, or typing a word nobody told you.
 
-import { DIFFICULTIES, ERROR_PARAGRAPHS, EXTRA_MODES, ultimateQuestions } from "./questions";
+import { DIFFICULTIES, ERROR_PARAGRAPHS, EXTRA_MODES, ultimateQuestions, type Question } from "./questions";
 import {
   MAX_NAME_LENGTH,
   MAX_OPTION_LENGTH,
@@ -40,6 +40,7 @@ import {
   type Run,
 } from "./quiz";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const found = document.getElementById("game");
 if (!(found instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -524,6 +525,59 @@ function tickError(seconds: number): void {
 
 // --------------------------------------------------------------- quiz screen
 
+// Supercharged by dev.1: every quiz gives you one lightning ZAP. Use it (click
+// the button or press Z) and lightning blasts two wrong answers off the board.
+const SUPERCHARGED = isThisGameSupercharged();
+let zapUsedIn: Run | null = null;
+let zappedQuestion: Question | null = null;
+let zapped = new Set<number>();
+let zapTime = 0;
+
+function zapWrongAnswers(): void {
+  if (!SUPERCHARGED || !run || run.showingResult || zapUsedIn === run) return;
+  const question = currentQuestion(run);
+  if (!question) return;
+  const wrong = shuffle(
+    question.options.map((_, index) => index).filter((index) => index !== question.answer),
+    random
+  );
+  // Always leave at least one wrong answer, so it's still a question.
+  const howMany = Math.min(2, wrong.length - 1);
+  if (howMany <= 0) return;
+  zapUsedIn = run;
+  zappedQuestion = question;
+  zapped = new Set(wrong.slice(0, howMany));
+  zapTime = time;
+}
+
+const isZapped = (question: Question, index: number): boolean =>
+  zappedQuestion === question && zapped.has(index);
+
+function drawZapButton(active: Run, question: Question): void {
+  if (!SUPERCHARGED || active.showingResult) return;
+  // The bolts hitting the zapped answers, for the first half second.
+  if (zappedQuestion === question && time - zapTime < 0.5) {
+    ctx.strokeStyle = "#fff36a";
+    ctx.lineWidth = 4;
+    for (const index of zapped) {
+      const y = ANSWERS_TOP + index * 66;
+      const x = 160 + Math.random() * (SCREEN_WIDTH - 320);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      for (let step = 1; step <= 6; step += 1) {
+        ctx.lineTo(x + Math.random() * 40 - 20, (y * step) / 6);
+      }
+      ctx.stroke();
+    }
+  }
+  if (zapUsedIn === active) return;
+  const pulse = Math.floor(time * 4) % 2 === 0;
+  ctx.fillStyle = pulse ? "#2a7fff" : "#58b4ff";
+  ctx.fillRect(SCREEN_WIDTH / 2 - 120, 524, 240, 32);
+  text("⚡ ZAP 2 WRONG ANSWERS (Z)", SCREEN_WIDTH / 2, 540, { size: 16, bold: true, color: "#fff36a" });
+  zone(SCREEN_WIDTH / 2 - 120, 524, 240, 32, zapWrongAnswers);
+}
+
 function drawQuiz(active: Run, endless: boolean): void {
   const question = currentQuestion(active);
   if (!question) return;
@@ -550,6 +604,13 @@ function drawQuiz(active: Run, endless: boolean): void {
   question.options.forEach((option, index) => {
     const y = ANSWERS_TOP + index * 66;
     const correct = index === question.answer;
+    if (isZapped(question, index)) {
+      ctx.strokeStyle = "rgba(255, 243, 106, 0.35)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(100, y - 26, SCREEN_WIDTH - 200, 52);
+      text("⚡ ZAPPED ⚡", SCREEN_WIDTH / 2, y, { size: 20, color: "rgba(255, 243, 106, 0.6)" });
+      return;
+    }
     let fill = "rgba(255, 255, 255, 0.08)";
     if (active.showingResult) {
       if (correct) fill = "rgba(60, 200, 90, 0.5)";
@@ -563,6 +624,8 @@ function drawQuiz(active: Run, endless: boolean): void {
     text(`${index + 1}. ${option}`, SCREEN_WIDTH / 2, y, { size: 22, color: style.text });
     zone(100, y - 26, SCREEN_WIDTH - 200, 52, () => answerNow(index));
   });
+
+  drawZapButton(active, question);
 
   if (active.showingResult) {
     text(active.feedback, SCREEN_WIDTH / 2, SCREEN_HEIGHT - 40, {
@@ -592,6 +655,7 @@ function answerNow(option: number): void {
   if (!run || run.showingResult) return;
   const question = currentQuestion(run);
   if (!question) return;
+  if (isZapped(question, option)) return;
   answer(run, option);
   if (screen !== "infinite") return;
   // One wrong answer and the endless run is over.
@@ -1132,6 +1196,11 @@ window.addEventListener("keydown", (event) => {
       return;
     }
     errorBuffer = "";
+  }
+
+  if ((key === "z" || key === "Z") && (screen === "quiz" || screen === "infinite")) {
+    zapWrongAnswers();
+    return;
   }
 
   const number = Number(key);

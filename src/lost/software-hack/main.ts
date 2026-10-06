@@ -4,6 +4,7 @@ import {
   HEAT_MAX,
   INTEGRITY_MAX,
   INTRUSION_MAX,
+  JOB_COMPLETE_BONUS_COINS,
   PAD_COLORS,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
@@ -20,6 +21,7 @@ import {
   type TimingTrace,
 } from "./session";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 const canvas = document.getElementById("game");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("no canvas");
@@ -70,6 +72,57 @@ let scene: Scene = "title";
 let highScore = loadHighScore();
 let session: Session = newSession(highScore);
 let time = 0;
+
+// Supercharged by dev.1: when you finish hacking an AI it doesn't just give
+// up, it OVERLOADS. Lightning smashes down the screen, everything flashes,
+// and the job pays out triple.
+const SUPERCHARGED = isThisGameSupercharged();
+const OVERLOAD_SECONDS = 1.4;
+let lastJob = session.job;
+let overloadAt = -10;
+
+// Called every frame: a new job number means an AI was just finished off.
+function checkOverload(): void {
+  if (session.job === lastJob) return;
+  lastJob = session.job;
+  if (!SUPERCHARGED) return;
+  const bonus = 2 * JOB_COMPLETE_BONUS_COINS;
+  session.coins += bonus;
+  session.toast = {
+    text: `⚡ OVERLOAD! AI fried. +${JOB_COMPLETE_BONUS_COINS + bonus}c ⚡`,
+    color: "#fff36a",
+    remaining: 1.8,
+  };
+  overloadAt = time;
+}
+
+function drawOverload(): void {
+  const age = time - overloadAt;
+  if (age > OVERLOAD_SECONDS) return;
+  const fade = 1 - age / OVERLOAD_SECONDS;
+  ctx.fillStyle = `rgba(120, 200, 255, ${0.35 * fade})`;
+  ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+  ctx.strokeStyle = `rgba(255, 243, 106, ${fade})`;
+  ctx.lineWidth = 5;
+  for (let bolt = 0; bolt < 5; bolt += 1) {
+    let x = Math.random() * SCREEN_WIDTH;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    for (let y = 70; y <= SCREEN_HEIGHT; y += 70) {
+      x += Math.random() * 80 - 40;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.fillStyle = "#fff36a";
+  ctx.font = `bold ${Math.round(90 + 40 * age)}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("OVERLOAD", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
+  ctx.restore();
+}
 
 // ------------------------------------------------------------------ the chrome
 
@@ -385,6 +438,7 @@ function drawOverlayPage(title: string, color: string, lines: string[]): void {
 
 function startSession(): void {
   session = newSession(Math.max(highScore, session.highScore));
+  lastJob = session.job;
   scene = "playing";
 }
 
@@ -457,8 +511,10 @@ function frame(now: number): void {
   lastFrame = now;
   time += seconds;
 
+  checkOverload();
   if (scene === "playing") {
     stepSession(session, seconds);
+    checkOverload();
     if (session.phase === "over") {
       scene = "gameOver";
       if (session.highScore > highScore) {
@@ -491,6 +547,7 @@ function frame(now: number): void {
     drawMinigame(session.minigame);
   }
 
+  if (SUPERCHARGED) drawOverload();
   drawScanlines();
   requestAnimationFrame(frame);
 }

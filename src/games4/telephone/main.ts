@@ -1,6 +1,7 @@
 import { openGuest, openHost, type Link } from "./net";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 
 installOofShortcut();
 
@@ -82,14 +83,28 @@ const LEVELS = {
       "hippopotomonstrosesquippedaliophobia and pseudopseudohypoparathyroidism",
     ],
   },
+  // Only on a Telephone that dev.1 supercharged.
+  "Supercharged": {
+    words: ["thunderbolt", "electricity", "kilowatt", "supercharged", "lightning"],
+    phrases: [
+      "the lightning bolt ate my toaster",
+      "a supercharged hamster on a treadmill",
+      "zap the robot with a thunderbolt",
+    ],
+  },
 } as const;
 
 type Level = keyof typeof LEVELS;
 type Difficulty = Level | "All";
 
 const LEVEL_NAMES = Object.keys(LEVELS) as Level[];
+// The Supercharged level only shows up, and only goes into "All", when dev.1
+// has supercharged this game. Anyone can still join a Supercharged room.
+const PLAYABLE_LEVELS = isThisGameSupercharged()
+  ? LEVEL_NAMES
+  : LEVEL_NAMES.filter((level) => level !== "Supercharged");
 // "All" sits at the bottom of the list and reaches into every level at once.
-const DIFFICULTIES: Difficulty[] = [...LEVEL_NAMES, "All"];
+const DIFFICULTIES: Difficulty[] = [...PLAYABLE_LEVELS, "All"];
 
 
 interface RoomInfo {
@@ -709,7 +724,7 @@ function readDifficulty(select: HTMLElement | null): Difficulty {
 }
 
 function isDifficulty(value: string): value is Difficulty {
-  return (DIFFICULTIES as string[]).includes(value);
+  return value === "All" || (LEVEL_NAMES as string[]).includes(value);
 }
 
 function readName(input: HTMLElement | null, fallback: string): string {
@@ -742,7 +757,7 @@ function sameAnswer(a: string, b: string): boolean {
 // equally likely to land on you.
 function pickWord(difficulty: Difficulty, mode: Mode): string {
   const pool = difficulty === "All"
-    ? LEVEL_NAMES.flatMap((level) => [...LEVELS[level][mode]])
+    ? PLAYABLE_LEVELS.flatMap((level) => [...LEVELS[level][mode]])
     : [...LEVELS[difficulty][mode]];
   return pool[Math.floor(Math.random() * pool.length)] ?? "";
 }

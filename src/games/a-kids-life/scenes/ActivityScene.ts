@@ -5,6 +5,7 @@ import { addCareStars } from "../systems/aging";
 import { applyNeedBoosts } from "../systems/needs";
 import { Button } from "../ui/Button";
 import type { Scene } from "../app/Scene";
+import { SUPERCHARGED, SUPERCHARGE_BOOST } from "../supercharged";
 
 type Orb = { x: number; y: number; vx: number; vy: number; alive: boolean };
 
@@ -17,6 +18,8 @@ export class ActivityScene implements Scene {
   private dragging = false;
   private dragX = 320;
   private picked = 0;
+  // When the last supercharged zap shot along the progress bar.
+  private zapAt = -1;
   private readonly orbs: Orb[] = Array.from({ length: 8 }, (_, index) => ({
     x: 270 + index * 72,
     y: 300 + (index % 2) * 70,
@@ -96,6 +99,7 @@ export class ActivityScene implements Scene {
     ctx.beginPath();
     ctx.roundRect(362, 544, 480 * this.progress, 26, 13);
     ctx.fill();
+    if (SUPERCHARGED) this.drawBarZap(ctx);
 
     this.backButton.draw(ctx);
     this.finishButton.draw(ctx, { pulse: this.progress >= 1 ? 0.24 : 0 });
@@ -126,6 +130,38 @@ export class ActivityScene implements Scene {
         this.drawCollect(ctx);
         break;
     }
+  }
+
+  // A quick lightning bolt along the bar every time it fills up some more.
+  private drawBarZap(ctx: CanvasRenderingContext2D): void {
+    const age = this.time - this.zapAt;
+    if (this.zapAt < 0 || age > 0.3) {
+      return;
+    }
+    ctx.save();
+    ctx.globalAlpha = 1 - age / 0.3;
+    ctx.strokeStyle = "#ffffff";
+    ctx.shadowColor = "#5ad0ff";
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(362, 557);
+    const end = 362 + 480 * this.progress;
+    for (let x = 382; x < end; x += 20) {
+      ctx.lineTo(x, 557 + (Math.random() - 0.5) * 22);
+    }
+    ctx.lineTo(end, 557);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Supercharged: whatever you just did counts twice.
+  private superchargeFrom(before: number): void {
+    if (!SUPERCHARGED || this.progress <= before) {
+      return;
+    }
+    this.progress = Math.min(1, this.progress + (this.progress - before));
+    this.zapAt = this.time;
   }
 
   private drawTapFill(ctx: CanvasRenderingContext2D): void {
@@ -218,8 +254,10 @@ export class ActivityScene implements Scene {
     this.finishButton.handlePointerMove(x, y);
 
     if (this.dragging && this.activity?.miniGame === "drag-track") {
+      const before = this.progress;
       this.dragX = Math.max(360, Math.min(840, x));
       this.progress = Math.max(this.progress, (this.dragX - 360) / 480);
+      this.superchargeFrom(before);
     }
   }
 
@@ -231,6 +269,7 @@ export class ActivityScene implements Scene {
       return;
     }
 
+    const before = this.progress;
     if (this.activity.miniGame === "tap-fill") {
       this.progress = Math.min(1, this.progress + 0.2);
     } else if (this.activity.miniGame === "hold-fill" && x >= 430 && x <= 770 && y >= 286 && y <= 456) {
@@ -269,6 +308,7 @@ export class ActivityScene implements Scene {
     if (this.activity.miniGame === "hold-fill") {
       this.progress = Math.min(1, this.progress + 0.14);
     }
+    this.superchargeFrom(before);
   }
 
   onPointerUp(x: number, y: number): void {
@@ -294,8 +334,8 @@ export class ActivityScene implements Scene {
     }
 
     applyNeedBoosts(person, this.activity.boosts);
-    this.opts.save.hearts += this.activity.heartReward;
-    const milestone = addCareStars(this.opts.save, person, this.activity.starReward);
+    this.opts.save.hearts += this.activity.heartReward * SUPERCHARGE_BOOST;
+    const milestone = addCareStars(this.opts.save, person, this.activity.starReward * SUPERCHARGE_BOOST);
     this.opts.onDone(milestone);
   }
 }

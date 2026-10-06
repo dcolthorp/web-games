@@ -1,5 +1,6 @@
 import { createCafe } from "./cafe";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 
@@ -16,6 +17,12 @@ if (GIGANTIC) {
   const heading = document.querySelector("h1");
   if (heading) heading.textContent = "GIGANTIC Catch the Kitties!!!";
 }
+
+// Supercharged by dev.1: the net is electric. Catch one kitty and lightning
+// jumps from it to every other kitty that's popped up, catching them all at
+// once. Kitties pop up twice as often so there's more to zap.
+const SUPERCHARGED = isThisGameSupercharged();
+const ZAP_MS = 350;
 
 const W = 960;
 const H = 600;
@@ -102,6 +109,13 @@ interface Leaper {
   born: number;
 }
 
+// A lightning bolt from one caught kitty to the next one it zapped.
+interface Zap {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  born: number;
+}
+
 interface Floater {
   x: number;
   y: number;
@@ -134,6 +148,7 @@ const SPOTS = [
 let cats: Cat[] = [];
 let floaters: Floater[] = [];
 let leapers: Leaper[] = [];
+let zaps: Zap[] = [];
 let score = 0;
 let caught = 0;
 let totalCaught = readNumber(TOTAL_CAUGHT_KEY);
@@ -202,7 +217,7 @@ function spawnCat(now: number): void {
   if (free.length > 0) {
     cats.push({ type: pickType(), stay: creative ? Infinity : now < effectEnds.stay ? STAY_UP_MS + 3000 : STAY_UP_MS, spot: free[Math.floor(Math.random() * free.length)]!, born: now });
   }
-  nextSpawn = now + SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS);
+  nextSpawn = now + (SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS)) / (SUPERCHARGED ? 2 : 1);
 }
 
 // Overshoots a little so the kitty hops up out of the hole.
@@ -257,27 +272,19 @@ function swing(x: number, y: number): void {
     if (popAmount(cat, now) < 0.5) continue;
     const c = catCenter(cat, now);
     if (Math.hypot(c.x - x, c.y - y) <= netRadius(now) + 20) {
-      cats = cats.filter((other) => other !== cat);
-      leapers.push({
-        type: cat.type,
-        x: c.x,
-        y: c.y,
-        vx: (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 160),
-        vy: -620 - Math.random() * 120,
-        spin: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 4),
-        born: now,
-      });
-      const points = cat.type.points * (now < effectEnds.double ? 2 : 1);
-      score += points;
-      caught += 1;
-      if (!creative) {
-        totalCaught += 1;
-        save(TOTAL_CAUGHT_KEY, String(totalCaught));
-      }
-      const unlocked = creative ? undefined : NET_SKINS.find((s) => s.need === totalCaught && s.need > 0);
-      if (unlocked) floaters.push({ x: W / 2, y: 140, text: `New net: ${unlocked.tier}!`, color: "#ffe45e", born: now });
+      catchCat(cat, now);
       hit = true;
-      floaters.push({ x: c.x, y: c.y - 50, text: `+${points}`, color: "#fff", born: now });
+      if (SUPERCHARGED) {
+        // Chain lightning: each zapped kitty passes it on to the next one.
+        let from = c;
+        for (const other of [...cats]) {
+          if (popAmount(other, now) < 0.5) continue;
+          const to = catCenter(other, now);
+          zaps.push({ from, to, born: now });
+          catchCat(other, now);
+          from = to;
+        }
+      }
       break;
     }
   }
@@ -290,6 +297,55 @@ function swing(x: number, y: number): void {
       // saving is optional
     }
   }
+}
+
+function catchCat(cat: Cat, now: number): void {
+  const c = catCenter(cat, now);
+  cats = cats.filter((other) => other !== cat);
+  leapers.push({
+    type: cat.type,
+    x: c.x,
+    y: c.y,
+    vx: (Math.random() < 0.5 ? -1 : 1) * (120 + Math.random() * 160),
+    vy: -620 - Math.random() * 120,
+    spin: (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 4),
+    born: now,
+  });
+  const points = cat.type.points * (now < effectEnds.double ? 2 : 1);
+  score += points;
+  caught += 1;
+  if (!creative) {
+    totalCaught += 1;
+    save(TOTAL_CAUGHT_KEY, String(totalCaught));
+  }
+  const unlocked = creative ? undefined : NET_SKINS.find((s) => s.need === totalCaught && s.need > 0);
+  if (unlocked) floaters.push({ x: W / 2, y: 140, text: `New net: ${unlocked.tier}!`, color: "#ffe45e", born: now });
+  floaters.push({ x: c.x, y: c.y - 50, text: `+${points}`, color: "#fff", born: now });
+}
+
+// A jagged white-blue bolt that fades out fast.
+function drawZap(zap: Zap, now: number): void {
+  const age = (now - zap.born) / ZAP_MS;
+  ctx.save();
+  ctx.globalAlpha = 1 - age;
+  ctx.strokeStyle = "#ffffff";
+  ctx.shadowColor = "#5ad0ff";
+  ctx.shadowBlur = 20;
+  ctx.lineWidth = 5;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(zap.from.x, zap.from.y);
+  const steps = 7;
+  for (let i = 1; i < steps; i += 1) {
+    const t = i / steps;
+    ctx.lineTo(
+      zap.from.x + (zap.to.x - zap.from.x) * t + (Math.random() - 0.5) * 40,
+      zap.from.y + (zap.to.y - zap.from.y) * t + (Math.random() - 0.5) * 40,
+    );
+  }
+  ctx.lineTo(zap.to.x, zap.to.y);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function toCanvas(event: PointerEvent): { x: number; y: number } {
@@ -657,6 +713,7 @@ function frame(real: number): void {
   if (!paused && now >= nextSpawn) spawnCat(now);
   cats = cats.filter((cat) => now - cat.born < cat.stay + POP_MS * 2);
   floaters = floaters.filter((f) => now - f.born < 900);
+  zaps = zaps.filter((z) => now - z.born < ZAP_MS);
   const dt = (now - leapStep) / 1000;
   leapStep = now;
   for (const l of leapers) {
@@ -672,6 +729,7 @@ function frame(real: number): void {
   [...cats].sort((a, b) => a.spot - b.spot).forEach((cat) => drawCat(cat, now));
   SPOTS.forEach(drawCushionFront);
   leapers.forEach((l) => drawLeaper(l, now));
+  zaps.forEach((z) => drawZap(z, now));
 
   for (const f of floaters) {
     const age = (now - f.born) / 900;

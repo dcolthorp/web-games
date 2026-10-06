@@ -1,6 +1,7 @@
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isGigantic } from "../../shared/bigGames";
+import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { NIGHTMARE_TOAST_KEY, TOAST_ON_GAMES3_KEY } from "../../shared/glitchedToast";
 import { Peer, type DataConnection } from "peerjs";
 import recoveredSaveOne from "./recovered-save-1.json";
@@ -324,6 +325,16 @@ const GIGANTIC = isGigantic("sharks-in-the-water");
 const GIANT = GIGANTIC ? 3 : 1;
 // A crate is 46 wide, so a giant crate is grabbed from its giant edge.
 const CRATE_REACH = 34 + 23 * (GIANT - 1);
+// Supercharged by dev.1: a thunderstorm hangs over the ocean. Every so often
+// lightning cracks down out of the sky onto the shark nearest you, and it
+// swims off fizzing for a few seconds. Only whoever runs the world (solo, or
+// the co-op host) rolls the lightning; the guest just sees the shark flee.
+const SUPERCHARGED = isThisGameSupercharged();
+const LIGHTNING_STUN_SECONDS = 7;
+let lightningCountdown = 20;
+// The last bolt, in world coordinates. Timed on the real clock so the time
+// warper rewinding the voyage can't freeze a bolt in the sky.
+let lightningBolt: { x: number; y: number; points: number[]; endsAtMs: number } | null = null;
 if (GIGANTIC) {
   document.title = "GIGANTIC Sharks in the Water";
   const heading = document.querySelector("h1");
@@ -3598,6 +3609,7 @@ function update(dt: number): void {
   if (isWorldAuthority()) {
     updateShark(dt);
     updateExtraSharks(dt);
+    if (SUPERCHARGED) updateLightning(dt);
     if (elapsed >= nextSupplyAt) {
       spawnSupplyCrate();
     }
@@ -3999,6 +4011,49 @@ function updateExtraSharks(dt: number): void {
       && elapsed >= sharkFleeUntil
     ) handleSharkBite(hunter, target.id, `extra-${index}`);
   });
+}
+
+function updateLightning(dt: number): void {
+  lightningCountdown -= dt;
+  if (lightningCountdown > 0 || sharkDeleted) return;
+  lightningCountdown = 28 + Math.random() * 22;
+  const struck = getClosestShark();
+  sharkFleeUntil = Math.max(sharkFleeUntil, elapsed + LIGHTNING_STUN_SECONDS);
+  for (const hunter of [shark, ...extraSharks]) hunter.biteCooldownUntil = Math.max(hunter.biteCooldownUntil, sharkFleeUntil);
+  // A wiggle for each step of the bolt on its way down.
+  const points = Array.from({ length: 8 }, () => (Math.random() - 0.5) * 46);
+  lightningBolt = { x: struck.x, y: struck.y, points, endsAtMs: performance.now() + 550 };
+  burst(struck.x, struck.y, "#bfe4ff", 28);
+  burst(struck.x, struck.y, "#46a8ff", 18);
+  showMessage("⚡ LIGHTNING ZAPPED THE SHARK! IT SWIMS OFF FIZZING!", 3);
+}
+
+function drawLightning(): void {
+  if (!lightningBolt) return;
+  const left = (lightningBolt.endsAtMs - performance.now()) / 550;
+  if (left <= 0) {
+    lightningBolt = null;
+    return;
+  }
+  const { x, y, points } = lightningBolt;
+  const top = y - HEIGHT * 1.5;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, left * 2);
+  ctx.strokeStyle = "#e6f4ff";
+  ctx.shadowColor = "#46a8ff";
+  ctx.shadowBlur = 24;
+  ctx.lineWidth = 5;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(x + (points[0] ?? 0), top);
+  points.forEach((wiggle, step) => ctx.lineTo(x + wiggle * (1 - step / points.length), top + ((y - top) * (step + 1)) / (points.length + 1)));
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y, 40 * (1 - left) + 10, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function handleSharkBite(attacker: SharkEntity, targetId = getMultiplayerPlayerId(), attackerId = "shark-main"): void {
@@ -6228,6 +6283,7 @@ function draw(): void {
   drawRemoteMultiplayerPlayer();
   drawPastSelfEcho();
   drawParticles();
+  if (SUPERCHARGED) drawLightning();
   drawCratePointers();
   ctx.restore();
   if (isNightmareLevel()) drawNightmareAtmosphere();

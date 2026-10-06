@@ -4,7 +4,10 @@
     {
       "name": "games-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "url": "http://localhost:5173",
       "port": 5173,
       "autoPort": false
@@ -12,7 +15,14 @@
     {
       "name": "games-dev-alt",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5199", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
       "url": "http://localhost:5199",
       "port": 5199,
       "autoPort": false
@@ -20,7 +30,14 @@
     {
       "name": "games-dev-3",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5211", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5211",
+        "--strictPort"
+      ],
       "url": "http://localhost:5211",
       "port": 5211,
       "autoPort": false
@@ -28,9 +45,29 @@
     {
       "name": "games-dev-4",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5233", "--strictPort"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5233",
+        "--strictPort"
+      ],
       "url": "http://localhost:5233",
       "port": 5233,
+      "autoPort": false
+    },
+    {
+      "name": "dev.0 machine",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5255",
+        "--directory",
+        "diagrams/dev-0"
+      ],
+      "port": 5255,
       "autoPort": false
     }
   ]
