@@ -7,6 +7,7 @@ import { CAVE } from "./ores";
 import { BOMB_CHOICES } from "./bombs";
 import { BOSSES } from "./bosses";
 import { MUTANT, TECH_CHOICES } from "./tech";
+import { ANGEL, GOD } from "./heaven";
 import type { Choice, Sprite } from "./sprites";
 
 // Everything you can put in the world, by toolbar category. People and Tribes
@@ -28,7 +29,7 @@ export const CATEGORIES: { name: string; choices: Choice[]; icon?: Sprite }[] = 
 
 // Bombs only exist inside caves, so they are not in any of the world's
 // toolbars, but they still need to be a kind of thing the game knows.
-export const CHOICES = new Map([...CATEGORIES.flatMap((c) => c.choices), ...BOMB_CHOICES].map((c) => [c.id, c]));
+export const CHOICES = new Map([...CATEGORIES.flatMap((c) => c.choices), ...BOMB_CHOICES, ANGEL, GOD].map((c) => [c.id, c]));
 
 // The toolbars you get while you are standing inside a mountain. The cave's
 // own tools come first, then everything you could put in a world, because a
@@ -36,7 +37,7 @@ export const CHOICES = new Map([...CATEGORIES.flatMap((c) => c.choices), ...BOMB
 export const CAVE_CATEGORIES = ["Dig", "Crystals", "Bombs", "Land", "Life", "People", "Tribes", "Tech", "Creatures"];
 // Bosses count as magic: ordinary people don't pick fights with them, and they
 // don't pick fights with each other.
-export const MAGIC = new Set([...CREATURES, ...CELESTIAL, ...BOSSES].map((c) => c.id));
+export const MAGIC = new Set([...CREATURES, ...CELESTIAL, ...BOSSES, ANGEL, GOD].map((c) => c.id));
 export const CELESTIAL_IDS = new Set(CELESTIAL.map((c) => c.id));
 // Things that wander around on their own. People move with their own rules.
 export const MOVERS = new Set([...LIFE.map((c) => c.id), ...MAGIC]);

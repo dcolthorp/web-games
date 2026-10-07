@@ -122,6 +122,37 @@ const PORTAL_ART = [
 `,
 ];
 
+// A wooden boat sitting on top of a slime block. The slime squashes down and
+// springs back up.
+const SLIME_BOAT_ART = [
+  `
+  b.........b
+  bBbbbbbbbBb
+  .bbbbbbbbb.
+  ..BBBBBBB..
+  hhhhhhhhhhh
+  hlllllllllh
+  hlhLLLLLllh
+  hlLLLLLLLlh
+  hlLLLLLLLlh
+  hlllllllllh
+  hhhhhhhhhhh
+`,
+  `
+  ...........
+  b.........b
+  bBbbbbbbbBb
+  .bbbbbbbbb.
+  ..BBBBBBB..
+  hhhhhhhhhhh
+  hlhLLLLLllh
+  hlLLLLLLLlh
+  hlLLLLLLLlh
+  hlllllllllh
+  hhhhhhhhhhh
+`,
+];
+
 export const TECH_CHOICES: Choice[] = [
   { id: "laser-cannon", name: "Laser Cannon", habitat: "land", sturdy: true, sprite: sprite(LASER_ART) },
   { id: "missile-silo", name: "Missile Silo", habitat: "land", sturdy: true, sprite: sprite(MISSILE_ART) },
@@ -137,6 +168,7 @@ export const TECH_CHOICES: Choice[] = [
   },
   { id: "teleporter", name: "Teleporter", habitat: "land", sturdy: true, sprite: sprite(TELEPORTER_ART) },
   { id: "portal", name: "Portal", habitat: "land", sturdy: true, sprite: sprite(...PORTAL_ART) },
+  { id: "slime-boat", name: "Slime Boat", habitat: "land", sturdy: true, sprite: sprite(...SLIME_BOAT_ART) },
 ];
 
 // Not in any toolbar: the only way to get one is to build the machine.
@@ -153,6 +185,7 @@ const ART: Record<string, string[]> = {
   "mutant-spawner": [MUTANT_SPAWNER_ART],
   teleporter: [TELEPORTER_ART],
   portal: PORTAL_ART,
+  "slime-boat": SLIME_BOAT_ART,
 };
 
 export function techSprite(type: string, color: string): Sprite | undefined {

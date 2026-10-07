@@ -9,7 +9,8 @@ export type TechId =
   | "spawner"
   | "mutant-spawner"
   | "teleporter"
-  | "portal";
+  | "portal"
+  | "slime-boat";
 
 export interface TechSpec {
   id: TechId;
@@ -35,6 +36,8 @@ export const TECH: Record<TechId, TechSpec> = {
   teleporter: { id: "teleporter", name: "Teleporter", reload: 0, range: 4, blast: 0 },
   // A door to a whole other dimension.
   portal: { id: "portal", name: "Portal", reload: 0, range: 0, blast: 0, cost: 10 },
+  // Sit in it and the slime fires you straight up into the sky.
+  "slime-boat": { id: "slime-boat", name: "Slime Boat", reload: 0, range: 6, blast: 0 },
 };
 
 export const TECH_IDS = Object.keys(TECH) as TechId[];

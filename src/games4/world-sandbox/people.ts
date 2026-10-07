@@ -178,7 +178,7 @@ export function updatePeople(now: number): void {
   const census = takeCensus();
   for (const t of world.things) {
     if (isHome(t)) updateHome(t, now, census);
-    else if (isFolk(t)) updatePerson(t, now, census);
+    else if (isFolk(t) && !t.flying) updatePerson(t, now, census);
   }
 }
 

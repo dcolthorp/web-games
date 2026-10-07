@@ -1,6 +1,6 @@
 import { CHOICES } from "./catalog";
 import { destroy, nameOf, nearest, sparkle, step, wander } from "./nature";
-import { say, tribesAtWar, world } from "./state";
+import { save, say, tribesAtWar, world } from "./state";
 import { MUTANT_HP, makePerson, maxHp } from "./people";
 import {
   DAMAGE,
@@ -24,6 +24,7 @@ const enemyNear = (t: Thing, range: number): Thing | undefined =>
   nearest(t, range, (_, other) => tribesAtWar(t.tribe, other.tribe));
 
 export function updateTech(now: number): void {
+  flyUp(now);
   for (const t of world.things) {
     if (t.warp) t.warp -= 1;
     if (!isTech(t.type)) continue;
@@ -41,6 +42,10 @@ export function updateTech(now: number): void {
       continue;
     }
     if (t.type === "portal") continue;
+    if (t.type === "slime-boat") {
+      launchRiders(t, spec, now);
+      continue;
+    }
     if (!t.tribe) continue;
     t.rest = Math.max(0, (t.rest ?? 0) - 1);
     if (t.rest > 0) continue;
@@ -101,6 +106,35 @@ function wounded(victim: Thing, amount: number, now: number, color: string): boo
 function hurt(victim: Thing, amount: number, now: number, message: string, color: string): void {
   if (!wounded(victim, amount, now, color)) return;
   destroy(victim, sparkle(victim.x, victim.y, now, color), message);
+}
+
+// Anybody who climbs into the slime boat goes straight up into the sky.
+function launchRiders(boat: Thing, spec: TechSpec, now: number): void {
+  for (const t of world.things) {
+    if ((t.type !== "person" && t.type !== "mutant") || t.flying || t.inside) continue;
+    if (Math.hypot(t.x - boat.x, t.y - boat.y) > spec.range) continue;
+    t.flying = true;
+    t.x = boat.x;
+    t.y = boat.y - 8;
+    world.effects.push(sparkle(t.x, t.y, now, "#86d86e"));
+    say(`Boing! ${nameOf(t)} got fired into the sky by the slime boat!`);
+  }
+}
+
+// Up and up, faster and faster, until they're gone off the top of the map.
+function flyUp(now: number): void {
+  let gone = false;
+  for (const t of world.things) {
+    if (!t.flying) continue;
+    t.rest = (t.rest ?? 0) + 1;
+    t.y -= 1 + t.rest * 0.15;
+    world.effects.push({ kind: "trail", x: t.x, y: t.y + 2, born: now, color: "#86d86e" });
+    if (t.y < -20) gone = true;
+  }
+  if (gone) {
+    world.things = world.things.filter((t) => !(t.flying && t.y < -20));
+    save();
+  }
 }
 
 // Anybody standing on a pad they are allowed on comes out of the other one.

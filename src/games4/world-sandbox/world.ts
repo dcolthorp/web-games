@@ -35,6 +35,8 @@ export interface Thing {
   // The dimension a portal leads to. It is only made the first time somebody
   // goes through.
   to?: string;
+  // Somebody the slime boat has fired into the sky, on their way up and out.
+  flying?: boolean;
   // Frames until a teleporter will take this person again.
   warp?: number;
   // A miner's own name-tag, the seam they are digging towards, and whoever

@@ -6,6 +6,7 @@ import { apartmentSprite, personSprite, villageSprite } from "./folk";
 import { mutantSprite, techSprite } from "./tech";
 import { isBomb } from "./cavern";
 import { NATIVE, shiftHex, shiftRgb, shiftSprite } from "./dimension";
+import { HEAVEN, HEAVEN_GROUND } from "./heaven";
 import { insideOf } from "./miners";
 import { maxHp, tribeOf } from "./people";
 import { drawSprite, type Sprite } from "./sprites";
@@ -40,7 +41,8 @@ let terrainVersion = -1;
 function drawTerrain(): void {
   const g = terrain.getContext("2d") as CanvasRenderingContext2D;
   const image = g.createImageData(W, H);
-  const ground = GROUND.map(([r = 0, green = 0, b = 0]) => shiftRgb(r, green, b, world.hue));
+  const ground =
+    world.id === HEAVEN ? HEAVEN_GROUND.map(toRgb) : GROUND.map(([r = 0, green = 0, b = 0]) => shiftRgb(r, green, b, world.hue));
   world.heights.forEach((h, i) => {
     const [r = 0, green = 0, b = 0] = ground[h > 1.6 ? 4 : h > 0.62 ? 3 : h > LAND_LEVEL ? 2 : h > 0.3 ? 1 : 0] ?? [];
     image.data[i * 4] = r;
@@ -316,7 +318,7 @@ export function drawWorld(target: CanvasRenderingContext2D, now: number): void {
     if (!s) continue;
     // Anybody swimming is drawn down in the water with a ripple round them —
     // mutants included, since they swim the same as everybody else.
-    const swimming = (t.type === "person" || t.type === "mutant") && !isLand(world.heights, t.x, t.y);
+    const swimming = (t.type === "person" || t.type === "mutant") && !t.flying && !isLand(world.heights, t.x, t.y);
     drawSprite(ctx, s, t.x, t.y + (swimming ? 3 : 0), now + t.x * 37, Math.cos(t.heading ?? 0) < 0, (t.size ?? 1) * giantOf(t));
     if (swimming) drawRipple(t, now);
     if (t.type === "volcano") drawSmoke(t, now);

@@ -6,6 +6,7 @@ import { MATERIALS, MAX_MATERIALS, ROCK, encodeCave, makeCave, paint, registerFo
 import { dig, gridFor, isBeingWorked, isOre, releaseCave, rivalsOver, storeCave, tunnelTowards } from "./mining";
 import { BOMB_CHOICES } from "./bombs";
 import { CATEGORIES, CAVE_CATEGORIES, CHOICES, MAGIC, MOVERS, TECH_IDS_SET } from "./catalog";
+import { HEAVEN, HEAVEN_CATEGORIES } from "./heaven";
 import { MOUNTAIN_SIZES } from "./land";
 import { isSpawner } from "./techRules";
 import { GIANT, GIGANTIC, drawCave, drawWorld, giantOf } from "./draw";
@@ -36,6 +37,7 @@ import {
   currentNote,
   deleteSaveFile,
   goThrough,
+  goToHeaven,
   hasOldWorld,
   keepWayHome,
   listSaveFiles,
@@ -99,7 +101,20 @@ const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)] 
 
 let categoryIndex = 0;
 // The last thing picked in each category, so switching back remembers it.
-const picked = CATEGORIES.map((c) => c.choices[0] as Choice);
+// Heaven has a toolbar of its own, with nothing in it but angels and gods.
+const toolbarHere = (): { name: string; choices: Choice[]; icon?: Sprite }[] =>
+  world.id === HEAVEN ? HEAVEN_CATEGORIES : CATEGORIES;
+let toolbar = toolbarHere();
+let picked = toolbar.map((c) => c.choices[0] as Choice);
+
+/** Swaps the toolbar over after going to or from Heaven. True if it changed. */
+function syncToolbar(): boolean {
+  if (toolbar === toolbarHere()) return false;
+  toolbar = toolbarHere();
+  picked = toolbar.map((c) => c.choices[0] as Choice);
+  categoryIndex = 0;
+  return true;
+}
 // The tribe new people and villages join. "" is no tribe.
 let tribeId = world.tribes[0]?.id ?? "";
 
@@ -195,6 +210,7 @@ function renderCaveChoices(): void {
 }
 
 function renderChoices(): void {
+  if (syncToolbar()) renderCategories();
   if (caveGrid) {
     renderCaveChoices();
     return;
@@ -229,7 +245,7 @@ function renderChoices(): void {
       (s) =>
         `<button class="tool-slot" type="button" data-size="${s.size}" aria-pressed="${s.size === mountainSize}">${spriteIcon(c.sprite)}<span>${s.name}</span></button>`
     ).join("");
-    const { choices: landChoices } = CATEGORIES[categoryIndex] as { choices: Choice[] };
+    const { choices: landChoices } = toolbar[categoryIndex] as { choices: Choice[] };
     choicesEl.innerHTML =
       landChoices.map((o) => slot("data-choice", o.id, o.sprite, o.name, o === c)).join("") +
       `<p class="tool-note">How big? Click a mountain that's already there to change it.</p>` +
@@ -237,10 +253,10 @@ function renderChoices(): void {
     return;
   }
 
-  const { choices } = CATEGORIES[categoryIndex] as { choices: Choice[] };
+  const { choices } = toolbar[categoryIndex] as { choices: Choice[] };
   // The whole world at once, for when you have had enough of the sea.
   const wholeWorld =
-    CATEGORIES[categoryIndex]?.name === "Land"
+    toolbar[categoryIndex]?.name === "Land"
       ? `<button class="tool-action" type="button" data-flood="1.4">Make It All Land</button>` +
         `<button class="tool-action" type="button" data-flood="-2">Make It All Sea</button>` +
         (world.flood !== 0 ? `<button class="tool-action" type="button" data-flood="0">Put The Sea Back</button>` : "")
@@ -255,13 +271,13 @@ function renderChoices(): void {
   choicesEl.innerHTML = choices.map((o) => slot("data-choice", o.id, o.sprite, o.name, o === c)).join("") + wholeWorld + joining;
 }
 
-const worldCategoryRow = CATEGORIES.map((c, i) =>
-  slot("data-category", i, c.icon ?? (c.choices[0] as Choice).sprite, c.name, i === 0)
-).join("");
+const worldCategoryRow = (): string =>
+  toolbar.map((c, i) => slot("data-category", i, c.icon ?? (c.choices[0] as Choice).sprite, c.name, i === 0)).join("");
 
 function renderCategories(): void {
+  syncToolbar();
   if (!caveGrid) {
-    categoriesEl.innerHTML = worldCategoryRow;
+    categoriesEl.innerHTML = worldCategoryRow();
     setPressed(categoriesEl, categoriesEl.querySelectorAll("[data-category]")[categoryIndex] ?? categoriesEl);
     return;
   }
@@ -386,6 +402,7 @@ function hint(): string {
     return tribe ? `Click the land to build a village for ${tribe.name}.` : "Make a new tribe, then click the land to build its village.";
   }
   if (c.id === "portal") return "Click the land to put down a portal. Click a portal to go through it.";
+  if (c.id === "slime-boat") return "Click the land to put down a slime boat. Anyone who sits in it flies into the sky. Click it to go to Heaven.";
   if (c.id === "tsunami") return "Click the water to send out a tsunami. It washes away plants, animals, and people near the shore.";
   const where = c.habitat === "land" ? "the land" : c.habitat === "sea" ? "the water" : "anywhere";
   return `${c.name}: click ${where} to add one.`;
@@ -506,7 +523,12 @@ canvas.addEventListener("pointerdown", (event) => {
   const portal = world.things
     .filter((t) => t.type === "portal" && Math.abs(t.x - x) <= 5 * giantOf(t) && y <= t.y + 2 && y >= t.y - 10 * giantOf(t))
     .at(-1);
-  if (portal) return startTravel(portal);
+  if (portal) return startTravel(portal, "portal");
+  // So does clicking a slime boat, except it fires you up to Heaven.
+  const boat = world.things
+    .filter((t) => t.type === "slime-boat" && Math.abs(t.x - x) <= 6 * giantOf(t) && y <= t.y + 2 && y >= t.y - 12 * giantOf(t))
+    .at(-1);
+  if (boat) return startTravel(boat, "sky");
 
   // Clicking a pad with the Teleporter tool in your hand links pads together
   // instead of putting another one down.
@@ -641,8 +663,8 @@ function placeInCave(x: number, y: number): void {
     save();
     return;
   }
-  if (c.id === "portal") {
-    say("A portal needs open sky. Build it outside the cave.");
+  if (c.id === "portal" || c.id === "slime-boat") {
+    say(`A ${c.name.toLowerCase()} needs open sky. Build it outside the cave.`);
     return;
   }
   const tribe = tribeId || undefined;
@@ -1310,17 +1332,29 @@ rosterDialog.addEventListener("close", () => window.clearInterval(rosterTimer));
 // and everything goes dark, then the other side fades in.
 const ZOOM_MS = 1200;
 const ARRIVE_MS = 700;
-let travel: { portal: Thing; at: number; arrived: boolean } | null = null;
+// The slime boat is different: you shoot straight up, the world drops away
+// below you, everything goes white, and you are in Heaven.
+let travel: { portal: Thing; kind: "portal" | "sky"; at: number; arrived: boolean } | null = null;
 
-function startTravel(portal: Thing): void {
+function startTravel(portal: Thing, kind: "portal" | "sky"): void {
   linking = null;
-  travel = { portal, at: performance.now(), arrived: false };
+  travel = { portal, kind, at: performance.now(), arrived: false };
+  if (kind === "sky") say("BOING!");
 }
 
 function drawTravel(realNow: number): void {
   if (!travel) return;
   const t = realNow - travel.at;
-  if (!travel.arrived) {
+  const fade = travel.kind === "sky" ? "255, 255, 255" : "0, 0, 0";
+  if (!travel.arrived && travel.kind === "sky") {
+    const p = Math.min(1, t / ZOOM_MS);
+    ctx.fillStyle = "#9cc9ff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(0, Math.round(H * 1.3 * p * p));
+    drawWorld(ctx, clock);
+    ctx.restore();
+  } else if (!travel.arrived) {
     const p = Math.min(1, t / ZOOM_MS);
     const zoom = 1 + 20 * p * p * p;
     const { x, y } = travel.portal;
@@ -1332,10 +1366,13 @@ function drawTravel(realNow: number): void {
     ctx.setTransform(zoom, 0, 0, zoom, sx - x * zoom, sy - middleY * zoom);
     drawWorld(ctx, clock);
     ctx.restore();
-    ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0, (p - 0.55) / 0.45)})`;
+  }
+  if (!travel.arrived) {
+    const p = Math.min(1, t / ZOOM_MS);
+    ctx.fillStyle = `rgba(${fade}, ${Math.max(0, (p - 0.55) / 0.45)})`;
     ctx.fillRect(0, 0, W, H);
     if (p < 1) return;
-    const went = goThrough(travel.portal);
+    const went = travel.kind === "sky" ? goToHeaven() : goThrough(travel.portal);
     if (!went) {
       travel = null;
       say("The portal would not open. There is no room left to keep another dimension.");
@@ -1344,14 +1381,22 @@ function drawTravel(realNow: number): void {
     tribeId = world.tribes[0]?.id ?? "";
     renderChoices();
     showUndo();
-    say(went === "new" ? "You came out in a brand new dimension!" : world.id === "home" ? "You are back home." : "You went through the portal.");
+    say(
+      world.id === HEAVEN
+        ? "The slime boat fired you all the way up to Heaven!"
+        : went === "new"
+          ? "You came out in a brand new dimension!"
+          : world.id === "home"
+            ? "You are back home."
+            : "You went through the portal."
+    );
     travel.arrived = true;
     travel.at = realNow;
     return;
   }
   drawWorld(ctx, clock);
   const p = t / ARRIVE_MS;
-  ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0, 1 - p)})`;
+  ctx.fillStyle = `rgba(${fade}, ${Math.max(0, 1 - p)})`;
   ctx.fillRect(0, 0, W, H);
   if (p >= 1) travel = null;
 }

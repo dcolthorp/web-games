@@ -1,4 +1,5 @@
 import { CHOICES } from "./catalog";
+import { HEAVEN } from "./heaven";
 import { registerFoundCrystal } from "./caves";
 import type { Shot } from "./techRules";
 import { COLS, ROWS, applyStroke, isLand, makeHeights, type Thing } from "./world";
@@ -251,28 +252,38 @@ export function newWorld(): void {
  * Gives back whether it was brand new, or null if the browser had no room.
  */
 export function goThrough(portal: Thing): "new" | "old" | null {
-  const from = world.id;
   const tribe = world.tribes.find((t) => t.id === portal.tribe);
-  portal.to ??= `dim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const to = (portal.to ??= `dim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`);
+  const went = travelTo(to, () => newDimension(to, portal.tribe));
+  // Whoever owns the portal owns the one home too, so their
+  // tribe comes along, colours and all. Who they were at war with stays home.
+  if (went === "new" && tribe) world.tribes.push({ ...tribe, enemies: [] });
+  saveNow();
+  return went;
+}
+
+/** Where the slime boat sends you: a sky full of clouds, made the first time you go. */
+export function goToHeaven(): "new" | "old" | null {
+  return travelTo(HEAVEN, () => ({ id: HEAVEN, hue: 0, seed: newSeed(), things: [], tribes: [], strokes: [], crystals: world.crystals }));
+}
+
+/** Puts this world away and brings out the one called `to`, made with `make` if there isn't one yet. */
+function travelTo(to: string, make: () => object): "new" | "old" | null {
   saveNow();
   let fresh = false;
   try {
-    localStorage.setItem(dimensionKey(from), localStorage.getItem(SAVE_KEY) ?? "");
-    let there = localStorage.getItem(dimensionKey(portal.to));
+    localStorage.setItem(dimensionKey(world.id), localStorage.getItem(SAVE_KEY) ?? "");
+    let there = localStorage.getItem(dimensionKey(to));
     if (!there) {
       fresh = true;
-      there = JSON.stringify(newDimension(portal.to, portal.tribe));
+      there = JSON.stringify(make());
     }
     localStorage.setItem(SAVE_KEY, there);
   } catch {
     return null;
   }
   loadWorld();
-  // Whoever owns the portal owns the one home too, so their
-  // tribe comes along, colours and all. Who they were at war with stays home.
-  if (fresh && tribe) world.tribes.push({ ...tribe, enemies: [] });
   world.terrainVersion += 1;
-  saveNow();
   return fresh ? "new" : "old";
 }
 

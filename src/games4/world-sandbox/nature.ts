@@ -157,6 +157,8 @@ export function act(t: Thing, now: number): void {
           ? "#ee7a2a"
           : "#f7d23e";
     world.effects.push({ kind: "trail", x: t.x + behind, y: t.y - 3, born: now, color });
+  } else if ((t.type === "angel" || t.type === "god") && Math.random() < (t.type === "god" ? 0.2 : 0.05)) {
+    world.effects.push({ kind: "trail", x: t.x + behind, y: t.y - 4, born: now, color: t.type === "god" ? "#f7d23e" : "#f4f1ea" });
   } else if (CELESTIAL_IDS.has(t.type) && Math.random() < 0.005) {
     causeChaos(t, now);
   }

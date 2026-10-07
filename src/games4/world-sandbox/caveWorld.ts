@@ -118,7 +118,7 @@ const enemyIn = (cave: CaveWorld, t: Thing, range: number): Thing | undefined =>
 
 function runMachine(cave: CaveWorld, machine: Thing, dead: Set<Thing>): void {
   const spec = TECH[machine.type as keyof typeof TECH];
-  if (!spec || machine.type === "portal") return;
+  if (!spec || machine.type === "portal" || machine.type === "slime-boat") return;
 
   if (machine.type === "teleporter") {
     runPad(cave, machine);
