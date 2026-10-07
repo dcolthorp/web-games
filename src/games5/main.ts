@@ -40,8 +40,8 @@ const games: Game[] = [
     id: "double-or-take-it",
     name: "Double or Take It",
     path: "./double-or-take-it/index.html",
-    genre: "Would You Rather",
-    blurb: "Start with a diamond. Keep doubling and it turns into a whole lot of dirt.",
+    genre: "Take It or Double It",
+    blurb: "Ask people to take it or double it. Shop your way from diamonds down to dirt.",
   },
 ];
 

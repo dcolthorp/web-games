@@ -11,20 +11,24 @@
       <a class="back-link" href="../index.html">← Games 5</a>
       <header class="top">
         <h1>Double or Take It</h1>
-        <p class="tagline">Every thing is worth $1. The things just keep getting worse.</p>
+        <p class="tagline">Do you want it, or double it and give it to the next person?</p>
       </header>
 
-      <p class="question" id="question" aria-live="polite"></p>
-      <canvas id="pile" width="720" height="360" aria-label="Your pile of stuff"></canvas>
+      <p class="offer" id="offer"></p>
+      <p class="odds" id="odds"></p>
+      <canvas id="street" width="900" height="340" aria-label="You and a line of people waiting to be asked"></canvas>
+      <p class="status" id="status" aria-live="polite"></p>
 
-      <div class="buttons" id="buttons">
-        <button class="take" id="take" type="button">TAKE IT</button>
-        <button class="double" id="double" type="button">DOUBLE IT</button>
-      </div>
-      <button class="again" id="again" type="button" hidden>PLAY AGAIN</button>
+      <button class="ask" id="ask" type="button">ASK</button>
+      <p class="keys">Click ASK, or press SPACE.</p>
+      <p class="money" id="money"></p>
+      <p class="best" id="best"></p>
 
-      <ol class="ladder" id="ladder" aria-label="From best to worst"></ol>
-      <p class="bank" id="bank">Your money: $0</p>
+      <section class="shop-panel" aria-labelledby="shop-heading">
+        <h2 id="shop-heading">Shop</h2>
+        <p class="shop-copy">Each thing is worth $1. The worse it is, the more people double it.</p>
+        <ol class="shop" id="shop"></ol>
+      </section>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>
