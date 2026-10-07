@@ -7,7 +7,7 @@ import { dig, gridFor, isBeingWorked, isOre, releaseCave, rivalsOver, storeCave,
 import { BOMB_CHOICES } from "./bombs";
 import { CATEGORIES, CAVE_CATEGORIES, CHOICES, MAGIC, MOVERS, TECH_IDS_SET } from "./catalog";
 import { MOUNTAIN_SIZES } from "./land";
-import { buildCost, isSpawner } from "./techRules";
+import { isSpawner } from "./techRules";
 import { GIANT, GIGANTIC, drawCave, drawWorld, giantOf } from "./draw";
 import { LAWS, drawMatrix, physics } from "./matrix";
 import { inventCrystal } from "./crystals";
@@ -28,7 +28,6 @@ import {
   personAt,
   randomName,
   setWar,
-  takePeople,
   updatePeople,
 } from "./people";
 import { updateTech } from "./war";
@@ -385,7 +384,7 @@ function hint(): string {
   if (c.id === "village") {
     return tribe ? `Click the land to build a village for ${tribe.name}.` : "Make a new tribe, then click the land to build its village.";
   }
-  if (c.id === "portal") return `Click the land to build a portal out of ${buildCost("portal")} people. Click a portal to go through it.`;
+  if (c.id === "portal") return "Click the land to put down a portal. Click a portal to go through it.";
   if (c.id === "tsunami") return "Click the water to send out a tsunami. It washes away plants, animals, and people near the shore.";
   const where = c.habitat === "land" ? "the land" : c.habitat === "sea" ? "the water" : "anywhere";
   return `${c.name}: click ${where} to add one.`;
@@ -547,16 +546,6 @@ canvas.addEventListener("pointerdown", (event) => {
     const built: Thing = { type: c.id, x, y, ...(tribeId ? { tribe: tribeId } : {}) };
     world.things.push(built);
     openMachineDialog(built);
-  } else if (c.id === "portal") {
-    // Ten people walk into it to make it, even when you are the one building it.
-    const cost = buildCost("portal");
-    const tribe = currentTribe();
-    const got = takePeople(x, y, tribe?.id, cost, clock);
-    if (got < cost) {
-      return say(`A portal takes ${cost} ${tribe ? `people from ${tribe.name}` : "people"} to build. There ${got === 1 ? "is" : "are"} only ${got}.`);
-    }
-    world.things.push({ type: "portal", x, y, ...(tribe ? { tribe: tribe.id } : {}) });
-    say(`${cost} people went into the portal to build it. Click it to go through.`);
   } else if ((MAGIC.has(c.id) || TECH_IDS_SET.has(c.id)) && tribeId) {
     world.things.push({ type: c.id, x, y, tribe: tribeId });
     say(TECH_IDS_SET.has(c.id) ? `${c.name} built for ${currentTribe()?.name}.` : `${c.name} joined ${currentTribe()?.name}!`);

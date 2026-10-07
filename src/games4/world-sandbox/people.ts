@@ -493,24 +493,15 @@ function buildTech(p: Thing, now: number, census: Census): void {
  * costs nothing: you are not one of them.
  */
 function feedToMachine(builder: Thing, count: number, now: number): boolean {
-  return takePeople(builder.x, builder.y, builder.tribe, count, now, builder) === count;
-}
-
-/**
- * Takes `count` people of this tribe (anybody's, with no tribe) out of the
- * world, nearest to (x, y) first. Nobody is taken unless there are enough.
- * Gives back how many there were to take, at most `count`.
- */
-export function takePeople(x: number, y: number, tribe: string | undefined, count: number, now: number, except?: Thing): number {
   const offered = world.things
-    .filter((t) => t !== except && t.type === "person" && (!tribe || t.tribe === tribe) && !t.inside)
-    .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))
+    .filter((t) => t !== builder && t.type === "person" && t.tribe === builder.tribe && !t.inside)
+    .sort((a, b) => Math.hypot(a.x - builder.x, a.y - builder.y) - Math.hypot(b.x - builder.x, b.y - builder.y))
     .slice(0, count);
-  if (offered.length < count) return offered.length;
+  if (offered.length < count) return false;
   const taken = new Set(offered);
   world.things = world.things.filter((t) => !taken.has(t));
   for (const person of offered) world.effects.push(sparkle(person.x, person.y, now, "#9fe3ff"));
-  return count;
+  return true;
 }
 
 function buildVillage(p: Thing, now: number): void {
