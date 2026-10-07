@@ -5,6 +5,7 @@ import { bombSprite } from "./bombs";
 import { apartmentSprite, personSprite, villageSprite } from "./folk";
 import { mutantSprite, techSprite } from "./tech";
 import { isBomb } from "./cavern";
+import { NATIVE, shiftHex, shiftRgb, shiftSprite } from "./dimension";
 import { insideOf } from "./miners";
 import { maxHp, tribeOf } from "./people";
 import { drawSprite, type Sprite } from "./sprites";
@@ -39,8 +40,9 @@ let terrainVersion = -1;
 function drawTerrain(): void {
   const g = terrain.getContext("2d") as CanvasRenderingContext2D;
   const image = g.createImageData(W, H);
+  const ground = GROUND.map(([r = 0, green = 0, b = 0]) => shiftRgb(r, green, b, world.hue));
   world.heights.forEach((h, i) => {
-    const [r = 0, green = 0, b = 0] = GROUND[h > 1.6 ? 4 : h > 0.62 ? 3 : h > LAND_LEVEL ? 2 : h > 0.3 ? 1 : 0] ?? [];
+    const [r = 0, green = 0, b = 0] = ground[h > 1.6 ? 4 : h > 0.62 ? 3 : h > LAND_LEVEL ? 2 : h > 0.3 ? 1 : 0] ?? [];
     image.data[i * 4] = r;
     image.data[i * 4 + 1] = green;
     image.data[i * 4 + 2] = b;
@@ -59,7 +61,9 @@ function spriteFor(t: Thing): Sprite | undefined {
   // A machine with no tribe is plain grey; one with a tribe is painted in it.
   const tech = techSprite(t.type, color ?? "#c0c4cc");
   if (tech) return tech;
-  return CHOICES.get(t.type)?.sprite;
+  const s = CHOICES.get(t.type)?.sprite;
+  // Anything that grew up in another dimension has that dimension's colours.
+  return s && NATIVE.has(t.type) ? shiftSprite(s, world.hue) : s;
 }
 
 // The water closes over a swimmer's legs, and a little white wake goes with
@@ -67,7 +71,7 @@ function spriteFor(t: Thing): Sprite | undefined {
 function drawRipple(t: Thing, now: number): void {
   const x = Math.round(t.x);
   const y = Math.round(t.y) + 1;
-  ctx.fillStyle = "#3b8fd9";
+  ctx.fillStyle = shiftHex("#3b8fd9", world.hue);
   ctx.fillRect(x - 2, y, 5, 2);
   ctx.fillStyle = "#f4f1ea";
   const wag = Math.floor(now / 200) % 2;
@@ -126,7 +130,7 @@ function drawWave(wave: Wave, now: number): void {
     if (!waveReaches(world.heights, wave.x, wave.y, x, y)) continue;
     ctx.fillStyle = "#f4f1ea";
     ctx.fillRect(x, y, 1, 1);
-    ctx.fillStyle = "#9fe3ff";
+    ctx.fillStyle = shiftHex("#9fe3ff", world.hue);
     ctx.fillRect(Math.round(wave.x + Math.cos(a) * (r - 1)), Math.round(wave.y + Math.sin(a) * (r - 1)), 1, 1);
   }
 }

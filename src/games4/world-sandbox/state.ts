@@ -1,7 +1,9 @@
 import { CHOICES } from "./catalog";
 import { registerFoundCrystal } from "./caves";
 import type { Shot } from "./techRules";
-import { applyStroke, makeHeights, type Thing } from "./world";
+import { COLS, ROWS, applyStroke, isLand, makeHeights, type Thing } from "./world";
+
+const HOME = "home";
 
 // Everything in the world right now, shared by all the parts of the game.
 
@@ -46,6 +48,10 @@ export interface FoundCrystal {
 }
 
 export const world = {
+  // Which dimension this is. The world you started in is "home".
+  id: HOME,
+  // How this dimension's colours are swapped about (see dimension.ts). 0 at home.
+  hue: 0,
   seed: 0,
   heights: new Float32Array(0),
   // Every land brush stroke, replayed on top of the seed's land when loading.
@@ -65,6 +71,8 @@ export const world = {
 };
 
 const SAVE_KEY = "world-sandbox-world";
+// Every dimension you are not standing in right now is put away under its own key.
+const dimensionKey = (id: string): string => `world-sandbox-dimension-${id}`;
 // The world as it was just before the last Reset or New World, so nobody ever
 // loses one by accident.
 const BACKUP_KEY = "world-sandbox-world-before";
@@ -123,6 +131,8 @@ export function loadWorld(): void {
   let strokes: Stroke[] = [];
   let crystals: FoundCrystal[] = [];
   let flood = 0;
+  let id = HOME;
+  let hue = 0;
   try {
     const saved = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "null") as Record<string, unknown> | null;
     if (saved && Number.isFinite(saved["seed"]) && Array.isArray(saved["things"])) {
@@ -132,6 +142,8 @@ export function loadWorld(): void {
       strokes = Array.isArray(saved["strokes"]) ? saved["strokes"].filter(isStroke) : [];
       crystals = Array.isArray(saved["crystals"]) ? saved["crystals"].filter(isFoundCrystal) : [];
       flood = Number.isFinite(saved["flood"]) ? (saved["flood"] as number) : 0;
+      id = typeof saved["id"] === "string" ? saved["id"] : HOME;
+      hue = Number.isFinite(saved["hue"]) ? (saved["hue"] as number) : 0;
     }
   } catch {
     // Nothing saved, or it got scrambled. Start a fresh world.
@@ -140,7 +152,7 @@ export function loadWorld(): void {
   // codes in a saved cave still mean the crystals they were painted with.
   for (const crystal of crystals) registerFoundCrystal(crystal, crystal.code);
   const heights = makeHeights(seed);
-  Object.assign(world, { seed, things, tribes, strokes: [], heights, waves: [], effects: [], crystals, shots: [], flood });
+  Object.assign(world, { id, hue, seed, things, tribes, strokes: [], heights, waves: [], effects: [], crystals, shots: [], flood });
   strokesBySpot.clear();
   for (const stroke of strokes) remember(stroke);
   for (const [x, y, amount] of world.strokes) applyStroke(heights, x, y, amount);
@@ -230,6 +242,59 @@ export function newWorld(): void {
   saveNow();
 }
 
+// ---------- portals ----------
+
+/**
+ * Goes through a portal. This dimension is put away and the one on the other
+ * side comes out. The first time anybody goes through, the other side is made
+ * fresh: new land, new colours, and a portal back standing where you come out.
+ * Gives back whether it was brand new, or null if the browser had no room.
+ */
+export function goThrough(portal: Thing): "new" | "old" | null {
+  const from = world.id;
+  const tribe = world.tribes.find((t) => t.id === portal.tribe);
+  portal.to ??= `dim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  saveNow();
+  let fresh = false;
+  try {
+    localStorage.setItem(dimensionKey(from), localStorage.getItem(SAVE_KEY) ?? "");
+    let there = localStorage.getItem(dimensionKey(portal.to));
+    if (!there) {
+      fresh = true;
+      there = JSON.stringify(newDimension(portal.to, from, portal.tribe));
+    }
+    localStorage.setItem(SAVE_KEY, there);
+  } catch {
+    return null;
+  }
+  loadWorld();
+  // Whoever owns the portal owns the one on the other side too, so their
+  // tribe comes along, colours and all. Who they were at war with stays home.
+  if (fresh && tribe) world.tribes.push({ ...tribe, enemies: [] });
+  world.terrainVersion += 1;
+  saveNow();
+  return fresh ? "new" : "old";
+}
+
+function newDimension(id: string, home: string, tribe: string | undefined): object {
+  const seed = newSeed();
+  const heights = makeHeights(seed);
+  // Come out on the bit of land nearest the middle of the map.
+  let spot = { x: COLS / 2, y: ROWS / 2 };
+  let best = Infinity;
+  for (let y = 12; y < ROWS - 4; y += 2) {
+    for (let x = 6; x < COLS - 6; x += 2) {
+      const d = Math.hypot(x - COLS / 2, y - ROWS / 2);
+      if (d < best && isLand(heights, x, y)) {
+        best = d;
+        spot = { x, y };
+      }
+    }
+  }
+  const back: Thing = { type: "portal", ...spot, to: home, ...(tribe ? { tribe } : {}) };
+  return { id, hue: 1 + Math.floor(Math.random() * 2 ** 30), seed, things: [back], tribes: [], strokes: [], crystals: world.crystals };
+}
+
 /** Whether two tribes are fighting. War goes both ways, so either side's list counts. */
 export function tribesAtWar(a: string | undefined, b: string | undefined): boolean {
   if (!a || !b || a === b) return false;
@@ -277,6 +342,8 @@ export function saveNow(): void {
     localStorage.setItem(
       SAVE_KEY,
       JSON.stringify({
+        id: world.id,
+        hue: world.hue,
         seed: world.seed,
         things: world.things,
         tribes: world.tribes,
@@ -326,6 +393,8 @@ function writeFileList(files: SaveFile[]): void {
 
 const worldAsText = (): string =>
   JSON.stringify({
+    id: world.id,
+    hue: world.hue,
     seed: world.seed,
     things: world.things,
     tribes: world.tribes,

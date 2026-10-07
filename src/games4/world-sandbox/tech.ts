@@ -95,6 +95,33 @@ const TELEPORTER_ART = `
   ..ccc..
 `;
 
+// An archway in the tribe's colour, with the other dimension
+// swirling about inside it.
+const PORTAL_ART = [
+  `
+  ..XXXXX..
+  .XvVvVvX.
+  XvVcVvVvX
+  XVvVwVcVX
+  XvVvVvVvX
+  XVcVvVvVX
+  XvVvVcVvX
+  XVvVvVvVX
+  GGGGGGGGG
+`,
+  `
+  ..XXXXX..
+  .XVvVvVX.
+  XVvVvVcVX
+  XvVcVvVvX
+  XVvVwVvVX
+  XvVvVvVcX
+  XVvcVvVvX
+  XvVvVvVvX
+  GGGGGGGGG
+`,
+];
+
 export const TECH_CHOICES: Choice[] = [
   { id: "laser-cannon", name: "Laser Cannon", habitat: "land", sturdy: true, sprite: sprite(LASER_ART) },
   { id: "missile-silo", name: "Missile Silo", habitat: "land", sturdy: true, sprite: sprite(MISSILE_ART) },
@@ -109,6 +136,7 @@ export const TECH_CHOICES: Choice[] = [
     sprite: sprite(MUTANT_SPAWNER_ART),
   },
   { id: "teleporter", name: "Teleporter", habitat: "land", sturdy: true, sprite: sprite(TELEPORTER_ART) },
+  { id: "portal", name: "Portal", habitat: "land", sturdy: true, sprite: sprite(...PORTAL_ART) },
 ];
 
 // Not in any toolbar: the only way to get one is to build the machine.
@@ -116,17 +144,18 @@ export const MUTANT: Choice = { id: "mutant", name: "Mutant", habitat: "land", s
 
 export const mutantSprite = (color: string): Sprite => tinted("mutant", color, MUTANT_ART);
 
-const ART: Record<string, string> = {
-  "laser-cannon": LASER_ART,
-  "missile-silo": MISSILE_ART,
-  "nuke-silo": NUKE_ART,
-  truck: TRUCK_ART,
-  spawner: SPAWNER_ART,
-  "mutant-spawner": MUTANT_SPAWNER_ART,
-  teleporter: TELEPORTER_ART,
+const ART: Record<string, string[]> = {
+  "laser-cannon": [LASER_ART],
+  "missile-silo": [MISSILE_ART],
+  "nuke-silo": [NUKE_ART],
+  truck: [TRUCK_ART],
+  spawner: [SPAWNER_ART],
+  "mutant-spawner": [MUTANT_SPAWNER_ART],
+  teleporter: [TELEPORTER_ART],
+  portal: PORTAL_ART,
 };
 
 export function techSprite(type: string, color: string): Sprite | undefined {
   const art = ART[type];
-  return art ? tinted(`tech-${type}`, color, art) : undefined;
+  return art ? tinted(`tech-${type}`, color, ...art) : undefined;
 }

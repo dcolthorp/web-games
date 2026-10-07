@@ -18,7 +18,7 @@ describe("the tech list", () => {
   it("knows what is tech and what is not", () => {
     expect(isTech("laser-cannon")).toBe(true);
     expect(isTech("oak")).toBe(false);
-    expect(TECH_IDS).toHaveLength(7);
+    expect(TECH_IDS).toHaveLength(8);
   });
 
   it("makes bigger weapons slower and further reaching", () => {

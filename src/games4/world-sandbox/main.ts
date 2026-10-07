@@ -7,7 +7,7 @@ import { dig, gridFor, isBeingWorked, isOre, releaseCave, rivalsOver, storeCave,
 import { BOMB_CHOICES } from "./bombs";
 import { CATEGORIES, CAVE_CATEGORIES, CHOICES, MAGIC, MOVERS, TECH_IDS_SET } from "./catalog";
 import { MOUNTAIN_SIZES } from "./land";
-import { isSpawner } from "./techRules";
+import { buildCost, isSpawner } from "./techRules";
 import { GIANT, GIGANTIC, drawCave, drawWorld, giantOf } from "./draw";
 import { LAWS, drawMatrix, physics } from "./matrix";
 import { inventCrystal } from "./crystals";
@@ -28,6 +28,7 @@ import {
   personAt,
   randomName,
   setWar,
+  takePeople,
   updatePeople,
 } from "./people";
 import { updateTech } from "./war";
@@ -35,6 +36,7 @@ import { sprite, spriteIcon, type Choice, type Sprite } from "./sprites";
 import {
   currentNote,
   deleteSaveFile,
+  goThrough,
   hasOldWorld,
   listSaveFiles,
   loadSaveFile,
@@ -383,6 +385,7 @@ function hint(): string {
   if (c.id === "village") {
     return tribe ? `Click the land to build a village for ${tribe.name}.` : "Make a new tribe, then click the land to build its village.";
   }
+  if (c.id === "portal") return `Click the land to build a portal out of ${buildCost("portal")} people. Click a portal to go through it.`;
   if (c.id === "tsunami") return "Click the water to send out a tsunami. It washes away plants, animals, and people near the shore.";
   const where = c.habitat === "land" ? "the land" : c.habitat === "sea" ? "the water" : "anywhere";
   return `${c.name}: click ${where} to add one.`;
@@ -456,6 +459,7 @@ function drawStrikes(now: number): void {
 }
 
 canvas.addEventListener("pointerdown", (event) => {
+  if (travel) return;
   const { x, y } = toMap(event);
   const c = choice();
   const things = world.things.length;
@@ -498,6 +502,12 @@ canvas.addEventListener("pointerdown", (event) => {
     return save();
   }
 
+  // Clicking a portal takes you through it, whatever you have in your hand.
+  const portal = world.things
+    .filter((t) => t.type === "portal" && Math.abs(t.x - x) <= 5 * giantOf(t) && y <= t.y + 2 && y >= t.y - 10 * giantOf(t))
+    .at(-1);
+  if (portal) return startTravel(portal);
+
   // Clicking a pad with the Teleporter tool in your hand links pads together
   // instead of putting another one down.
   if (c.id === "teleporter") {
@@ -537,6 +547,16 @@ canvas.addEventListener("pointerdown", (event) => {
     const built: Thing = { type: c.id, x, y, ...(tribeId ? { tribe: tribeId } : {}) };
     world.things.push(built);
     openMachineDialog(built);
+  } else if (c.id === "portal") {
+    // Ten people walk into it to make it, even when you are the one building it.
+    const cost = buildCost("portal");
+    const tribe = currentTribe();
+    const got = takePeople(x, y, tribe?.id, cost, clock);
+    if (got < cost) {
+      return say(`A portal takes ${cost} ${tribe ? `people from ${tribe.name}` : "people"} to build. There ${got === 1 ? "is" : "are"} only ${got}.`);
+    }
+    world.things.push({ type: "portal", x, y, ...(tribe ? { tribe: tribe.id } : {}) });
+    say(`${cost} people went into the portal to build it. Click it to go through.`);
   } else if ((MAGIC.has(c.id) || TECH_IDS_SET.has(c.id)) && tribeId) {
     world.things.push({ type: c.id, x, y, tribe: tribeId });
     say(TECH_IDS_SET.has(c.id) ? `${c.name} built for ${currentTribe()?.name}.` : `${c.name} joined ${currentTribe()?.name}!`);
@@ -629,6 +649,10 @@ function placeInCave(x: number, y: number): void {
     things.push({ type: c.id, x, y, fuse: kind.fuse });
     say(`${c.name} stuck to the wall. Stand back.`);
     save();
+    return;
+  }
+  if (c.id === "portal") {
+    say("A portal needs open sky. Build it outside the cave.");
     return;
   }
   const tribe = tribeId || undefined;
@@ -1290,6 +1314,58 @@ $<HTMLButtonElement>("people-list").addEventListener("click", () => {
 
 rosterDialog.addEventListener("close", () => window.clearInterval(rosterTimer));
 
+// ---------- going through a portal ----------
+
+// You fall into the portal: the map zooms in on it until it fills the screen
+// and everything goes dark, then the other side fades in.
+const ZOOM_MS = 1200;
+const ARRIVE_MS = 700;
+let travel: { portal: Thing; at: number; arrived: boolean } | null = null;
+
+function startTravel(portal: Thing): void {
+  linking = null;
+  travel = { portal, at: performance.now(), arrived: false };
+}
+
+function drawTravel(realNow: number): void {
+  if (!travel) return;
+  const t = realNow - travel.at;
+  if (!travel.arrived) {
+    const p = Math.min(1, t / ZOOM_MS);
+    const zoom = 1 + 20 * p * p * p;
+    const { x, y } = travel.portal;
+    const middleY = y - 4 * giantOf(travel.portal);
+    // The portal slides to the middle of the screen as it grows.
+    const sx = x + (W / 2 - x) * p;
+    const sy = middleY + (H / 2 - middleY) * p;
+    ctx.save();
+    ctx.setTransform(zoom, 0, 0, zoom, sx - x * zoom, sy - middleY * zoom);
+    drawWorld(ctx, clock);
+    ctx.restore();
+    ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0, (p - 0.55) / 0.45)})`;
+    ctx.fillRect(0, 0, W, H);
+    if (p < 1) return;
+    const went = goThrough(travel.portal);
+    if (!went) {
+      travel = null;
+      say("The portal would not open. There is no room left to keep another dimension.");
+      return;
+    }
+    tribeId = world.tribes[0]?.id ?? "";
+    renderChoices();
+    showUndo();
+    say(went === "new" ? "You came out in a brand new dimension!" : world.id === "home" ? "You are back home." : "You went through the portal.");
+    travel.arrived = true;
+    travel.at = realNow;
+    return;
+  }
+  drawWorld(ctx, clock);
+  const p = t / ARRIVE_MS;
+  ctx.fillStyle = `rgba(0, 0, 0, ${Math.max(0, 1 - p)})`;
+  ctx.fillRect(0, 0, W, H);
+  if (p >= 1) travel = null;
+}
+
 // ---------- every frame ----------
 
 // The world's own clock. It stops when time is frozen and runs five times
@@ -1331,6 +1407,8 @@ function frame(realNow: number): void {
     }
     drawCave(ctx, caveGrid, clock, caveMountain);
     drawCaveBlasts(clock);
+  } else if (travel) {
+    drawTravel(realNow);
   } else {
     drawWorld(ctx, clock);
     if (SUPERCHARGED) drawStrikes(realNow);

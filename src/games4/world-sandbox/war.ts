@@ -40,6 +40,7 @@ export function updateTech(now: number): void {
       runSpawner(t, spec, now);
       continue;
     }
+    if (t.type === "portal") continue;
     if (!t.tribe) continue;
     t.rest = Math.max(0, (t.rest ?? 0) - 1);
     if (t.rest > 0) continue;

@@ -8,7 +8,8 @@ export type TechId =
   | "truck"
   | "spawner"
   | "mutant-spawner"
-  | "teleporter";
+  | "teleporter"
+  | "portal";
 
 export interface TechSpec {
   id: TechId;
@@ -32,6 +33,8 @@ export const TECH: Record<TechId, TechSpec> = {
   spawner: { id: "spawner", name: "Spawning Machine", reload: 480, range: 0, blast: 0, cost: 3 },
   "mutant-spawner": { id: "mutant-spawner", name: "Mutant Spawning Machine", reload: 720, range: 0, blast: 0, cost: 10 },
   teleporter: { id: "teleporter", name: "Teleporter", reload: 0, range: 4, blast: 0 },
+  // A door to a whole other dimension. It takes 10 people to build, even for you.
+  portal: { id: "portal", name: "Portal", reload: 0, range: 0, blast: 0, cost: 10 },
 };
 
 export const TECH_IDS = Object.keys(TECH) as TechId[];

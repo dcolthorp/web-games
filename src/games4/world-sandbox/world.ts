@@ -32,6 +32,9 @@ export interface Thing {
   // A teleporter's own name and the pad it is linked to.
   pad?: string;
   link?: string;
+  // The dimension a portal leads to. It is only made the first time somebody
+  // goes through.
+  to?: string;
   // Frames until a teleporter will take this person again.
   warp?: number;
   // A miner's own name-tag, the seam they are digging towards, and whoever
