@@ -37,6 +37,7 @@ import {
   deleteSaveFile,
   goThrough,
   hasOldWorld,
+  keepWayHome,
   listSaveFiles,
   loadSaveFile,
   saveToFile,
@@ -1379,6 +1380,7 @@ function simulate(now: number): void {
   mineCaves(now);
   updateTech(now);
   updateWavesAndEffects(now);
+  keepWayHome();
 }
 
 function frame(realNow: number): void {

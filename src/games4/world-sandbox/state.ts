@@ -261,14 +261,14 @@ export function goThrough(portal: Thing): "new" | "old" | null {
     let there = localStorage.getItem(dimensionKey(portal.to));
     if (!there) {
       fresh = true;
-      there = JSON.stringify(newDimension(portal.to, from, portal.tribe));
+      there = JSON.stringify(newDimension(portal.to, portal.tribe));
     }
     localStorage.setItem(SAVE_KEY, there);
   } catch {
     return null;
   }
   loadWorld();
-  // Whoever owns the portal owns the one on the other side too, so their
+  // Whoever owns the portal owns the one home too, so their
   // tribe comes along, colours and all. Who they were at war with stays home.
   if (fresh && tribe) world.tribes.push({ ...tribe, enemies: [] });
   world.terrainVersion += 1;
@@ -276,10 +276,26 @@ export function goThrough(portal: Thing): "new" | "old" | null {
   return fresh ? "new" : "old";
 }
 
-function newDimension(id: string, home: string, tribe: string | undefined): object {
+function newDimension(id: string, tribe: string | undefined): object {
   const seed = newSeed();
-  const heights = makeHeights(seed);
-  // Come out on the bit of land nearest the middle of the map.
+  const back: Thing = { type: "portal", ...landNearMiddle(makeHeights(seed)), to: HOME, ...(tribe ? { tribe } : {}) };
+  return { id, hue: 1 + Math.floor(Math.random() * 2 ** 30), seed, things: [back], tribes: [], strokes: [], crystals: world.crystals };
+}
+
+/**
+ * Every other dimension always has a portal that goes straight back to the
+ * world you started in, however many portals you came through to get there.
+ * If it gets wiped out (a nuke, Reset, New World), a new one turns up, so
+ * nobody is ever stuck.
+ */
+export function keepWayHome(): void {
+  if (world.id === HOME || world.things.some((t) => t.type === "portal" && t.to === HOME)) return;
+  world.things.push({ type: "portal", ...landNearMiddle(world.heights), to: HOME });
+  save();
+}
+
+/** The bit of land nearest the middle of the map. */
+function landNearMiddle(heights: Float32Array): { x: number; y: number } {
   let spot = { x: COLS / 2, y: ROWS / 2 };
   let best = Infinity;
   for (let y = 12; y < ROWS - 4; y += 2) {
@@ -291,8 +307,7 @@ function newDimension(id: string, home: string, tribe: string | undefined): obje
       }
     }
   }
-  const back: Thing = { type: "portal", ...spot, to: home, ...(tribe ? { tribe } : {}) };
-  return { id, hue: 1 + Math.floor(Math.random() * 2 ** 30), seed, things: [back], tribes: [], strokes: [], crystals: world.crystals };
+  return spot;
 }
 
 /** Whether two tribes are fighting. War goes both ways, so either side's list counts. */
