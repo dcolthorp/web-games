@@ -262,9 +262,33 @@ export function goThrough(portal: Thing): "new" | "old" | null {
   return went;
 }
 
+const newHeaven = (): { things: Thing[] } & Record<string, unknown> =>
+  ({ id: HEAVEN, hue: 0, seed: newSeed(), things: [], tribes: [], strokes: [], crystals: world.crystals });
+
 /** Where the slime boat sends you: a sky full of clouds, made the first time you go. */
 export function goToHeaven(): "new" | "old" | null {
-  return travelTo(HEAVEN, () => ({ id: HEAVEN, hue: 0, seed: newSeed(), things: [], tribes: [], strokes: [], crystals: world.crystals }));
+  return travelTo(HEAVEN, newHeaven);
+}
+
+/**
+ * Everybody the slime boat fires off the top of the map lands in Heaven as an
+ * angel, keeping their name. Heaven is made for them if nobody has been yet.
+ */
+export function welcomeToHeaven(people: Thing[]): void {
+  const angels: Thing[] = people.map((p) => ({
+    type: "angel",
+    x: COLS * (0.1 + Math.random() * 0.8),
+    y: ROWS * (0.15 + Math.random() * 0.8),
+    ...(p.name ? { name: p.name } : {}),
+  }));
+  try {
+    const saved = localStorage.getItem(dimensionKey(HEAVEN));
+    const heaven = saved ? (JSON.parse(saved) as { things: Thing[] }) : newHeaven();
+    heaven.things.push(...angels);
+    localStorage.setItem(dimensionKey(HEAVEN), JSON.stringify(heaven));
+  } catch {
+    // No room up there, so they just fly away.
+  }
 }
 
 /** Puts this world away and brings out the one called `to`, made with `make` if there isn't one yet. */

@@ -1,6 +1,6 @@
 import { CHOICES } from "./catalog";
 import { destroy, nameOf, nearest, sparkle, step, wander } from "./nature";
-import { save, say, tribesAtWar, world } from "./state";
+import { save, say, tribesAtWar, welcomeToHeaven, world } from "./state";
 import { MUTANT_HP, makePerson, maxHp } from "./people";
 import {
   DAMAGE,
@@ -121,18 +121,21 @@ function launchRiders(boat: Thing, spec: TechSpec, now: number): void {
   }
 }
 
-// Up and up, faster and faster, until they're gone off the top of the map.
+// Up and up, faster and faster, until they're gone off the top of the map
+// and turn into angels in Heaven.
 function flyUp(now: number): void {
-  let gone = false;
+  const gone: Thing[] = [];
   for (const t of world.things) {
     if (!t.flying) continue;
     t.rest = (t.rest ?? 0) + 1;
     t.y -= 1 + t.rest * 0.15;
     world.effects.push({ kind: "trail", x: t.x, y: t.y + 2, born: now, color: "#86d86e" });
-    if (t.y < -20) gone = true;
+    if (t.y < -20) gone.push(t);
   }
-  if (gone) {
-    world.things = world.things.filter((t) => !(t.flying && t.y < -20));
+  if (gone.length > 0) {
+    world.things = world.things.filter((t) => !gone.includes(t));
+    welcomeToHeaven(gone);
+    if (gone.length === 1) say(`${nameOf(gone[0] as Thing)} is an angel in Heaven now.`);
     save();
   }
 }
