@@ -58,6 +58,21 @@
       "autoPort": false
     },
     {
+      "name": "games-dev-5",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5244",
+        "--strictPort"
+      ],
+      "url": "http://localhost:5244",
+      "port": 5244,
+      "autoPort": false
+    },
+    {
       "name": "dev.0 machine",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
