@@ -41,7 +41,7 @@ const games: Game[] = [
     name: "Double or Take It",
     path: "./double-or-take-it/index.html",
     genre: "Take It or Double It",
-    blurb: "Ask people to take it or double it. Shop your way from diamonds down to dirt.",
+    blurb: "Ask people to take it or double it. Shop your way from diamonds down to plain air.",
   },
 ];
 

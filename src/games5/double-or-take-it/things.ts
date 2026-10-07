@@ -313,6 +313,26 @@ export const THINGS: Thing[] = [
       "..........",
     ],
   },
+  {
+    id: "air",
+    name: "Air",
+    plural: "Air",
+    price: 10n ** 50n,
+    doubleChance: 99.5,
+    colors: { a: "#cfe8ff", A: "#8fb8dd" },
+    sprite: [
+      "..........",
+      "..aaaaa...",
+      "......a...",
+      ".AAAAAa...",
+      "..........",
+      "aaaaaaaa..",
+      ".......a..",
+      "..aaaa.a..",
+      ".....aa...",
+      "..........",
+    ],
+  },
 ];
 
 export function drawThing(context: CanvasRenderingContext2D, thing: Thing, x: number, y: number, pixel: number): void {
