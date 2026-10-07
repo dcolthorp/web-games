@@ -64,6 +64,7 @@ export default defineConfig({
         theSimulation: resolve(__dirname, "src/games5/the-simulation/index.html"),
         crossYourFingers: resolve(__dirname, "src/games5/cross-your-fingers/index.html"),
         drawAndSwap: resolve(__dirname, "src/games5/draw-and-swap/index.html"),
+        doubleOrTakeIt: resolve(__dirname, "src/games5/double-or-take-it/index.html"),
         behindTheDoor: resolve(__dirname, "src/games5/behind-the-door/index.html"),
         zeroLogicEscapeRooms2: resolve(__dirname, "src/games4/zero-logic-escape-rooms-2/index.html"),
         telephone: resolve(__dirname, "src/games4/telephone/index.html"),

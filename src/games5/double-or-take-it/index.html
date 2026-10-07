@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Double or Take It</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../index.html">← Games 5</a>
+      <header class="top">
+        <h1>Double or Take It</h1>
+        <p class="tagline">Every thing is worth $1. The things just keep getting worse.</p>
+      </header>
+
+      <p class="question" id="question" aria-live="polite"></p>
+      <canvas id="pile" width="720" height="360" aria-label="Your pile of stuff"></canvas>
+
+      <div class="buttons" id="buttons">
+        <button class="take" id="take" type="button">TAKE IT</button>
+        <button class="double" id="double" type="button">DOUBLE IT</button>
+      </div>
+      <button class="again" id="again" type="button" hidden>PLAY AGAIN</button>
+
+      <ol class="ladder" id="ladder" aria-label="From best to worst"></ol>
+      <p class="bank" id="bank">Your money: $0</p>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

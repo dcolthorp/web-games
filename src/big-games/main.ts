@@ -55,6 +55,7 @@ const GAMES: BigGame[] = [
   { id: "the-simulation", name: "The Simulation", path: "../games5/the-simulation/index.html", hubs: ["Games 5"], blurb: "A block world full of glitches. Ladders are safe." },
   { id: "draw-and-swap", name: "Draw and Swap", path: "../games5/draw-and-swap/index.html", hubs: ["Games 5"], blurb: "No prompt, just a vibe. Then somebody else finishes your drawing." },
   { id: "cross-your-fingers", name: "Cross Your Fingers", path: "../games5/cross-your-fingers/index.html", hubs: ["Games 5"], blurb: "A new piece of land every time. Hope there's a black coin in it." },
+  { id: "double-or-take-it", name: "Double or Take It", path: "../games5/double-or-take-it/index.html", hubs: ["Games 5"], blurb: "Start with a diamond. Keep doubling and it turns into a whole lot of dirt." },
   { id: "behind-the-door", name: "Behind the Door", path: "../games5/behind-the-door/index.html", hubs: ["Games 5"], blurb: "A hallway of doors. One of them is the way out.", secret: () => flag("games4-kicked-out") },
 
   { id: "cat-math", name: "Cat Math", path: "../games/cat-math/index.html", hubs: ["Penelope's Games"], blurb: "Solve cozy math facts, earn coins, and dress up Penelope's cat." },

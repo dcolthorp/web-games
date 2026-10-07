@@ -36,6 +36,13 @@ const games: Game[] = [
     genre: "Luck Platformer",
     blurb: "A new piece of land every time. Hope there's a black coin in it.",
   },
+  {
+    id: "double-or-take-it",
+    name: "Double or Take It",
+    path: "./double-or-take-it/index.html",
+    genre: "Would You Rather",
+    blurb: "Start with a diamond. Keep doubling and it turns into a whole lot of dirt.",
+  },
 ];
 
 function renderGameList(): void {
