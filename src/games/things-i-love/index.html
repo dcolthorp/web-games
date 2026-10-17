@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Things I Love</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../penelope/index.html">← Penelope's Games</a>
+      <header class="hero">
+        <p class="eyebrow">Penelope's box room</p>
+        <h1>Things I Love</h1>
+        <p id="count" class="count"></p>
+      </header>
+
+      <section class="game-frame" aria-label="Things I Love box room">
+        <canvas id="game" width="960" height="600" tabindex="0" aria-label="A room full of boxes"></canvas>
+        <section id="box-panel" class="box-panel" hidden>
+          <h2 id="box-title">An empty box!</h2>
+          <canvas id="peek" class="peek" width="420" height="300" hidden aria-hidden="true"></canvas>
+
+          <form id="write-view">
+            <label for="box-text" class="box-label">What do you want to write on the box?</label>
+            <input id="box-text" class="box-text" type="text" maxlength="40" autocomplete="off" placeholder="Kitties, pancakes, my house…" />
+            <div class="box-buttons">
+              <button class="pill pill-main" type="submit">Write it on the box ♥</button>
+              <button class="pill close-panel" type="button">Close</button>
+            </div>
+          </form>
+
+          <div id="closed-view" hidden>
+            <p id="closed-note" class="box-label"></p>
+            <div class="box-buttons">
+              <button id="open-box" class="pill pill-main" type="button">Open the box</button>
+              <button id="rewrite" class="pill" type="button">Change the writing</button>
+              <button id="box-empty" class="pill" type="button">Empty the box</button>
+              <button class="pill close-panel" type="button">Close</button>
+            </div>
+          </div>
+
+          <div id="open-view" hidden>
+            <p id="model-note" class="box-label"></p>
+            <ul id="inside-list" class="inside-list"></ul>
+            <form id="inside-form" class="inside-form">
+              <input id="inside-text" class="box-text" type="text" maxlength="40" autocomplete="off" placeholder="What do you want to put in?" aria-label="Put something in the box" />
+              <button class="pill pill-main" type="submit">Put it in the box</button>
+            </form>
+            <div class="box-buttons">
+              <button id="to-shelf" class="pill pill-main" type="button">Put it on the shelf</button>
+              <button id="close-box" class="pill" type="button">Close the box</button>
+            </div>
+          </div>
+        </section>
+      </section>
+      <div class="toolbar">
+        <button id="add-box" class="pill pill-main" type="button" aria-keyshortcuts="A">+ Add a box <kbd>A</kbd></button>
+        <button id="delete-all" class="pill" type="button" aria-keyshortcuts="D">Delete all boxes <kbd>D</kbd></button>
+      </div>
+      <section class="shelves" aria-label="Shelves">
+        <div class="shelf-block">
+          <h2>My Shelf</h2>
+          <div id="shelf" class="shelf"></div>
+        </div>
+        <div class="shelf-block play">
+          <h2>Play Shelf</h2>
+          <p class="shelf-note">These ones do stuff. Click them!</p>
+          <div id="play-shelf" class="shelf"></div>
+        </div>
+      </section>
+      <p class="help">Click a box to write on it. Open it and put something in to see it in 3D, then put it on a shelf! Drag boxes to move them around! Press A to add a box, or D to delete all of them.</p>
+    </main>
+
+    <p class="made-by">Mostly made by Oscar</p>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

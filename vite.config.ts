@@ -85,6 +85,7 @@ export default defineConfig({
         aHardEasyGame: resolve(__dirname, "src/games/a-hard-easy-game/index.html"),
         catMath: resolve(__dirname, "src/games/cat-math/index.html"),
         catsForKitties: resolve(__dirname, "src/games/cats-for-kitties/index.html"),
+        thingsILove: resolve(__dirname, "src/games/things-i-love/index.html"),
         oscarsUntitledMazeGame: resolve(
           __dirname,
           "src/games/oscars-untitled-maze-game/index.html"

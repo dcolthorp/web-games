@@ -44,6 +44,13 @@ const games: Game[] = [
     blurb: "Kitties pop up in the rainbow room. Catch the rare ones for big points!",
   },
   {
+    id: "things-i-love",
+    name: "Things I Love",
+    path: "../games/things-i-love/index.html",
+    genre: "Love Boxes",
+    blurb: "Boxes all over the room. Open one and write something you love inside.",
+  },
+  {
     id: "sharks-in-the-water",
     name: "Sharks in the Water",
     menuLabel: "Sharks in the Water",
