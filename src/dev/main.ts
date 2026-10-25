@@ -20,6 +20,7 @@ const SYSTEMS: System[] = [
   { name: "Games 3", path: "../games3/index.html" },
   { name: "Games 4", path: "../games4/index.html" },
   { name: "Games 5", path: "../games5/index.html" },
+  { name: "Games 6", path: "../games6/index.html" },
   { name: "Mods & DLCs", path: "../mods/index.html" },
 ];
 

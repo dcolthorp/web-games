@@ -6,11 +6,11 @@ export {};
 // even peeking at the page's code gives the names away.
 
 // Sits just left of the DOM gallery's invisible door in the very corner, so
-// the two never fight over clicks.
+// the two never fight over clicks, and under the message board button.
 const STYLE = `
   :host { all: initial; }
   * { box-sizing: border-box; }
-  .open { position: fixed; z-index: 2147483600; top: 10px; right: 172px; border: 2px solid rgba(255,255,255,.55); border-radius: 999px; padding: 5px 12px; background: rgba(0,0,0,.6); color: #fff; font: 800 12px/1 "Trebuchet MS", sans-serif; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+  .open { position: fixed; z-index: 2147483600; top: 56px; right: 172px; border: 2px solid rgba(255,255,255,.55); border-radius: 999px; padding: 5px 12px; background: rgba(0,0,0,.6); color: #fff; font: 800 12px/1 "Trebuchet MS", sans-serif; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
   .open:hover, .open:focus-visible { background: #000; border-color: #fff; outline: none; }
   .screen { position: fixed; z-index: 2147483600; inset: 0; overflow: hidden; background: #000; color: #fff; font-family: "Trebuchet MS", sans-serif; text-align: center; cursor: pointer; animation: fade-in 400ms ease-out; }
   .screen[hidden] { display: none; }
@@ -70,7 +70,8 @@ function showCredits(): void {
     const label = document.createElement("p");
     label.className = "role";
     label.textContent = role;
-    block.append(label, scribbledName());
+    const maker = role === "Made by" ? madeBy() : "";
+    block.append(label, maker ? plainName(maker) : scribbledName());
     roll.appendChild(block);
   }
 
@@ -99,6 +100,19 @@ function hideCredits(): void {
 function gameName(): string {
   const title = document.title.trim();
   return title || "Oscar's Games";
+}
+
+// A page can say who made it, and that one name isn't scribbled out:
+// <meta name="credits-made-by" content="Penelope">
+function madeBy(): string {
+  return document.querySelector<HTMLMetaElement>('meta[name="credits-made-by"]')?.content.trim() ?? "";
+}
+
+function plainName(text: string): HTMLElement {
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = text;
+  return name;
 }
 
 // A made-up name, then a heavy ballpoint scribble right over the top of it.

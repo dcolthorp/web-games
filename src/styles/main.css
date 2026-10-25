@@ -751,6 +751,42 @@ h1.is-glitching::after {
 }
 
 /* Scoped to the hub so it outranks the plain .game-card background below. */
+.games6-hub {
+  --bg: #0b2230;
+  --bg-accent: #144a5e;
+  --panel: #123a4a;
+  --panel-2: #1b5a6e;
+  --ink: #effcff;
+  --muted: #a9e6f5;
+  --danger: #ffd23f;
+  --danger-dark: #b38a00;
+  --warn: #5fe0ff;
+  background:
+    radial-gradient(circle at 15% 9%, rgba(95, 224, 255, 0.28), transparent 25%),
+    radial-gradient(circle at 85% 74%, rgba(255, 210, 63, 0.16), transparent 22%),
+    linear-gradient(180deg, #1d6a80, #123a4a 70%, #0b2230);
+}
+
+.games6-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(255, 210, 63, 0.18), transparent 20%),
+    linear-gradient(135deg, #2389a3, #123a4a 68%);
+}
+
+.games6-hub .game-list {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.games6-hub .games6-stripes {
+  background: repeating-linear-gradient(-45deg, #5fe0ff 0 22px, #123a4a 22px 44px);
+}
+
+.games6-hub .games6-game-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(95, 224, 255, 0.2), transparent 25%),
+    linear-gradient(180deg, #1e6378, #123a4a);
+}
+
 .games5-hub .games5-game-card {
   background:
     radial-gradient(circle at 90% 15%, rgba(255, 154, 213, 0.18), transparent 25%),

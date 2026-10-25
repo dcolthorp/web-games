@@ -60,6 +60,9 @@ const GAMES: BigGame[] = [
 
   { id: "cat-math", name: "Cat Math", path: "../games/cat-math/index.html", hubs: ["Penelope's Games"], blurb: "Solve cozy math facts, earn coins, and dress up Penelope's cat." },
   { id: "cats-for-kitties", name: "Catch the Kitties!!!", path: "../games/cats-for-kitties/index.html", hubs: ["Penelope's Games"], blurb: "Kitties pop up in the rainbow room. Catch the rare ones for big points!" },
+  { id: "dress-up", name: "Dress Up Doll", path: "../games/dress-up/index.html", hubs: ["Penelope's Games"], blurb: "Dress up your doll in tops, skirts, dresses, coats and shoes, in any colour." },
+  { id: "pet-eggs", name: "Pet Eggs", path: "../games/pet-eggs/index.html", hubs: ["Penelope's Games"], blurb: "Open an egg, hatch a pet, and take care of it. Earn bucks for more eggs!" },
+  { id: "draw-switch", name: "Drawing Switch", path: "../games/draw-switch/index.html", hubs: ["Penelope's Games"], blurb: "Draw with a friend on another computer. One minute each, then switch!" },
   { id: "things-i-love", name: "Things I Love", path: "../games/things-i-love/index.html", hubs: ["Penelope's Games"], blurb: "Boxes all over the room. Open one and write something you love inside." },
 
   { id: "gem-smasher", name: "Gem Smasher", path: "./gem-smasher/index.html", hubs: ["BIG games"], blurb: "Smash the gems in the dark before they fade away!", secret: () => false },

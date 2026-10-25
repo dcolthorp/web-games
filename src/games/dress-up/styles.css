@@ -1,0 +1,185 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #4a1f6e;
+  background: linear-gradient(180deg, #ffd6f1, #e5d1ff 60%, #cfe9ff);
+}
+
+.page { max-width: 1100px; margin: 0 auto; padding: 16px; }
+
+.back-link {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #7a2fc0;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 3px 0 #cdb3ee;
+}
+
+.hero { text-align: center; margin: 12px 0; }
+.hero h1 { margin: 0; font-size: 2.4rem; }
+.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.8rem; }
+
+.studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 800px) { .studio { grid-template-columns: 1fr; } }
+
+.stage, .wardrobe {
+  padding: 12px;
+  border-radius: 24px;
+  background: #fff;
+  border: 5px solid #e2c8ff;
+  box-shadow: 0 8px 24px rgba(122, 47, 192, 0.2);
+}
+
+#doll { display: block; width: 100%; height: auto; border-radius: 16px; }
+
+.stage-buttons { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+
+.pill {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: #f1e6ff;
+  color: #7a2fc0;
+  font: 700 1rem "Trebuchet MS", sans-serif;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #cdb3ee;
+}
+.pill:hover, .pill:focus-visible { background: #e5d1ff; outline: none; }
+.pill-main { background: #ff6fb5; color: #fff; box-shadow: 0 3px 0 #c94a8c; }
+.pill-main:hover, .pill-main:focus-visible { background: #ff4fa3; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 12px; }
+.tab {
+  border: 3px solid transparent;
+  border-radius: 16px;
+  padding: 6px 10px;
+  background: #f8f0ff;
+  color: #7a2fc0;
+  font: 700 0.95rem "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+.tab .icon { display: block; font-size: 1.6rem; }
+.tab[aria-selected="true"] { border-color: #ff6fb5; background: #ffe4f2; }
+
+.items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.item {
+  border: 3px solid #f1e6ff;
+  border-radius: 16px;
+  padding: 4px;
+  background: #fffaff;
+  cursor: pointer;
+  font: 700 0.8rem "Trebuchet MS", sans-serif;
+  color: #7a2fc0;
+}
+.item canvas { display: block; width: 100%; height: auto; }
+.item[aria-pressed="true"] { border-color: #ff6fb5; background: #ffe4f2; }
+
+.colors { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+.swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  box-shadow: 0 0 0 2px #e2c8ff;
+  cursor: pointer;
+}
+.swatch[aria-pressed="true"] { box-shadow: 0 0 0 4px #ff6fb5; }
+
+/* The Design Studio and shop, over the top of everything. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(74, 31, 110, 0.45);
+}
+.overlay[hidden] { display: none; }
+.overlay-card {
+  width: min(900px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 14px 18px 18px;
+  border-radius: 24px;
+  background: #fff;
+  border: 5px solid #e2c8ff;
+  text-align: center;
+}
+.overlay-card h2 { margin: 0 0 4px; }
+.overlay-note { font-weight: 700; margin: 0 0 10px; }
+.overlay-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 12px; }
+.overlay-buttons .pill:disabled { opacity: 0.5; cursor: default; }
+.kind-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.sketch-wrap { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
+@media (max-width: 640px) { .sketch-wrap { grid-template-columns: 1fr; } }
+.sketch {
+  display: block;
+  width: min(300px, 100%);
+  height: auto;
+  max-height: 64vh;
+  margin: 0 auto;
+  aspect-ratio: 1 / 2;
+  border-radius: 16px;
+  border: 3px solid #f1e6ff;
+  touch-action: none;
+  cursor: crosshair;
+}
+.tools { text-align: left; }
+.tools h3 { margin: 8px 0 6px; font-size: 1rem; }
+.tool-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tool-row .swatch { width: 34px; height: 34px; }
+.tool-row .pill[aria-pressed="true"] { background: #ff6fb5; color: #fff; }
+.tool-row .pill:disabled { opacity: 0.45; cursor: default; }
+.size-slider { flex: 1; min-width: 140px; accent-color: #ff6fb5; }
+.size-label { min-width: 3ch; font-weight: 800; align-self: center; }
+.shop { display: block; width: 100%; height: auto; border-radius: 16px; }
+.coins { margin: 8px 0 0; text-align: center; font-weight: 800; font-size: 1.1rem; color: #b07d10; }
+.sale {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: #fff4c9;
+  border: 2px solid #f0d77e;
+  text-align: center;
+  font-weight: 700;
+}
+.sale[hidden] { display: none; }
+.name-it { display: block; margin: 0 0 10px; font-weight: 800; }
+.name-it input, .design-card input {
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 3px solid #d7b8ff;
+  font: 700 1rem "Trebuchet MS", sans-serif;
+  color: #4a1f6e;
+  text-align: center;
+}
+.design-card { display: grid; gap: 4px; }
+.design-card .pill { padding: 4px 8px; font-size: 0.75rem; }
+.price-list { display: grid; gap: 6px; margin-top: 10px; }
+.price-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; font-weight: 700; }
+.price-row input {
+  width: 90px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 3px solid #f0d77e;
+  font: 700 1rem "Trebuchet MS", sans-serif;
+  text-align: center;
+}
+.price-row .pill { padding: 4px 10px; font-size: 0.8rem; }
+.design-card input { width: 100%; font-size: 0.8rem; padding: 4px 6px; }

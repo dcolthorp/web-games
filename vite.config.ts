@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
+import { readFileSync, writeFileSync } from "fs";
 
 export default defineConfig({
   plugins: [
@@ -16,12 +17,81 @@ export default defineConfig({
               '  <script type="module" src="/shared/lostDoor.ts"></script>',
               // Credits on every page, with every name scribbled out.
               '  <script type="module" src="/shared/credits.ts"></script>',
+              // The message board button, just above the credits.
+              '  <script type="module" src="/shared/messageBoard.ts"></script>',
               // Whichever hub dev.1 supercharged turns blue, with extras.
               '  <script type="module" src="/shared/supercharged.ts"></script>',
               "  </body>",
             ].join("\n")
           );
         },
+      },
+    },
+    {
+      // Drawing Switch: pass drawing messages between everybody in a room.
+      name: "draw-switch-rooms",
+      configureServer(server) {
+        server.ws.on("draw-switch:message", (data: unknown) => {
+          server.ws.send("draw-switch:message", data);
+        });
+      },
+    },
+    {
+      // The message board: posts are kept in message-board.json, and every
+      // new post is sent straight to everybody who has a page open. Only
+      // Oscar posts, so only the computer running the server can; everybody
+      // joining over the network can just read.
+      name: "message-board",
+      configureServer(server) {
+        const file = resolve(__dirname, "message-board.json");
+        const load = (): unknown[] => {
+          try {
+            const posts = JSON.parse(readFileSync(file, "utf8"));
+            return Array.isArray(posts) ? posts : [];
+          } catch {
+            return [];
+          }
+        };
+        server.middlewares.use("/api/message-board", (req, res) => {
+          const address = req.socket.remoteAddress ?? "";
+          const canPost = address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+          if (req.method === "POST") {
+            if (!canPost) {
+              res.statusCode = 403;
+              res.end();
+              return;
+            }
+            let body = "";
+            req.on("data", (chunk) => {
+              body += chunk;
+            });
+            req.on("end", () => {
+              let text = "";
+              let author = "Oscar";
+              try {
+                const parsed = JSON.parse(body);
+                text = typeof parsed?.text === "string" ? parsed.text.trim().slice(0, 500) : "";
+                if (parsed?.author === "Penelope") author = "Penelope";
+              } catch {
+                // Not JSON, so there's nothing to post.
+              }
+              if (!text) {
+                res.statusCode = 400;
+                res.end();
+                return;
+              }
+              const post = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, author, text, postedAt: Date.now() };
+              const posts = [...load(), post];
+              writeFileSync(file, JSON.stringify(posts, null, 2) + "\n");
+              server.ws.send("message-board:post", post);
+              res.setHeader("Content-Type", "application/json");
+              res.end(JSON.stringify(post));
+            });
+            return;
+          }
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ posts: load(), canPost }));
+        });
       },
     },
     {
@@ -61,6 +131,8 @@ export default defineConfig({
         games3: resolve(__dirname, "src/games3/index.html"),
         games4: resolve(__dirname, "src/games4/index.html"),
         games5: resolve(__dirname, "src/games5/index.html"),
+        games6: resolve(__dirname, "src/games6/index.html"),
+        factQuest: resolve(__dirname, "src/games6/fact-quest/index.html"),
         theSimulation: resolve(__dirname, "src/games5/the-simulation/index.html"),
         crossYourFingers: resolve(__dirname, "src/games5/cross-your-fingers/index.html"),
         drawAndSwap: resolve(__dirname, "src/games5/draw-and-swap/index.html"),
@@ -86,6 +158,9 @@ export default defineConfig({
         catMath: resolve(__dirname, "src/games/cat-math/index.html"),
         catsForKitties: resolve(__dirname, "src/games/cats-for-kitties/index.html"),
         thingsILove: resolve(__dirname, "src/games/things-i-love/index.html"),
+        dressUp: resolve(__dirname, "src/games/dress-up/index.html"),
+        petEggs: resolve(__dirname, "src/games/pet-eggs/index.html"),
+        drawSwitch: resolve(__dirname, "src/games/draw-switch/index.html"),
         oscarsUntitledMazeGame: resolve(
           __dirname,
           "src/games/oscars-untitled-maze-game/index.html"

@@ -1,0 +1,1906 @@
+:root {
+  --ink: #24242b;
+  --paper: #faf8f1;
+  --purple: #b5a2f1;
+  --purple-soft: #dcd2ff;
+  --lime: #ddf579;
+  --lime-strong: #d8f361;
+  --line: #deded4;
+  --muted: #66665f;
+  --good: #3f8a2a;
+  --oops: #b2452e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.45 "DM Sans", system-ui, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+.equation,
+.brand {
+  font-family: "Space Grotesk", "DM Sans", sans-serif;
+}
+
+/* Room at the top for the site-wide message board and credits buttons. */
+.shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 96px 24px 24px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.back-link {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  color: var(--muted);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--ink);
+}
+
+/* Header */
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brand-icon {
+  width: 35px;
+  height: 35px;
+  margin-right: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--purple);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 var(--ink);
+  transform: rotate(-8deg);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.brand-icon.small {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  border-width: 1px;
+  border-radius: 5px;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.nav {
+  display: flex;
+  gap: 6px;
+  margin: 0 auto;
+}
+
+.nav button {
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 16px;
+  background: none;
+  font-weight: 700;
+}
+
+.nav button.is-on {
+  background: #efedf6;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.switch {
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: var(--lime);
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  font-weight: 700;
+}
+
+.who-name {
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.who-name small {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.mute {
+  border: 0;
+  background: none;
+  font-size: 18px;
+  padding: 4px;
+}
+
+/* Shared bits */
+
+#app {
+  flex: 1;
+  padding: 28px 0 40px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.big-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  padding: 14px 24px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  box-shadow: 4px 4px 0 var(--purple);
+}
+
+.big-button.light {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.big-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.text-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Who's practicing? */
+
+.pick {
+  text-align: center;
+  padding-top: 20px;
+}
+
+.pick h1 {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 52px);
+  letter-spacing: -0.03em;
+}
+
+.pick > p {
+  color: var(--muted);
+}
+
+.learner-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 36px auto;
+  max-width: 760px;
+}
+
+.learner-choices > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: 2px solid #202029;
+  border-radius: 24px;
+  padding: 32px 20px;
+  background: var(--purple-soft);
+  box-shadow: 5px 5px 0 #202029;
+  transition: transform 0.12s ease;
+}
+
+.learner-choices > button:nth-child(2) {
+  background: var(--lime-strong);
+}
+
+.learner-choices > button:hover {
+  transform: translate(-2px, -2px);
+}
+
+.learner-avatar {
+  width: 70px;
+  height: 70px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  background: #202029;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.learner-choices strong {
+  font-size: 22px;
+}
+
+.learner-choices em {
+  margin-top: 14px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.small-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Home */
+
+.home-hero {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  align-items: center;
+  min-height: 290px;
+}
+
+.eyebrow.dot::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #5f9d2f;
+  vertical-align: 1px;
+}
+
+.home-hero h1 {
+  margin: 18px 0 20px;
+  font-size: clamp(38px, 6vw, 60px);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.home-hero h1 span {
+  color: #8a7f6a;
+}
+
+.home-hero h1 .sparkle {
+  color: var(--purple);
+}
+
+.lead {
+  margin: 0 0 16px;
+  color: #4a4a50;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.checks {
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.olly-stage {
+  position: relative;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 50px 0 30px;
+}
+
+.olly-ring {
+  width: 190px;
+  height: 190px;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed #cfcbbd;
+  border-radius: 50%;
+}
+
+.olly-ring .olly {
+  width: 160px;
+  animation: bob 3s ease-in-out infinite;
+}
+
+.bubble {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: #fff;
+  box-shadow: 2px 2px 0 var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  transform: rotate(4deg);
+}
+
+.tile {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 var(--ink);
+  padding: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  transform: rotate(var(--r));
+}
+
+/* Clicked: hop up and glow brighter for five seconds. */
+.tile.is-popping {
+  animation: tile-pop 5s ease-out;
+}
+
+@keyframes tile-pop {
+  0% { transform: translateY(0) rotate(var(--r)); }
+  6% {
+    transform: translateY(-22px) rotate(var(--r)) scale(1.12);
+    filter: brightness(1.2) saturate(1.8);
+    box-shadow: 2px 2px 0 var(--ink), 0 0 22px 6px rgba(255, 255, 255, 0.9);
+  }
+  85% {
+    transform: translateY(-18px) rotate(var(--r)) scale(1.08);
+    filter: brightness(1.18) saturate(1.7);
+    box-shadow: 2px 2px 0 var(--ink), 0 0 20px 5px rgba(255, 255, 255, 0.8);
+  }
+  100% { transform: translateY(0) rotate(var(--r)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes tile-pop {
+    50% { filter: brightness(1.2) saturate(1.8); }
+  }
+}
+
+/* Spinning into Olly: glowing the whole way, then gone when they touch. */
+.tile.is-orbiting {
+  z-index: 2;
+  filter: brightness(1.2) saturate(1.8);
+  box-shadow: 2px 2px 0 var(--ink), 0 0 22px 6px rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+}
+
+.tile.is-absorbed {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.olly-ring.is-transforming {
+  animation: olly-transform 1.2s ease-out;
+}
+
+@keyframes olly-transform {
+  0% { background: #fff; box-shadow: 0 0 0 0 rgba(229, 56, 59, 0.8); transform: scale(1.15); }
+  40% { background: #dbe7ff; box-shadow: 0 0 40px 20px rgba(60, 120, 216, 0.6); transform: scale(1.08); }
+  100% { background: transparent; box-shadow: 0 0 0 0 rgba(60, 120, 216, 0); transform: scale(1); }
+}
+
+/* Quest Mode's card arrives with a bounce the moment it's unlocked. */
+.game-mode-quest {
+  background: linear-gradient(135deg, #3c78d8, #7a4fd6 55%, #e5383b);
+  color: #fff;
+}
+
+.game-mode-quest small {
+  color: #f1ecff;
+}
+
+.game-mode-quest .game-mode-icon {
+  background: #e5383b;
+}
+
+.game-mode.just-unlocked {
+  animation: unlock-pop 0.9s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes unlock-pop {
+  0% { transform: scale(0.3); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.tile-a {
+  top: 64px;
+  left: calc(50% - 128px);
+  background: var(--lime);
+  --r: -8deg;
+}
+
+.tile-b {
+  top: 112px;
+  left: calc(50% + 90px);
+  background: #f6a897;
+  --r: 10deg;
+}
+
+.tile-c {
+  bottom: 64px;
+  left: calc(50% - 124px);
+  background: var(--purple);
+  --r: -6deg;
+}
+
+.tile-d {
+  bottom: 76px;
+  left: calc(50% + 84px);
+  background: #a9dcf2;
+  --r: 8deg;
+}
+
+.olly-stage figcaption {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@keyframes bob {
+  50% { transform: translateY(-6px); }
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  align-items: start;
+  gap: 27px;
+  margin-top: 22px;
+}
+
+.quest-card {
+  border: 2px solid var(--ink);
+  border-radius: 24px;
+  padding: 24px 24px 18px;
+  background: var(--lime-strong);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.quest-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quest-card .pill {
+  background: #fff;
+  text-transform: uppercase;
+}
+
+.quest-card .count {
+  font-size: 11px;
+}
+
+.quest-card h2 {
+  margin: 26px 0 6px;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+.quest-card > p {
+  margin: 0 0 22px;
+  font-size: 13px;
+}
+
+.mode-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.mode-buttons button {
+  border: 1.5px solid #b9d24f;
+  border-radius: 10px;
+  padding: 12px 8px;
+  background: transparent;
+  font-size: 13px;
+}
+
+.mode-buttons button.is-on {
+  border-color: var(--ink);
+  background: #fff;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.mode-buttons .op {
+  font-weight: 700;
+}
+
+.mode-buttons .tick {
+  margin-left: 4px;
+}
+
+.big-button.start {
+  width: 100%;
+  justify-content: center;
+  box-shadow: none;
+}
+
+.resume {
+  display: block;
+  margin: 14px auto 0;
+}
+
+.resume-note {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 12px;
+}
+
+.quest-card-foot {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 26px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #c4dd5a;
+  font-size: 10px;
+  color: #4b5a1c;
+}
+
+.side {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.stat-card {
+  display: grid;
+  grid-template-columns: 49px auto;
+  column-gap: 15px;
+  align-items: center;
+  min-height: 98px;
+  padding: 20px;
+  border: 1px solid var(--ink);
+  border-radius: 18px;
+}
+
+.stat-card.purple {
+  background: var(--purple-soft);
+}
+
+.stat-card.green {
+  background: #e3efd2;
+}
+
+.stat-icon {
+  width: 45px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #aaa1bb;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 22px;
+}
+
+.stat-card b {
+  display: block;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.stat-card b small {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.stat-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stat-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.tip {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #4a4a50;
+}
+
+.adventure {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.adventure h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.milestones {
+  display: flex;
+  gap: 40px;
+}
+
+.milestones > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.milestones span {
+  width: 37px;
+  height: 37px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #b8b5a7;
+  border-radius: 50%;
+  color: var(--muted);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 11px;
+}
+
+.milestones .is-done span {
+  border: 1.5px solid var(--ink);
+  background: var(--lime);
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.milestones small {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.milestones .is-done small {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.modes button {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.modes button.is-on {
+  background: var(--ink);
+  color: #fff;
+}
+
+.stats {
+  display: grid;
+  gap: 14px;
+}
+
+.stat {
+  border: 1px solid var(--ink);
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: #fff;
+}
+
+.stat b {
+  display: block;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.stat small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar {
+  height: 8px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #ecebe2;
+  overflow: hidden;
+}
+
+.bar > span {
+  display: block;
+  height: 100%;
+  background: var(--purple);
+  border-radius: inherit;
+  transition: width 0.3s ease;
+}
+
+/* Game mode selector, in the column beside the quest card */
+
+.game-modes {
+  margin-top: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.game-modes .eyebrow {
+  margin-bottom: 4px;
+}
+
+.game-modes h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.game-mode-list {
+  display: grid;
+  gap: 10px;
+}
+
+.game-mode {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px 10px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  box-shadow: 3px 3px 0 var(--ink);
+  text-align: left;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.game-mode:hover,
+.game-mode:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--ink);
+  outline: none;
+}
+
+.game-mode-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ink);
+  border-radius: 11px;
+  background: #fff;
+  font-size: 20px;
+  transform: rotate(-6deg);
+}
+
+.game-mode-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.game-mode strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 16px;
+}
+
+.game-mode-text span {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.game-mode small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.game-mode em {
+  font-style: normal;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.game-mode-daily { background: var(--purple-soft); }
+.game-mode-endless { background: #d6ecf7; }
+.game-mode-speed { background: #fff1a8; }
+.game-mode-survival { background: #ffd6dc; }
+.game-mode-remainder { background: #fbe3cf; }
+.game-mode-boss { background: var(--ink); color: #fff; }
+.game-mode-boss small { color: #b9b9c6; }
+.game-mode-boss .game-mode-icon { background: var(--lime); }
+
+/* Quest */
+
+.quest-links {
+  display: flex;
+  justify-content: space-between;
+}
+
+.hearts {
+  letter-spacing: 2px;
+}
+
+.bar.survival > span {
+  background: #f06b80;
+}
+
+.bar.speed > span {
+  background: #f2c94c;
+}
+
+.run-toast {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  background: var(--lime);
+  font-weight: 700;
+  text-align: center;
+}
+
+.run-toast[hidden] {
+  display: none;
+}
+
+/* Fights (Quest Mode's world) */
+
+/* Warrior theme: the battle happens in a dark stone arena with torches. */
+.battle {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 10px;
+  margin: -6px -8px 0;
+  padding: 26px 12px 14px;
+  border-radius: 16px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 8% 22%, rgba(255, 170, 60, 0.55), transparent 16%),
+    radial-gradient(circle at 92% 22%, rgba(255, 170, 60, 0.55), transparent 16%),
+    repeating-linear-gradient(0deg, transparent 0 22px, rgba(0, 0, 0, 0.18) 22px 24px),
+    linear-gradient(180deg, #4a3d5c, #2b2236 72%, #3d3226 72%, #2c241b);
+}
+
+/* Torches flicker on the walls. */
+.battle::before,
+.battle::after {
+  content: "🔥";
+  position: absolute;
+  top: 8px;
+  font-size: 18px;
+  animation: flicker 0.9s ease-in-out infinite alternate;
+}
+
+.battle::before {
+  left: 8px;
+}
+
+.battle::after {
+  right: 8px;
+  animation-delay: 0.3s;
+}
+
+@keyframes flicker {
+  from { transform: scale(1) rotate(-4deg); opacity: 0.85; }
+  to { transform: scale(1.15) rotate(4deg); opacity: 1; }
+}
+
+.fighter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 110px;
+  animation: bob 2.4s ease-in-out infinite;
+}
+
+.fighter.monster {
+  animation-delay: 1.2s;
+}
+
+.fighter .olly {
+  width: 84px;
+  filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.35));
+}
+
+.fighter .hearts {
+  font-size: 12px;
+}
+
+.vs {
+  align-self: center;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffcf4a;
+  text-shadow: 2px 2px 0 #8e2a2d;
+  animation: vs-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes vs-pulse {
+  50% { transform: scale(1.18); }
+}
+
+.monster-icon {
+  font-size: 58px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.35));
+}
+
+.monster strong {
+  font-size: 13px;
+}
+
+/* Right answer: Olly charges in and swings his sword. */
+.battle.is-attack .hero {
+  animation: charge 0.7s ease-in-out;
+}
+
+.battle.is-attack .olly-sword {
+  transform-origin: 155px 170px;
+  animation: swing 0.7s ease-in-out;
+}
+
+@keyframes charge {
+  40% { transform: translateX(70px) scale(1.08); }
+  100% { transform: none; }
+}
+
+@keyframes swing {
+  30% { transform: rotate(-35deg); }
+  50% { transform: rotate(55deg); }
+  100% { transform: none; }
+}
+
+.slash {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  width: 90px;
+  height: 8px;
+  margin-left: -45px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #fff, #ffe58a, transparent);
+  box-shadow: 0 0 14px 4px rgba(255, 240, 180, 0.9);
+  transform: rotate(-35deg) scaleX(0);
+  animation: slash 0.7s ease-out forwards;
+}
+
+@keyframes slash {
+  0%, 35% { transform: rotate(-35deg) scaleX(0); opacity: 1; }
+  55% { transform: rotate(-35deg) scaleX(1); opacity: 1; }
+  100% { transform: rotate(-35deg) scaleX(1.2); opacity: 0; }
+}
+
+/* Wrong answer: the monster lunges and Olly takes the hit. */
+.battle.is-ouch .monster {
+  animation: lunge 0.7s ease-in-out;
+}
+
+.battle.is-ouch .hero {
+  animation: ouch 0.7s ease-in-out;
+}
+
+@keyframes lunge {
+  40% { transform: translateX(-70px) scale(1.15); }
+  100% { transform: none; }
+}
+
+@keyframes ouch {
+  35% { transform: none; filter: none; }
+  45% { transform: translateX(-10px) rotate(-8deg); filter: brightness(1.6) sepia(1) hue-rotate(-50deg) saturate(5); }
+  65% { transform: translateX(6px) rotate(5deg); }
+  100% { transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fighter,
+  .vs,
+  .battle::before,
+  .battle::after {
+    animation: none;
+  }
+}
+
+.hp {
+  width: 100px;
+  height: 8px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.hp > span {
+  display: block;
+  height: 100%;
+  background: #e5383b;
+  transition: width 0.4s ease;
+}
+
+.monster.is-hit .monster-icon {
+  animation: monster-hit 0.5s ease;
+}
+
+.monster.is-beaten .monster-icon {
+  opacity: 0.35;
+  filter: grayscale(1);
+  transform: rotate(-90deg);
+  transition: transform 0.6s ease, opacity 0.6s ease;
+}
+
+@keyframes monster-hit {
+  20% { transform: translateX(-8px) rotate(-8deg); filter: brightness(1.8); }
+  50% { transform: translateX(8px) rotate(6deg); }
+  100% { transform: none; }
+}
+
+/* Quest Mode's world */
+
+.world-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hud span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hud img,
+.shop-gems img,
+.pig-bonus img {
+  width: 16px;
+  height: 16px;
+}
+
+.world-stage {
+  position: relative;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 5px 5px 0 var(--ink);
+  background: #2a2329;
+}
+
+.world-stage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: auto;
+}
+
+.world-toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  max-width: 80%;
+  margin: 0;
+  padding: 8px 16px;
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  background: #fffdf3;
+  box-shadow: 3px 3px 0 var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.world-toast[hidden],
+.world-overlay[hidden],
+.remainder[hidden] {
+  display: none;
+}
+
+.world-help {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.world-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(20, 16, 28, 0.55);
+  overflow-y: auto;
+}
+
+.shop-card,
+.fight-card {
+  width: min(520px, 100%);
+  padding: 20px;
+  border: 2px solid var(--ink);
+  border-radius: 20px;
+  background: var(--paper);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.shop-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.shop-head img {
+  width: 72px;
+  height: 72px;
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  background: var(--lime);
+}
+
+.shop-head strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 20px;
+}
+
+.shop-head p {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.shop-gems {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 8px;
+  font-weight: 700;
+}
+
+.shop-items {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.shop-items button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--ink);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+}
+
+.shop-items button:not(:disabled):hover {
+  background: var(--lime);
+}
+
+.shop-items button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.shop-note {
+  margin: 0 0 12px;
+  color: var(--good);
+  font-weight: 700;
+}
+
+.fight-card .equation {
+  margin: 12px 0;
+  text-align: center;
+}
+
+.fight-msg {
+  min-height: 1.4em;
+  margin: 12px 0 0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.fight-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.foe-art {
+  width: 72px;
+  height: 72px;
+}
+
+.fighter .hp {
+  margin-top: 2px;
+}
+
+.fighter small {
+  font-size: 11px;
+  color: #e9e3f5;
+}
+
+.fight-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.text-link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pig-bonus {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #c76b84;
+  font-weight: 700;
+}
+
+/* Cosmetics */
+
+.cosmetics-button {
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 5px 14px;
+  background: linear-gradient(135deg, #ffd200, #ff8a00);
+  box-shadow: 2px 2px 0 var(--ink);
+  font-weight: 700;
+}
+
+.cosmetics-button[hidden] {
+  display: none;
+}
+
+.cosmetics-preview {
+  flex: none;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  background: var(--purple-soft);
+}
+
+.cosmetics-preview .olly {
+  width: 72px;
+}
+
+.shop-items button.is-worn {
+  background: var(--lime);
+}
+
+/* The strange map */
+
+.strange-map {
+  width: min(560px, 100%);
+  padding: 18px 20px;
+  border: 2px solid #6b4a1e;
+  border-radius: 6px;
+  background: #efe0b8;
+  box-shadow: 5px 5px 0 #4a3520;
+  text-align: center;
+  transform: rotate(-1deg);
+}
+
+.strange-map h2 {
+  margin: 0 0 10px;
+  font-family: "Creepster", "Space Grotesk", cursive;
+  font-size: 30px;
+  letter-spacing: 0.05em;
+  color: #4a2f14;
+}
+
+.strange-map canvas {
+  width: 100%;
+  height: auto;
+  border: 1.5px solid #8a6a3a;
+  filter: sepia(0.55);
+}
+
+.strange-map p {
+  margin: 10px 0 0;
+  color: #4a3520;
+  font-size: 14px;
+}
+
+/* THE MATRIX */
+
+.matrix-stage {
+  background: #020008;
+}
+
+.matrix-small {
+  font-family: "Creepster", cursive;
+  font-size: 26px;
+  letter-spacing: 0.08em;
+  color: #9b4fe0;
+}
+
+.matrix-intro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  pointer-events: none;
+  animation: matrix-intro 4.5s ease-in forwards;
+}
+
+.matrix-title {
+  margin: 0;
+  font-family: "Creepster", cursive;
+  font-size: clamp(54px, 11vw, 120px);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: #c0262c;
+  text-shadow: 0 0 18px rgba(155, 79, 224, 0.9), 4px 4px 0 #2a0a3a;
+  animation: matrix-flicker 0.18s steps(2) infinite;
+}
+
+/* The Void's battle: no torches, just deep space. */
+.battle.void-battle {
+  background:
+    radial-gradient(circle at 75% 40%, rgba(155, 79, 224, 0.55), transparent 35%),
+    radial-gradient(circle at 20% 80%, rgba(229, 56, 59, 0.2), transparent 30%),
+    #05010d;
+}
+
+.battle.void-battle::before,
+.battle.void-battle::after {
+  content: none;
+}
+
+/* Asleep after beating Olly: dim, wobbling a little, snoring. */
+.monster.is-asleep .monster-icon {
+  opacity: 0.55;
+  animation: snooze 2s ease-in-out infinite;
+}
+
+.monster.is-asleep::after {
+  content: "Z z z";
+  position: absolute;
+  top: -6px;
+  right: 0;
+  color: #c59bff;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  animation: snooze 2s ease-in-out infinite;
+}
+
+@keyframes snooze {
+  50% { transform: translateY(-4px) rotate(-4deg); }
+}
+
+.void-card .vs {
+  color: #c59bff;
+  text-shadow: 2px 2px 0 #2a0a3a;
+}
+
+@keyframes matrix-intro {
+  0%, 30% { background: #000; opacity: 1; }
+  65% { background: rgba(0, 0, 0, 0); opacity: 1; }
+  100% { background: rgba(0, 0, 0, 0); opacity: 0; }
+}
+
+@keyframes matrix-flicker {
+  50% { opacity: 0.82; transform: translateX(1px) skewX(-2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matrix-title {
+    animation: none;
+  }
+}
+
+.new-best {
+  margin: -10px 0 20px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.quest {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.quest-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 0 12px;
+  font-size: 13px;
+}
+
+.pill {
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: var(--purple-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.pill.boss {
+  background: var(--ink);
+  color: var(--lime);
+}
+
+.question-card {
+  margin-top: 20px;
+  border: 2px solid var(--ink);
+  border-radius: 22px;
+  padding: 26px 26px 22px;
+  background: #fff;
+  box-shadow: 4px 4px 0 var(--ink);
+  text-align: center;
+}
+
+.question-card.boss {
+  box-shadow: 6px 6px 0 var(--lime), 6px 6px 0 2px var(--ink);
+}
+
+.olly-says {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.olly-says .olly {
+  width: 38px;
+}
+
+.equation {
+  margin: 18px 0;
+  font-size: clamp(44px, 9vw, 64px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.equation .q {
+  color: #8f8f86;
+}
+
+.answers {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.answer-box {
+  width: 128px;
+  height: 66px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: #f1edff;
+  text-align: center;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  outline: 3px solid transparent;
+  transition: outline-color 0.15s ease;
+}
+
+.answer-box:focus {
+  outline-color: #f2c94c;
+}
+
+.answer-box::placeholder {
+  color: #9b97ad;
+}
+
+.remainder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.remainder .r {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.remainder .answer-box {
+  width: 84px;
+  background: #fbf5dc;
+}
+
+.answer-labels {
+  display: flex;
+  justify-content: center;
+  gap: 60px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.feel {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.feel-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.feel-buttons button {
+  border: 1px solid #bdbbb0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.feel-buttons button.is-on {
+  border-color: var(--ink);
+  background: var(--lime);
+  font-weight: 700;
+}
+
+.check {
+  width: 100%;
+  margin-top: 18px;
+  justify-content: center;
+}
+
+.under-links {
+  display: flex;
+  justify-content: center;
+  gap: 26px;
+  margin-top: 14px;
+}
+
+.hint {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fbf5dc;
+  font-size: 14px;
+}
+
+.warn {
+  margin: 12px 0 0;
+  color: var(--oops);
+  font-size: 13px;
+}
+
+.feedback h2 {
+  margin: 4px 0 6px;
+  font-size: 26px;
+}
+
+.feedback .tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.feedback.good .tag {
+  color: var(--good);
+}
+
+.feedback.oops .tag {
+  color: var(--oops);
+}
+
+.feedback p {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.take-your-time {
+  margin-top: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Mission complete */
+
+.complete {
+  max-width: 560px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.big-star {
+  width: 95px;
+  height: 95px;
+  margin: 0 auto 24px;
+  display: grid;
+  place-items: center;
+  background: var(--lime);
+  border: 1.5px solid var(--ink);
+  border-radius: 29px;
+  box-shadow: 4px 4px 0 var(--ink);
+  transform: rotate(-8deg);
+  font-size: 46px;
+}
+
+.complete h1 {
+  margin: 0 0 24px;
+  font-size: clamp(28px, 5vw, 40px);
+  letter-spacing: -0.02em;
+}
+
+.complete-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.complete-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* Progress */
+
+.progress h1 {
+  margin: 0 0 6px;
+  font-size: clamp(30px, 5vw, 44px);
+  letter-spacing: -0.03em;
+}
+
+.progress > p {
+  margin: 0 0 22px;
+  color: var(--muted);
+}
+
+.progress .stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin: 25px 0 15px;
+  flex-wrap: wrap;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+  vertical-align: -1px;
+  border-radius: 3px;
+  border: 1px solid #dddacd;
+  background: #f0eee6;
+}
+
+.legend .practicing i {
+  background: #e5ddf6;
+  border-color: #c9bde2;
+}
+
+.legend .fluent i {
+  background: #dcebba;
+  border-color: #aac77d;
+}
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+}
+
+.fact-grid > div {
+  padding: 12px 2px;
+  border: 1px solid #dddacd;
+  border-radius: 8px;
+  background: #f0eee6;
+  text-align: center;
+}
+
+.fact-grid b {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.fact-grid span {
+  display: block;
+  margin-top: 5px;
+  color: #77766b;
+  font-size: 8px;
+}
+
+.fact-grid .practicing {
+  background: #e5ddf6;
+  border-color: #c9bde2;
+}
+
+.fact-grid .fluent {
+  background: #dcebba;
+  border-color: #aac77d;
+}
+
+/* Footer */
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.foot-brand,
+.foot-mode {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+@media (max-width: 760px) {
+  .home-hero,
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .fact-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .nav {
+    margin: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .learner-choices,
+  .progress .stats,
+  .complete-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .foot {
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dress Up Doll</title>
+    <meta name="credits-made-by" content="Penelope" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../penelope/index.html">← Penelope's Games</a>
+      <header class="hero">
+        <p class="eyebrow">Penelope's dress-up room</p>
+        <h1>Dress Up Doll</h1>
+      </header>
+
+      <div class="studio">
+        <section class="stage" aria-label="Your doll">
+          <canvas id="doll" width="600" height="600" aria-label="Your doll, wearing her outfit"></canvas>
+          <div class="stage-buttons">
+            <button id="studio" class="pill pill-main" type="button">✏️ Design Studio</button>
+            <button id="shop" class="pill pill-main" type="button">🏪 My Shop</button>
+            <button id="surprise" class="pill" type="button">🎲 Surprise me!</button>
+            <button id="reset" class="pill" type="button">Start over</button>
+          </div>
+          <p class="coins"><span id="coins">0</span> coins 🪙</p>
+          <p id="sale" class="sale" aria-live="polite" hidden></p>
+        </section>
+
+        <section class="wardrobe" aria-label="Wardrobe">
+          <div id="tabs" class="tabs" role="tablist"></div>
+          <div id="items" class="items"></div>
+          <div id="colors" class="colors" aria-label="Colors"></div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

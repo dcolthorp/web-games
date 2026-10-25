@@ -51,6 +51,27 @@ const games: Game[] = [
     blurb: "Boxes all over the room. Open one and write something you love inside.",
   },
   {
+    id: "dress-up",
+    name: "Dress Up Doll",
+    path: "../games/dress-up/index.html",
+    genre: "Dress Up",
+    blurb: "Dress up your doll in tops, skirts, dresses, coats and shoes, in any colour.",
+  },
+  {
+    id: "pet-eggs",
+    name: "Pet Eggs",
+    path: "../games/pet-eggs/index.html",
+    genre: "Pets",
+    blurb: "Open an egg, hatch a pet, and take care of it. Earn bucks for more eggs!",
+  },
+  {
+    id: "draw-switch",
+    name: "Drawing Switch",
+    path: "../games/draw-switch/index.html",
+    genre: "Drawing",
+    blurb: "Draw with a friend on another computer. One minute each, then switch!",
+  },
+  {
     id: "sharks-in-the-water",
     name: "Sharks in the Water",
     menuLabel: "Sharks in the Water",

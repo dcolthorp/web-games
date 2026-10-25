@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drawing Switch</title>
+    <meta name="credits-made-by" content="Penelope" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../penelope/index.html">← Penelope's Games</a>
+      <header class="hero">
+        <p class="eyebrow">Penelope's drawing game</p>
+        <h1>Drawing Switch</h1>
+      </header>
+
+      <!-- Step 1: make a room, or join your friend's. -->
+      <section id="lobby" class="card lobby">
+        <label class="field">Your name: <input id="name" type="text" maxlength="16" placeholder="Penelope" /></label>
+        <div class="modes" role="group" aria-label="How do you want to play?">
+          <button id="mode-solo" class="mode" type="button" aria-pressed="false">🧍<span>By myself</span></button>
+          <button id="mode-together" class="mode" type="button" aria-pressed="true">👫<span>Together</span></button>
+        </div>
+        <div id="solo-choice" class="lobby-solo" hidden>
+          <p>You and Robo 🤖 each get your own paper and draw at the same time. SWITCH! You help with Robo's paper and Robo helps with yours. Then you get your paper back!</p>
+          <div class="laps" role="group" aria-label="How many times around?">
+            <span>How many times around?</span>
+            <button class="pill lap" type="button" data-laps="1" aria-pressed="true">1</button>
+            <button class="pill lap" type="button" data-laps="2" aria-pressed="false">2</button>
+            <button class="pill lap" type="button" data-laps="3" aria-pressed="false">3</button>
+            <button class="pill lap" type="button" data-laps="4" aria-pressed="false">4</button>
+          </div>
+          <p id="laps-note" class="laps-note"></p>
+          <button id="start-solo" class="pill pill-main" type="button">✏️ Start drawing!</button>
+        </div>
+        <div id="together-choice" class="lobby-choices">
+          <div class="choice">
+            <h2>Start a game</h2>
+            <p>You get a code to tell your friend.</p>
+            <button id="make" class="pill pill-main" type="button">✏️ Make a room</button>
+          </div>
+          <div class="choice">
+            <h2>Join a friend</h2>
+            <p>Type the code your friend got.</p>
+            <input id="code" class="code-input" type="text" maxlength="4" placeholder="CODE" autocapitalize="characters" />
+            <button id="join" class="pill pill-main" type="button">🤝 Join</button>
+          </div>
+        </div>
+        <p id="lobby-note" class="note" aria-live="polite"></p>
+        <p id="address" class="address"></p>
+      </section>
+
+      <!-- Step 2: draw! -->
+      <section id="game" class="card game" hidden>
+        <div class="status">
+          <p class="room">Room code: <strong id="room-code"></strong></p>
+          <p id="turn" class="turn" aria-live="polite"></p>
+          <p id="timer" class="timer"></p>
+        </div>
+        <div id="themes" class="themes" aria-live="polite"></div>
+        <!-- By yourself: Robo's paper, so you can watch Robo work. -->
+        <div id="robo-view" class="robo-view" hidden>
+          <canvas id="robo-paper" width="900" height="600" aria-label="The paper Robo is drawing on"></canvas>
+          <p id="robo-note"></p>
+        </div>
+        <div class="board">
+          <canvas id="paper" width="900" height="600" aria-label="The drawing"></canvas>
+          <p id="switch" class="switch-banner" hidden>SWITCH!</p>
+        </div>
+        <div id="tools" class="tools">
+          <div id="crayons" class="crayons" aria-label="Crayons"></div>
+          <label class="size">Size <input id="size" type="range" min="2" max="60" value="10" /></label>
+          <button id="eraser" class="pill" type="button" aria-pressed="false">🧽 Eraser</button>
+        </div>
+        <div class="game-buttons">
+          <button id="skip" class="pill" type="button">⏭️ I'm done, switch!</button>
+          <button id="new" class="pill" type="button">🗒️ New picture</button>
+          <button id="save" class="pill" type="button">💾 Save picture</button>
+          <button id="gallery-open" class="pill" type="button" hidden>🖼️ My pictures</button>
+          <button id="stop-solo" class="pill" type="button" hidden>🏁 I'm all done</button>
+        </div>
+        <p id="players" class="players"></p>
+      </section>
+      <!-- By yourself: all the pictures you drew. -->
+      <section id="gallery" class="card" hidden>
+        <h2 class="gallery-title">🖼️ My pictures</h2>
+        <p id="gallery-note" class="note"></p>
+        <div id="gallery-grid" class="gallery-grid"></div>
+        <div class="game-buttons">
+          <button id="gallery-back" class="pill pill-main" type="button">✏️ Keep drawing</button>
+          <button id="gallery-clear" class="pill" type="button">🗑️ Throw them all away</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
