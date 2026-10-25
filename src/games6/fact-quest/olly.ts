@@ -100,6 +100,17 @@ export const COSMETICS: { id: string; name: string; geometryDash: boolean; shop?
       <path d="M44 118 Q100 112 156 118 L100 168 Z" fill="#e5383b" stroke="#8e1f22" stroke-width="3" stroke-linejoin="round"/>
       <circle cx="80" cy="128" r="3" fill="#fff"/><circle cx="100" cy="140" r="3" fill="#fff"/><circle cx="120" cy="128" r="3" fill="#fff"/>`,
   },
+  {
+    // Found in the chest on the lava island in the Badlands.
+    id: "lava-cape",
+    name: "Lava cape",
+    geometryDash: false,
+    shop: true,
+    art: `
+      <path d="M50 140 Q30 176 40 188 L160 188 Q170 176 150 140 Q100 158 50 140 Z" fill="#e5480f" stroke="#7a2f18" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M60 160 Q70 150 80 166 Q92 150 104 168 Q116 150 128 166 Q138 152 146 162" fill="none" stroke="#ffd200" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="100" cy="146" r="7" fill="#ffd200" stroke="#7a2f18" stroke-width="2"/>`,
+  },
 ];
 
 // A Geometry Dash cube: orange-yellow, with a cyan face.

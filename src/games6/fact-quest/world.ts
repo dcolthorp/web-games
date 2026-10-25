@@ -55,6 +55,10 @@ import {
 // light blasts Olly back out and reveals a teleporter to THE BADLANDS: no
 // trees, lava, cliffs, new people with new trades, and an owl hiding there:
 // Hootie, Old Owl's little sister. Carry her to him for one more reunion.
+// The Badlands also have target blocks: press Space within five blocks and
+// Olly shoots the target, which sets something off (a mechanical chest, a
+// lever that slides a bridge over the lava, a secret cliff door, a gem
+// fountain).
 
 export interface WorldQuestion {
   text: string;
@@ -513,7 +517,27 @@ function buildBadlands(map: Tile[][], fill: (x: number, y: number, w: number, h:
   fill(113, 43, 6, 1, "B");
   fill(113, 43, 1, 6, "B");
   map[46]![113] = "b";
+  // A lava moat around a little island (the lever's bridge crosses it).
+  fill(103, 1, 9, 8, "!");
+  fill(105, 3, 5, 4, "b");
+  // A hidden vault room in the cliffs (the secret door opens it).
+  fill(113, 22, 6, 6, "Z");
+  fill(114, 23, 4, 4, "b");
 }
+
+// Target blocks: where each one stands and what hitting it does.
+type TargetId = "chest" | "lever" | "door" | "fountain";
+const TARGETS: { id: TargetId; tx: number; ty: number }[] = [
+  { id: "chest", tx: 89, ty: 28 },
+  { id: "lever", tx: 100, ty: 11 },
+  { id: "door", tx: 110, ty: 25 },
+  { id: "fountain", tx: 97, ty: 34 },
+];
+const SHOOT_RANGE = 5;
+const MECH_CHEST = { x: 86, y: 28 };
+const LEVER = { x: 102, y: 7 };
+const LAVA_BRIDGE: [number, number][] = [[107, 7], [107, 8]];
+const CLIFF_DOOR = { x: 113, y: 25 };
 
 const PURPLE_TREES: [number, number][] = [
   [50, 4], [55, 6], [61, 3], [49, 14], [62, 21], [65, 33], [77, 30], [77, 8], [56, 33], [63, 15],
@@ -610,6 +634,7 @@ const PIG_START: { id: string; tx: number; ty: number }[] = [
 const PIG_FARM = { x: 3, y: 3, w: 9, h: 7 };
 
 interface Loot {
+  cosmetic?: string;
   gems?: number;
   potions?: number;
   chaos?: number;
@@ -645,6 +670,14 @@ const CHESTS: { id: string; tx: number; ty: number; loot: Loot }[] = [
     ty: 46,
     loot: { gems: 150, crown: true, says: "THE ROYAL PURPLE CROWN and 150 gems! You conquered the purple sky castle!" },
   },
+  // The Badlands' target-block treasures (not needed for the purple castle).
+  {
+    id: "lava-island",
+    tx: 107,
+    ty: 4,
+    loot: { gems: 80, cosmetic: "lava-cape", says: "80 gems and a LAVA CAPE! (Put it on in 🎨 Cosmetics.)" },
+  },
+  { id: "cliff-vault", tx: 116, ty: 24, loot: { gems: 100, chaos: 3, says: "The cliff vault! 100 gems and 3 chaos orbs!" } },
 ];
 
 const LOOSE_GEMS: [number, number][] = [
@@ -848,6 +881,8 @@ interface WorldSave {
   // Hootie riding on Olly's head, and the Owl's Eye (no more dark places).
   carryingHootie: boolean;
   owlEye: boolean;
+  // Target blocks that have been hit.
+  targetsHit: TargetId[];
   // Which reunions have happened (twins used to be its own flag).
   reunited: ReunionId[];
   twins?: boolean;
@@ -892,6 +927,7 @@ function freshSave(): WorldSave {
     foundOwl: false,
     carryingHootie: false,
     owlEye: false,
+    targetsHit: [],
     reunited: [],
     x: START.x * T + T / 2,
     y: START.y * T + T / 2,
@@ -1017,6 +1053,8 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     save.cosmetics = true;
   }
   if (save.treeCut) map[PURPLE_TREE.y]![PURPLE_TREE.x] = "=";
+  if (save.targetsHit.includes("lever")) for (const [x, y] of LAVA_BRIDGE) map[y]![x] = "D";
+  if (save.targetsHit.includes("door")) map[CLIFF_DOOR.y]![CLIFF_DOOR.x] = "D";
   // The sky chest didn't have the saw in it at first.
   if (save.opened.includes("sky")) save.saw = true;
 
@@ -1105,6 +1143,11 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   let flash = 0;
   // Where the camera was last frame, so clicks on the canvas can find things.
   let lastCam = { x: 0, y: 0 };
+  // A shot flying at a target, and when each target was last hit (for its
+  // wobble).
+  let shot: { fromX: number; fromY: number; target: (typeof TARGETS)[number]; t: number } | null = null;
+  const targetHitAt = new Map<TargetId, number>();
+  let leverFlip = save.targetsHit.includes("lever") ? 1 : 0;
 
   // A reunion cutscene, while it plays: which one, and how far along.
   let reunion = -1;
@@ -1207,6 +1250,9 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return true;
     const tile = map[ty]![tx]!;
     if ("#~HfWRSY%PUMZB!A".includes(tile)) return true;
+    if (inBadlandsTile(tx) && TARGETS.some((t) => t.tx === tx && t.ty === ty)) return true;
+    if (tx === MECH_CHEST.x && ty === MECH_CHEST.y) return true;
+    if (tx === LEVER.x && ty === LEVER.y) return true;
     if (tx === METAL_BOX.x && ty === METAL_BOX.y) return true;
     if (plazaWall(tx, ty)) return true;
     if (NPCS.some((n) => n.tx === tx && n.ty === ty)) return true;
@@ -1286,6 +1332,15 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       if (beamDown > 3) beamDown = -1;
     }
     if (flash > 0) flash -= dt;
+    if (shot) {
+      shot.t += dt / 0.35;
+      if (shot.t >= 1) {
+        const target = shot.target;
+        shot = null;
+        hitTarget(target);
+      }
+    }
+    if (save.targetsHit.includes("lever") && leverFlip < 1) leverFlip = Math.min(1, leverFlip + dt * 3);
 
     if (watching && falling < 0 && shake <= 0) watching = null;
     if (reunion >= 0) {
@@ -1606,6 +1661,184 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     renderHud();
     renderCosmeticsButton();
     persist();
+  }
+
+  // --- Target blocks --------------------------------------------------------
+
+  function inBadlandsTile(tx: number): boolean {
+    return tx >= BADLANDS_X;
+  }
+
+  // Space within five blocks of a target: Olly shoots the nearest one.
+  function shootTarget(): boolean {
+    if (!inBadlands(olly.x) || shot) return false;
+    const nearest = TARGETS.map((target) => ({ target, distance: Math.hypot(tileCenter({ x: target.tx, y: target.ty }).x - olly.x, tileCenter({ x: target.tx, y: target.ty }).y - olly.y) }))
+      .filter((t) => t.distance <= SHOOT_RANGE * T)
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (!nearest) return false;
+    shot = { fromX: olly.x, fromY: olly.y - 10, target: nearest.target, t: 0 };
+    sound(() => whoosh(0.2));
+    return true;
+  }
+
+  function hitTarget(target: (typeof TARGETS)[number]): void {
+    targetHitAt.set(target.id, time);
+    sound(() => crack());
+    if (save.targetsHit.includes(target.id)) {
+      say("THWACK! Bullseye... but that one's already done its thing.");
+      return;
+    }
+    save.targetsHit.push(target.id);
+    if (target.id === "chest") {
+      save.gems += 60;
+      save.megaPotions += 2;
+      say("THWACK! Click-whirr-CLUNK... the MECHANICAL CHEST popped open! 60 gems and 2 mega potions!");
+    } else if (target.id === "lever") {
+      for (const [x, y] of LAVA_BRIDGE) map[y]![x] = "D";
+      shake = 0.5;
+      say("THWACK! The LEVER flipped... and a BRIDGE slid out across the lava to the island!");
+    } else if (target.id === "door") {
+      map[CLIFF_DOOR.y]![CLIFF_DOOR.x] = "D";
+      shake = 0.6;
+      sound(() => boom(0.6));
+      say("THWACK! RUMBLE... a SECRET DOOR opened in the cliff!");
+    } else {
+      // The gem fountain: gems burst out all around the target.
+      const center = tileCenter({ x: target.tx, y: target.ty });
+      for (let index = 0; index < 16; index += 1) {
+        const angle = (index / 16) * Math.PI * 2;
+        const distance = 40 + Math.random() * 70;
+        const x = center.x + Math.cos(angle) * distance;
+        const y = center.y + Math.sin(angle) * distance;
+        if (!blocked(x, y, 6)) pickups.push({ id: `fountain-${rainCount++}`, x, y, keep: false });
+      }
+      sound(() => chime());
+      say("THWACK! A GEM FOUNTAIN burst out of the ground! Grab them!");
+    }
+    renderHud();
+    persist();
+  }
+
+  function drawTargets(): void {
+    if (!inBadlands(olly.x)) return;
+    for (const target of TARGETS) {
+      const { x, y } = tileCenter({ x: target.tx, y: target.ty });
+      const done = save.targetsHit.includes(target.id);
+      const since = time - (targetHitAt.get(target.id) ?? -10);
+      const wobble = since < 0.6 ? Math.sin(since * 30) * (0.6 - since) * 0.6 : 0;
+      ctx.save();
+      ctx.translate(x, y + 12);
+      ctx.fillStyle = "#6b4a1e";
+      ctx.fillRect(-3, -10, 6, 14);
+      ctx.translate(0, -14);
+      ctx.rotate(wobble);
+      for (const [radius, color] of [[13, "#e5383b"], [9.5, "#ffffff"], [6, "#e5383b"], [2.5, "#ffffff"]] as const) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = "#202029";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 13, 0, Math.PI * 2);
+      ctx.stroke();
+      if (done) {
+        ctx.strokeStyle = "#3f8a2a";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-6, 0);
+        ctx.lineTo(-1, 5);
+        ctx.lineTo(7, -6);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // "Space: shoot" when Olly is in range of one that hasn't gone off.
+      if (!done && Math.hypot(x - olly.x, y - olly.y) <= SHOOT_RANGE * T) {
+        ctx.fillStyle = "#ffe14d";
+        ctx.font = "bold 11px 'DM Sans', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Space: shoot", x, y - 22);
+        ctx.textAlign = "start";
+      }
+    }
+
+    // The mechanical chest: metal with gears, open once its target is hit.
+    const chest = tileCenter(MECH_CHEST);
+    const open = save.targetsHit.includes("chest");
+    ctx.save();
+    ctx.translate(chest.x, chest.y);
+    ctx.fillStyle = "#8d94a3";
+    ctx.strokeStyle = "#3d4250";
+    ctx.lineWidth = 2;
+    ctx.fillRect(-14, -6, 28, 18);
+    ctx.strokeRect(-14, -6, 28, 18);
+    ctx.fillStyle = "#a3aab8";
+    ctx.fillRect(-15, open ? -20 : -12, 30, 7);
+    ctx.strokeRect(-15, open ? -20 : -12, 30, 7);
+    ctx.fillStyle = "#e8b923";
+    ctx.save();
+    ctx.translate(0, 3);
+    ctx.rotate(open ? 0 : time * 2);
+    for (let tooth = 0; tooth < 8; tooth += 1) {
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-1.5, -7, 3, 3);
+    }
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    if (open) {
+      ctx.fillStyle = "#ffd84d";
+      ctx.beginPath();
+      ctx.arc(-5, -7, 3, 0, Math.PI * 2);
+      ctx.arc(4, -7, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // The lever: flips from left to right.
+    const lever = tileCenter(LEVER);
+    ctx.save();
+    ctx.translate(lever.x, lever.y + 8);
+    ctx.fillStyle = "#5d6472";
+    ctx.fillRect(-10, -4, 20, 8);
+    ctx.rotate(-0.7 + leverFlip * 1.4);
+    ctx.strokeStyle = "#3d4250";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -20);
+    ctx.stroke();
+    ctx.fillStyle = save.targetsHit.includes("lever") ? "#6fae3c" : "#e5383b";
+    ctx.beginPath();
+    ctx.arc(0, -21, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // The shot in flight.
+    if (shot) {
+      const to = tileCenter({ x: shot.target.tx, y: shot.target.ty });
+      const x = shot.fromX + (to.x - shot.fromX) * shot.t;
+      const y = shot.fromY + (to.y - 2 - shot.fromY) * shot.t;
+      const angle = Math.atan2(to.y - shot.fromY, to.x - shot.fromX);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.strokeStyle = "#6b4a1e";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-12, 0);
+      ctx.lineTo(6, 0);
+      ctx.stroke();
+      ctx.fillStyle = "#c9ced8";
+      ctx.beginPath();
+      ctx.moveTo(10, 0);
+      ctx.lineTo(4, -4);
+      ctx.lineTo(4, 4);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   // --- The teleporter and the Badlands ------------------------------------
@@ -1971,6 +2204,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       persist();
       return;
     }
+    if (shootTarget()) return;
     const pig = pigs.find((p) => !save.following.includes(p.id) && Math.hypot(p.x - olly.x, p.y - olly.y) < 46);
     if (pig) {
       if (save.food <= 0) {
@@ -1997,6 +2231,11 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     if (loot.saw) save.saw = true;
     if (loot.strangeMap) save.strangeMap = true;
     if (loot.crown) save.crown = true;
+    if (loot.cosmetic && !save.boughtCosmetics.includes(loot.cosmetic)) {
+      save.boughtCosmetics.push(loot.cosmetic);
+      save.cosmetics = true;
+      renderCosmeticsButton();
+    }
     save.megaPotions += loot.megaPotions ?? 0;
     sound(() => chime());
     say(`Treasure! ${loot.says}`);
@@ -2343,7 +2582,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     for (const [name, has] of items) if (!has) missing.push(name);
     const left = ENEMY_START.filter((e) => !save.defeated.includes(e.id));
     if (left.length) missing.push(`beat ${left.length} more ${left.length === 1 ? "enemy" : "enemies"}`);
-    const closed = CHESTS.filter((c) => c.id !== "purple" && !save.opened.includes(c.id));
+    const closed = CHESTS.filter((c) => c.id !== "purple" && c.tx < BADLANDS_X && !save.opened.includes(c.id));
     if (closed.length) missing.push(`open ${closed.length} more treasure ${closed.length === 1 ? "chest" : "chests"}`);
     return missing;
   }
@@ -2902,6 +3141,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
 
     for (const chest of CHESTS) {
       if (!chestHere(chest)) continue;
+      if (inBadlands(chest.tx * T) !== inBadlands(olly.x)) continue;
       if (!save.crystal && inSecretRoom(chest.tx, chest.ty)) continue;
       drawSprite(save.opened.includes(chest.id) ? CHEST_OPEN : CHEST, chest.tx * T + T / 2, chest.ty * T + T / 2, 30);
     }
@@ -2972,6 +3212,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       drawTeleporter(tileCenter(TELEPORTER), ["#00e5ff", "#9b4fe0"]);
       drawTeleporter(tileCenter(BADLANDS_PAD), ["#ffb347", "#e5383b"]);
     }
+    drawTargets();
     if (inBadlands(olly.x) && hootieInHideout()) {
       const owl = tileCenter(OWL_HIDEOUT);
       drawSprite(HIDING_OWL, owl.x, owl.y - 2 + Math.sin(time * 2) * 1.5, 30);
