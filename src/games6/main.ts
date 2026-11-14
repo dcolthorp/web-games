@@ -21,6 +21,13 @@ const games: Game[] = [
     blurb: "Rebuilt from Dad's, with a remainder box for division.",
   },
   {
+    id: "make-your-own-maze",
+    name: "Make Your Own Maze",
+    path: "./make-your-own-maze/index.html",
+    genre: "Merge",
+    blurb: "Balls bounce through your maze and every block they hit pays you. Merge blocks to level them up.",
+  },
+  {
     // The original that Dad made. It lives on its own site, so its saved
     // progress stays put.
     id: "dads-fact-quest",

@@ -133,6 +133,7 @@ export default defineConfig({
         games5: resolve(__dirname, "src/games5/index.html"),
         games6: resolve(__dirname, "src/games6/index.html"),
         factQuest: resolve(__dirname, "src/games6/fact-quest/index.html"),
+        makeYourOwnMaze: resolve(__dirname, "src/games6/make-your-own-maze/index.html"),
         theSimulation: resolve(__dirname, "src/games5/the-simulation/index.html"),
         crossYourFingers: resolve(__dirname, "src/games5/cross-your-fingers/index.html"),
         drawAndSwap: resolve(__dirname, "src/games5/draw-and-swap/index.html"),
