@@ -4,9 +4,9 @@
 // corner. The corner is snapped off, cracks spider out from where it hit, and
 // the broken pieces are lying on the floor under it.
 //
-// The game itself comes next. For now this is the title card.
+// Click the title card to start the game (game.ts).
 
-export {};
+import { showMenu } from "./menu";
 
 const canvas = document.getElementById("screen") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -366,6 +366,7 @@ function drawPrompt(now: number, t: number): void {
 
 let last = performance.now();
 function frame(now: number): void {
+  if (!onTitle) return;
   const dt = Math.min((now - last) / 1000, 0.033);
   last = now;
   const t = (now - startTime) / 1000;
@@ -397,16 +398,19 @@ function frame(now: number): void {
   requestAnimationFrame(frame);
 }
 
-const NOT_YET = ["NOT YET! IT'S STILL BROKEN", "OSCAR IS STILL BUILDING IT", "STOP HITTING IT", "IT'S ALREADY DESTROYED"];
-let notYet = 0;
-canvas.addEventListener("click", () => {
-  if (!smashed) return;
-  nudge = 1;
-  message = NOT_YET[notYet++ % NOT_YET.length]!;
-  messageUntil = performance.now() + 1600;
+let onTitle = true;
+function leaveTitle(): void {
+  if (!onTitle || !smashed) return;
+  onTitle = false;
+  showMenu(canvas);
+}
+canvas.addEventListener("click", leaveTitle);
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") leaveTitle();
 });
 
 window.addEventListener("resize", () => {
+  if (!onTitle) return;
   layout = buildLayout();
   if (smashed) {
     // Rebuild the pieces for the new size and drop them straight onto the floor.

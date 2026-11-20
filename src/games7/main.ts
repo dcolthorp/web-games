@@ -28,8 +28,8 @@ const games: Game[] = [
     id: "destroy-the-game",
     name: "Destroy the Game",
     path: "./destroy-the-game/index.html",
-    genre: "Smash It",
-    blurb: "Something already crashed into the title card. Coming soon.",
+    genre: "Sketchy Platformer",
+    blurb: "Hit D to dash. Fly over spikes and smash through cracked walls.",
   },
 ];
 

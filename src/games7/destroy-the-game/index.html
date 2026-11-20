@@ -6,12 +6,48 @@
     <title>Destroy the Game</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=DM+Sans:wght@400;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Patrick+Hand&family=DM+Sans:wght@400;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <a class="back-link" href="../index.html">← Games 7</a>
+    <canvas id="demo" aria-hidden="true"></canvas>
     <canvas id="screen" aria-label="Destroy the Game title card"></canvas>
+    <div class="menu" id="menu" hidden>
+      <div class="menu-card">
+        <h1 class="menu-title">Destroy<br />the Game</h1>
+        <div class="menu-page" id="menu-main">
+          <button class="sketch-btn big" id="menu-play" type="button">▶ Play</button>
+          <button class="sketch-btn" data-page="menu-levels" type="button">Level Select</button>
+          <button class="sketch-btn" data-page="menu-moves" type="button">Moves</button>
+          <button class="sketch-btn" id="menu-test" type="button">🧪 Test Level</button>
+          <button class="sketch-btn" data-page="menu-how" type="button">How to Play</button>
+          <a class="sketch-btn" href="../index.html">Back to Games 7</a>
+        </div>
+        <div class="menu-page" id="menu-levels" hidden>
+          <h2>Level Select</h2>
+          <div class="level-grid" id="level-grid"></div>
+          <button class="sketch-btn" data-page="menu-main" type="button">← Back</button>
+        </div>
+        <div class="menu-page" id="menu-moves" hidden>
+          <h2>Moves</h2>
+          <ul class="moves" id="moves-list"></ul>
+          <button class="sketch-btn" data-page="menu-main" type="button">← Back</button>
+        </div>
+        <div class="menu-page" id="menu-how" hidden>
+          <h2>How to Play</h2>
+          <ul class="how">
+            <li><b>← →</b> run</li>
+            <li><b>↑</b> or <b>Space</b> jump (W is for water, not jumping!)</li>
+            <li><b>R</b> restart the level · <b>Esc</b> back to this menu</li>
+            <li>Get to the green <b>EXIT</b> door.</li>
+            <li>Spikes get you, unless you're dashing.</li>
+            <li>Every 5 levels a sign pops up with a <b>new move</b>.</li>
+          </ul>
+          <button class="sketch-btn" data-page="menu-main" type="button">← Back</button>
+        </div>
+      </div>
+    </div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

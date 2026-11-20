@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# Destroy the Game test level: never commit or push this (Oscar's rule)
+src/games7/destroy-the-game/test-level.ts

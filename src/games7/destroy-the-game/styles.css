@@ -15,10 +15,157 @@ body {
   font: 15px/1.4 "DM Sans", system-ui, sans-serif;
 }
 
-#screen {
+#screen,
+#demo {
+  position: fixed;
+  inset: 0;
   display: block;
   width: 100vw;
   height: 100vh;
+}
+
+/* The main menu: the game plays itself behind it, blurred, over and over. */
+#demo {
+  filter: blur(6px) brightness(0.75);
+  transform: scale(1.04); /* hides the blurry edges */
+}
+
+body.on-menu #screen {
+  display: none;
+}
+
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  font-family: "Patrick Hand", "Comic Sans MS", cursive;
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.menu-card {
+  width: min(420px, 100%);
+  padding: 22px 26px 26px;
+  border: 3px solid #2b2725;
+  border-radius: 14px 18px 12px 20px;
+  background:
+    repeating-linear-gradient(transparent 0 29px, rgba(90, 140, 210, 0.22) 29px 30px),
+    #f7f1e1;
+  color: #2b2725;
+  box-shadow: 8px 10px 0 rgba(0, 0, 0, 0.45);
+  transform: rotate(-1deg);
+  text-align: center;
+}
+
+.menu-title {
+  margin: 0 0 14px;
+  font-family: Bungee, Impact, sans-serif;
+  font-size: clamp(30px, 8vw, 46px);
+  font-weight: 400;
+  line-height: 1;
+  color: #c0392b;
+  text-shadow: 3px 3px 0 #2b2725;
+}
+
+.menu-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-page[hidden] {
+  display: none;
+}
+
+.menu-page h2 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 400;
+}
+
+.sketch-btn {
+  display: block;
+  padding: 8px 14px;
+  border: 2.5px solid #2b2725;
+  border-radius: 10px 14px 9px 13px;
+  background: #fffdf5;
+  color: #2b2725;
+  font: 24px "Patrick Hand", "Comic Sans MS", cursive;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.sketch-btn:hover,
+.sketch-btn:focus-visible {
+  background: #ffe08a;
+  transform: rotate(-1.5deg) scale(1.03);
+  outline: none;
+}
+
+.sketch-btn.big {
+  background: #9be59b;
+  font-size: 30px;
+}
+
+.level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.level-btn {
+  aspect-ratio: 1;
+  border: 2.5px solid #2b2725;
+  border-radius: 9px 12px 8px 11px;
+  background: #fffdf5;
+  color: #2b2725;
+  font: 24px "Patrick Hand", "Comic Sans MS", cursive;
+  cursor: pointer;
+}
+
+.level-btn:hover:not(:disabled) {
+  background: #ffe08a;
+  transform: rotate(-3deg);
+}
+
+.level-btn:disabled {
+  background: #ddd6c4;
+  color: #8a8174;
+  cursor: not-allowed;
+}
+
+.level-btn.new-move {
+  border-color: #c0392b;
+}
+
+.moves,
+.how {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 21px;
+  text-align: left;
+}
+
+.moves li,
+.how li {
+  padding: 6px 0;
+  border-bottom: 1.5px dashed rgba(43, 39, 37, 0.3);
+}
+
+.moves .locked {
+  color: #8a8174;
+}
+
+.moves b,
+.how b {
+  color: #c0392b;
 }
 
 .back-link {
@@ -33,4 +180,8 @@ body {
 
 .back-link:hover {
   text-decoration: underline;
+}
+
+.sketch-btn[hidden] {
+  display: none;
 }
