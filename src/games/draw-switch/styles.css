@@ -174,3 +174,23 @@ body {
 #robo-paper { width: 240px; max-width: 45%; height: auto; border-radius: 10px; border: 3px solid #cdbdf2; background: #fff; }
 .robo-view p { margin: 0; font-weight: 800; font-size: 1.05rem; }
 @media (max-width: 640px) { .robo-view { flex-direction: column; } #robo-paper { max-width: 70%; } }
+
+.learn { margin-top: 14px; text-align: center; }
+.learn-button { font-size: 1.15rem; padding: 12px 22px; }
+.learn-button small { font-size: 0.8em; opacity: 0.8; }
+.learn-choice { margin-top: 10px; padding: 14px; border-radius: 18px; background: #faf6ff; font-weight: 800; }
+.learn-choice[hidden], .game-buttons[hidden] { display: none; }
+.learn-choice p { margin: 0 0 10px; }
+.learn-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.learn-list .pill { font-size: 0.95rem; padding: 8px 14px; }
+.ghost {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  border-radius: 12px;
+  opacity: 0.45;
+  pointer-events: none;
+}
+.ghost[hidden] { display: none; }

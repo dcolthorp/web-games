@@ -4,6 +4,7 @@ import {
   ARROW_FOE,
   BANDIT,
   POISON_ARROW,
+  TARGET_MIMIC,
   CHEST,
   CHEST_OPEN,
   CRYSTAL,
@@ -58,7 +59,12 @@ import {
 // The Badlands also have target blocks: press Space within five blocks and
 // Olly shoots the target, which sets something off (a mechanical chest, a
 // lever that slides a bridge over the lava, a secret cliff door, a gem
-// fountain).
+// fountain). A target behind Hootie's hideout drops a bomb at the camp;
+// carried to the crack in the cliffs it blows open a secret passageway full
+// of traps (bear traps, swinging axes, giant bowling balls, trick targets),
+// and past that is THE UNRENDERED: white and glitchy, with glitch cubes that
+// burst into fragments when clicked. Twenty fragments make a new glitch, and
+// that one can delete the weird X in the Purple Woods.
 
 export interface WorldQuestion {
   text: string;
@@ -83,7 +89,7 @@ export interface WorldApi {
 }
 
 const T = 32;
-const MAP_W = 120;
+const MAP_W = 200;
 const MAP_H = 50;
 const VIEW_W = 960;
 const VIEW_H = 576;
@@ -103,7 +109,10 @@ const SPEED = 150;
 // A adobe house
 type Tile =
   | "." | "#" | "=" | "~" | "H" | "f" | "W" | "c" | "R" | "o" | "S" | "Y" | "p" | "," | "%" | "P" | "q"
-  | "U" | "h" | "M" | "k" | "L" | "b" | "D" | "Z" | "B" | "!" | "A";
+  | "U" | "h" | "M" | "k" | "L" | "b" | "D" | "Z" | "B" | "!" | "A"
+  // Past the Badlands: K the crack in the cliff  n passageway floor
+  // w the Unrendered's white floor  v white tree  V white house  y white plaza
+  | "K" | "n" | "w" | "v" | "V" | "y";
 
 const PLAZA = { x: 19, y: 10, w: 11, h: 9 };
 const PLAZA_GATE = { x: 24, y: 18 };
@@ -404,6 +413,14 @@ const PURPLE_TREE = { x: 47, y: 17 };
 const WOODS = { x: 48, y: 1, w: 31, h: MAP_H - 2 };
 // The Badlands: only reachable by the teleporter.
 const BADLANDS_X = 80;
+// Past the Badlands' east cliffs: the trap passageway and the Unrendered.
+const BEYOND_X = 120;
+const UNRENDERED_X = 160;
+const CRACK = { x: 119, y: 12 };
+const PASSAGE_START = { x: 121, y: 12 };
+const CAMP = { x: 101, y: 24 };
+const UNRENDERED_PAD = { x: 163, y: 35 };
+const FRAGMENTS_NEEDED = 20;
 const TELEPORTER = { x: 49, y: 44 };
 const BADLANDS_PAD = { x: 84, y: 24 };
 const OWL_HIDEOUT = { x: 116, y: 46 };
@@ -435,6 +452,7 @@ function buildMap(): Tile[][] {
   // The woods end in a wall of trees; past it is the Badlands.
   fill(79, 0, 1, MAP_H, "#");
   buildBadlands(map, fill);
+  buildBeyond(map, fill);
   map[PURPLE_TREE.y]![PURPLE_TREE.x] = "P";
   buildWoods(map, fill, frame);
   // The first land ends in thick forest; only the woods go further south.
@@ -497,7 +515,7 @@ const BOULDERS: [number, number][] = [
 function buildBadlands(map: Tile[][], fill: (x: number, y: number, w: number, h: number, tile: Tile) => void): void {
   // Cliffs all the way around, red dirt inside. No trees anywhere.
   fill(BADLANDS_X, 0, MAP_W - BADLANDS_X, MAP_H, "Z");
-  fill(BADLANDS_X + 1, 1, MAP_W - BADLANDS_X - 2, MAP_H - 2, "b");
+  fill(BADLANDS_X + 1, 1, BEYOND_X - BADLANDS_X - 2, MAP_H - 2, "b");
   // The settlement: three adobe houses.
   fill(98, 19, 3, 2, "A");
   fill(103, 19, 3, 2, "A");
@@ -523,15 +541,67 @@ function buildBadlands(map: Tile[][], fill: (x: number, y: number, w: number, h:
   // A hidden vault room in the cliffs (the secret door opens it).
   fill(113, 22, 6, 6, "Z");
   fill(114, 23, 4, 4, "b");
+  // A crack in the east cliff, where the bomb goes.
+  map[CRACK.y]![CRACK.x] = "K";
 }
 
+const WHITE_TREES: [number, number][] = [
+  [166, 6], [171, 10], [177, 4], [185, 8], [192, 5], [196, 14], [168, 20], [175, 26], [190, 24], [194, 32],
+  [170, 42], [181, 44], [188, 40], [165, 30],
+];
+
+// The trap passageway and the Unrendered, beyond the Badlands.
+function buildBeyond(map: Tile[][], fill: (x: number, y: number, w: number, h: number, tile: Tile) => void): void {
+  fill(BEYOND_X, 0, MAP_W - BEYOND_X, MAP_H, "Z");
+  // The passageway: east, then a long way south (where the bowling balls
+  // roll), then east again into the Unrendered.
+  fill(120, 11, 31, 3, "n");
+  fill(148, 11, 3, 26, "n");
+  fill(148, 34, 12, 3, "n");
+  // Little gaps in the wall to hide from the bowling balls.
+  for (const y of [18, 24, 30]) map[y]![151] = "n";
+  // Alcoves where the trick targets sit.
+  map[10]![140] = "n";
+  map[25]![147] = "n";
+  // The Unrendered: white floor, white trees, white houses, a white plaza.
+  fill(UNRENDERED_X, 1, MAP_W - UNRENDERED_X - 1, MAP_H - 2, "w");
+  fill(178, 16, 10, 8, "y");
+  fill(172, 34, 3, 2, "V");
+  fill(184, 30, 3, 2, "V");
+  fill(192, 40, 3, 2, "V");
+  for (const [x, y] of WHITE_TREES) map[y]![x] = "v";
+}
+
+// Traps in the passageway.
+const BEAR_TRAPS: [number, number][] = [
+  [126, 12], [130, 11], [130, 13], [135, 12], [148, 20], [150, 27], [153, 35], [157, 34],
+];
+// Axes swing across the passage at these columns (and rows).
+const AXES: { x: number; rows: [number, number]; phase: number }[] = [
+  { x: 138, rows: [11, 13], phase: 0 },
+  { x: 143, rows: [11, 13], phase: 1.6 },
+  { x: 155, rows: [34, 36], phase: 0.8 },
+];
+// Giant bowling balls roll down the long hallway from here to here.
+const BOWLING_LANE = { x: 149, fromY: 12, toY: 36, every: 2.6 };
+const BALL_SPEED = 230;
+const BALL_RADIUS = 40;
+// Checkpoints: the top of the bowling lane, and just past the bottom of it.
+const LANE_TOP = { x: 146, y: 12 };
+const LANE_BOTTOM = { x: 152, y: 35 };
+
 // Target blocks: where each one stands and what hitting it does.
-type TargetId = "chest" | "lever" | "door" | "fountain";
+type TargetId = "chest" | "lever" | "door" | "fountain" | "bomb" | "trick-1" | "trick-2";
 const TARGETS: { id: TargetId; tx: number; ty: number }[] = [
   { id: "chest", tx: 89, ty: 28 },
   { id: "lever", tx: 100, ty: 11 },
   { id: "door", tx: 110, ty: 25 },
   { id: "fountain", tx: 97, ty: 34 },
+  // Behind Hootie's hideout: drops a bomb at the camp.
+  { id: "bomb", tx: 118, ty: 46 },
+  // In the passageway: they look like any other target. They aren't.
+  { id: "trick-1", tx: 140, ty: 10 },
+  { id: "trick-2", tx: 147, ty: 25 },
 ];
 const SHOOT_RANGE = 5;
 const MECH_CHEST = { x: 86, y: 28 };
@@ -593,7 +663,7 @@ const NPCS: { id: ShopId; name: string; art: string; tx: number; ty: number; hel
   { id: "cinder", name: "Cinder", art: CINDER, tx: 99, ty: 26, hello: "Howdy! Out here you gotta look the part. Wanna look the part?" },
 ];
 
-type EnemyKind = "goblin" | "skeleton" | "troll" | "arrow" | "bandit" | "snapper" | "wizard" | "poisonArrow";
+type EnemyKind = "goblin" | "skeleton" | "troll" | "arrow" | "bandit" | "snapper" | "wizard" | "poisonArrow" | "mimic";
 
 const ENEMY_KINDS: Record<EnemyKind, { name: string; art: string; hp: number; damage: number; reward: number }> = {
   goblin: { name: "Goblin Guard", art: GOBLIN, hp: 3, damage: 20, reward: 6 },
@@ -605,6 +675,8 @@ const ENEMY_KINDS: Record<EnemyKind, { name: string; art: string; hp: number; da
   wizard: { name: "The Shadow Wizard", art: WIZARD, hp: 8, damage: 40, reward: 30 },
   // Poison: Olly also loses a little health every question in this fight.
   poisonArrow: { name: "Poison Arrow", art: POISON_ARROW, hp: 2, damage: 25, reward: 4 },
+  // A trick target in the passageway, with teeth.
+  mimic: { name: "Target Mimic", art: TARGET_MIMIC, hp: 6, damage: 45, reward: 25 },
 };
 
 // castle: one of the castle enemies that have to be beaten for the sky castle.
@@ -881,6 +953,15 @@ interface WorldSave {
   // Hootie riding on Olly's head, and the Owl's Eye (no more dark places).
   carryingHootie: boolean;
   owlEye: boolean;
+  // The bomb, the passageway it blows open, the Unrendered's glitch
+  // fragments, the new glitch they make, and the X it deletes.
+  bombDropped: boolean;
+  carryingBomb: boolean;
+  passageOpen: boolean;
+  unrendered: boolean;
+  fragments: number;
+  glitch2: boolean;
+  xDeleted: boolean;
   // Target blocks that have been hit.
   targetsHit: TargetId[];
   // Which reunions have happened (twins used to be its own flag).
@@ -927,6 +1008,13 @@ function freshSave(): WorldSave {
     foundOwl: false,
     carryingHootie: false,
     owlEye: false,
+    bombDropped: false,
+    carryingBomb: false,
+    passageOpen: false,
+    unrendered: false,
+    fragments: 0,
+    glitch2: false,
+    xDeleted: false,
     targetsHit: [],
     reunited: [],
     x: START.x * T + T / 2,
@@ -1019,6 +1107,8 @@ interface Pickup {
   x: number;
   y: number;
   keep: boolean;
+  // Glitch fragments from the Unrendered's cubes, instead of a gem.
+  fragment?: true;
 }
 
 type Chaos = "pigParty" | "upsideDown" | "gemRain" | "tiny" | "zoomies";
@@ -1055,6 +1145,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   if (save.treeCut) map[PURPLE_TREE.y]![PURPLE_TREE.x] = "=";
   if (save.targetsHit.includes("lever")) for (const [x, y] of LAVA_BRIDGE) map[y]![x] = "D";
   if (save.targetsHit.includes("door")) map[CLIFF_DOOR.y]![CLIFF_DOOR.x] = "D";
+  if (save.passageOpen) map[CRACK.y]![CRACK.x] = "n";
   // The sky chest didn't have the saw in it at first.
   if (save.opened.includes("sky")) save.saw = true;
 
@@ -1148,6 +1239,22 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   let shot: { fromX: number; fromY: number; target: (typeof TARGETS)[number]; t: number } | null = null;
   const targetHitAt = new Map<TargetId, number>();
   let leverFlip = save.targetsHit.includes("lever") ? 1 : 0;
+  // The bomb falling onto the camp (0 to 1), its fuse once it's set by the
+  // crack, and the explosion after.
+  let bombFall = 1;
+  let fuse = -1;
+  let blast = -1;
+  // Where Olly goes back to when a trap gets him: the start of the passage,
+  // the top of the bowling lane, or past it.
+  let checkpoint = PASSAGE_START;
+  const snapped = new Map<string, number>();
+  let saidPassage = false;
+  // Glitchy white cubes in the Unrendered. Click one and it explodes into
+  // glitch fragments, then comes back somewhere else a while later.
+  const cubes = Array.from({ length: 16 }, () => ({ x: 0, y: 0, size: 0, jx: 0, jy: 0, jitterIn: 0, back: 0 }));
+  for (const cube of cubes) placeCube(cube);
+  const shards: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
+  let fragmentCount = 0;
 
   // A reunion cutscene, while it plays: which one, and how far along.
   let reunion = -1;
@@ -1216,6 +1323,9 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       ${save.vaultKey ? "<span>🗝️ Vault key</span>" : ""}
       ${save.carryingHootie ? "<span>🦉 Carrying Hootie</span>" : ""}
       ${save.owlEye ? "<span>👁️ Owl's eye</span>" : ""}
+      ${save.carryingBomb ? "<span>💣 Carrying a bomb</span>" : ""}
+      ${save.unrendered && !save.glitch2 ? `<span>🧩 Glitch fragments ${save.fragments}/${FRAGMENTS_NEEDED}</span>` : ""}
+      ${save.glitch2 && !save.xDeleted ? "<span>👾 New glitch (G)</span>" : ""}
       ${REUNIONS.filter((r) => save.reunited.includes(r.id)).map((r) => `<span>${r.badge}</span>`).join("")}
       ${MATRIX_REUNIONS.every((r) => save.reunited.includes(r.id)) ? "<span>🏆 Matrix hero</span>" : ""}
     `;
@@ -1249,8 +1359,8 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   function solidTile(tx: number, ty: number): boolean {
     if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return true;
     const tile = map[ty]![tx]!;
-    if ("#~HfWRSY%PUMZB!A".includes(tile)) return true;
-    if (inBadlandsTile(tx) && TARGETS.some((t) => t.tx === tx && t.ty === ty)) return true;
+    if ("#~HfWRSY%PUMZB!AKvV".includes(tile)) return true;
+    if (TARGETS.some((t) => t.tx === tx && t.ty === ty)) return true;
     if (tx === MECH_CHEST.x && ty === MECH_CHEST.y) return true;
     if (tx === LEVER.x && ty === LEVER.y) return true;
     if (tx === METAL_BOX.x && ty === METAL_BOX.y) return true;
@@ -1332,6 +1442,22 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       if (beamDown > 3) beamDown = -1;
     }
     if (flash > 0) flash -= dt;
+    if (bombFall < 1) bombFall = Math.min(1, bombFall + dt / 1.2);
+    if (blast >= 0) {
+      blast += dt;
+      if (blast > 1.2) blast = -1;
+    }
+    if (fuse >= 0) {
+      fuse -= dt;
+      if (fuse < 0) explodeCrack();
+    }
+    for (let index = shards.length - 1; index >= 0; index -= 1) {
+      const shard = shards[index]!;
+      shard.x += shard.vx * dt;
+      shard.y += shard.vy * dt;
+      shard.life -= dt;
+      if (shard.life <= 0) shards.splice(index, 1);
+    }
     if (shot) {
       shot.t += dt / 0.35;
       if (shot.t >= 1) {
@@ -1368,6 +1494,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     moveOlly(dt);
     standOnTheX(dt);
     updateGlitch(dt);
+    updateBeyond(dt);
 
     for (const enemy of enemies) wander(enemy, enemy.home, 40, dt);
     const following = save.following;
@@ -1388,9 +1515,16 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     // Gems get picked up just by walking over them.
     for (let index = pickups.length - 1; index >= 0; index -= 1) {
       const gem = pickups[index]!;
-      if (Math.hypot(gem.x - olly.x, gem.y - olly.y) < 22) {
+      // Glitch fragments drift over to Olly once he's close.
+      const away = Math.hypot(gem.x - olly.x, gem.y - olly.y);
+      if (gem.fragment && away < 150) {
+        gem.x += (olly.x - gem.x) * Math.min(1, dt * 5);
+        gem.y += (olly.y - gem.y) * Math.min(1, dt * 5);
+      }
+      if (away < 22) {
         pickups.splice(index, 1);
-        save.gems += 1;
+        if (gem.fragment) collectFragment();
+        else save.gems += 1;
         if (gem.keep) save.taken.push(gem.id);
         sound(() => chime());
         renderHud();
@@ -1455,7 +1589,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   // The X only shows up for someone with the strange map. Stand on it for
   // five seconds and the portal opens.
   function standOnTheX(dt: number): void {
-    if (!save.strangeMap) return;
+    if (!save.strangeMap || save.xDeleted) return;
     const onIt = Math.floor(olly.x / T) === MATRIX_X.x && Math.floor(olly.y / T) === MATRIX_X.y;
     if (!onIt) {
       onX = 0;
@@ -1595,7 +1729,9 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   // G: the glitch deletes the tile in front of Olly. It only works on the
   // weird mushroom.
   function useGlitch(): void {
-    if (!save.glitch || save.boxOpened) {
+    const firstGlitch = save.glitch && !save.boxOpened;
+    const newGlitch = save.glitch2 && !save.xDeleted;
+    if (!firstGlitch && !newGlitch) {
       say(save.boxOpened ? "The glitch is in the metal box now." : "You don't have anything that can delete stuff.");
       return;
     }
@@ -1603,13 +1739,23 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     const ty = Math.floor(olly.y / T) + Math.sign(olly.dirY);
     zap = { x: tx * T + T / 2, y: ty * T + T / 2, until: time + 0.6 };
     sound(() => crack());
-    if (map[ty]?.[tx] === "U") {
+    const onX = Math.floor(olly.x / T) === MATRIX_X.x && Math.floor(olly.y / T) === MATRIX_X.y;
+    if (newGlitch && (onX || (tx === MATRIX_X.x && ty === MATRIX_X.y))) {
+      save.xDeleted = true;
+      zap = { x: MATRIX_X.x * T + T / 2, y: MATRIX_X.y * T + T / 2, until: time + 1 };
+      shake = 0.4;
+      renderHud();
+      say("DELETED! The weird X is gone forever. The Purple Woods feel a whole lot less weird now. (To be continued...)");
+      persist();
+      return;
+    }
+    if (firstGlitch && map[ty]?.[tx] === "U") {
       map[ty]![tx] = "h";
       save.mushroomDeleted = true;
       say("DELETED! The weird mushroom vanished... and there's a HATCH under it! Stand on it and press Space to climb down.");
       persist();
     } else {
-      say("Bzzt! The glitch fizzles. It only wants to delete something WEIRD...");
+      say(newGlitch ? "Bzzt! This glitch only wants to delete one thing: that weird X in the Purple Woods." : "Bzzt! The glitch fizzles. It only wants to delete something WEIRD...");
     }
   }
 
@@ -1666,16 +1812,37 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   // --- Target blocks --------------------------------------------------------
 
   function inBadlandsTile(tx: number): boolean {
-    return tx >= BADLANDS_X;
+    return tx >= BADLANDS_X && tx < BEYOND_X;
   }
 
-  // Space within five blocks of a target: Olly shoots the nearest one.
+  function distanceTo(tx: number, ty: number): number {
+    const center = tileCenter({ x: tx, y: ty });
+    return Math.hypot(center.x - olly.x, center.y - olly.y);
+  }
+
+  // Space within five blocks of a target: Olly shoots the nearest one. But if
+  // a person, a chest, the teleporter pad or Hootie is closer than that
+  // target, Space is for them instead (from any distance within the range).
   function shootTarget(): boolean {
-    if (!inBadlands(olly.x) || shot) return false;
-    const nearest = TARGETS.map((target) => ({ target, distance: Math.hypot(tileCenter({ x: target.tx, y: target.ty }).x - olly.x, tileCenter({ x: target.tx, y: target.ty }).y - olly.y) }))
-      .filter((t) => t.distance <= SHOOT_RANGE * T)
+    if (regionOf(olly.x) === 0 || shot) return false;
+    const nearest = TARGETS.map((target) => ({ target, distance: distanceTo(target.tx, target.ty) }))
+      .filter((t) => t.distance <= SHOOT_RANGE * T && regionOf(t.target.tx * T) === regionOf(olly.x))
       .sort((a, b) => a.distance - b.distance)[0];
     if (!nearest) return false;
+    const others: { distance: number; use(): void }[] = [
+      ...NPCS.filter((n) => inBadlandsTile(n.tx)).map((n) => ({ distance: distanceTo(n.tx, n.ty), use: () => openShop(n.id) })),
+      ...CHESTS.filter((c) => inBadlandsTile(c.tx) && !save.opened.includes(c.id) && chestHere(c)).map((c) => ({
+        distance: distanceTo(c.tx, c.ty),
+        use: () => openChest(c),
+      })),
+      ...(save.teleporter ? [{ distance: distanceTo(BADLANDS_PAD.x, BADLANDS_PAD.y), use: teleport }] : []),
+      ...(hootieInHideout() ? [{ distance: distanceTo(OWL_HIDEOUT.x, OWL_HIDEOUT.y), use: talkToHidingOwl }] : []),
+    ];
+    const closer = others.filter((o) => o.distance < nearest.distance).sort((a, b) => a.distance - b.distance)[0];
+    if (closer) {
+      closer.use();
+      return true;
+    }
     shot = { fromX: olly.x, fromY: olly.y - 10, target: nearest.target, t: 0 };
     sound(() => whoosh(0.2));
     return true;
@@ -1689,6 +1856,23 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       return;
     }
     save.targetsHit.push(target.id);
+    if (target.id === "trick-1" || target.id === "trick-2") {
+      // It was never a real target. (Once is enough: after that it's just a
+      // sleepy old mimic.)
+      say("IT'S A TRICK! The target opened its MOUTH...");
+      persist();
+      startFight("mimic", null);
+      return;
+    }
+    if (target.id === "bomb") {
+      save.bombDropped = true;
+      bombFall = 0;
+      sound(() => whoosh(1.5));
+      say("THWACK! Something is whistling through the sky... a BOMB just landed at the camp! 💣");
+      renderHud();
+      persist();
+      return;
+    }
     if (target.id === "chest") {
       save.gems += 60;
       save.megaPotions += 2;
@@ -1720,8 +1904,9 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   }
 
   function drawTargets(): void {
-    if (!inBadlands(olly.x)) return;
+    if (regionOf(olly.x) === 0) return;
     for (const target of TARGETS) {
+      if (regionOf(target.tx * T) !== regionOf(olly.x)) continue;
       const { x, y } = tileCenter({ x: target.tx, y: target.ty });
       const done = save.targetsHit.includes(target.id);
       const since = time - (targetHitAt.get(target.id) ?? -10);
@@ -1762,6 +1947,9 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
         ctx.textAlign = "start";
       }
     }
+
+    drawShot();
+    if (!inBadlands(olly.x)) return;
 
     // The mechanical chest: metal with gears, open once its target is hit.
     const chest = tileCenter(MECH_CHEST);
@@ -1816,7 +2004,10 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     ctx.fill();
     ctx.restore();
 
-    // The shot in flight.
+  }
+
+  // The shot in flight.
+  function drawShot(): void {
     if (shot) {
       const to = tileCenter({ x: shot.target.tx, y: shot.target.ty });
       const x = shot.fromX + (to.x - shot.fromX) * shot.t;
@@ -1844,7 +2035,24 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
   // --- The teleporter and the Badlands ------------------------------------
 
   function inBadlands(x: number): boolean {
-    return x >= BADLANDS_X * T;
+    return x >= BADLANDS_X * T && x < BEYOND_X * T;
+  }
+
+  // Which part of the map an x is in: the first land and the woods (0), the
+  // Badlands (1), or beyond them, the passageway and the Unrendered (2).
+  // Each part can only see itself.
+  function regionOf(x: number): number {
+    return x < BADLANDS_X * T ? 0 : x < BEYOND_X * T ? 1 : 2;
+  }
+
+  function inUnrendered(x: number): boolean {
+    return x >= UNRENDERED_X * T;
+  }
+
+  // From inside the passageway the Unrendered looks like plain rock, until
+  // Olly's at the very end of it.
+  function unrenderedHidden(tx: number): boolean {
+    return tx >= UNRENDERED_X && regionOf(olly.x) === 2 && olly.x < (UNRENDERED_X - 6) * T;
   }
 
   function tileCenter(spot: { x: number; y: number }): { x: number; y: number } {
@@ -1885,12 +2093,215 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
 
   // Clicking the teleporter (or the Badlands pad) on screen uses it.
   function onCanvasClick(event: MouseEvent): void {
-    if (busy || falling >= 0 || portal >= 0 || !save.teleporter) return;
+    if (busy || falling >= 0 || portal >= 0) return;
     const box = canvas.getBoundingClientRect();
     const x = ((event.clientX - box.left) / box.width) * VIEW_W + lastCam.x;
     const y = ((event.clientY - box.top) / box.height) * VIEW_H + lastCam.y;
+    if (inUnrendered(olly.x)) {
+      clickCube(x, y);
+      return;
+    }
+    if (!save.teleporter) return;
     const pad = inBadlands(olly.x) ? tileCenter(BADLANDS_PAD) : tileCenter(TELEPORTER);
     if (Math.hypot(pad.x - x, pad.y - y) < 30) teleport();
+  }
+
+  // --- The bomb, the trap passageway and the Unrendered --------------------
+
+  // Space by the camp picks up the bomb; Space by the crack sets it down.
+  // In the Unrendered, Space on the pad goes back to the Badlands.
+  function useBombOrPad(): boolean {
+    if (save.bombDropped && !save.carryingBomb && !save.passageOpen && fuse < 0 && bombFall >= 1 && nearSpot(CAMP, 52)) {
+      save.carryingBomb = true;
+      say("You picked up the bomb. It's on your head! 💣 Careful... now find a CRACK somewhere in the Badlands.");
+      sound(() => bleep(3));
+      renderHud();
+      persist();
+      return true;
+    }
+    if (!save.passageOpen && fuse < 0 && nearSpot(CRACK, 56)) {
+      if (save.carryingBomb) {
+        save.carryingBomb = false;
+        fuse = 2.5;
+        say("You set the bomb down by the crack. The fuse is lit... RUN! 🔥");
+        sound(() => crack());
+        renderHud();
+        persist();
+      } else {
+        say("There's a big crack in this cliff. It looks like something could blow it wide open...");
+      }
+      return true;
+    }
+    if (inUnrendered(olly.x) && nearSpot(UNRENDERED_PAD, 50)) {
+      olly.x = (CRACK.x - 2) * T + T / 2;
+      olly.y = CRACK.y * T + T / 2;
+      camera.x = olly.x;
+      camera.y = olly.y;
+      trail.length = 0;
+      flash = 0.6;
+      sound(() => whoosh(0.8));
+      say("Back in the Badlands, right by the hole you blew in the cliff.");
+      persist();
+      return true;
+    }
+    return false;
+  }
+
+  function explodeCrack(): void {
+    fuse = -1;
+    blast = 0;
+    shake = 0.7;
+    flash = 0.4;
+    map[CRACK.y]![CRACK.x] = "n";
+    save.passageOpen = true;
+    sound(() => boom(1.4));
+    say("KA-BOOM!!! The crack blew wide open... it's a SECRET PASSAGEWAY! 😮");
+    renderHud();
+    persist();
+  }
+
+  // Each bowling ball's place down the lane right now (the lane is the long
+  // hallway going south).
+  function bowlingBalls(): number[] {
+    const length = (BOWLING_LANE.toY - BOWLING_LANE.fromY) * T;
+    const balls: number[] = [];
+    for (let n = 0; n < 2; n += 1) {
+      const rolled = ((time % BOWLING_LANE.every) + n * BOWLING_LANE.every) * BALL_SPEED;
+      if (rolled < length) balls.push(BOWLING_LANE.fromY * T + T / 2 + rolled);
+    }
+    return balls;
+  }
+
+  function axeBladeX(axe: (typeof AXES)[number]): number {
+    return axe.x * T + T / 2 + Math.sin(time * 2.4 + axe.phase) * 56;
+  }
+
+  // Traps: get caught and Olly is sent back to the last checkpoint.
+  function updateBeyond(dt: number): void {
+    if (regionOf(olly.x) !== 2) {
+      checkpoint = PASSAGE_START;
+      return;
+    }
+    if (!saidPassage && !inUnrendered(olly.x)) {
+      saidPassage = true;
+      say("A secret passageway... Watch out for traps! And don't trust EVERY target you see.");
+    }
+    if (inUnrendered(olly.x)) {
+      if (!save.unrendered) {
+        save.unrendered = true;
+        renderHud();
+        persist();
+        say("THE UNRENDERED. Everything is white and glitchy... Click the glitching cubes to smash them into glitch fragments!");
+      }
+      for (const cube of cubes) {
+        if (cube.back > 0) {
+          cube.back -= dt;
+          if (cube.back <= 0) placeCube(cube);
+          continue;
+        }
+        cube.jitterIn -= dt;
+        if (cube.jitterIn <= 0) {
+          // Glitch! A little jump, or every so often a big one.
+          const big = Math.random() < 0.15;
+          cube.jx = (Math.random() - 0.5) * (big ? 40 : 8);
+          cube.jy = (Math.random() - 0.5) * (big ? 40 : 8);
+          cube.jitterIn = 0.08 + Math.random() * 0.5;
+        }
+      }
+      return;
+    }
+    const tx = Math.floor(olly.x / T);
+    const ty = Math.floor(olly.y / T);
+    if (tx >= 147 && ty <= 13 && checkpoint === PASSAGE_START) checkpoint = LANE_TOP;
+    if (tx >= 152 && ty >= 34) checkpoint = LANE_BOTTOM;
+    if (safeFor > 0) return;
+    const trap = BEAR_TRAPS.find(([x, y]) => x === tx && y === ty);
+    if (trap) {
+      snapped.set(`${trap[0]},${trap[1]}`, time);
+      caught("SNAP! A bear trap! OUCH OUCH OUCH. Olly hopped all the way back.");
+      return;
+    }
+    for (const axe of AXES) {
+      if (ty >= axe.rows[0] && ty <= axe.rows[1] && Math.abs(axeBladeX(axe) - olly.x) < 16) {
+        caught("WHOOSH! A swinging axe! Olly ducked just in time... and ran all the way back.");
+        return;
+      }
+    }
+    const laneX = BOWLING_LANE.x * T + T / 2;
+    if (Math.abs(olly.x - laneX) < 50 && bowlingBalls().some((y) => Math.abs(y - olly.y) < BALL_RADIUS + 8)) {
+      caught("BONK!!! A GIGANTIC bowling ball! That could've broken a bone! Hide in the little gaps next time.");
+    }
+  }
+
+  function caught(message: string): void {
+    olly.x = checkpoint.x * T + T / 2;
+    olly.y = checkpoint.y * T + T / 2;
+    trail.length = 0;
+    safeFor = 1.5;
+    shake = 0.25;
+    sound(() => boing());
+    say(message);
+  }
+
+  // A new spot for a cube: somewhere on the open white floor.
+  function placeCube(cube: (typeof cubes)[number]): void {
+    for (let tries = 0; tries < 50; tries += 1) {
+      const tx = UNRENDERED_X + 2 + Math.floor(Math.random() * (MAP_W - UNRENDERED_X - 4));
+      const ty = 2 + Math.floor(Math.random() * (MAP_H - 4));
+      const tile = map[ty]![tx]!;
+      if (tile !== "w" && tile !== "y") continue;
+      if (Math.abs(tx - UNRENDERED_PAD.x) < 2 && Math.abs(ty - UNRENDERED_PAD.y) < 2) continue;
+      cube.x = tx * T + T / 2;
+      cube.y = ty * T + T / 2;
+      break;
+    }
+    cube.size = 22 + Math.random() * 14;
+    cube.back = 0;
+    cube.jitterIn = 0;
+  }
+
+  function clickCube(x: number, y: number): void {
+    const cube = cubes.find((c) => c.back <= 0 && Math.hypot(c.x + c.jx - x, c.y + c.jy - y) < c.size + 12);
+    if (!cube) return;
+    const cx = cube.x + cube.jx;
+    const cy = cube.y + cube.jy;
+    for (let n = 0; n < 18; n += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 60 + Math.random() * 180;
+      shards.push({ x: cx, y: cy, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.5 + Math.random() * 0.4 });
+    }
+    for (let n = 0; n < 2; n += 1) {
+      fragmentCount += 1;
+      pickups.push({
+        id: `fragment-${fragmentCount}`,
+        x: cx + (n ? 18 : -18),
+        y: cy + (Math.random() - 0.5) * 20,
+        keep: false,
+        fragment: true,
+      });
+    }
+    cube.back = 15;
+    shake = 0.12;
+    sound(() => crack());
+  }
+
+  function collectFragment(): void {
+    if (save.glitch2) {
+      // Plenty already: extra fragments are worth a gem.
+      save.gems += 1;
+      return;
+    }
+    save.fragments += 1;
+    sound(() => bleep(8));
+    if (save.fragments >= FRAGMENTS_NEEDED) {
+      save.glitch2 = true;
+      say("All 20 glitch fragments snapped together into a NEW GLITCH! 👾 Go back to the weird X in the Purple Woods and press G on it.");
+      sound(() => chime());
+    } else {
+      say(`Glitch fragment! ${save.fragments} / ${FRAGMENTS_NEEDED}`);
+    }
+    renderHud();
+    persist();
   }
 
   // The owl hiding in the Badlands.
@@ -2102,25 +2513,30 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       ".": "#c9b98a", ",": "#b6a3c9", "#": "#6f7d4a", "%": "#7a5c8f", "=": "#e8d9b0", "~": "#7fa7b8",
       H: "#9c5a3c", f: "#8a6a3a", W: "#6b6158", c: "#8d8275", R: "#4f463e", o: "#3a332c", S: "#4f463e",
       Y: "#4f463e", p: "#d6cdb5", P: "#7a5c8f", q: "#bfaed6",
+      b: "#c8643c", D: "#e0a070", Z: "#9c3f22", K: "#9c3f22", B: "#6e3a24", "!": "#e5480f", A: "#d99a6c",
+      n: "#4a4440", w: "#f4f4f6", y: "#dcdce6", v: "#ffffff", V: "#e8e8ee",
     };
     for (let ty = 0; ty < MAP_H; ty += 1) {
       for (let tx = 0; tx < MAP_W; tx += 1) {
-        mini.fillStyle = tx >= BADLANDS_X && !save.badlands ? "#3a332c" : (colors[map[ty]![tx]!] ?? "#c9b98a");
+        const unknown = (tx >= BADLANDS_X && tx < BEYOND_X && !save.badlands) || (tx >= BEYOND_X && !save.passageOpen);
+        mini.fillStyle = unknown ? "#3a332c" : (colors[map[ty]![tx]!] ?? "#c9b98a");
         mini.fillRect(tx * 5, ty * 5, 5, 5);
       }
     }
-    // The X, drawn on in red ink.
-    const xx = MATRIX_X.x * 5 + 2.5;
-    const xy = MATRIX_X.y * 5 + 2.5;
-    mini.strokeStyle = "#c0262c";
-    mini.lineWidth = 3;
-    mini.lineCap = "round";
-    mini.beginPath();
-    mini.moveTo(xx - 9, xy - 9);
-    mini.lineTo(xx + 9, xy + 9);
-    mini.moveTo(xx + 9, xy - 9);
-    mini.lineTo(xx - 9, xy + 9);
-    mini.stroke();
+    // The X, drawn on in red ink (until it's deleted).
+    if (!save.xDeleted) {
+      const xx = MATRIX_X.x * 5 + 2.5;
+      const xy = MATRIX_X.y * 5 + 2.5;
+      mini.strokeStyle = "#c0262c";
+      mini.lineWidth = 3;
+      mini.lineCap = "round";
+      mini.beginPath();
+      mini.moveTo(xx - 9, xy - 9);
+      mini.lineTo(xx + 9, xy + 9);
+      mini.moveTo(xx + 9, xy - 9);
+      mini.lineTo(xx - 9, xy + 9);
+      mini.stroke();
+    }
     // You are here.
     mini.fillStyle = "#202029";
     mini.beginPath();
@@ -2148,6 +2564,14 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     const near = (tx: number, ty: number, reach = 46): boolean => Math.hypot(tx * T + T / 2 - olly.x, ty * T + T / 2 - olly.y) < reach;
 
     if (useHatchOrLadder()) return;
+    if (useBombOrPad()) return;
+    // Right next to the mechanical chest once it's been opened: say so,
+    // rather than shooting its target again.
+    if (inBadlands(olly.x) && save.targetsHit.includes("chest") && near(MECH_CHEST.x, MECH_CHEST.y)) {
+      say("This mechanical chest is already open and empty. It gave you 60 gems and 2 mega potions!");
+      return;
+    }
+    if (shootTarget()) return;
     if (save.teleporter && (nearSpot(TELEPORTER) || nearSpot(BADLANDS_PAD))) {
       teleport();
       return;
@@ -2204,7 +2628,6 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       persist();
       return;
     }
-    if (shootTarget()) return;
     const pig = pigs.find((p) => !save.following.includes(p.id) && Math.hypot(p.x - olly.x, p.y - olly.y) < 46);
     if (pig) {
       if (save.food <= 0) {
@@ -2520,11 +2943,14 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
           checkPurpleCastle();
         }
       } else {
-        // Olly runs back to the village to rest. The enemy stays.
-        olly.x = START.x * T + T / 2;
-        olly.y = START.y * T + T / 2;
+        // Olly runs back to the village to rest (or back to the start of the
+        // passageway, out past the Badlands). The enemy stays.
+        const beyond = regionOf(olly.x) === 2;
+        const rest = beyond ? PASSAGE_START : START;
+        olly.x = rest.x * T + T / 2;
+        olly.y = rest.y * T + T / 2;
         trail.length = 0;
-        say(`The ${foe.name} was too strong this time. Olly ran back to the village to rest!`);
+        say(`The ${foe.name} was too strong this time. Olly ran back to ${beyond ? "the start of the passageway" : "the village"} to rest!`);
       }
       safeFor = 2;
       renderHud();
@@ -2806,6 +3232,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
         }
         break;
       }
+      case "K":
       case "Z":
         // Striped cliff rock.
         ctx.fillStyle = "#9c3f22";
@@ -2814,7 +3241,66 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
         ctx.fillRect(px, py + 6, T, 5);
         ctx.fillStyle = "#7a2f18";
         ctx.fillRect(px, py + 20, T, 4);
+        if (tile === "K") {
+          // A big zig-zag crack.
+          ctx.strokeStyle = "#2a0f06";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(px + 14, py);
+          ctx.lineTo(px + 20, py + 9);
+          ctx.lineTo(px + 11, py + 17);
+          ctx.lineTo(px + 19, py + 25);
+          ctx.lineTo(px + 15, py + T);
+          ctx.moveTo(px + 11, py + 17);
+          ctx.lineTo(px + 4, py + 20);
+          ctx.stroke();
+        }
         break;
+      case "n":
+        // Old dark stone, in the secret passageway.
+        ctx.fillStyle = h % 2 ? "#4a4440" : "#45403c";
+        ctx.fillRect(px, py, T, T);
+        ctx.strokeStyle = "#35302c";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, T - 1, T - 1);
+        break;
+      case "w":
+      case "y":
+      case "v":
+      case "V": {
+        // The Unrendered: everything white, and now and then it glitches.
+        ctx.fillStyle = tile === "y" ? (h % 2 ? "#e2e2ea" : "#dcdce6") : h % 2 ? "#f6f6f8" : "#f0f0f4";
+        ctx.fillRect(px, py, T, T);
+        ctx.strokeStyle = tile === "y" ? "#c4c4d0" : "#e4e4ea";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px + 0.5, py + 0.5, T - 1, T - 1);
+        if ((h + Math.floor(time * 6)) % 97 === 0) {
+          ctx.fillStyle = h % 2 ? "rgba(0, 229, 255, 0.5)" : "rgba(255, 0, 170, 0.45)";
+          ctx.fillRect(px + (h % 16), py + (h % 11), 10 + (h % 14), 3);
+        }
+        if (tile === "v") {
+          // A white tree, outlined like it was never colored in.
+          ctx.fillStyle = "#ffffff";
+          ctx.strokeStyle = "#9a9aac";
+          ctx.lineWidth = 1.5;
+          ctx.fillRect(px + 13, py + 18, 6, 12);
+          ctx.strokeRect(px + 13, py + 18, 6, 12);
+          ctx.beginPath();
+          ctx.arc(px + 16, py + 13, 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        } else if (tile === "V") {
+          // A white house.
+          const roof = map[ty - 1]?.[tx] !== "V";
+          ctx.fillStyle = roof ? "#e8e8ee" : "#ffffff";
+          ctx.fillRect(px, py, T, T);
+          ctx.strokeStyle = "#9a9aac";
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(px + 0.5, py + 0.5, T - 1, T - 1);
+          if (!roof && h % 2) ctx.strokeRect(px + 10, py + 8, 12, 24);
+        }
+        break;
+      }
       case "B":
         ctx.fillStyle = h % 2 ? "#c8643c" : "#c25e38";
         ctx.fillRect(px, py, T, T);
@@ -2888,6 +3374,238 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
         }
         break;
       }
+    }
+  }
+
+  // A round black bomb with a fuse (sparking once it's lit).
+  function drawBomb(x: number, y: number, small: boolean, lit = false): void {
+    const r = small ? 10 : 13;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "#202029";
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.beginPath();
+    ctx.arc(-r * 0.35, -r * 0.35, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#5d6472";
+    ctx.fillRect(-4, -r - 4, 8, 5);
+    ctx.strokeStyle = "#b0832a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -r - 4);
+    ctx.quadraticCurveTo(6, -r - 12, 10, -r - 8);
+    ctx.stroke();
+    if (lit || Math.floor(time * 4) % 2) {
+      ctx.fillStyle = lit && Math.floor(time * 16) % 2 ? "#fff6a8" : "#ff9a1f";
+      ctx.beginPath();
+      ctx.arc(10, -r - 8, lit ? 4 : 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // A glitch fragment: a little jagged shard that flickers.
+  function drawFragment(x: number, y: number): void {
+    const flicker = Math.floor(time * 12 + x) % 5 === 0;
+    ctx.save();
+    ctx.translate(x + (flicker ? 3 : 0), y);
+    ctx.fillStyle = flicker ? "#ff00aa" : "#00e5ff";
+    ctx.strokeStyle = "#202029";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(6, -2);
+    ctx.lineTo(3, 9);
+    ctx.lineTo(-6, 3);
+    ctx.lineTo(-4, -4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(-2, -4, 3, 3);
+    ctx.restore();
+  }
+
+  // A 3D white cube, glitching.
+  function drawCube(x: number, y: number, size: number): void {
+    const s = size;
+    const tilt = s * 0.5;
+    const split = Math.floor(time * 10 + x) % 13 === 0;
+    for (const [color, dx] of split ? ([["rgba(0, 229, 255, 0.6)", -3], ["rgba(255, 0, 170, 0.6)", 3]] as const) : []) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x - s / 2 + dx, y - s / 2, s, s);
+    }
+    ctx.strokeStyle = "#7a7a90";
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = "round";
+    // Top, right side, then the front.
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(x - s / 2, y - s / 2);
+    ctx.lineTo(x - s / 2 + tilt, y - s / 2 - tilt);
+    ctx.lineTo(x + s / 2 + tilt, y - s / 2 - tilt);
+    ctx.lineTo(x + s / 2, y - s / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#c8c8d6";
+    ctx.beginPath();
+    ctx.moveTo(x + s / 2, y - s / 2);
+    ctx.lineTo(x + s / 2 + tilt, y - s / 2 - tilt);
+    ctx.lineTo(x + s / 2 + tilt, y + s / 2 - tilt);
+    ctx.lineTo(x + s / 2, y + s / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ececf2";
+    ctx.fillRect(x - s / 2, y - s / 2, s, s);
+    ctx.strokeRect(x - s / 2, y - s / 2, s, s);
+  }
+
+  // The bomb, the traps, the Unrendered's cubes and its pad.
+  function drawBeyond(): void {
+    const region = regionOf(olly.x);
+    if (region === 1) {
+      // The bomb at the camp (falling in, then sitting there), or by the
+      // crack with its fuse lit.
+      if (save.bombDropped && !save.carryingBomb && !save.passageOpen && fuse < 0) {
+        const camp = tileCenter(CAMP);
+        const drop = (1 - bombFall) * (1 - bombFall) * 500;
+        ctx.fillStyle = `rgba(0, 0, 0, ${0.15 + bombFall * 0.15})`;
+        ctx.beginPath();
+        ctx.ellipse(camp.x, camp.y + 12, 6 + bombFall * 8, 3 + bombFall * 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        drawBomb(camp.x, camp.y - drop, false);
+      }
+      if (fuse >= 0) {
+        const at = tileCenter(CRACK);
+        drawBomb(at.x - T, at.y, false, true);
+      }
+    }
+    if (blast >= 0) {
+      const at = tileCenter(CRACK);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - blast / 1.2);
+      for (const [color, grow] of [["#ff9a1f", 150], ["#ffd84d", 100], ["#fff6a8", 55]] as const) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(at.x - 10, at.y, 20 + blast * grow, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (region !== 2) return;
+
+    // Bear traps: open jaws, or snapped shut for a moment.
+    for (const [tx, ty] of BEAR_TRAPS) {
+      const x = tx * T + T / 2;
+      const y = ty * T + T / 2;
+      const shut = time - (snapped.get(`${tx},${ty}`) ?? -9) < 1.5;
+      ctx.strokeStyle = "#8d96a6";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 11, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#c9ced8";
+      const gap = shut ? 1 : 7;
+      for (let n = -2; n <= 2; n += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x + n * 4 - 2, y - gap);
+        ctx.lineTo(x + n * 4, y - gap + (shut ? 4 : 6));
+        ctx.lineTo(x + n * 4 + 2, y - gap);
+        ctx.moveTo(x + n * 4 - 2, y + gap);
+        ctx.lineTo(x + n * 4, y + gap - (shut ? 4 : 6));
+        ctx.lineTo(x + n * 4 + 2, y + gap);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#5d6472";
+      ctx.fillRect(x - 3, y - 3, 6, 6);
+    }
+
+    // Swinging axes, hanging from the ceiling.
+    for (const axe of AXES) {
+      const pivotX = axe.x * T + T / 2;
+      const pivotY = axe.rows[0] * T - 8;
+      const bladeX = axeBladeX(axe);
+      const bladeY = (axe.rows[0] + axe.rows[1] + 1) * T / 2;
+      ctx.strokeStyle = "#6b4a1e";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(pivotX, pivotY);
+      ctx.lineTo(bladeX, bladeY);
+      ctx.stroke();
+      ctx.save();
+      ctx.translate(bladeX, bladeY);
+      ctx.rotate(Math.atan2(bladeY - pivotY, bladeX - pivotX) - Math.PI / 2);
+      ctx.fillStyle = "#c9ced8";
+      ctx.strokeStyle = "#5d6472";
+      ctx.lineWidth = 2;
+      // A double-sided blade: two big half-moons.
+      ctx.beginPath();
+      ctx.moveTo(-3, -20);
+      ctx.quadraticCurveTo(-34, -18, -30, 0);
+      ctx.quadraticCurveTo(-34, 18, -3, 20);
+      ctx.closePath();
+      ctx.moveTo(3, -20);
+      ctx.quadraticCurveTo(34, -18, 30, 0);
+      ctx.quadraticCurveTo(34, 18, 3, 20);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#6b4a1e";
+      ctx.fillRect(-4, -22, 8, 44);
+      ctx.restore();
+    }
+
+    // Gigantic bowling balls, rolling down the lane.
+    const laneX = BOWLING_LANE.x * T + T / 2;
+    for (const y of bowlingBalls()) {
+      ctx.save();
+      ctx.translate(laneX, y);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+      ctx.beginPath();
+      ctx.ellipse(4, BALL_RADIUS - 4, BALL_RADIUS * 0.9, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.rotate(y / BALL_RADIUS);
+      ctx.fillStyle = "#3b2a6e";
+      ctx.beginPath();
+      ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1a1230";
+      for (const [hx, hy] of [[-8, -14], [6, -16], [-1, -4]] as const) {
+        ctx.beginPath();
+        ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+      ctx.beginPath();
+      ctx.arc(laneX - 14, y - 14, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (!inUnrendered(olly.x)) return;
+    // The pad back to the Badlands.
+    const pad = tileCenter(UNRENDERED_PAD);
+    ctx.fillStyle = "#c86a3c";
+    ctx.strokeStyle = "#7a2f18";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(pad.x, pad.y + 4, 18, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#7a2f18";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Badlands", pad.x, pad.y - 12);
+    ctx.textAlign = "left";
+    for (const cube of cubes) if (cube.back <= 0) drawCube(cube.x + cube.jx, cube.y + cube.jy, cube.size);
+    for (const shard of shards) {
+      ctx.fillStyle = Math.floor(shard.x) % 2 ? "#00e5ff" : "#ffffff";
+      ctx.fillRect(shard.x - 3, shard.y - 3, 6, 6);
     }
   }
 
@@ -3069,8 +3787,8 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
         // The bunker looks like forest unless Olly is down there.
         const underground = tx >= BUNKER.x && tx < BUNKER.x + BUNKER.w && ty >= BUNKER.y && ty < BUNKER.y + BUNKER.h;
         // The Badlands and the rest of the world can't see each other.
-        const otherSide = inBadlands(tx * T) !== inBadlands(olly.x);
-        const tile = otherSide ? (inBadlands(olly.x) ? "Z" : "#") : hidden ? "R" : underground && !inBunker(olly.x, olly.y) ? "#" : map[ty]![tx]!;
+        const otherSide = regionOf(tx * T) !== regionOf(olly.x) || unrenderedHidden(tx);
+        const tile = otherSide ? (regionOf(olly.x) === 0 ? "#" : "Z") : hidden ? "R" : underground && !inBunker(olly.x, olly.y) ? "#" : map[ty]![tx]!;
         drawTile(tile, tx, ty, tx * T, ty * T);
       }
     }
@@ -3108,7 +3826,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     }
 
     // The see-through X, only for someone who has the strange map.
-    if (save.strangeMap) {
+    if (save.strangeMap && !save.xDeleted) {
       const xx = MATRIX_X.x * T + T / 2;
       const xy = MATRIX_X.y * T + T / 2;
       ctx.save();
@@ -3135,13 +3853,14 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     if (portal >= 0) drawPortal();
 
     for (const gem of pickups) {
-      if (inBadlands(gem.x) !== inBadlands(olly.x)) continue;
-      drawSprite(GEM, gem.x, gem.y + Math.sin(time * 4 + gem.x) * 2, 18 * suck(gem.x, gem.y));
+      if (regionOf(gem.x) !== regionOf(olly.x)) continue;
+      if (gem.fragment) drawFragment(gem.x, gem.y + Math.sin(time * 5 + gem.x) * 3);
+      else drawSprite(GEM, gem.x, gem.y + Math.sin(time * 4 + gem.x) * 2, 18 * suck(gem.x, gem.y));
     }
 
     for (const chest of CHESTS) {
       if (!chestHere(chest)) continue;
-      if (inBadlands(chest.tx * T) !== inBadlands(olly.x)) continue;
+      if (regionOf(chest.tx * T) !== regionOf(olly.x)) continue;
       if (!save.crystal && inSecretRoom(chest.tx, chest.ty)) continue;
       drawSprite(save.opened.includes(chest.id) ? CHEST_OPEN : CHEST, chest.tx * T + T / 2, chest.ty * T + T / 2, 30);
     }
@@ -3213,6 +3932,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
       drawTeleporter(tileCenter(BADLANDS_PAD), ["#ffb347", "#e5383b"]);
     }
     drawTargets();
+    drawBeyond();
     if (inBadlands(olly.x) && hootieInHideout()) {
       const owl = tileCenter(OWL_HIDEOUT);
       drawSprite(HIDING_OWL, owl.x, owl.y - 2 + Math.sin(time * 2) * 1.5, 30);
@@ -3231,7 +3951,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     }
 
     for (const npc of NPCS) {
-      if (inBadlands(npc.tx * T) !== inBadlands(olly.x)) continue;
+      if (regionOf(npc.tx * T) !== regionOf(olly.x)) continue;
       const dancing = celebrating && npc.id === plan!.family;
       const hop = dancing ? Math.abs(Math.sin(time * 8)) * 14 : 0;
       drawSprite(npc.art, npc.tx * T + T / 2, npc.ty * T + T / 2 - 4 - hop, 40, false, dancing ? Math.sin(time * 6) * 0.4 : 0);
@@ -3362,6 +4082,7 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
     }
 
     if (save.carryingHootie) drawSprite(HIDING_OWL, olly.x, olly.y - 34 - bounce, 22);
+    if (save.carryingBomb) drawBomb(olly.x, olly.y - 34 - bounce, true);
     drawSprite(ollyArt, olly.x, olly.y - 6 - bounce, (chaos.has("zoomies") ? 46 : 40) * suck(olly.x, olly.y), olly.facing < 0, portal > 1.8 ? time * 10 : 0);
     ctx.globalAlpha = 1;
 
@@ -3382,6 +4103,29 @@ export function startWorld(root: HTMLElement, api: WorldApi): () => void {
 
     lastCam = { x: camX, y: camY };
     if (beamDown >= 0) drawBeamDown(camX, camY);
+    // The passageway is dark, except for Olly's little light.
+    if (regionOf(olly.x) === 2 && !inUnrendered(olly.x)) {
+      const sx = olly.x - camX;
+      const sy = olly.y - camY;
+      const light = ctx.createRadialGradient(sx, sy, 90, sx, sy, 340);
+      light.addColorStop(0, "rgba(0, 0, 0, 0)");
+      light.addColorStop(1, "rgba(0, 0, 0, 0.7)");
+      ctx.fillStyle = light;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+    // The Unrendered: scanlines, and now and then a glitchy band across the
+    // whole screen.
+    if (inUnrendered(olly.x)) {
+      ctx.fillStyle = "rgba(40, 40, 70, 0.05)";
+      for (let y = 0; y < VIEW_H; y += 4) ctx.fillRect(0, y, VIEW_W, 1);
+      if (Math.floor(time * 8) % 23 === 0) {
+        const band = (Math.sin(time * 37) * 0.5 + 0.5) * VIEW_H;
+        ctx.fillStyle = "rgba(0, 229, 255, 0.18)";
+        ctx.fillRect(0, band, VIEW_W, 14);
+        ctx.fillStyle = "rgba(255, 0, 170, 0.14)";
+        ctx.fillRect(6, band + 6, VIEW_W, 6);
+      }
+    }
     // The Badlands: a hot red haze around the edges.
     if (inBadlands(olly.x)) {
       const haze = ctx.createRadialGradient(VIEW_W / 2, VIEW_H / 2, 200, VIEW_W / 2, VIEW_H / 2, 620);

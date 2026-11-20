@@ -4,6 +4,7 @@ import {
   OUMG_DELETED_FROM_HUB_KEY,
   TM_DELETED_FROM_HUB_KEY,
   drawAhegTrophyGraphic,
+  GAMES7_TROPHY_SPOT,
 } from "./shared/ahegTrophy";
 import { isDevZeroRebuilt, runDevZeroRebuild, showDevOneHello } from "./shared/devZero";
 import { initEscapedAhegPlayer } from "./shared/escapedAhegPlayer";
@@ -611,6 +612,21 @@ function findTrophyDropTarget(trophy: HTMLElement): TrophyDropTarget | null {
       if (id) {
         return { id, href: card.href };
       }
+    }
+  }
+
+  // Secret: with the dropdown open, the trophy can be dropped onto Games 7.
+  const dropdown = document.getElementById("hub-dropdown");
+  const games7Link = dropdown?.querySelector<HTMLAnchorElement>('a[href$="games7/index.html"]');
+  if (dropdown && !dropdown.hidden && games7Link) {
+    const linkRect = games7Link.getBoundingClientRect();
+    if (
+      trophyCenterX >= linkRect.left - 12 &&
+      trophyCenterX <= linkRect.right + 12 &&
+      trophyCenterY >= linkRect.top - 12 &&
+      trophyCenterY <= linkRect.bottom + 12
+    ) {
+      return { id: GAMES7_TROPHY_SPOT, href: games7Link.href };
     }
   }
 

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Math with Ollie</title>
+    <meta name="credits-made-by" content="Penelope" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../penelope/index.html">← Penelope's Games</a>
+      <header class="hero">
+        <p class="eyebrow">Penelope's math adventure</p>
+        <h1>Math with Ollie</h1>
+      </header>
+
+      <section class="card stage">
+        <div class="top-bar">
+          <p class="fixed"><span id="fixed"></span> <span id="coins" class="coins"></span> <span id="saved" class="saved" hidden>💾 Saved!</span></p>
+          <div class="top-buttons">
+            <button id="skip" class="pill" type="button" hidden>⏭️ Skip</button>
+            <button id="skin-open" class="pill" type="button">🎨 Character</button>
+            <button id="teleport-open" class="pill" type="button" hidden>🌀 Teleport</button>
+            <button id="restart" class="pill" type="button" hidden>🔄 Start over</button>
+          </div>
+        </div>
+        <div class="board">
+          <canvas id="map" width="960" height="600" aria-label="Sunny Village"></canvas>
+          <p id="caption" class="caption" hidden></p>
+
+          <!-- The start: pick how hard the math is. -->
+          <div id="title" class="overlay">
+            <div class="panel">
+              <h2>Help Ollie fix Sunny Village!</h2>
+              <p>How hard should the math be? (It gets harder in every village!)</p>
+              <div class="levels" role="group" aria-label="How hard should the math be?">
+                <button class="pill level" type="button" data-level="easy" aria-pressed="true">🐣 Easy<small>starts up to 10</small></button>
+                <button class="pill level" type="button" data-level="medium" aria-pressed="false">🦊 Medium<small>starts up to 20</small></button>
+                <button class="pill level" type="button" data-level="hard" aria-pressed="false">🦁 Hard<small>starts up to 50</small></button>
+              </div>
+              <button id="play" class="pill pill-main big" type="button">▶️ Play!</button>
+              <button id="continue" class="pill big" type="button" hidden>➡️ Keep going</button>
+            </div>
+          </div>
+
+          <!-- A job in the village: math problems that fix it up. -->
+          <div id="job" class="overlay" hidden>
+            <div class="panel">
+              <p id="job-who" class="job-who"></p>
+              <h2 id="job-title"></h2>
+              <p id="job-progress" class="job-progress"></p>
+              <p id="problem" class="problem"></p>
+              <div id="answers" class="answers"></div>
+              <p id="job-note" class="job-note" aria-live="polite"></p>
+              <button id="job-close" class="pill" type="button">🗺️ Back to the map</button>
+            </div>
+          </div>
+
+          <!-- Pick who you play as. -->
+          <div id="skins" class="overlay" hidden>
+            <div class="panel">
+              <h2>🎨 Pick your character</h2>
+              <div id="skin-list" class="skin-list"></div>
+              <button id="skin-close" class="pill" type="button">✖️ Close</button>
+            </div>
+          </div>
+
+          <!-- Teleport to any village you've finished. -->
+          <div id="teleport" class="overlay" hidden>
+            <div class="panel">
+              <h2>🌀 Teleport</h2>
+              <p>Go to any village you've fixed! The monsters won't wreck it again.</p>
+              <div id="teleport-list" class="teleport-list"></div>
+              <button id="teleport-close" class="pill" type="button">✖️ Stay here</button>
+            </div>
+          </div>
+
+          <!-- The battle: math stars at the monster. -->
+          <div id="battle" class="battle" hidden>
+            <p id="battle-problem" class="battle-problem"></p>
+            <div id="battle-answers" class="answers"></div>
+            <p id="battle-note" class="battle-note" aria-live="polite"></p>
+          </div>
+
+          <!-- The monster got you! Quit, or pay math coins to keep going. -->
+          <div id="dead" class="overlay" hidden>
+            <div class="panel">
+              <h2>😵 Oh no, you died!</h2>
+              <p id="dead-coins"></p>
+              <button id="keep-going" class="pill pill-main big" type="button">💪 Keep going</button>
+              <button id="quit" class="pill big" type="button">🚪 Quit</button>
+            </div>
+          </div>
+
+          <!-- You beat the monster! -->
+          <div id="beat" class="overlay" hidden>
+            <div class="panel">
+              <h2>🏆 You beat all 6 monsters!</h2>
+              <p>Even the Almighty Monster is nice now, and the purple cracks in the sky are gone.</p>
+              <p class="tease">Sunny Village is safe. You're a hero, Ollie! 🦸</p>
+              <button id="beat-visit" class="pill big" type="button">🌀 Visit your villages</button>
+              <button id="again" class="pill pill-main big" type="button">🔄 Play again</button>
+            </div>
+          </div>
+        </div>
+        <p id="hint" class="hint">Click a <strong>❗</strong> to help. Ollie walks there and you do math to fix it!</p>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

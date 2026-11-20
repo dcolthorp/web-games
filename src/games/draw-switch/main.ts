@@ -8,7 +8,7 @@
 // play at once. Whoever has been in the room longest keeps time and says
 // whose turn it is.
 
-import { roboDraw, ROBO_MS, ROBO_THEMES } from "./robo";
+import { lessonSteps, roboDraw, ROBO_MS, ROBO_THEMES, type LessonStep } from "./robo";
 
 const TURN_MS = 60_000;
 const HELLO_MS = 2000;
@@ -247,31 +247,17 @@ interface Picture {
 }
 
 /**
- * Pass or fail? The game can't tell what you drew, so it looks at how much
- * of the page is coloured in, and how many different colours are on it.
+ * Pass or fail? The game can't tell what you drew, so it adds up how much
+ * crayon you used on the paper (how long your lines are × how thick).
+ * Robo's drawing doesn't count, only yours.
  */
-function grade(ctx: CanvasRenderingContext2D): number {
-  const { data } = ctx.getImageData(0, 0, paper.width, paper.height);
-  let inked = 0;
-  let total = 0;
-  const colors = new Map<string, number>();
-  for (let i = 0; i < data.length; i += 4 * 7) {
-    total++;
-    const r = data[i]!, g = data[i + 1]!, b = data[i + 2]!;
-    if (r > 245 && g > 245 && b > 245) continue;
-    inked++;
-    const key = `${r >> 5},${g >> 5},${b >> 5}`;
-    colors.set(key, (colors.get(key) ?? 0) + 1);
-  }
-  const covered = inked / total;
-  // Ignore colours that only show up a tiny bit (like the soft edges of a line).
-  const many = [...colors.values()].filter((n) => n > inked * 0.05).length;
-  // Penelope asked for it to be really easy: you only fail if you didn't
-  // draw anything at all.
-  if (inked === 0) return 0;
-  if (covered >= 0.03 || (covered >= 0.01 && many >= 2)) return 3;
-  if (covered >= 0.008) return 2;
-  return 1;
+function grade(ink: number): number {
+  // Penelope asked for it to be just a teensy weensy bit hard: one little
+  // dot isn't enough any more, but one short line is.
+  if (ink < 1500) return 0;
+  if (ink < 5000) return 1;
+  if (ink < 12000) return 2;
+  return 3;
 }
 const gradeText = (stars: number): string => (stars ? `${"⭐".repeat(stars)} PASS!` : "❌ FAIL");
 let pictures: Picture[] = [];
@@ -301,13 +287,14 @@ interface Sheet {
   theme: string;
   owner: "me" | "robo";
   drew: boolean; // did you draw on it?
+  ink: number; // how much crayon you used on it
 }
 const roboPaper = document.getElementById("robo-paper") as HTMLCanvasElement;
 const roboPen = roboPaper.getContext("2d", { willReadFrequently: true })!;
 const roboView = document.getElementById("robo-view")!;
 const roboNote = document.getElementById("robo-note")!;
-let front: Sheet = { theme: "", owner: "me", drew: false };
-let back: Sheet = { theme: "", owner: "robo", drew: false };
+let front: Sheet = { theme: "", owner: "me", drew: false, ink: 0 };
+let back: Sheet = { theme: "", owner: "robo", drew: false, ink: 0 };
 let laps = 1;
 try {
   laps = Math.min(4, Math.max(1, Number(localStorage.getItem(LAPS_KEY)) || 1));
@@ -315,6 +302,15 @@ try {
   laps = 1;
 }
 let turnNo = 0; // even: everybody on their own paper; odd: swapped
+let drewThisTurn = false;
+// Penelope wanted Robo to say something nice about your drawing.
+const COMPLIMENTS = [
+  "Wow, I love it! 💕", "That looks so good! ⭐", "You're a great drawer! 🎨", "Beautiful! I'll be careful with it! 🤖",
+  "Ooh, pretty colors! 🌈", "That's my favourite part! 😍", "You made it even better! ✨", "Best drawing buddy ever! 🤗",
+];
+let roboSays = "";
+let roboSaysTimer = 0;
+const compliment = (): string => COMPLIMENTS[Math.floor(Math.random() * COMPLIMENTS.length)]!;
 let robo: { stop(): void; finish(): void } | null = null;
 
 /** Keep both papers in the gallery: Robo's first, so yours shows up first. */
@@ -322,7 +318,7 @@ function keepSheets(): void {
   const both: [Sheet, HTMLCanvasElement][] = [[front, paper], [back, roboPaper]];
   both.sort(([a]) => (a.owner === "robo" ? -1 : 1));
   for (const [sheet, canvas] of both) {
-    const stars = sheet.drew ? Math.max(1, grade(canvas.getContext("2d")!)) : 0;
+    const stars = grade(sheet.ink);
     pictures.push({ theme: sheet.theme, owner: sheet.owner, data: canvas.toDataURL("image/jpeg", 0.7), stars });
   }
   while (pictures.length > MAX_PICTURES) pictures.shift();
@@ -343,15 +339,55 @@ function emptiest(ctx: CanvasRenderingContext2D, size: number): { x: number; y: 
   return best;
 }
 
-/** Robo gets to work on the back paper. */
+/**
+ * Where you drew on a page, as a square Robo can draw in (so Robo helps
+ * right on top of your drawing), or null if the page is empty.
+ */
+function inkBox(ctx: CanvasRenderingContext2D): { x: number; y: number; size: number } | null {
+  const { width, height } = ctx.canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  let x0 = width, y0 = height, x1 = -1, y1 = -1;
+  for (let y = 0; y < height; y += 4) {
+    for (let x = 0; x < width; x += 4) {
+      const i = (y * width + x) * 4;
+      if (data[i]! > 245 && data[i + 1]! > 245 && data[i + 2]! > 245) continue;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+  }
+  if (x1 < 0) return null;
+  const size = Math.min(height - 20, Math.max(220, Math.max(x1 - x0, y1 - y0) * 1.1));
+  const clamp = (n: number, max: number): number => Math.max(0, Math.min(max - size, n));
+  return { x: clamp((x0 + x1) / 2 - size / 2, width), y: clamp((y0 + y1) / 2 - size / 2, height), size };
+}
+
+/** A copy of a page with the white taken out, so just the lines are left. */
+function linesOnly(ctx: CanvasRenderingContext2D): HTMLCanvasElement {
+  const copy = document.createElement("canvas");
+  copy.width = ctx.canvas.width;
+  copy.height = ctx.canvas.height;
+  const img = ctx.getImageData(0, 0, copy.width, copy.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) if (d[i]! > 245 && d[i + 1]! > 245 && d[i + 2]! > 245) d[i + 3] = 0;
+  copy.getContext("2d")!.putImageData(img, 0, 0);
+  return copy;
+}
+
+/**
+ * Robo gets to work on the back paper. On Robo's own paper Robo finds an
+ * empty spot. On your paper Robo helps right on top of your drawing
+ * (Penelope drew a house and wanted Robo to help make it), but your lines
+ * stay on top so Robo doesn't cover them up.
+ */
 function startRobo(): void {
   robo?.stop();
-  const size = 280;
-  const { x, y } = emptiest(roboPen, size);
-  robo = roboDraw(roboPen, back.theme, x, y, size, () => {
+  const box = back.owner === "me" ? inkBox(roboPen) : null;
+  const spot = box ?? { ...emptiest(roboPen, 280), size: 280 };
+  const onTop = box ? linesOnly(roboPen) : undefined;
+  robo = roboDraw(roboPen, back.theme, spot.x, spot.y, spot.size, () => {
     robo = null;
     showSolo();
-  });
+  }, onTop);
   showSolo();
 }
 
@@ -360,6 +396,10 @@ function showSolo(): void {
   const lap = Math.floor(turnNo / 2) + 1;
   playersEl.textContent = `Around ${lap} of ${laps} · You're on ${front.owner === "me" ? "your paper" : "Robo's paper"}`;
   const whose = back.owner === "robo" ? "Robo's paper" : "your paper";
+  if (roboSays) {
+    roboNote.textContent = `🤖 Robo says: "${roboSays}"`;
+    return;
+  }
   roboNote.textContent = robo ? `🤖 Robo is drawing on ${whose}...` : `🤖 Robo is done with ${whose}! Waiting for you.`;
 }
 
@@ -375,6 +415,16 @@ function endMyTurn(): void {
   pen.putImageData(roboPen.getImageData(0, 0, paper.width, paper.height), 0, 0);
   roboPen.putImageData(mine, 0, 0);
   [front, back] = [back, front];
+  if (drewThisTurn) {
+    // Robo just got the paper you drew on: Robo says something nice about it.
+    roboSays = compliment();
+    window.clearTimeout(roboSaysTimer);
+    roboSaysTimer = window.setTimeout(() => {
+      roboSays = "";
+      if (solo) showSolo();
+    }, 5000);
+  }
+  drewThisTurn = false;
   switchBanner.innerHTML = "<span>SWITCH!<br><small></small></span>";
   switchBanner.querySelector("small")!.textContent = front.owner === "me" ? "Your paper is back!" : `Help Robo with ${front.theme}`;
   showSoloThemes();
@@ -389,7 +439,7 @@ function allDone(): void {
   robo = null;
   keepSheets();
   stopSolo();
-  openGallery("🎉 All done! Here's your picture and Robo's!");
+  openGallery(`🎉 All done! Here's your picture and Robo's! 🤖 Robo says: "${compliment()}"`);
 }
 
 function stopSolo(): void {
@@ -403,9 +453,11 @@ function newRound(): void {
   const free = THEMES.filter((t) => t !== front.theme);
   const mine = free[Math.floor(Math.random() * free.length)]!;
   const roboChoices = ROBO_THEMES.filter((r) => r.theme !== mine && r.theme !== back.theme);
-  front = { theme: mine, owner: "me", drew: false };
-  back = { theme: roboChoices[Math.floor(Math.random() * roboChoices.length)]!.theme, owner: "robo", drew: false };
+  front = { theme: mine, owner: "me", drew: false, ink: 0 };
+  back = { theme: roboChoices[Math.floor(Math.random() * roboChoices.length)]!.theme, owner: "robo", drew: false, ink: 0 };
   turnNo = 0;
+  drewThisTurn = false;
+  roboSays = "";
   clearPaper();
   roboPen.fillStyle = "#ffffff";
   roboPen.fillRect(0, 0, roboPaper.width, roboPaper.height);
@@ -585,6 +637,7 @@ function showPlayers(): void {
 }
 
 function showTurn(): void {
+  if (lesson) return; // Robo's lesson shows its own words
   const now = performance.now();
   if (now < toastUntil) turnEl.textContent = toast;
   else if (drawer === null) turnEl.textContent = "Waiting for your friend... you can draw while you wait! ✏️";
@@ -656,7 +709,10 @@ function drawTo(point: [number, number]): void {
   const c = erasing ? "#ffffff" : color;
   const size = Number(sizeInput.value);
   line(seg, c, size);
-  if (solo) front.drew = true;
+  if (solo) {
+    front.drew = drewThisTurn = true;
+    front.ink += Math.hypot(seg[2] - seg[0], seg[3] - seg[1]) * size;
+  }
   send({ type: "seg", color: c, size, p: seg.map((n) => Math.round(n)) as [number, number, number, number] });
   last = point;
 }
@@ -715,5 +771,117 @@ document.getElementById("save")!.addEventListener("click", () => {
   a.download = `drawing-switch-${room}.png`;
   a.click();
 });
+
+// ---- Learning to draw ----
+// Penelope wanted a free drawing class: Robo shows you how to draw something
+// one part at a time, as a light picture you trace over.
+
+const ghost = document.getElementById("ghost") as HTMLCanvasElement;
+const ghostPen = ghost.getContext("2d")!;
+const LESSON_SIZE = 440;
+let lesson: { theme: string; steps: LessonStep[]; at: number; done: boolean } | null = null;
+const lessonButton = (id: string): HTMLButtonElement => document.getElementById(id) as HTMLButtonElement;
+
+const learnList = document.getElementById("learn-list")!;
+for (const { theme } of ROBO_THEMES) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "pill";
+  b.textContent = theme;
+  b.addEventListener("click", () => startLesson(theme));
+  learnList.append(b);
+}
+document.getElementById("learn-open")!.addEventListener("click", () => {
+  const choice = document.getElementById("learn-choice")!;
+  choice.hidden = !choice.hidden;
+});
+
+function startLesson(theme: string): void {
+  me.name = nameInput.value.trim() || "Me";
+  lesson = { theme, steps: lessonSteps(theme), at: 0, done: false };
+  lobby.hidden = true;
+  game.hidden = false;
+  document.querySelector<HTMLElement>(".room")!.hidden = true;
+  document.getElementById("game-buttons")!.hidden = true;
+  document.getElementById("lesson-buttons")!.hidden = false;
+  toolsEl.classList.remove("off");
+  paper.classList.remove("watching");
+  timerEl.textContent = "";
+  playersEl.textContent = "";
+  themesEl.innerHTML = "";
+  const el = document.createElement("p");
+  el.className = "theme mine";
+  const who = document.createElement("small");
+  who.textContent = "🎓 Robo is teaching you";
+  el.append(who, theme);
+  themesEl.append(el);
+  clearPaper();
+  showLesson();
+}
+
+/** Robo's light picture: the parts you did already, and the part to do now (darker). */
+function showLesson(): void {
+  if (!lesson) return;
+  const { steps, at, done } = lesson;
+  const x = (paper.width - LESSON_SIZE) / 2;
+  const y = (paper.height - LESSON_SIZE) / 2;
+  ghostPen.clearRect(0, 0, ghost.width, ghost.height);
+  ghost.hidden = done;
+  steps.forEach((step, i) => {
+    if (i > at) return;
+    ghostPen.globalAlpha = i === at ? 1 : 0.35;
+    step.draw(ghostPen, x, y, LESSON_SIZE);
+  });
+  ghostPen.globalAlpha = 1;
+  if (done) turnEl.textContent = `🎉 You drew ${lesson.theme}! 🤖 Robo says: "${compliment()}"`;
+  else turnEl.textContent = `🤖 Step ${at + 1} of ${steps.length}: ${steps[at]!.say}`;
+  lessonButton("lesson-back").hidden = done;
+  lessonButton("lesson-back").disabled = at === 0;
+  lessonButton("lesson-next").hidden = done;
+  lessonButton("lesson-next").textContent = at === steps.length - 1 ? "🎉 I did it!" : "Next step ➡️";
+  lessonButton("lesson-another").hidden = !done;
+  lessonButton("lesson-save").hidden = !done;
+}
+
+lessonButton("lesson-next").addEventListener("click", () => {
+  if (!lesson) return;
+  if (lesson.at < lesson.steps.length - 1) lesson.at++;
+  else {
+    lesson.done = true;
+    switchBanner.textContent = "GREAT JOB!";
+    switchBanner.hidden = true;
+    void switchBanner.offsetWidth; // restart the pop animation
+    switchBanner.hidden = false;
+    window.setTimeout(() => (switchBanner.hidden = true), 2400);
+  }
+  showLesson();
+});
+lessonButton("lesson-back").addEventListener("click", () => {
+  if (!lesson || lesson.at === 0) return;
+  lesson.at--;
+  showLesson();
+});
+lessonButton("lesson-save").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = paper.toDataURL("image/png");
+  a.download = "robo-drawing-lesson.png";
+  a.click();
+});
+function endLesson(): void {
+  lesson = null;
+  ghost.hidden = true;
+  switchBanner.hidden = true;
+  document.getElementById("game-buttons")!.hidden = false;
+  document.getElementById("lesson-buttons")!.hidden = true;
+  document.querySelector<HTMLElement>(".room")!.hidden = false;
+  game.hidden = true;
+  lobby.hidden = false;
+}
+lessonButton("lesson-another").addEventListener("click", () => {
+  endLesson();
+  document.getElementById("learn-choice")!.hidden = false;
+  document.getElementById("learn-open")!.scrollIntoView({ behavior: "smooth" });
+});
+lessonButton("lesson-quit").addEventListener("click", endLesson);
 
 clearPaper();

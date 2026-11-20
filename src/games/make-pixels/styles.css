@@ -1,0 +1,432 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #fff;
+  color: #111;
+  font: 16px/1.4 system-ui, sans-serif;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* Room at the top for the site-wide message board and credits buttons. */
+.page {
+  padding: 80px 20px 24px;
+}
+
+.back-link {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  color: #666;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.title {
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: 40px;
+  letter-spacing: 0.04em;
+  background: linear-gradient(90deg, #ff80ab, #ffd54f, #4dd0e1, #b39ddb);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.room {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+/* The black arrow on the side. */
+.arrow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 64px;
+  height: 110px;
+  border: 3px solid #000;
+  border-left: none;
+  border-radius: 0 18px 18px 0;
+  background: #000;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s;
+}
+
+.arrow svg {
+  width: 30px;
+}
+
+.arrow:hover {
+  transform: translateY(-50%) scale(1.06);
+}
+
+.room.open .arrow svg {
+  transform: scaleX(-1);
+}
+
+/* The white chunk of canvas, with the colors next to it. */
+.chunk {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 18px;
+  background: #fff;
+  color: #111;
+  border-radius: 20px;
+  border: 3px solid #111;
+  box-shadow: 0 8px 0 #111;
+  animation: pop 0.25s ease-out;
+}
+
+.chunk[hidden] {
+  display: none;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+.colors {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 180px;
+}
+
+.wheel {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow: 0 0 0 3px #111;
+  margin: 3px auto 4px;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.slider input {
+  width: 100%;
+}
+
+#bright {
+  accent-color: #111;
+  background: linear-gradient(90deg, #000, var(--top, #fff));
+  border-radius: 6px;
+}
+
+.now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.now-swatch {
+  width: 44px;
+  height: 44px;
+  border: 3px solid #111;
+  border-radius: 10px;
+}
+
+.recent {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+
+.recent-color {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid #111;
+  border-radius: 6px;
+}
+
+.canvas-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.canvas-scroll {
+  max-width: min(640px, calc(100vw - 480px));
+  max-height: 66vh;
+  overflow: auto;
+}
+
+#canvas {
+  display: block;
+  touch-action: none;
+  border: 3px solid #111;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.buttons button {
+  padding: 8px 14px;
+  border: 2px solid #111;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 700;
+}
+
+.buttons .tool.on {
+  background: #ffd54f;
+}
+
+#canvas.filling {
+  cursor: cell;
+}
+
+.sizes {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.size {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #111;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.size i {
+  width: var(--s);
+  height: var(--s);
+  background: #111;
+}
+
+.size.on {
+  background: #ffd54f;
+}
+
+/* The brushes the arrow pulls out, on the left of the canvas chunk. */
+.brushes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 16px;
+  border-right: 2px dashed #ddd;
+  animation: slide 0.2s ease-out;
+}
+
+.brushes[hidden] {
+  display: none;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+}
+
+.brushes .tool {
+  padding: 8px 12px;
+  border: 2px solid #111;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 700;
+  text-align: left;
+}
+
+.brushes .tool.on {
+  background: #ffd54f;
+}
+
+.brushes .sizes {
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+/* --- Saving with a name ------------------------------------------------ */
+
+.buttons .save {
+  background: #aed581;
+}
+
+.name-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.name-row[hidden] {
+  display: none;
+}
+
+.name-row input {
+  flex: 1;
+  max-width: 260px;
+  padding: 8px 12px;
+  border: 2px solid #111;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.name-row button {
+  padding: 8px 14px;
+  border: 2px solid #111;
+  border-radius: 10px;
+  background: #aed581;
+  font-weight: 700;
+}
+
+.gallery {
+  max-width: 900px;
+  margin: 36px auto 0;
+}
+
+.gallery[hidden] {
+  display: none;
+}
+
+.gallery h2 {
+  text-align: center;
+  color: #ec407a;
+}
+
+.gallery ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+}
+
+.gallery li {
+  position: relative;
+}
+
+.gallery .open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 130px;
+  padding: 8px;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  background: #fff;
+  color: #111;
+  font-weight: 700;
+}
+
+.gallery li.on .open {
+  border-color: #ff80ab;
+}
+
+.gallery img {
+  width: 110px;
+  height: 110px;
+  image-rendering: pixelated;
+  border: 2px solid #111;
+  border-radius: 4px;
+}
+
+.gallery span {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery .delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #111;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 13px;
+}
+
+/* --- Canvas size and pixel size ------------------------------------------ */
+
+.settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.grid-sizes {
+  display: flex;
+  gap: 4px;
+}
+
+.grid-size {
+  padding: 4px 7px;
+  border: 2px solid #111;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.grid-size.on {
+  background: #ffd54f;
+}
+
+.settings .slider {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings .slider input {
+  width: 110px;
+}
+
+#canvas.picking {
+  cursor: copy;
+}

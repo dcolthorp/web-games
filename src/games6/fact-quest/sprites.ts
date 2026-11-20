@@ -235,6 +235,21 @@ export const CINDER = person(
   `<path d="M22 32 L32 40 L42 32 Z" fill="#e5383b" stroke="#2b2b33" stroke-width="1.5"/>`
 );
 
+// A trick target in the passageway: it looked like a target until it opened
+// its mouth.
+export const TARGET_MIMIC = svg(`
+  <path d="M30 44 L28 62 M34 44 L36 62" stroke="#6b4a1e" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="26" r="22" fill="#e5383b" stroke="#202029" stroke-width="2.5"/>
+  <circle cx="32" cy="26" r="15" fill="#ffffff"/>
+  <circle cx="32" cy="26" r="9" fill="#e5383b"/>
+  <path d="M14 30 Q32 52 50 30 Z" fill="#202029"/>
+  <path d="M17 31 l4 6 l3 -6 l4 7 l4 -7 l4 7 l4 -7 l3 6 l4 -6" fill="#ffffff" stroke="#202029" stroke-width="1"/>
+  <ellipse cx="24" cy="18" rx="4" ry="5" fill="#ffe14d" stroke="#202029" stroke-width="1.5"/>
+  <ellipse cx="40" cy="18" rx="4" ry="5" fill="#ffe14d" stroke="#202029" stroke-width="1.5"/>
+  <circle cx="24" cy="19" r="2" fill="#202029"/><circle cx="40" cy="19" r="2" fill="#202029"/>
+  <path d="M18 11 l10 4 M46 11 l-10 4" stroke="#202029" stroke-width="2.5" stroke-linecap="round"/>
+`);
+
 // The owl hiding in the Badlands: smaller and darker than Old Owl, with a
 // little pink bow.
 export const HIDING_OWL = svg(`

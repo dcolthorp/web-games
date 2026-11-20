@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Make Pictures</title>
+    <meta name="credits-made-by" content="Penelope" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <a class="back-link" href="../../penelope/index.html">← Penelope's Games</a>
+      <h1 class="title">Make Pictures</h1>
+      <div class="room" id="room">
+        <button type="button" class="arrow" id="arrow" aria-label="Open the canvas" aria-expanded="false">
+          <svg viewBox="0 0 40 60" aria-hidden="true"><path d="M10 6 L32 30 L10 54" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+        <div class="chunk" id="chunk" hidden>
+          <div class="brushes" id="brushes" hidden>
+            <b>Brushes</b>
+            <button type="button" class="tool on" data-tool="pixel">✏️ Pixel</button>
+            <button type="button" class="tool" data-tool="line">📏 Line</button>
+            <button type="button" class="tool" data-tool="fill">🪣 Fill</button>
+            <button type="button" class="tool" data-tool="picker" title="Click a square to grab its color">💧 Picker</button>
+            <div class="sizes" role="group" aria-label="Brush size">
+              <span>Size</span>
+              <button type="button" class="size on" data-size="1" aria-label="Size 1"><i style="--s: 6px"></i></button>
+              <button type="button" class="size" data-size="2" aria-label="Size 2"><i style="--s: 11px"></i></button>
+              <button type="button" class="size" data-size="3" aria-label="Size 3"><i style="--s: 16px"></i></button>
+              <button type="button" class="size" data-size="5" aria-label="Size 5"><i style="--s: 22px"></i></button>
+            </div>
+          </div>
+          <div class="colors">
+            <canvas class="wheel" id="wheel" width="170" height="170" aria-label="Color wheel. Click or drag to pick a color."></canvas>
+            <label class="slider">Brightness <input type="range" id="bright" min="0" max="100" value="0" /></label>
+            <label class="slider">Opacity <input type="range" id="alpha" min="5" max="100" value="100" /> <span id="alpha-value">100%</span></label>
+            <div class="now"><span class="now-swatch" id="now"></span> Your color</div>
+            <div class="recent" id="recent" aria-label="Colors you used"></div>
+          </div>
+          <div class="canvas-side">
+            <div class="canvas-scroll">
+              <canvas id="canvas" aria-label="Your pixel canvas. Click or drag to put down pixels."></canvas>
+            </div>
+            <div class="buttons">
+              <button type="button" class="save" id="save">💾 Save</button>
+              <button type="button" id="undo">↶ Undo</button>
+              <button type="button" id="fresh">✨ New canvas</button>
+            </div>
+            <div class="settings">
+              <span>Canvas size</span>
+              <span class="grid-sizes" id="grid-sizes"></span>
+              <span>Pixel size</span>
+              <span class="grid-sizes" id="pixel-sizes"></span>
+            </div>
+            <form class="name-row" id="name-row" hidden>
+              <input id="name" maxlength="30" placeholder="Name your picture" aria-label="Picture name" autocomplete="off" />
+              <button type="submit">Save it!</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <section class="gallery" id="gallery" hidden>
+        <h2>My Pictures</h2>
+        <ul id="pictures"></ul>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

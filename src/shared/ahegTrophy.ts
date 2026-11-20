@@ -1,4 +1,7 @@
 export const AHEG_TROPHY_LOCATION_KEY = "a-hard-easy-game-trophy-location";
+// The trophy's "location" when it has been carried over to the Games 7 menu,
+// where it can scrape the gum off the floor.
+export const GAMES7_TROPHY_SPOT = "games7-hub";
 export const OUMG_DELETED_FROM_HUB_KEY = "oscars-untitled-maze-game-deleted-from-hub";
 export const AKL_DELETED_FROM_HUB_KEY = "a-kids-life-deleted-from-hub";
 export const TM_DELETED_FROM_HUB_KEY = "tamagotchi-monster-deleted-from-hub";

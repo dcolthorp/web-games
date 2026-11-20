@@ -1,5 +1,6 @@
 import { AKL_DELETED_FROM_HUB_KEY } from "../../shared/ahegTrophy";
 import { installForceRefreshHotkey } from "../../shared/forceRefreshHotkey";
+import { addTrapFloor } from "./trapFloor";
 import { installOofShortcut } from "../../shared/oofShortcut";
 import { isThisGameSupercharged } from "../../shared/superchargedHub";
 import { NIGHTMARE_TOAST_KEY, PENELOPE_CAT_SKIN_KEY, PENELOPE_DOG_BREED_KEY, PENELOPE_NIGHTMARE_PET_KEY, PENELOPE_PET_FORM_KEY, TOAST_FOR_PENELOPE_KEY } from "../../shared/glitchedToast";
@@ -65,6 +66,27 @@ const games: Game[] = [
     blurb: "Open an egg, hatch a pet, and take care of it. Earn bucks for more eggs!",
   },
   {
+    id: "math-with-ollie",
+    name: "Math with Ollie",
+    path: "../games/math-with-ollie/index.html",
+    genre: "Math Adventure",
+    blurb: "A monster smashed Sunny Village! Help Ollie fix it all up with math.",
+  },
+  {
+    id: "my-cozy-sewing",
+    name: "My Cozy Sewing",
+    path: "../games/my-cozy-sewing/index.html",
+    genre: "Sewing Shop",
+    blurb: "Sew dresses, shoes, scarves, quilts and more in your pink shop, and sell them!",
+  },
+  {
+    id: "make-pixels",
+    name: "Make Pictures",
+    path: "../games/make-pixels/index.html",
+    genre: "Pixel Art",
+    blurb: "Open the white canvas, pick a color, and put down pixels one at a time.",
+  },
+  {
     id: "draw-switch",
     name: "Drawing Switch",
     path: "../games/draw-switch/index.html",
@@ -123,6 +145,9 @@ function isGameDeletedFromHub(gameId: string): boolean {
 }
 
 renderGameList();
+
+// A cute wooden floor at the bottom of the page. It's a trap (Penelope asked for it).
+addTrapFloor();
 
 // Supercharged by dev.1: stroking the pet with the mouse builds up static,
 // like rubbing a real cat. When the static meter is full the pet puffs up and

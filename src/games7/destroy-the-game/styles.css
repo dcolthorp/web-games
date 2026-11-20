@@ -1,0 +1,36 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #120c10;
+  color: #fff3e0;
+  font: 15px/1.4 "DM Sans", system-ui, sans-serif;
+}
+
+#screen {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+.back-link {
+  position: fixed;
+  top: 14px;
+  left: 16px;
+  z-index: 2;
+  color: #ffb4a0;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}

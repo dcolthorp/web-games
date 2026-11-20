@@ -62,6 +62,7 @@ const GAMES: BigGame[] = [
   { id: "cats-for-kitties", name: "Catch the Kitties!!!", path: "../games/cats-for-kitties/index.html", hubs: ["Penelope's Games"], blurb: "Kitties pop up in the rainbow room. Catch the rare ones for big points!" },
   { id: "dress-up", name: "Dress Up Doll", path: "../games/dress-up/index.html", hubs: ["Penelope's Games"], blurb: "Dress up your doll in tops, skirts, dresses, coats and shoes, in any colour." },
   { id: "pet-eggs", name: "Pet Eggs", path: "../games/pet-eggs/index.html", hubs: ["Penelope's Games"], blurb: "Open an egg, hatch a pet, and take care of it. Earn bucks for more eggs!" },
+  { id: "math-with-ollie", name: "Math with Ollie", path: "../games/math-with-ollie/index.html", hubs: ["Penelope's Games"], blurb: "A monster smashed Sunny Village! Help Ollie fix it all up with math." },
   { id: "draw-switch", name: "Drawing Switch", path: "../games/draw-switch/index.html", hubs: ["Penelope's Games"], blurb: "Draw with a friend on another computer. One minute each, then switch!" },
   { id: "things-i-love", name: "Things I Love", path: "../games/things-i-love/index.html", hubs: ["Penelope's Games"], blurb: "Boxes all over the room. Open one and write something you love inside." },
 

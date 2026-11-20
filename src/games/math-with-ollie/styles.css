@@ -1,0 +1,186 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #2f2a5a;
+  background: linear-gradient(135deg, #d8f5c9, #fff1c9 50%, #cfe6ff);
+}
+
+.page { max-width: 1000px; margin: 0 auto; padding: 16px; }
+
+.back-link {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #2f8a4a;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 3px 0 #b8e0b0;
+}
+
+.hero { text-align: center; margin: 12px 0; }
+.hero h1 { margin: 0; font-size: 2.4rem; }
+.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.8rem; }
+
+.card {
+  padding: 14px;
+  border-radius: 24px;
+  background: #fff;
+  border: 5px solid #8fd18a;
+  box-shadow: 0 8px 24px rgba(47, 138, 74, 0.18);
+}
+
+.top-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; min-height: 42px; }
+.fixed { margin: 0; font-weight: 800; font-size: 1.2rem; }
+.top-buttons { display: flex; gap: 8px; }
+
+.pill {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: #e6f6e2;
+  color: #2f8a4a;
+  font: 700 1rem "Trebuchet MS", sans-serif;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #b8e0b0;
+}
+.pill:hover, .pill:focus-visible { background: #d4f0cd; outline: none; }
+.pill[hidden] { display: none; }
+.pill[aria-pressed="true"] { background: #2f8a4a; color: #fff; }
+.pill-main { background: #ff8a3d; color: #fff; box-shadow: 0 3px 0 #c9621f; }
+.pill-main:hover, .pill-main:focus-visible { background: #ff7a22; }
+.big { font-size: 1.3rem; padding: 14px 28px; margin: 6px; }
+
+.board { position: relative; }
+#map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(90%, 720px);
+  margin: 0;
+  padding: 12px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 4px solid #ffd27a;
+  text-align: center;
+  font-weight: 800;
+  font-size: clamp(1rem, 2.4vw, 1.4rem);
+  pointer-events: none;
+}
+.caption[hidden] { display: none; }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(47, 42, 90, 0.35);
+}
+.overlay[hidden] { display: none; }
+.panel {
+  width: min(100%, 560px);
+  max-height: 100%;
+  overflow: auto;
+  padding: 18px 20px;
+  border-radius: 22px;
+  background: #fff;
+  border: 5px solid #ffd27a;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.panel h2 { margin: 4px 0 8px; font-size: 1.6rem; }
+.panel p { margin: 6px 0; font-weight: 700; }
+
+.levels { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 8px 0 12px; }
+.level { display: grid; gap: 2px; min-width: 130px; }
+.level small { font-size: 0.75rem; font-weight: 700; opacity: 0.85; }
+
+.job-who { font-size: 1.1rem; color: #7a6aa8; }
+.job-progress { font-size: 1.4rem; letter-spacing: 0.1em; }
+.problem { font: 900 clamp(2.4rem, 8vw, 3.6rem) "Trebuchet MS", sans-serif; margin: 10px 0 !important; color: #2f2a5a; }
+.answers { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 8px 0; }
+.answer {
+  min-width: 90px;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 20px;
+  background: #cfe6ff;
+  color: #2f2a5a;
+  font: 900 2rem "Trebuchet MS", sans-serif;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #8fb4e0;
+}
+.answer:hover, .answer:focus-visible { background: #b8d8ff; outline: none; }
+.answer.wrong { background: #ffd0d0; box-shadow: 0 5px 0 #e09090; animation: shake 0.4s; }
+.answer.right { background: #b8f0b0; box-shadow: 0 5px 0 #7cc874; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+.job-note { min-height: 1.5em; font-size: 1.2rem; }
+.tease { font-size: 1.15rem; color: #6a3fd1; }
+.hint { margin: 10px 0 0; text-align: center; font-weight: 700; }
+
+@media (max-width: 640px) {
+  .answer { min-width: 70px; font-size: 1.6rem; }
+  .panel h2 { font-size: 1.3rem; }
+}
+.saved { margin-left: 8px; font-size: 0.9rem; color: #2f8a4a; }
+.saved[hidden] { display: none; }
+
+.battle {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  width: min(94%, 620px);
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 4px solid #c084fc;
+  text-align: center;
+}
+.battle[hidden] { display: none; }
+.battle-problem { margin: 0; font: 900 clamp(1.6rem, 5vw, 2.4rem) "Trebuchet MS", sans-serif; }
+.battle .answers { margin: 4px 0; }
+.battle .answer { padding: 8px 14px; font-size: 1.6rem; min-width: 76px; }
+.battle-note { margin: 2px 0 0; min-height: 1.3em; font-weight: 800; }
+
+.teleport-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px 0 14px; }
+.teleport-list .pill { font-size: 1.05rem; }
+
+.skin-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 10px 0 14px; }
+.skin {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  width: 128px;
+  padding: 6px;
+  border: 4px solid #e6f6e2;
+  border-radius: 18px;
+  background: #f6fbf4;
+  color: #2f2a5a;
+  font: 800 0.85rem "Trebuchet MS", sans-serif;
+  cursor: pointer;
+}
+.skin canvas { width: 100px; height: auto; }
+.skin[aria-pressed="true"] { border-color: #ff8a3d; background: #fff1e0; }
+
+.coins { margin-left: 10px; color: #b8860b; }
+.pill:disabled { opacity: 0.5; cursor: not-allowed; }

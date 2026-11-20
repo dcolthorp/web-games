@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Games 7</title>
+    <link rel="stylesheet" href="../styles/main.css" />
+  </head>
+  <body class="games7-hub">
+    <main class="menu-shell">
+      <section class="hero-panel games7-hero">
+        <p class="eyebrow">Lucky number seven</p>
+        <div class="title-row">
+          <h1>Games 7</h1>
+          <a class="hub-toggle" href="../index.html" aria-label="Back to Oscar's Games">
+            <svg viewBox="0 0 32 24" aria-hidden="true" focusable="false">
+              <path d="M3 5 L16 18 L29 5" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
+        </div>
+        <p class="subtitle">WE STOPPED COUNTING. HE DIDN'T.</p>
+        <div class="games7-gumballs" aria-live="polite">
+          <span class="gumball-machine" aria-hidden="true"><span class="gumball-globe"></span><span class="gumball-base"></span></span>
+          <span class="gumball-tray" id="gumball-tray" aria-label="Your gumballs"></span>
+        </div>
+        <button class="hero-stripes games7-stripes" id="games7-crank" type="button" aria-label="Turn the crank for a gumball"></button>
+      </section>
+
+      <section class="menu-container" aria-labelledby="game-list-heading">
+        <div class="section-header">
+          <h2 id="game-list-heading">Choose Your Disaster, Seven Times Over</h2>
+          <p class="section-copy">Turn the tape. Get a gumball.</p>
+        </div>
+        <ul class="game-list" id="game-list"></ul>
+      </section>
+
+      <button class="trap-floor games7-trap-floor" id="trap-floor-7" type="button" aria-label="Bubble gum floor">
+        <span class="gum-blob" style="--x: 22%; --y: 68%; --w: 68px; --h: 36px; --gum: #ff9ad5" aria-hidden="true"></span>
+        <span class="gum-blob" style="--x: 71%; --y: 30%; --w: 52px; --h: 28px; --gum: #7dffc8" aria-hidden="true"></span>
+        <span class="gum-blob" style="--x: 90%; --y: 72%; --w: 40px; --h: 24px; --gum: #5fe0ff" aria-hidden="true"></span>
+        <span class="gum-floor-label" aria-live="polite">EW! WHO LEFT GUM ON THE FLOOR?</span>
+      </button>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -787,6 +787,126 @@ h1.is-glitching::after {
     linear-gradient(180deg, #1e6378, #123a4a);
 }
 
+.games7-hub {
+  --bg: #2a0a0a;
+  --bg-accent: #5c1414;
+  --panel: #4a1010;
+  --panel-2: #6e1c1c;
+  --ink: #fff6e5;
+  --muted: #ffd9a3;
+  --danger: #ffd23f;
+  --danger-dark: #b38a00;
+  --warn: #ff5c5c;
+  background:
+    radial-gradient(circle at 15% 9%, rgba(255, 210, 63, 0.26), transparent 25%),
+    radial-gradient(circle at 85% 74%, rgba(255, 92, 92, 0.18), transparent 22%),
+    linear-gradient(180deg, #8f1f1f, #4a1010 70%, #2a0a0a);
+}
+
+.games7-hero {
+  background:
+    radial-gradient(circle at 80% 24%, rgba(255, 210, 63, 0.22), transparent 20%),
+    linear-gradient(135deg, #b52a2a, #4a1010 68%);
+}
+
+.games7-hub .game-list {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* The caution tape is the gumball machine's crank (games7/main.ts). Scoped to the
+   hub so it outranks the plain .hero-stripes background. */
+.games7-hub .games7-stripes {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: repeating-linear-gradient(-45deg, #ffd23f 0 22px, #4a1010 22px 44px);
+  transition: transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.games7-hub .games7-stripes.is-turned {
+  animation: games7-crank 0.3s ease;
+}
+
+@keyframes games7-crank {
+  50% { transform: translateY(6px); }
+}
+
+.games7-gumballs {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin: 4px 0 40px;
+  min-height: 74px;
+}
+
+.gumball-machine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+}
+
+/* A glass globe full of gumballs, painted with gradients. */
+.gumball-globe {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid #fff6e5;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.7) 0 5px, transparent 6px),
+    radial-gradient(circle at 30% 65%, #ff5c5c 0 7px, transparent 8px),
+    radial-gradient(circle at 55% 75%, #5fe0ff 0 7px, transparent 8px),
+    radial-gradient(circle at 75% 55%, #ffd23f 0 7px, transparent 8px),
+    radial-gradient(circle at 50% 45%, #7dffc8 0 7px, transparent 8px),
+    radial-gradient(circle at 70% 30%, #ff9ad5 0 7px, transparent 8px),
+    rgba(255, 255, 255, 0.15);
+}
+
+.gumball-base {
+  width: 40px;
+  height: 18px;
+  margin-top: -3px;
+  border-radius: 4px 4px 6px 6px;
+  background: #ffd23f;
+}
+
+.gumball-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gumball {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: #2a0a0a;
+  font: 900 0.85rem/1 "Trebuchet MS", "Segoe UI", sans-serif;
+  box-shadow: inset -3px -3px 0 rgba(0, 0, 0, 0.18);
+  animation: games7-drop 0.35s ease-out;
+}
+
+@keyframes games7-drop {
+  from { transform: translateY(-24px); opacity: 0; }
+}
+
+.gumball-tray.is-full .gumball {
+  animation: games7-bounce 0.35s ease-in-out 4 alternate;
+}
+
+@keyframes games7-bounce {
+  to { transform: translateY(-10px); }
+}
+
+.games7-hub .games7-game-card {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(255, 210, 63, 0.18), transparent 25%),
+    linear-gradient(180deg, #7a1d1d, #4a1010);
+}
+
 .games5-hub .games5-game-card {
   background:
     radial-gradient(circle at 90% 15%, rgba(255, 154, 213, 0.18), transparent 25%),
@@ -3827,4 +3947,276 @@ h1.is-glitching.is-rebuilt::after {
 .dev1-game-play:focus-visible {
   background: #1d6b34;
   outline: none;
+}
+
+/* Games 6's floor is asleep (games6/main.ts). */
+.games6-trap-floor {
+  position: relative;
+  background: repeating-linear-gradient(-45deg, #5fe0ff 0 22px, #123a4a 22px 44px);
+  color: #062634;
+  filter: saturate(0.7) brightness(0.85);
+  transition: filter 0.3s ease;
+}
+
+.games6-trap-floor::after {
+  content: "z Z z";
+  position: absolute;
+  right: 18px;
+  top: -6px;
+  color: #effcff;
+  font-size: 1.1rem;
+  letter-spacing: 0.3em;
+  text-shadow: 2px 2px 0 #062634;
+  pointer-events: none;
+  animation: games6-floor-snore 2.4s ease-in-out infinite;
+}
+
+.games6-trap-floor.is-awake {
+  filter: none;
+}
+
+.games6-trap-floor.is-awake::after {
+  content: "!!";
+  animation: none;
+}
+
+.games6-trap-floor.is-poked {
+  animation: games6-floor-jolt 0.25s ease;
+}
+
+@keyframes games6-floor-snore {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(-10px); opacity: 1; }
+}
+
+@keyframes games6-floor-jolt {
+  40% { transform: translateY(-6px); }
+}
+
+/* Games 7's floor is covered in chewed gum and stretches when you pull it
+   (games7/main.ts). The trophy from Games 1 can scrape the gum off. */
+.games7-trap-floor {
+  position: relative;
+  background: repeating-linear-gradient(-45deg, #ffd23f 0 22px, #4a1010 22px 44px);
+  color: #2a0a0a;
+  touch-action: none;
+  user-select: none;
+}
+
+.gum-floor-label {
+  position: relative;
+}
+
+.gum-blob {
+  --left: 1;
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
+  border-radius: 50%;
+  background: var(--gum);
+  box-shadow: inset -4px -4px 0 rgba(0, 0, 0, 0.18), inset 4px 4px 0 rgba(255, 255, 255, 0.35);
+  opacity: calc(0.2 + var(--left) * 0.8);
+  transform: translate(-50%, -50%) scale(calc(0.35 + var(--left) * 0.65));
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.gum-blob.is-scraped,
+.games7-trap-floor.is-clean .gum-blob {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0);
+}
+
+.games7-trap-floor.is-stretching {
+  cursor: grabbing;
+  transition: none;
+}
+
+.games7-trap-floor.is-snapping {
+  transition: transform 0.45s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+.games7-trap-floor.is-being-scraped {
+  filter: brightness(1.12);
+}
+
+.games7-trap-floor.is-clean {
+  cursor: default;
+}
+
+.games7-trap-floor.is-just-cleaned {
+  animation: games7-sparkle 0.3s steps(2) 5;
+}
+
+@keyframes games7-sparkle {
+  50% { filter: brightness(1.45) saturate(1.3); }
+}
+
+/* Penelope's floor (2026-11-20): a cute normal-looking floor with a bow on
+   top. It's a trap: see src/games/penelope/trapFloor.ts. */
+.penelope-floor {
+  position: relative;
+  width: 100vw;
+  height: 180px;
+  margin: 110px 0 0 calc(50% - 50vw);
+  border-top: 12px solid #a86f3d;
+  cursor: pointer;
+  background:
+    linear-gradient(to bottom, rgba(255, 240, 220, 0.28), rgba(255, 255, 255, 0) 35%, rgba(70, 35, 10, 0.35)),
+    linear-gradient(to right, rgba(70, 35, 10, 0.25), rgba(0, 0, 0, 0) 18%, rgba(0, 0, 0, 0) 82%, rgba(70, 35, 10, 0.25)),
+    repeating-linear-gradient(to bottom, transparent 0 42px, #8a5530 42px 44px),
+    repeating-linear-gradient(90deg, #d99d63 0 210px, #8a5530 210px 213px, #e2ad78 213px 420px, #8a5530 420px 423px);
+  box-shadow: inset 0 12px 18px rgba(60, 30, 10, 0.35);
+}
+.penelope-floor-bow {
+  position: absolute;
+  left: 50%;
+  top: -46px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 4px 3px rgba(60, 20, 40, 0.35));
+  pointer-events: none;
+}
+/* The hole is heart-shaped (Penelope, 2026-11-20). */
+.penelope-floor-hole, .penelope-floor-heart-shape {
+  clip-path: path("M60 108 C20 80 0 56 0 30 C0 12 14 0 32 0 C46 0 56 8 60 20 C64 8 74 0 88 0 C106 0 120 12 120 30 C120 56 100 80 60 108Z");
+}
+.penelope-floor-hole {
+  position: absolute;
+  width: 120px;
+  height: 110px;
+  transform: translate(-50%, -50%);
+  transition: background 0.4s;
+}
+.penelope-floor-heart-shape { width: 100%; height: 100%; }
+.penelope-floor-hole.pop { animation: penelope-hole-pop 0.35s ease-out, penelope-heart-float 2.4s 0.35s ease-in-out infinite; }
+@keyframes penelope-heart-float {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50% { transform: translate(-50%, calc(-50% - 12px)); }
+}
+/* What the floor says, next to the heart. */
+.penelope-floor-says.side {
+  transform: translate(76px, -50%);
+  animation: penelope-says-fade 0.25s ease-out;
+}
+.penelope-floor-says.side::after {
+  left: -16px;
+  bottom: auto;
+  top: 50%;
+  border: 12px solid transparent;
+  border-right-color: #fff;
+  border-left: 0;
+  transform: translateY(-50%);
+}
+.penelope-floor-says.side.loud { animation: penelope-says-fade 0.25s ease-out, penelope-shake 0.12s 0.25s 6; }
+@keyframes penelope-says-fade { from { opacity: 0; } }
+@keyframes penelope-hole-pop {
+  from { transform: translate(-50%, 40%) scale(0.3); opacity: 0.3; }
+  70% { transform: translate(-50%, -50%) scale(1.12); }
+  to { transform: translate(-50%, -50%) scale(1); }
+}
+.penelope-floor-crack { position: absolute; inset: 0; width: 100%; height: 100%; }
+.penelope-floor-piece {
+  position: absolute;
+  width: 120px;
+  height: 110px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.penelope-floor-says {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 64px));
+  padding: 10px 18px;
+  border: 4px solid #f3a9c9;
+  border-radius: 20px;
+  background: #fff;
+  color: #7a2f5a;
+  font: 800 20px "Trebuchet MS", sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: penelope-says-in 0.25s ease-out;
+}
+.penelope-floor-says::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -16px;
+  border: 12px solid transparent;
+  border-top-color: #fff;
+  border-bottom: 0;
+  transform: translateX(-50%);
+}
+.penelope-floor-says.loud { color: #d0243f; font-size: 24px; animation: penelope-says-in 0.25s ease-out, penelope-shake 0.12s 0.25s 6; }
+@keyframes penelope-says-in { from { opacity: 0; transform: translate(-50%, calc(-100% - 48px)); } }
+@keyframes penelope-shake {
+  0%, 100% { margin-left: 0; }
+  50% { margin-left: 3px; }
+  25% { margin-left: -3px; }
+}
+
+/* Destroy the Game's card on Games 7: something smashed into its bottom-right
+   corner. The corner is snapped off along a jagged line and cracks spread out
+   from where it hit (the SVG in games7/main.ts). The shadow moves to the list
+   item because clip-path would cut a box-shadow off. */
+.smashed-card-slot {
+  filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.35));
+}
+
+/* A soft glow instead of the other cards' hard black shadow: a hard shadow
+   follows the jagged edge and fills the missing corner back in with black. */
+.smashed-card-slot:hover {
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.55));
+}
+
+.game-card.smashed-card {
+  position: relative;
+  box-shadow: none;
+  clip-path: polygon(
+    0 0, 100% 0, 100% 56%, 94% 60%, 95% 66%, 88% 68%, 89% 75%, 82% 77%,
+    83% 84%, 76% 85%, 74% 93%, 69% 92%, 66% 100%, 0 100%
+  );
+}
+
+.game-card.smashed-card:hover {
+  box-shadow: none;
+}
+
+.smashed-corner {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.smashed-corner polyline {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.smashed-corner .crack {
+  stroke: #120607;
+  stroke-width: 2;
+}
+
+.smashed-corner .crack-light {
+  stroke: rgba(255, 220, 200, 0.4);
+  stroke-width: 1.2;
+}
+
+.smashed-corner .break-edge {
+  stroke: #0f0f14;
+  stroke-width: 7;
+}
+
+.smashed-card:hover .smashed-corner .break-edge {
+  stroke: var(--danger);
+}
+
+.smashed-corner .break-edge-light {
+  stroke: #ffcf9e;
+  stroke-width: 1.5;
 }

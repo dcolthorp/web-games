@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 
 export default defineConfig({
   plugins: [
@@ -21,6 +21,8 @@ export default defineConfig({
               '  <script type="module" src="/shared/messageBoard.ts"></script>',
               // Whichever hub dev.1 supercharged turns blue, with extras.
               '  <script type="module" src="/shared/supercharged.ts"></script>',
+              // Penelope's cracked screen from My Cozy Sewing; Drawing Switch heals it.
+              '  <script type="module" src="/shared/crackedScreen.ts"></script>',
               "  </body>",
             ].join("\n")
           );
@@ -95,6 +97,50 @@ export default defineConfig({
       },
     },
     {
+      // Game saves kept in files under saves/, so restarting the app (which
+      // wipes the Browser pane's storage) can't erase them. Only this computer
+      // can read or write them; everybody joining over the network keeps
+      // saving in their own browser.
+      name: "save-files",
+      configureServer(server) {
+        const dir = resolve(__dirname, "saves");
+        server.middlewares.use("/api/save/", (req, res) => {
+          const name = (req.url ?? "").replace(/^\//, "").split("?")[0] ?? "";
+          const address = req.socket.remoteAddress ?? "";
+          const isThisComputer = address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+          if (!/^[a-z0-9-]+$/.test(name) || !isThisComputer) {
+            res.statusCode = 403;
+            res.end();
+            return;
+          }
+          const file = resolve(dir, `${name}.json`);
+          if (req.method === "POST") {
+            let body = "";
+            req.on("data", (chunk) => {
+              body += chunk;
+            });
+            req.on("end", () => {
+              try {
+                JSON.parse(body);
+              } catch {
+                res.statusCode = 400;
+                res.end();
+                return;
+              }
+              mkdirSync(dir, { recursive: true });
+              // Write to a temporary file first, so a save can't be left half-written.
+              writeFileSync(`${file}.tmp`, body);
+              renameSync(`${file}.tmp`, file);
+              res.end();
+            });
+            return;
+          }
+          res.setHeader("Content-Type", "application/json");
+          res.end(existsSync(file) ? readFileSync(file, "utf8") : "null");
+        });
+      },
+    },
+    {
       name: "sharks-multiplayer-rooms",
       configureServer(server) {
         server.ws.on("sharks:room-message", (data: unknown) => {
@@ -132,7 +178,12 @@ export default defineConfig({
         games4: resolve(__dirname, "src/games4/index.html"),
         games5: resolve(__dirname, "src/games5/index.html"),
         games6: resolve(__dirname, "src/games6/index.html"),
+        games7: resolve(__dirname, "src/games7/index.html"),
+        makeElements: resolve(__dirname, "src/games7/make-elements/index.html"),
+        destroyTheGame: resolve(__dirname, "src/games7/destroy-the-game/index.html"),
         factQuest: resolve(__dirname, "src/games6/fact-quest/index.html"),
+        gameFactory: resolve(__dirname, "src/games6/game-factory/index.html"),
+        makeYourOwnMaze: resolve(__dirname, "src/games6/make-your-own-maze/index.html"),
         theSimulation: resolve(__dirname, "src/games5/the-simulation/index.html"),
         crossYourFingers: resolve(__dirname, "src/games5/cross-your-fingers/index.html"),
         drawAndSwap: resolve(__dirname, "src/games5/draw-and-swap/index.html"),
@@ -161,6 +212,9 @@ export default defineConfig({
         dressUp: resolve(__dirname, "src/games/dress-up/index.html"),
         petEggs: resolve(__dirname, "src/games/pet-eggs/index.html"),
         drawSwitch: resolve(__dirname, "src/games/draw-switch/index.html"),
+        mathWithOllie: resolve(__dirname, "src/games/math-with-ollie/index.html"),
+        makePixels: resolve(__dirname, "src/games/make-pixels/index.html"),
+        myCozySewing: resolve(__dirname, "src/games/my-cozy-sewing/index.html"),
         oscarsUntitledMazeGame: resolve(
           __dirname,
           "src/games/oscars-untitled-maze-game/index.html"

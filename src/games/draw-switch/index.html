@@ -47,6 +47,13 @@
             <button id="join" class="pill pill-main" type="button">🤝 Join</button>
           </div>
         </div>
+        <div class="learn">
+          <button id="learn-open" class="pill learn-button" type="button">🎓 Learn how to draw with Robo <small>(free!)</small></button>
+          <div id="learn-choice" class="learn-choice" hidden>
+            <p>What do you want to learn to draw?</p>
+            <div id="learn-list" class="learn-list"></div>
+          </div>
+        </div>
         <p id="lobby-note" class="note" aria-live="polite"></p>
         <p id="address" class="address"></p>
       </section>
@@ -66,6 +73,7 @@
         </div>
         <div class="board">
           <canvas id="paper" width="900" height="600" aria-label="The drawing"></canvas>
+          <canvas id="ghost" class="ghost" width="900" height="600" hidden></canvas>
           <p id="switch" class="switch-banner" hidden>SWITCH!</p>
         </div>
         <div id="tools" class="tools">
@@ -73,7 +81,15 @@
           <label class="size">Size <input id="size" type="range" min="2" max="60" value="10" /></label>
           <button id="eraser" class="pill" type="button" aria-pressed="false">🧽 Eraser</button>
         </div>
-        <div class="game-buttons">
+        <!-- Learning to draw: Robo's steps. -->
+        <div id="lesson-buttons" class="game-buttons" hidden>
+          <button id="lesson-back" class="pill" type="button">⬅️ Go back a step</button>
+          <button id="lesson-next" class="pill pill-main" type="button">Next step ➡️</button>
+          <button id="lesson-another" class="pill pill-main" type="button" hidden>📚 Learn another</button>
+          <button id="lesson-save" class="pill" type="button" hidden>💾 Save picture</button>
+          <button id="lesson-quit" class="pill" type="button">🏠 Back to start</button>
+        </div>
+        <div id="game-buttons" class="game-buttons">
           <button id="skip" class="pill" type="button">⏭️ I'm done, switch!</button>
           <button id="new" class="pill" type="button">🗒️ New picture</button>
           <button id="save" class="pill" type="button">💾 Save picture</button>

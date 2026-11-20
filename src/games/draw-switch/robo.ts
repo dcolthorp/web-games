@@ -320,9 +320,12 @@ export const ROBO_MS = 18_000; // how long Robo takes to draw
 /**
  * Robo draws `theme` into a `size` box at (x, y), a bit at a time. Calls
  * `done` when it's finished. `finish()` makes Robo hurry up and finish now.
+ * Anything in `onTop` stays on top of Robo's drawing (your lines, so Robo
+ * can draw on your picture without covering it up).
  */
 export function roboDraw(
   pen: CanvasRenderingContext2D, theme: string, x: number, y: number, size: number, done: () => void,
+  onTop?: CanvasImageSource,
 ): { stop(): void; finish(): void } {
   const recipe = ROBO_THEMES.find((r) => r.theme === theme) ?? ROBO_THEMES[0]!;
   const k = size / 100;
@@ -374,7 +377,10 @@ export function roboDraw(
   const frame = (now: number): void => {
     if (stopped) return;
     const want = Math.min(steps.length, Math.ceil((steps.length * (now - start)) / (ROBO_MS - 1500)));
-    while (drawn < want) steps[drawn++]!();
+    if (drawn < want) {
+      while (drawn < want) steps[drawn++]!();
+      if (onTop) pen.drawImage(onTop, 0, 0);
+    }
     if (drawn >= steps.length && now - start >= ROBO_MS) {
       done();
       return;
@@ -388,7 +394,89 @@ export function roboDraw(
       if (stopped) return;
       stopped = true;
       while (drawn < steps.length) steps[drawn++]!();
+      if (onTop) pen.drawImage(onTop, 0, 0);
       done();
     },
   };
+}
+
+// ---- Learning to draw ----
+// Robo teaches you a recipe one part at a time: it shows a light picture of
+// the part to trace and says which crayon to use.
+
+const COLOR_NAMES: [string, string][] = [
+  ["#1f1f2e", "black"], ["#ffffff", "white"], ["#8a8f98", "gray"], ["#e8383d", "red"], ["#ff8a3d", "orange"],
+  ["#ffd23f", "yellow"], ["#c8f06a", "light green"], ["#4cc76a", "green"], ["#2fbfa8", "teal"], ["#5fe0ff", "light blue"],
+  ["#3b82f6", "blue"], ["#6a3fd1", "purple"], ["#c084fc", "light purple"], ["#ff6fa8", "pink"], ["#ffb8dc", "light pink"],
+  ["#9a6334", "brown"],
+];
+const rgb = (hex: string): number[] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+/** The crayon that looks most like this colour. */
+function crayonName(hex: string): string {
+  const [r, g, b] = rgb(hex);
+  let best = COLOR_NAMES[0]!;
+  let far = Infinity;
+  for (const named of COLOR_NAMES) {
+    const [r2, g2, b2] = rgb(named[0]);
+    const d = (r! - r2!) ** 2 + (g! - g2!) ** 2 + (b! - b2!) ** 2;
+    if (d < far) [best, far] = [named, d];
+  }
+  return best[1];
+}
+
+export interface LessonStep {
+  say: string;
+  draw(pen: CanvasRenderingContext2D, x: number, y: number, size: number): void;
+}
+
+function drawOp(pen: CanvasRenderingContext2D, op: Op, x: number, y: number, k: number): void {
+  pen.fillStyle = op.c;
+  pen.strokeStyle = op.c;
+  pen.beginPath();
+  if (op.k === "fill") {
+    pen.ellipse(x + op.x * k, y + op.y * k, op.rx * k, op.ry * k, 0, 0, Math.PI * 2);
+    pen.fill();
+    return;
+  }
+  op.pts.forEach(([px, py], i) => (i ? pen.lineTo(x + px * k, y + py * k) : pen.moveTo(x + px * k, y + py * k)));
+  if (op.k === "poly") {
+    pen.closePath();
+    pen.fill();
+    return;
+  }
+  pen.lineWidth = op.s * k * 1.4;
+  pen.lineCap = "round";
+  pen.lineJoin = "round";
+  pen.stroke();
+}
+
+/** How to draw `theme`, a part at a time (parts that are the same kind and colour go together). */
+export function lessonSteps(theme: string): LessonStep[] {
+  const recipe = ROBO_THEMES.find((r) => r.theme === theme) ?? ROBO_THEMES[0]!;
+  const kind = (op: Op): string => {
+    if (op.k !== "path") return "fill";
+    const a = op.pts[0]!, b = op.pts[op.pts.length - 1]!;
+    return Math.hypot(a[0] - b[0], a[1] - b[1]) < 1 ? "outline" : "line";
+  };
+  const groups: Op[][] = [];
+  for (const op of recipe.ops) {
+    const last = groups[groups.length - 1];
+    if (last && kind(last[0]!) === kind(op) && crayonName(last[0]!.c) === crayonName(op.c)) last.push(op);
+    else groups.push([op]);
+  }
+  return groups.map((ops) => {
+    const many = ops.length > 1;
+    const crayon = crayonName(ops[0]!.c);
+    const what = {
+      line: many ? "trace these lines" : "trace this line",
+      outline: many ? "trace around these shapes" : "trace around this shape",
+      fill: many ? "draw these shapes and color them in" : "draw this shape and color it in",
+    }[kind(ops[0]!)];
+    return {
+      say: `Pick the ${crayon} crayon, then ${what}.`,
+      draw: (pen, x, y, size) => {
+        for (const op of ops) drawOp(pen, op, x, y, size / 100);
+      },
+    };
+  });
 }

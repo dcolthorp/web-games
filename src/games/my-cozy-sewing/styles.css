@@ -1,0 +1,43 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #7a2f5a;
+  background: linear-gradient(135deg, #ffe0ee, #fff4e0 50%, #f0e2ff);
+}
+
+.page { max-width: 1000px; margin: 0 auto; padding: 16px; }
+
+.back-link {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #d0477f;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 3px 0 #f5b5d0;
+}
+
+.hero { text-align: center; margin: 12px 0; }
+.hero h1 { margin: 0; font-size: 2.4rem; }
+.eyebrow { margin: 0; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.8rem; }
+
+.card {
+  padding: 10px;
+  border-radius: 24px;
+  background: #fff;
+  border: 5px solid #ff9cc6;
+  box-shadow: 0 8px 24px rgba(208, 71, 127, 0.18);
+}
+
+#shop {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  touch-action: none;
+  user-select: none;
+}
