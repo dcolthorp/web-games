@@ -17,7 +17,11 @@ export type Sfx =
   | "fade"
   | "slam"
   | "gear"
-  | "snip";
+  | "snip"
+  | "crumble"
+  | "laugh"
+  | "flag"
+  | "swoosh";
 
 let audio: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
@@ -133,10 +137,128 @@ export function play(name: Sfx): void {
       tone(a, "square", 2600, 1800, 0.04, 0.05);
       hiss(a, "highpass", 5000, 3000, 0.05, 0.2);
       break;
+    case "crumble":
+      hiss(a, "lowpass", 1400, 150, 0.4, 0.45);
+      tone(a, "square", 200, 70, 0.15, 0.06);
+      break;
+    case "laugh":
+      // "Nyah nyah!" for falling for a fake exit.
+      tone(a, "square", 660, 640, 0.13, 0.06);
+      tone(a, "square", 550, 530, 0.13, 0.06, 0.16);
+      tone(a, "square", 700, 680, 0.13, 0.06, 0.32);
+      tone(a, "square", 550, 520, 0.2, 0.06, 0.48);
+      break;
+    case "flag":
+      tone(a, "triangle", 660, 660, 0.1, 0.12);
+      tone(a, "triangle", 990, 990, 0.2, 0.12, 0.1);
+      break;
+    case "swoosh":
+      hiss(a, "bandpass", 500, 1600, 0.25, 0.12);
+      break;
     case "clink":
       tone(a, "triangle", 2400, 2300, 0.25, 0.08);
       tone(a, "triangle", 3500, 3300, 0.18, 0.05, 0.03);
       hiss(a, "highpass", 6000, 4000, 0.08, 0.12);
       break;
   }
+}
+
+// ---- Music for the Door Shuffle (Level 5). An ORIGINAL spooky tune made right
+// here in code: soft pads, a low hum and a little music-box arpeggio. It fades
+// in slowly when the doors are shown, and fades out when you leave the level.
+
+const CHORDS = [
+  [57, 60, 64], // A minor
+  [53, 57, 60, 64], // F major 7
+  [50, 53, 57], // D minor
+  [52, 56, 59], // E major (spooky)
+];
+const ARP = [0, 1, 2, 1, 0, 2, 1, 2];
+const STEP = 0.3; // seconds per arpeggio note
+const freq = (n: number): number => 440 * 2 ** ((n - 69) / 12);
+
+let music: { gain: GainNode; timer: number; next: number; step: number } | null = null;
+
+export function startMusic(): void {
+  const a = ac();
+  if (!a || music) return;
+  const gain = a.createGain();
+  gain.gain.setValueAtTime(0.0001, a.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.5, a.currentTime + 5); // slow fade in
+  gain.connect(a.destination);
+  music = { gain, timer: 0, next: a.currentTime + 0.05, step: 0 };
+  const schedule = (): void => {
+    if (!music) return;
+    while (music.next < a.currentTime + 0.6) {
+      playStep(a, music.gain, music.step, music.next);
+      music.next += STEP;
+      music.step += 1;
+    }
+  };
+  music.timer = window.setInterval(schedule, 150);
+  schedule();
+}
+
+export function stopMusic(): void {
+  if (!music || !audio) return;
+  const m = music;
+  music = null;
+  window.clearInterval(m.timer);
+  const now = audio.currentTime;
+  m.gain.gain.cancelScheduledValues(now);
+  m.gain.gain.setValueAtTime(Math.max(0.0001, m.gain.gain.value), now);
+  m.gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+  window.setTimeout(() => m.gain.disconnect(), 1500);
+}
+
+function playStep(a: AudioContext, out: GainNode, step: number, t: number): void {
+  const chord = CHORDS[Math.floor(step / 8) % CHORDS.length]!;
+  const pos = step % 8;
+  if (pos === 0) {
+    const barLen = STEP * 8;
+    // Soft pad: two slightly out-of-tune saws per note through a low filter.
+    const lp = a.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 700;
+    lp.connect(out);
+    for (const n of chord) {
+      for (const detune of [-7, 7]) {
+        const o = a.createOscillator();
+        const g = a.createGain();
+        o.type = "sawtooth";
+        o.frequency.value = freq(n);
+        o.detune.value = detune;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.03, t + 0.8);
+        g.gain.setValueAtTime(0.03, t + barLen - 0.3);
+        g.gain.linearRampToValueAtTime(0.0001, t + barLen + 0.1);
+        o.connect(g).connect(lp);
+        o.start(t);
+        o.stop(t + barLen + 0.2);
+      }
+    }
+    // Low hum.
+    const b = a.createOscillator();
+    const bg = a.createGain();
+    b.type = "sine";
+    b.frequency.value = freq(chord[0]! - 12);
+    bg.gain.setValueAtTime(0.0001, t);
+    bg.gain.linearRampToValueAtTime(0.12, t + 0.5);
+    bg.gain.linearRampToValueAtTime(0.0001, t + barLen);
+    b.connect(bg).connect(out);
+    b.start(t);
+    b.stop(t + barLen + 0.1);
+  }
+  // Music-box notes.
+  const note = chord[ARP[pos]! % chord.length]! + 12;
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = "triangle";
+  o.frequency.value = freq(note);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.07, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+  o.connect(g).connect(out);
+  o.start(t);
+  o.stop(t + 0.5);
 }

@@ -1,4 +1,4 @@
-import { play as playSound, type Sfx } from "./sfx";
+import { play as playSound, startMusic, stopMusic, type Sfx } from "./sfx";
 
 // Destroy the Game: the platformer behind the smashed title card (Oscar, 2026-11-20).
 //
@@ -50,6 +50,13 @@ const SLAMMER_LEVEL = 20; // level index (Level 21)
 // wire to cut it: that slammer is switched off and stays open. Wires buried in
 // walls can't be cut.
 const SCISSORS_LEVEL = 25; // level index (Level 26)
+// Oscar: "the most rage baiting game I have ever made", so it got BOTH:
+// more rage (Levels 31+): FAKE EXIT doors that slam you, and CRUMBLING floors
+// that break a moment after you step on them. Less rage: CHECKPOINT flags.
+// Touch a flag and when you die you come back there, with everything you
+// already did still done.
+const RAGE_LEVEL = 30; // level index (Level 31)
+const CRUMBLE_TIME = 0.4;
 
 interface Wire {
   tiles: [number, number][];
@@ -92,7 +99,8 @@ const BLAST = T * 1.6; // how far a bomb reaches
 
 // Map key: # wall, ^ spikes, C cracked wall, M metal, U smudged wall, S switch,
 // J slammer (connected J tiles make one slammer), G gear, o blue wire, x red wire,
-// O blue wire buried in a wall, Y red wire buried in a wall, P start, X exit, ? sign.
+// O blue wire buried in a wall, Y red wire buried in a wall, F fake exit,
+// K crumbling floor, H checkpoint flag, P start, X exit, ? sign.
 //
 // Level 16 unlocks WATER (Oscar's fourth move): hold W to pour water. Pour it on
 // a slightly smudged wall and the whole smudge fades away.
@@ -105,7 +113,32 @@ export interface LevelDef {
   map: string[];
   sign: string; // what the little ? sign says
   popSign?: { title: string; lines: string[] }; // the big sign that pops up at the start
+  name?: string; // shown at the top next to the level number
+  shuffle?: boolean; // the Door Shuffle (Levels 5 and 35)
+  shuffleSwaps?: number; // how many swaps (default 14)
+  shuffleFastest?: number; // seconds for the fastest swap (default 0.22)
 }
+
+// ---- The Door Shuffle (Oscar's idea, our own version) ----
+// Walls slide in and trap you. Eight doors appear: seven say VACANT, one is the
+// EXIT. Spooky music fades in, the labels disappear, and the doors shuffle
+// around, faster and faster. Then the walls open: walk to the door you think is
+// the EXIT and press DOWN. Wrong door? It slams you, and they shuffle again.
+// You start on the left side; all 8 doors are over on your right (Oscar's ask).
+const DOOR_COLS = [9, 12, 15, 18, 21, 24, 27, 30]; // where the 8 door spots are
+const SWAPS = 14;
+interface Shuffle {
+  phase: "trap" | "show" | "shuffle" | "open" | "pick";
+  t: number;
+  slotOf: number[]; // slotOf[door] = which spot that door is in
+  real: number; // which door is the real EXIT
+  swaps: { a: number; b: number; dur: number }[]; // spots to swap
+  swapIdx: number;
+  swapT: number;
+  cageX: number; // middle of the trap
+  picked: number; // the door you opened, or -1
+}
+const doorX = (slot: number): number => (DOOR_COLS[slot]! + 0.5) * T;
 
 const LEVELS: LevelDef[] = [
   {
@@ -175,7 +208,7 @@ const LEVELS: LevelDef[] = [
       "#.................C............#",
       "#.................C............#",
       "#.................C............#",
-      "#..X..............C............#",
+      "#..X..............C......H.....#",
       "##########^^^^^############....#",
       "#..............................#",
       "#..........................#####",
@@ -186,21 +219,23 @@ const LEVELS: LevelDef[] = [
     ],
   },
   {
-    sign: "Land on the little pillar!",
+    sign: "Watch the EXIT door!",
+    name: "Door Shuffle",
+    shuffle: true,
     map: [
       "################################",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#......................C.......#",
-      "#..........###.........C.......#",
-      "#.P?.......###.........C.....X.#",
-      "####^^^^^^^###^^^^^^^^^#########",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P............................#",
+      "################################",
       "################################",
     ],
   },
@@ -353,7 +388,7 @@ const LEVELS: LevelDef[] = [
       "#......................M.......#",
       "#......................M.......#",
       "#......................M.......#",
-      "#SP?...................M.....X.#",
+      "#SP?................H..M.....X.#",
       "#########^^^^^^^^###############",
       "################################",
     ],
@@ -487,7 +522,7 @@ const LEVELS: LevelDef[] = [
       "#.......U...............M......#",
       "#.......U...............M......#",
       "#.......U...............M......#",
-      "#SP?....U...............M...X..#",
+      "#SP?....U...........H...M...X..#",
       "############^^^^^^##############",
       "################################",
     ],
@@ -583,7 +618,7 @@ const LEVELS: LevelDef[] = [
       "#.....U.....JJ...........M.....#",
       "#.....U.....JJ...........M.....#",
       "#.....U.....JJ...........M.....#",
-      "#SP?..U.....JJ...........M..X..#",
+      "#SP?..U.....JJ........H..M..X..#",
       "###############^^^^^^###########",
       "################################",
     ],
@@ -673,7 +708,7 @@ const LEVELS: LevelDef[] = [
       "#.....................JJ.......#",
       "#................xxxxxJJ.......#",
       "#................x....JJ.......#",
-      "#................x....JJ.....X.#",
+      "#................xH...JJ.....X.#",
       "OOOOOOOOO###CCCC#YYYYYYYYYYYYYYY",
       "O.......JJ.....................Y",
       "O.......JJ.....................Y",
@@ -684,10 +719,110 @@ const LEVELS: LevelDef[] = [
       "#YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
     ],
   },
+  {
+    sign: "Welcome to the RAGE ZONE. Not every EXIT is real...",
+    popSign: { title: "RAGE ZONE!", lines: ["Some EXITs are FAKE. Some floors CRUMBLE.", "Touch a flag to save your spot."] },
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?.....F...........H......X..#",
+      "##############KKKKK#############",
+      "##############^^^^^#############",
+      "################################",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "Both of these doors are lying to you.",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..........................X...#",
+      "##############CCCC##############",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?......F.............F......#",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "Don't stop on the crumbly floor!",
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#...................JJ.........#",
+      "#...................JJ.........#",
+      "#...................JJ.........#",
+      "#...................JJ.........#",
+      "#.P?....H...........JJ......X..#",
+      "##########KKKKKKKK##############",
+      "##########^^^^^^^^##############",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "Boom, then don't fall for it.",
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#...............M..............#",
+      "#...............M..............#",
+      "#...............M..............#",
+      "#SP?............M...F..H.....X.#",
+      "########################KKKKK###",
+      "########################^^^^^###",
+      "################################",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "The final shuffle. Even faster.",
+    name: "Final Shuffle",
+    shuffle: true,
+    shuffleSwaps: 22,
+    shuffleFastest: 0.15,
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P............................#",
+      "################################",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "30 LEVELS DOWN!",
+  title: "35 LEVELS DOWN!",
   lines: ["Every 5 levels you unlock a new move.", "The next one is coming soon..."],
 };
 
@@ -769,6 +904,191 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let gears: { tx: number; ty: number; on: boolean; spin: number }[] = [];
   let wires: Wire[] = [];
   let onGear = "";
+  let checkpoint: { tx: number; ty: number } | null = null;
+  let shuffle: Shuffle | null = null;
+  const locked = (): boolean => shuffle !== null && shuffle.phase !== "pick";
+
+  function makeShuffle(def: LevelDef): Shuffle {
+    const swaps: Shuffle["swaps"] = [];
+    const count = def.shuffleSwaps ?? SWAPS;
+    const fastest = def.shuffleFastest ?? 0.22;
+    for (let i = 0; i < count; i++) {
+      const a = Math.floor(Math.random() * DOOR_COLS.length);
+      let b = Math.floor(Math.random() * (DOOR_COLS.length - 1));
+      if (b >= a) b += 1;
+      swaps.push({ a, b, dur: 0.62 - ((0.62 - fastest) * i) / (count - 1) }); // faster and faster
+    }
+    keys.clear();
+    return {
+      phase: "trap",
+      t: 0,
+      slotOf: DOOR_COLS.map((_, i) => i),
+      real: Math.floor(Math.random() * DOOR_COLS.length),
+      swaps,
+      swapIdx: 0,
+      swapT: 0,
+      cageX: player.x + PW / 2, // the trap closes around wherever you start
+      picked: -1,
+    };
+  }
+
+  function stepShuffle(dt: number): void {
+    const sh = shuffle;
+    if (!sh) return;
+    sh.t += dt;
+    if (sh.phase === "trap" && sh.t > 1) {
+      sh.phase = "show";
+      sh.t = 0;
+      if (!demo) startMusic();
+    } else if (sh.phase === "show" && sh.t > 2.8) {
+      sh.phase = "shuffle";
+      sh.t = 0;
+    } else if (sh.phase === "shuffle") {
+      const sw = sh.swaps[sh.swapIdx];
+      if (!sw) {
+        sh.phase = "open";
+        sh.t = 0;
+        return;
+      }
+      if (sh.swapT === 0) sfx("swoosh");
+      sh.swapT += dt;
+      if (sh.swapT >= sw.dur) {
+        const da = sh.slotOf.indexOf(sw.a);
+        const db = sh.slotOf.indexOf(sw.b);
+        sh.slotOf[da] = sw.b;
+        sh.slotOf[db] = sw.a;
+        sh.swapIdx += 1;
+        sh.swapT = 0;
+      }
+    } else if (sh.phase === "open" && sh.t > 0.8) {
+      sh.phase = "pick";
+      sh.t = 0;
+    }
+  }
+
+  // Press DOWN in front of a door to open it.
+  function pickDoor(): void {
+    const sh = shuffle;
+    if (!sh || sh.phase !== "pick" || sh.picked >= 0 || deadUntil || clearedAt) return;
+    const px = player.x + PW / 2;
+    const door = sh.slotOf.findIndex((slot) => Math.abs(doorX(slot) - px) < 20);
+    if (door < 0) return;
+    sh.picked = door;
+    if (door === sh.real) {
+      reachExit();
+    } else {
+      sfx("slam");
+      sfx("laugh");
+      die();
+    }
+  }
+
+  function reachExit(): void {
+    if (clearedAt) return;
+    clearedAt = time;
+    sfx("exit");
+    const next = Math.min(levelIndex + 1, LEVELS.length - 1);
+    if (!demo && !test) try {
+      localStorage.setItem(SAVE_KEY, String(Math.max(next, readSavedLevel())));
+    } catch {
+      // Not saved; you'll just start from an earlier level next time.
+    }
+  }
+
+  function drawShuffle(): void {
+    const sh = shuffle;
+    if (!sh) return;
+    // Where each door is right now (moving ones arc over the others).
+    const pos = sh.slotOf.map((slot) => ({ x: doorX(slot), lift: 0 }));
+    const sw = sh.phase === "shuffle" ? sh.swaps[sh.swapIdx] : undefined;
+    if (sw) {
+      const u = Math.min(1, sh.swapT / sw.dur);
+      const e = u * u * (3 - 2 * u);
+      const da = sh.slotOf.indexOf(sw.a);
+      const db = sh.slotOf.indexOf(sw.b);
+      pos[da] = { x: doorX(sw.a) + (doorX(sw.b) - doorX(sw.a)) * e, lift: Math.sin(Math.PI * e) * T * 1.4 };
+      pos[db] = { x: doorX(sw.b) + (doorX(sw.a) - doorX(sw.b)) * e, lift: Math.sin(Math.PI * e) * T * 0.35 };
+    }
+    const floorY = 12 * T;
+    const showLabels = sh.phase === "show";
+    sh.slotOf.forEach((_, door) => {
+      const { x, lift } = pos[door]!;
+      const isReal = door === sh.real;
+      const opened = sh.picked === door;
+      const w = T - 6;
+      const h = T * 1.6;
+      const left = x - w / 2;
+      const top = floorY - h - lift;
+      let fill = "#c99a62";
+      let ink = "#5b3d1c";
+      if (showLabels && isReal) fill = "#9be59b";
+      if (opened) fill = isReal ? "#9be59b" : "#e8a0a0";
+      ctx.fillStyle = fill;
+      ctx.fillRect(left, top, w, h);
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.6;
+      sketchLine(left, top + h, left, top);
+      sketchLine(left, top, left + w, top);
+      sketchLine(left + w, top, left + w, top + h);
+      ctx.fillStyle = ink;
+      ctx.beginPath();
+      ctx.arc(left + w - 7, top + h * 0.55, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      // The little sign above each door.
+      let label = "?";
+      let color = "#5b3d1c";
+      if (showLabels) {
+        label = isReal ? "EXIT" : "VACANT";
+        color = isReal ? "#1f6b2a" : "#7a7268";
+      }
+      if (opened) {
+        label = isReal ? "EXIT!" : "VACANT";
+        color = isReal ? "#1f6b2a" : "#c0392b";
+      }
+      ctx.font = "15px 'Patrick Hand', 'Comic Sans MS', cursive";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = color;
+      ctx.fillText(label, x, top - 10);
+    });
+
+    // The trap walls slide in from the sides, then away again.
+    let shut = 1;
+    if (sh.phase === "trap") shut = Math.min(1, sh.t / 0.8);
+    if (sh.phase === "open") shut = Math.max(0, 1 - sh.t / 0.8);
+    if (sh.phase === "pick") shut = 0;
+    if (shut > 0) {
+      const gap = T * 1.3;
+      const leftX = sh.cageX - gap - T - (1 - shut) * sh.cageX;
+      const rightX = sh.cageX + gap + (1 - shut) * (WORLD_W - sh.cageX);
+      // (If you start right by the wall, that wall is the other side of the trap.)
+      for (const wx of [leftX, rightX].filter((x) => x >= T || shut < 1)) {
+        ctx.fillStyle = "#e3dccb";
+        ctx.fillRect(wx, floorY - T * 5, T, T * 5);
+        ctx.strokeStyle = "rgba(60, 55, 50, 0.3)";
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 12; i++) sketchLine(wx + 4, floorY - i * 17, wx + T - 4, floorY - i * 17 - 12, 0.8);
+        ctx.strokeStyle = "#2b2725";
+        ctx.lineWidth = 2.6;
+        ctx.strokeRect(wx, floorY - T * 5, T, T * 5);
+      }
+    }
+
+    // What to do right now.
+    const banner =
+      sh.phase === "trap" ? "!!!" :
+      sh.phase === "show" ? "Remember which door is the EXIT..." :
+      sh.phase === "shuffle" ? "Keep your eyes on it!" :
+      sh.phase === "open" ? "..." :
+      "Pick a door! Walk to it and press DOWN.";
+    ctx.font = "30px 'Patrick Hand', 'Comic Sans MS', cursive";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#2b2725";
+    ctx.fillText(banner, WORLD_W / 2, T * 2.2);
+  }
+  let crumbling: Record<string, number> = {};
+  let fakesFound: Record<string, boolean> = {};
   let snipAt = -10; // when you last used the scissors (for the little picture)
   let pourTimer = 0;
   let splashCount = 0;
@@ -799,6 +1119,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function loadLevel(index: number, showPop: boolean): void {
     levelIndex = index;
     const def = testLevel ?? LEVELS[index]!;
+    if (!def.shuffle) stopMusic();
     grid = def.map.map((row) => row.split(""));
     let sx = 2;
     let sy = 11;
@@ -836,6 +1157,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     slammers = findSlammers();
     findGearsAndWires();
     onGear = "";
+    checkpoint = null;
+    shuffle = def.shuffle ? makeShuffle(def) : null;
+    crumbling = {};
+    fakesFound = {};
     onSwitch = "";
     if (showPop && def.popSign && !demo) {
       popSign = { ...def.popSign, shownAt: time, leavingAt: null };
@@ -1094,7 +1419,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   const isSolid = (c: string): boolean =>
-    c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y";
+    c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y" || c === "K";
 
   // Water hit a smudged wall: the whole smudge soaks it up together, and once
   // it's wet enough it fades away.
@@ -1317,6 +1642,32 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     }
   }
 
+  // Back to the flag. Everything you did stays done, but crumbled floors grow
+  // back so you can't get stuck.
+  function respawnAtCheckpoint(cp: { tx: number; ty: number }): void {
+    const original = levelDef().map;
+    original.forEach((row, y) =>
+      row.split("").forEach((c, x) => {
+        if (c === "K" && grid[y]![x] === ".") grid[y]![x] = "K";
+      })
+    );
+    crumbling = {};
+    bombs = [];
+    drops = [];
+    trail = [];
+    Object.assign(player, {
+      x: cp.tx * T + (T - PW) / 2,
+      y: (cp.ty + 1) * T - PH,
+      vx: 0,
+      vy: 0,
+      onGround: true,
+      canDash: true,
+      canUpDash: true,
+      dashing: false,
+      dashUp: false,
+    });
+  }
+
   function die(): void {
     if (deadUntil) return;
     deaths += 1;
@@ -1374,11 +1725,13 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     if (deadUntil) {
       if (time >= deadUntil) {
         deadUntil = 0;
-        loadLevel(levelIndex, false);
+        if (checkpoint && !demo) respawnAtCheckpoint(checkpoint);
+        else loadLevel(levelIndex, false);
       }
       return;
     }
 
+    stepShuffle(dt);
     const p = player;
     p.coyote = p.onGround ? COYOTE : Math.max(0, p.coyote - dt);
     p.jumpBuffer = Math.max(0, p.jumpBuffer - dt);
@@ -1442,7 +1795,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
     }
     // The Slammers sign goes away by itself.
-    if (popSign && popSign.leavingAt === null && levelIndex === SLAMMER_LEVEL && !test && time - popSign.shownAt > 3.5) {
+    if (popSign && popSign.leavingAt === null && (levelIndex === SLAMMER_LEVEL || levelIndex === RAGE_LEVEL) && !test && time - popSign.shownAt > 3.5) {
       popSign.leavingAt = time;
     }
 
@@ -1537,18 +1890,51 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     if (inSwitch && inSwitch !== onSwitch) flickSwitch(inSwitch);
     onSwitch = inSwitch;
 
+    // Checkpoint flags: touch one to save your spot.
+    touching(p.x, p.y, (tx, ty, c) => {
+      if (c === "H" && (checkpoint?.tx !== tx || checkpoint?.ty !== ty)) {
+        checkpoint = { tx, ty };
+        sfx("flag");
+      }
+    });
+
+    // Fake exits: touch one and it slams you. Nyah nyah!
+    touching(p.x, p.y, (tx, ty, c) => {
+      if (c !== "F" || deadUntil) return;
+      fakesFound[`${tx},${ty}`] = true;
+      sfx("slam");
+      sfx("laugh");
+      die();
+    });
+
+    // Crumbling floors: stand on one and it breaks a moment later.
+    if (p.onGround) {
+      const ty = Math.floor((p.y + PH + 1) / T);
+      for (let tx = Math.floor(p.x / T); tx <= Math.floor((p.x + PW - 0.01) / T); tx++) {
+        const key = `${tx},${ty}`;
+        if (tileAt(tx, ty) === "K" && crumbling[key] === undefined) crumbling[key] = time;
+      }
+    }
+    for (const [key, start] of Object.entries(crumbling)) {
+      if (time - start < CRUMBLE_TIME) continue;
+      const [x, y] = key.split(",").map(Number) as [number, number];
+      delete crumbling[key];
+      if (tileAt(x, y) !== "K") continue;
+      grid[y]![x] = ".";
+      sfx("crumble");
+      for (let i = 0; i < 6; i++) {
+        bits.push({
+          x: x * T + Math.random() * T, y: y * T + Math.random() * T * 0.5,
+          vx: (Math.random() - 0.5) * 160, vy: Math.random() * 100,
+          angle: Math.random() * 6, spin: (Math.random() - 0.5) * 10, size: 6 + Math.random() * 8,
+          color: Math.random() < 0.5 ? "#e3dccb" : "#cfc6b0", life: 1.2,
+        });
+      }
+    }
+
     // Reached the exit?
     touching(p.x, p.y, (_tx, _ty, c) => {
-      if (c === "X" && !clearedAt) {
-        clearedAt = time;
-        sfx("exit");
-        const next = Math.min(levelIndex + 1, LEVELS.length - 1);
-        if (!demo && !test) try {
-          localStorage.setItem(SAVE_KEY, String(Math.max(next, readSavedLevel())));
-        } catch {
-          // Not saved; you'll just start from an earlier level next time.
-        }
-      }
+      if (c === "X") reachExit();
     });
   }
 
@@ -1645,6 +2031,83 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
             ctx.fill();
             ctx.stroke();
           }
+        } else if (c === "F") {
+          // A FAKE exit. It looks just like the real one... except the knob is
+          // on the wrong side. Once it gets you, it shows its teeth.
+          const found = fakesFound[`${tx},${ty}`] === true;
+          ctx.fillStyle = found ? "#e8a0a0" : "#9be59b";
+          ctx.fillRect(x + 4, y - T * 0.55, T - 8, T * 1.55);
+          ctx.strokeStyle = found ? "#8c1d1d" : "#1f6b2a";
+          ctx.lineWidth = 2.6;
+          sketchLine(x + 4, y + T, x + 4, y - T * 0.55);
+          sketchLine(x + 4, y - T * 0.55, x + T - 4, y - T * 0.55);
+          sketchLine(x + T - 4, y - T * 0.55, x + T - 4, y + T);
+          ctx.fillStyle = found ? "#8c1d1d" : "#1f6b2a";
+          ctx.beginPath();
+          ctx.arc(x + 11, y + T * 0.35, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.font = "15px 'Patrick Hand', 'Comic Sans MS', cursive";
+          ctx.textAlign = "center";
+          ctx.fillText(found ? "FAKE!" : "EXIT", x + T / 2, y - T * 0.72);
+          if (found) {
+            ctx.fillStyle = "#ff6b6b";
+            ctx.strokeStyle = "#8c1d1d";
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 3; i++) {
+              const bx = x + 6 + i * 9.5;
+              ctx.beginPath();
+              ctx.moveTo(bx, y + 2);
+              ctx.lineTo(bx + 4.5, y + 14);
+              ctx.lineTo(bx + 9, y + 2);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            }
+          }
+        } else if (c === "K") {
+          // A crumbling floor: looks a lot like a normal wall, with thin cracks.
+          const start = crumbling[`${tx},${ty}`];
+          const wobble = start !== undefined ? Math.sin(time * 70) * 2 : 0;
+          ctx.save();
+          ctx.translate(wobble, 0);
+          ctx.fillStyle = "#e6dfcd";
+          ctx.fillRect(x, y, T, T);
+          ctx.strokeStyle = "rgba(60, 55, 50, 0.25)";
+          ctx.lineWidth = 1.2;
+          for (let i = 0; i < 4; i++) sketchLine(x + i * 11 + 4, y + T, x + i * 11 + 14, y, 0.8);
+          ctx.strokeStyle = "rgba(60, 55, 50, 0.6)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x + 8, y);
+          ctx.lineTo(x + 12, y + 9);
+          ctx.lineTo(x + 9, y + 15);
+          ctx.moveTo(x + 27, y);
+          ctx.lineTo(x + 24, y + 7);
+          ctx.stroke();
+          ctx.strokeStyle = "#2b2725";
+          ctx.lineWidth = 2.6;
+          if (!isSolid(tileAt(tx, ty - 1))) sketchLine(x, y, x + T, y);
+          if (!isSolid(tileAt(tx - 1, ty))) sketchLine(x, y, x, y + T);
+          if (!isSolid(tileAt(tx + 1, ty))) sketchLine(x + T, y, x + T, y + T);
+          ctx.restore();
+        } else if (c === "H") {
+          // A checkpoint flag. Red until you touch it, then green.
+          const got = checkpoint?.tx === tx && checkpoint?.ty === ty;
+          ctx.strokeStyle = "#3d2a14";
+          ctx.lineWidth = 3;
+          sketchLine(x + 10, y + T, x + 10, y - T * 0.5);
+          ctx.fillStyle = got ? "#4fc25a" : "#e8423a";
+          ctx.strokeStyle = got ? "#1f6b2a" : "#8c1d1d";
+          ctx.lineWidth = 2;
+          const fy = got ? y - T * 0.5 : y - T * 0.1;
+          const flap = Math.sin(time * 6 + tx) * 2;
+          ctx.beginPath();
+          ctx.moveTo(x + 11, fy);
+          ctx.lineTo(x + 32, fy + 7 + flap);
+          ctx.lineTo(x + 11, fy + 15);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
         } else if (c === "X") {
           // A door with EXIT scribbled on it.
           ctx.fillStyle = "#9be59b";
@@ -1799,17 +2262,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
     // Head.
     ctx.beginPath();
-    ctx.arc(cx + lean + wob(cx, top, 0.6), top + 8, 8, 0, Math.PI * 2);
+    ctx.arc(cx + lean + wob(cx, top, 0.6), top + 6.5, 6.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = "#28328c";
     ctx.beginPath();
-    ctx.arc(cx + lean + p.facing * 3.5, top + 7, 1.6, 0, Math.PI * 2);
+    ctx.arc(cx + lean + p.facing * 3, top + 6, 1.5, 0, Math.PI * 2);
     ctx.fill();
 
     // Body, arms and legs.
-    const hip = { x: cx, y: top + 25 };
-    const neck = { x: cx + lean, y: top + 16 };
+    // Short body, long legs (Oscar: "where are my legs?").
+    const hip = { x: cx, y: top + 21 };
+    const neck = { x: cx + lean, y: top + 13 };
     sketchLine(neck.x, neck.y, hip.x, hip.y, 0.8);
     const swing = p.onGround && !p.dashing ? Math.sin(p.runPhase) * 7 : p.dashing ? 0 : 4;
     const pouring = keys.has("w") && unlocked(WATER_LEVEL) && !p.dashing;
@@ -1989,7 +2453,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ctx.textBaseline = "middle";
     ctx.font = "22px 'Patrick Hand', 'Comic Sans MS', cursive";
     ctx.textAlign = "center";
-    ctx.fillText(`${test ? "Test Level" : `Level ${levelIndex + 1}`}   ·   Deaths: ${deaths}`, w / 2, 26);
+    const name = levelDef().name;
+    ctx.fillText(`${test ? "Test Level" : `Level ${levelIndex + 1}`}${name ? `: ${name}` : ""}   ·   Deaths: ${deaths}`, w / 2, 26);
     // Controls go under the paper, out of the way of the Credits button.
     ctx.font = "17px 'Patrick Hand', 'Comic Sans MS', cursive";
     ctx.fillStyle = "rgba(255, 243, 224, 0.75)";
@@ -2017,6 +2482,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (offX + sx), dpr * (offY + sy));
     drawPaper();
     drawTiles();
+    drawShuffle();
     drawPlayer();
     drawWires();
     drawGears();
@@ -2054,6 +2520,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   function keyDown(k: string): void {
+    // In the Door Shuffle you're trapped until the walls open.
+    if (locked() && k !== "r") return;
+    if (k === "arrowdown") pickDoor();
     keys.add(k);
     if (finished) return;
     const jumpKey = k === "arrowup" || k === " ";
@@ -2179,7 +2648,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* wait(200);
       yield* walkTo(19); yield* hold("d", 600); yield* walkTo(3);
     },
-    function* () { yield* walkTo(3); yield* hold(R, 60); yield* jumpDash(200, 330); yield* walkTo(13); yield* hold(R, 60); yield* hold("d", 600); yield* walkTo(29); },
+    function* () {
+      // Door Shuffle: the bot never loses track (it peeks).
+      let guard = 0;
+      while ((!shuffle || shuffle.phase !== "pick") && guard++ < 3000) yield;
+      if (!shuffle) return;
+      yield* walkTo(Math.floor(doorX(shuffle.slotOf[shuffle.real]!) / T));
+      yield* hold("arrowdown", 40);
+    },
     function* () { yield* walkTo(14); yield* upDash(300, R); yield* walkTo(27); },
     function* () { yield* walkTo(4); yield* hold("d", 600); yield* walkTo(14); yield* upDash(300, R); yield* walkTo(21); yield* hold("d", 600); yield* walkTo(27); },
     function* () { yield* walkTo(21); yield* upDash(300, L, 150); yield* walkTo(16); yield* hold("d", 600); yield* walkTo(6); yield* upDash(300, R); yield* walkTo(27); },
@@ -2221,6 +2697,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     function* () { yield* walkTo(1); yield* wait(300); yield* walkTo(12); yield* hold("s", 40); yield* wait(200); yield* hold("d", 600); yield* walkTo(28); },
     function* () { yield* walkTo(1); yield* wait(300); yield* walkTo(12); yield* hold("w", 900); yield* wait(600); yield* walkTo(18); yield* hold("s", 40); yield* wait(300); yield* walkTo(28); },
     function* () { yield* walkTo(1); yield* wait(300); yield* walkTo(13); yield* upDash(300, R, 300); yield* walkTo(17); yield* hold("s", 40); yield* wait(300); yield* walkTo(29); },
+    function* () { yield* walkTo(7); botKeys.down(R); yield* hold("arrowup", 300); yield* wait(500); botKeys.up(R); yield* walkTo(24); yield* walkTo(28); },
+    function* () { yield* walkTo(8); botKeys.down(R); yield* hold("arrowup", 300); yield* wait(500); botKeys.up(R); yield* walkTo(15); yield* upDash(300, R, 300); yield* walkTo(27); },
+    function* () { yield* walkTo(9); yield* walkTo(18); yield* waitSafe(20); yield* walkTo(28); },
+    function* () { yield* walkTo(15); yield* hold("b", 40); yield* walkTo(1); yield* wait(400); yield* walkTo(18); botKeys.down(R); yield* hold("arrowup", 300); yield* wait(500); botKeys.up(R); yield* walkTo(29); },
+    function* () {
+      // Door Shuffle: the bot never loses track (it peeks).
+      let guard = 0;
+      while ((!shuffle || shuffle.phase !== "pick") && guard++ < 3000) yield;
+      if (!shuffle) return;
+      yield* walkTo(Math.floor(doorX(shuffle.slotOf[shuffle.real]!) / T));
+      yield* hold("arrowdown", 40);
+    },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -2267,6 +2755,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   const handle: GameHandle = {
     stop() {
       stopped = true;
+      if (!demo) stopMusic();
       cancelAnimationFrame(rafId);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
@@ -2286,6 +2775,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     dashing: player.dashing,
     deaths,
     row: (y: number) => grid[y]?.join(""),
+    doors: () =>
+      shuffle && {
+        phase: shuffle.phase,
+        realCol: Math.floor(doorX(shuffle.slotOf[shuffle.real]!) / T),
+        wrongCol: Math.floor(doorX(shuffle.slotOf[(shuffle.real + 1) % 8]!) / T),
+      },
     wiring: () => wires.map((w) => `${w.red ? "red" : "blue"} gear${w.gear}${gears[w.gear]?.on ? "(turned)" : ""}->slammer${w.slammer}${w.cut ? " CUT" : ""}`),
   });
 

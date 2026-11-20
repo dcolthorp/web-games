@@ -6,8 +6,9 @@ import { LEVEL_COUNT, readSavedLevel, startGame, type GameHandle, type LevelDef 
 
 // The Test Level lives in test-level.ts, which is never committed (it's in
 // .gitignore). If the file isn't there, this is empty and the button hides.
-const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef }>("./test-level.ts", { eager: true });
+const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef }>("./test-level.ts", { eager: true });
 const TEST_LEVEL = Object.values(testFiles)[0]?.TEST_LEVEL;
+const TEST_SHUFFLE = Object.values(testFiles)[0]?.TEST_SHUFFLE;
 
 const MOVES = [
   { level: 1, name: "Dash", how: "Hit <b>D</b>. Hold it longer to go farther (half a second max). Flies over spikes and smashes cracked walls." },
@@ -16,6 +17,7 @@ const MOVES = [
   { level: 16, name: "Water", how: "Hold <b>W</b> to pour water. Smudged walls fade away when they get wet." },
   { level: 21, name: "⚠️ Slammers", how: "Not a move, a danger! Spiky blocks open, <b>wiggle</b>, then slam shut. Run through while they're open." },
   { level: 26, name: "Scissors", how: "Run into a <b>gear</b> to turn it: blue wires stop a slammer, red wires jam it shut. Press <b>S</b> next to a wire to cut it and switch that slammer off." },
+  { level: 31, name: "😡 Rage Zone", how: "Some <b>EXIT</b> doors are FAKE (look at the knob). Some floors <b>crumble</b> under you. Touch a <b>flag</b> to save your spot." },
 ];
 
 let demo: GameHandle | null = null;
@@ -36,18 +38,21 @@ export function showMenu(screen: HTMLCanvasElement): void {
   play.onclick = () => startAt(screen, readSavedLevel());
   const testBtn = document.getElementById("menu-test")!;
   testBtn.hidden = !TEST_LEVEL;
-  testBtn.onclick = () => startAt(screen, 0, true);
+  testBtn.onclick = () => startAt(screen, 0, TEST_LEVEL);
+  const shuffleBtn = document.getElementById("menu-test-shuffle")!;
+  shuffleBtn.hidden = !TEST_SHUFFLE;
+  shuffleBtn.onclick = () => startAt(screen, 0, TEST_SHUFFLE);
   menu.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((btn) => {
     btn.onclick = () => showPage(btn.dataset["page"]!);
   });
 }
 
-function startAt(screen: HTMLCanvasElement, level: number, test = false): void {
+function startAt(screen: HTMLCanvasElement, level: number, testLevel?: LevelDef): void {
   demo?.stop();
   demo = null;
   document.getElementById("menu")!.hidden = true;
   document.body.classList.remove("on-menu");
-  startGame(screen, { startLevel: level, testLevel: test ? TEST_LEVEL : undefined, onExit: () => showMenu(screen) });
+  startGame(screen, { startLevel: level, testLevel, onExit: () => showMenu(screen) });
 }
 
 function showPage(id: string): void {
