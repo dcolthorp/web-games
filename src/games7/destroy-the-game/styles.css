@@ -185,3 +185,41 @@ body.on-menu #screen {
 .sketch-btn[hidden] {
   display: none;
 }
+
+/* Crazy mode (the secret code): the colors spin through the rainbow nonstop. */
+.menu-secret {
+  margin: -6px 0 10px;
+  font-size: 22px;
+  color: #c0392b;
+}
+
+.menu-secret[hidden] {
+  display: none;
+}
+
+@keyframes crazy-hue {
+  from {
+    filter: saturate(3.5) hue-rotate(0deg);
+  }
+  to {
+    filter: saturate(3.5) hue-rotate(360deg);
+  }
+}
+
+@keyframes crazy-hue-demo {
+  from {
+    filter: blur(6px) brightness(0.75) saturate(3.5) hue-rotate(0deg);
+  }
+  to {
+    filter: blur(6px) brightness(0.75) saturate(3.5) hue-rotate(360deg);
+  }
+}
+
+body.crazy #screen,
+body.crazy .menu-card {
+  animation: crazy-hue 1.2s linear infinite;
+}
+
+body.crazy #demo {
+  animation: crazy-hue-demo 1.2s linear infinite;
+}

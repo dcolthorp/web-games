@@ -2,13 +2,42 @@
 // out, starting over and over. There's Play, a level selector, a list of the
 // moves you've unlocked, and how to play.
 
-import { LEVEL_COUNT, readSavedLevel, startGame, type GameHandle, type LevelDef } from "./game";
+import { CRAZY_KEY, LEVEL_COUNT, readCrazy, readSavedLevel, startGame, type GameHandle, type LevelDef } from "./game";
+import { play } from "./sfx";
+
+// The secret code (Oscar's): type every letter on the keyboard, row by row, on
+// the menu. It turns crazy mode on (the colors go wild and the monster turns
+// tiny and squeaky). Type it again to turn it off.
+const SECRET = "qwertyuiopasdfghjklzxcvbnm";
+let typed = "";
+document.body.classList.toggle("crazy", readCrazy());
+window.addEventListener("keydown", (e) => {
+  if (document.getElementById("menu")?.hidden !== false) return; // only on the menu
+  if (e.key.length !== 1) return;
+  typed = (typed + e.key.toLowerCase()).slice(-SECRET.length);
+  if (typed !== SECRET) return;
+  typed = "";
+  const on = !readCrazy();
+  try {
+    localStorage.setItem(CRAZY_KEY, on ? "1" : "0");
+  } catch {
+    // Can't save it; it'll still work until you leave the page.
+  }
+  document.body.classList.toggle("crazy", on);
+  play(on ? "ding" : "pop");
+  const note = document.getElementById("menu-secret");
+  if (note) {
+    note.textContent = on ? "🌈 CRAZY MODE ON! 🐭 The monster is tiny now." : "Crazy mode off.";
+    note.hidden = false;
+  }
+});
 
 // The Test Level lives in test-level.ts, which is never committed (it's in
 // .gitignore). If the file isn't there, this is empty and the button hides.
-const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef }>("./test-level.ts", { eager: true });
+const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef }>("./test-level.ts", { eager: true });
 const TEST_LEVEL = Object.values(testFiles)[0]?.TEST_LEVEL;
 const TEST_SHUFFLE = Object.values(testFiles)[0]?.TEST_SHUFFLE;
+const TEST_MONSTER = Object.values(testFiles)[0]?.TEST_MONSTER;
 
 const MOVES = [
   { level: 1, name: "Dash", how: "Hit <b>D</b>. Hold it longer to go farther (half a second max). Flies over spikes and smashes cracked walls." },
@@ -18,6 +47,7 @@ const MOVES = [
   { level: 21, name: "⚠️ Slammers", how: "Not a move, a danger! Spiky blocks open, <b>wiggle</b>, then slam shut. Run through while they're open." },
   { level: 26, name: "Scissors", how: "Run into a <b>gear</b> to turn it: blue wires stop a slammer, red wires jam it shut. Press <b>S</b> next to a wire to cut it and switch that slammer off." },
   { level: 31, name: "😡 Rage Zone", how: "Some <b>EXIT</b> doors are FAKE (look at the knob). Some floors <b>crumble</b> under you. Touch a <b>flag</b> to save your spot." },
+  { level: 36, name: "👹 The Monster", how: "It climbs out of a hatch and chases you, even through walls. Don't let it touch you! At the very end: press <b>S</b> when the circles line up, 3 times." },
 ];
 
 let demo: GameHandle | null = null;
@@ -42,6 +72,9 @@ export function showMenu(screen: HTMLCanvasElement): void {
   const shuffleBtn = document.getElementById("menu-test-shuffle")!;
   shuffleBtn.hidden = !TEST_SHUFFLE;
   shuffleBtn.onclick = () => startAt(screen, 0, TEST_SHUFFLE);
+  const monsterBtn = document.getElementById("menu-test-monster")!;
+  monsterBtn.hidden = !TEST_MONSTER;
+  monsterBtn.onclick = () => startAt(screen, 0, TEST_MONSTER);
   menu.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((btn) => {
     btn.onclick = () => showPage(btn.dataset["page"]!);
   });

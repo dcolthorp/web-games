@@ -21,7 +21,13 @@ export type Sfx =
   | "crumble"
   | "laugh"
   | "flag"
-  | "swoosh";
+  | "swoosh"
+  | "creak"
+  | "growl"
+  | "roar"
+  | "ding"
+  | "oof"
+  | "squeak";
 
 let audio: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
@@ -154,6 +160,35 @@ export function play(name: Sfx): void {
       break;
     case "swoosh":
       hiss(a, "bandpass", 500, 1600, 0.25, 0.12);
+      break;
+    case "creak":
+      tone(a, "sawtooth", 140, 260, 0.6, 0.05);
+      tone(a, "sawtooth", 150, 120, 0.4, 0.04, 0.55);
+      break;
+    case "growl":
+      tone(a, "sawtooth", 70, 55, 0.9, 0.12);
+      tone(a, "sawtooth", 73, 50, 0.9, 0.1);
+      hiss(a, "lowpass", 400, 120, 0.9, 0.25);
+      break;
+    case "roar":
+      tone(a, "sawtooth", 110, 45, 1.2, 0.18);
+      tone(a, "square", 82, 40, 1.2, 0.08);
+      hiss(a, "bandpass", 900, 200, 1.2, 0.5);
+      break;
+    case "ding":
+      tone(a, "triangle", 1046, 1046, 0.25, 0.14);
+      tone(a, "triangle", 1568, 1568, 0.3, 0.08, 0.05);
+      break;
+    case "oof":
+      // OOF!
+      tone(a, "square", 380, 120, 0.35, 0.14);
+      tone(a, "sawtooth", 300, 90, 0.4, 0.06);
+      hiss(a, "lowpass", 1200, 100, 0.6, 0.5);
+      break;
+    case "squeak":
+      // The tiny monster's squeak (secret code).
+      tone(a, "sine", 1700, 2600, 0.09, 0.12);
+      tone(a, "sine", 2100, 3000, 0.08, 0.1, 0.11);
       break;
     case "clink":
       tone(a, "triangle", 2400, 2300, 0.25, 0.08);

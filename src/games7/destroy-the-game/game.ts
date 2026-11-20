@@ -100,7 +100,9 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // Map key: # wall, ^ spikes, C cracked wall, M metal, U smudged wall, S switch,
 // J slammer (connected J tiles make one slammer), G gear, o blue wire, x red wire,
 // O blue wire buried in a wall, Y red wire buried in a wall, F fake exit,
-// K crumbling floor, H checkpoint flag, P start, X exit, ? sign.
+// K crumbling floor, H checkpoint flag, Z monster hatch, B final-fight spot,
+// N monster block (touch it: the monster comes out), Q door-shuffle block
+// (touch it: the Door Shuffle starts), P start, X exit, ? sign.
 //
 // Level 16 unlocks WATER (Oscar's fourth move): hold W to pour water. Pour it on
 // a slightly smudged wall and the whole smudge fades away.
@@ -117,6 +119,8 @@ export interface LevelDef {
   shuffle?: boolean; // the Door Shuffle (Levels 5 and 35)
   shuffleSwaps?: number; // how many swaps (default 14)
   shuffleFastest?: number; // seconds for the fastest swap (default 0.22)
+  monster?: "hatch" | "follow"; // the monster: comes out of a hatch (Z), or follows you in from the left
+  boss?: boolean; // the B tile starts the final fight
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -139,6 +143,32 @@ interface Shuffle {
   picked: number; // the door you opened, or -1
 }
 const doorX = (slot: number): number => (DOOR_COLS[slot]! + 0.5) * T;
+
+// ---- The Monster (Levels 36-40, Oscar's idea) ----
+// A hatch in the floor (Z) creaks open and a creepy monster climbs out. It
+// chases you, flying straight at you, even through walls. Touch it and you're
+// done. It follows you into the next levels too. At the end of Level 40 (the B
+// spot) it surrounds you: a circle shrinks toward a target circle, and you press
+// S when they line up. Do it 3 times and the monster is OOFED.
+interface Monster {
+  mode: "hatch" | "wait" | "chase" | "boss" | "oofed";
+  t: number;
+  x: number;
+  y: number;
+  chaseT: number;
+  topY: number; // how high it climbs out of the hatch
+}
+interface Boss {
+  round: number; // 0, 1, 2
+  r: number; // outer circle's size
+  speed: number;
+  t: number;
+  flash: number; // after a hit
+  done: boolean;
+  doneT: number;
+}
+const BOSS_TARGET = 46; // the inner circle's size
+const BOSS_WINDOW = 13; // how close counts as lined up
 
 const LEVELS: LevelDef[] = [
   {
@@ -819,10 +849,116 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "RUN!!!",
+    name: "It's Out",
+    monster: "hatch",
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#...................C..........#",
+      "#...................C..........#",
+      "#...................C..........#",
+      "#...................C..........#",
+      "#...................C..........#",
+      "#.?.....P...........C........X.#",
+      "###Z#######^^^^^^###############",
+      "################################",
+    ],
+  },
+  {
+    sign: "It's still behind you. Don't stop on the crumbly floor!",
+    name: "Still Coming",
+    monster: "follow",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..........................X...#",
+      "################CCCC############",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?...........................#",
+      "######KKKKKKK###################",
+      "######^^^^^^^###################",
+    ],
+  },
+  {
+    sign: "Pour FAST. It's right behind you!",
+    name: "No Time",
+    monster: "follow",
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#.................U............#",
+      "#.................U............#",
+      "#.................U............#",
+      "#.................U............#",
+      "#.................U............#",
+      "#.................U............#",
+      "#.P?..............U.........X..#",
+      "#####^^^^^^#####################",
+      "################################",
+    ],
+  },
+  {
+    sign: "Jump the fakes. Don't look back.",
+    name: "Don't Look Back",
+    monster: "follow",
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?....F.....F.....F.......X..#",
+      "######################KKKKK#####",
+      "######################^^^^^#####",
+    ],
+  },
+  {
+    sign: "This is where it ends.",
+    name: "Face It",
+    monster: "follow",
+    boss: true,
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?..............H...B......X.#",
+      "#####^^^^^##KKK#################",
+      "############^^^#################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "35 LEVELS DOWN!",
+  title: "40 LEVELS DOWN!",
   lines: ["Every 5 levels you unlock a new move.", "The next one is coming soon..."],
 };
 
@@ -874,19 +1010,38 @@ export interface GameOptions {
   testLevel?: LevelDef; // the Test Level (test-level.ts): every move unlocked, nothing saved
 }
 
+/** The secret code (typed on the menu) turns on crazy mode: wild colors and a tiny, squeaky monster. */
+export const CRAZY_KEY = "destroy-the-game-crazy";
+export function readCrazy(): boolean {
+  try {
+    return localStorage.getItem(CRAZY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): GameHandle {
+  const crazy = readCrazy();
+  const monsterSize = crazy ? 9 : 22; // tiny in crazy mode
   const demo = opts.demo === true;
   const testLevel = opts.testLevel;
   const test = testLevel !== undefined;
   // Has this move been unlocked yet? (Everything is, in the Test Level.)
   const unlocked = (fromLevel: number): boolean => test || levelIndex >= fromLevel;
-  const levelDef = (): LevelDef => testLevel ?? LEVELS[levelIndex]!;
+  // In the Test Level, the door-shuffle block swaps in the Door Shuffle for a bit.
+  let override: LevelDef | null = null;
+  const levelDef = (): LevelDef => override ?? testLevel ?? LEVELS[levelIndex]!;
   let stopped = false;
   const ctx = canvas.getContext("2d")!;
   const keys = new Set<string>();
 
   let levelIndex = clampLevel(opts.startLevel ?? readSavedLevel());
   let grid: string[][] = [];
+  // Most levels are one screen tall. Taller ones (the Test Level) scroll up and
+  // down with you.
+  let rows = ROWS;
+  let levelH = WORLD_H;
+  let camY = 0;
   let player: Player;
   let bits: Bit[] = [];
   let trail: { x: number; y: number; age: number; up: boolean }[] = [];
@@ -906,7 +1061,255 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let onGear = "";
   let checkpoint: { tx: number; ty: number } | null = null;
   let shuffle: Shuffle | null = null;
-  const locked = (): boolean => shuffle !== null && shuffle.phase !== "pick";
+  let monster: Monster | null = null;
+  let boss: Boss | null = null;
+  let hatchSeen = false; // the hatch cutscene only plays the first time
+  const locked = (): boolean =>
+    (shuffle !== null && shuffle.phase !== "pick") || monster?.mode === "hatch" || boss !== null;
+
+  function makeMonster(def: LevelDef, fromCheckpoint: boolean): Monster | null {
+    if (!def.monster || demo) return null;
+    let hx = -2 * T;
+    let hy = player.y;
+    if (def.monster === "hatch" && !fromCheckpoint) {
+      for (let ty = 0; ty < rows; ty++) for (let tx = 0; tx < COLS; tx++) if (tileAt(tx, ty) === "Z") { hx = tx * T + T / 2; hy = ty * T; }
+      if (!hatchSeen) {
+        hatchSeen = true;
+        keys.clear();
+        sfx("creak");
+        return { mode: "hatch", t: 0, x: hx, y: hy + 24, chaseT: 0, topY: hy - 34 };
+      }
+      return { mode: "wait", t: 0.4, x: hx, y: hy - 34, chaseT: 0, topY: hy - 34 };
+    }
+    return { mode: "wait", t: 0, x: hx, y: hy, chaseT: 0, topY: hy };
+  }
+
+  function stepMonster(dt: number): void {
+    const m = monster;
+    if (!m) return;
+    m.t += dt;
+    const px = player.x + PW / 2;
+    const py = player.y + PH / 2;
+    if (m.mode === "hatch") {
+      // Lid opens (0-0.6s), it climbs out (0.6-2s), ROAR (2-2.6s).
+      if (m.t > 0.6 && m.t - dt <= 0.6) sfx("growl");
+      if (m.t > 0.6) m.y = Math.max(m.topY, m.y - dt * 45);
+      if (m.t > 2 && m.t - dt <= 2) {
+        sfx("roar");
+        shake = Math.max(shake, 0.9);
+      }
+      if (m.t > 2.6) {
+        m.mode = "chase";
+        m.t = 0;
+      }
+      return;
+    }
+    if (m.mode === "wait") {
+      if (m.t > 1) {
+        m.mode = "chase";
+        m.t = 0;
+        sfx("growl");
+      }
+      return;
+    }
+    if (m.mode === "chase") {
+      m.chaseT += dt;
+      const speed = Math.min(225, 150 + m.chaseT * 6); // gets faster the longer it chases
+      const dx = px - m.x;
+      const dy = py - m.y;
+      const d = Math.hypot(dx, dy) || 1;
+      m.x += (dx / d) * speed * dt;
+      m.y += (dy / d) * speed * dt + Math.sin(time * 5) * 20 * dt;
+      if (d < monsterSize + 4 && !deadUntil && !clearedAt) {
+        sfx("growl");
+        die();
+      }
+    }
+  }
+
+  // The final fight: it surrounds you.
+  function startBoss(): void {
+    if (boss || !monster || monster.mode === "oofed") return;
+    keys.clear();
+    monster.mode = "boss";
+    boss = { round: 0, r: 230, speed: 150, t: 0, flash: 0, done: false, doneT: 0 };
+    sfx("roar");
+    shake = Math.max(shake, 0.8);
+  }
+
+  function stepBoss(dt: number): void {
+    const b = boss;
+    if (!b) return;
+    b.t += dt;
+    b.flash = Math.max(0, b.flash - dt * 2);
+    if (b.done) {
+      b.doneT += dt;
+      if (b.doneT > 1.8 && !clearedAt) reachExit();
+      return;
+    }
+    if (b.t < 1) return; // let it surround you first
+    b.r -= b.speed * dt;
+    if (b.r < BOSS_TARGET - BOSS_WINDOW) bossMiss();
+  }
+
+  function bossPress(): void {
+    const b = boss;
+    if (!b || b.done || b.t < 1 || deadUntil) return;
+    if (Math.abs(b.r - BOSS_TARGET) <= BOSS_WINDOW) {
+      b.round += 1;
+      b.flash = 1;
+      shake = Math.max(shake, 0.4);
+      sfx("ding");
+      if (b.round >= 3) {
+        b.done = true;
+        if (monster) monster.mode = "oofed";
+        sfx("oof");
+        shake = 1;
+        for (let i = 0; i < 40; i++) {
+          bits.push({
+            x: player.x + PW / 2 + (Math.random() - 0.5) * 200, y: player.y + (Math.random() - 0.5) * 160,
+            vx: (Math.random() - 0.5) * 700, vy: -Math.random() * 600,
+            angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, size: 6 + Math.random() * 10,
+            color: Math.random() < 0.7 ? "#1b1116" : "#c0392b", life: 1.6,
+          });
+        }
+      } else {
+        b.r = 230;
+        b.speed += 60; // faster each time
+        b.t = 0.6;
+      }
+    } else {
+      bossMiss();
+    }
+  }
+
+  function bossMiss(): void {
+    sfx("roar");
+    boss = null;
+    if (monster) monster.mode = "wait";
+    die();
+  }
+
+  function drawMonsterAt(x: number, y: number, size: number, angry: number): void {
+    ctx.save();
+    ctx.translate(x, y);
+    // A scribbly shadow body with jagged edges.
+    ctx.fillStyle = "rgba(27, 17, 22, 0.92)";
+    ctx.beginPath();
+    const spikes = 16;
+    for (let i = 0; i <= spikes * 2; i++) {
+      const a = (i / (spikes * 2)) * Math.PI * 2;
+      const r = size * (i % 2 === 0 ? 1.15 : 0.85) + wob(i, size, 3);
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(27, 17, 22, 0.6)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      // Wispy tendrils.
+      const a = Math.PI * 0.6 + i * 0.25 + Math.sin(time * 3 + i) * 0.2;
+      sketchLine(Math.cos(a) * size, Math.sin(a) * size, Math.cos(a) * size * 1.8, Math.sin(a) * size * 1.8 + 6, 2);
+    }
+    // Three eyes.
+    for (const [ex, ey, er] of [[-size * 0.4, -size * 0.25, size * 0.26], [size * 0.38, -size * 0.3, size * 0.22], [0, -size * 0.62, size * 0.16]] as const) {
+      ctx.fillStyle = "#fffdf5";
+      ctx.beginPath();
+      ctx.arc(ex, ey, er, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = angry > 0 ? "#ff2a2a" : "#c0392b";
+      ctx.beginPath();
+      ctx.arc(ex + Math.sin(time * 2) * er * 0.3, ey, er * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // A toothy grin.
+    ctx.fillStyle = "#fffdf5";
+    ctx.beginPath();
+    const mw = size * 1.1;
+    const my = size * 0.25;
+    ctx.moveTo(-mw / 2, my);
+    for (let i = 0; i <= 8; i++) ctx.lineTo(-mw / 2 + (i * mw) / 8, my + (i % 2 === 0 ? 0 : size * 0.22));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMonster(): void {
+    // The hatch in the floor.
+    for (let ty = 0; ty < rows; ty++) {
+      for (let tx = 0; tx < COLS; tx++) {
+        if (tileAt(tx, ty) !== "Z") continue;
+        const x = tx * T;
+        const y = ty * T;
+        const open = monster && (monster.mode !== "hatch" || monster.t > 0.3) ? 1 : monster ? monster.t / 0.3 : 0;
+        ctx.fillStyle = "#1b1116";
+        ctx.fillRect(x + 3, y, T - 6, 8);
+        ctx.save();
+        ctx.translate(x + 3, y);
+        ctx.rotate(-open * 1.9);
+        ctx.fillStyle = "#7a6a58";
+        ctx.fillRect(0, -4, T - 6, 6);
+        ctx.strokeStyle = "#2b2725";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, -4, T - 6, 6);
+        ctx.restore();
+      }
+    }
+    const m = monster;
+    if (!m || m.mode === "oofed") return;
+    if (m.mode === "boss") return; // drawn by drawBoss
+    drawMonsterAt(m.x, m.y, monsterSize, m.mode === "chase" ? 1 : 0);
+  }
+
+  function drawBoss(): void {
+    const b = boss;
+    if (!b) return;
+    const cx = player.x + PW / 2;
+    const cy = player.y + PH / 2;
+    // It surrounds you: dark all around, eyes everywhere.
+    if (!b.done) {
+      const g = ctx.createRadialGradient(cx, cy, 60, cx, cy, 520);
+      g.addColorStop(0, "rgba(20, 10, 15, 0)");
+      g.addColorStop(1, `rgba(20, 10, 15, ${Math.min(0.85, b.t * 1.5)})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, camY, WORLD_W, WORLD_H);
+      const ring = 150 + Math.sin(time * 2) * 6;
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2 + time * 0.4;
+        drawMonsterAt(cx + Math.cos(a) * ring, cy + Math.sin(a) * ring * 0.7, (monsterSize - 2 + (i % 3) * 4) * (crazy ? 0.9 : 1), b.flash);
+      }
+      // The target circle, and the shrinking outer circle.
+      if (b.t >= 1) {
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = "#ffd23f";
+        ctx.beginPath();
+        ctx.arc(cx, cy, BOSS_TARGET, 0, Math.PI * 2);
+        ctx.stroke();
+        const close = Math.abs(b.r - BOSS_TARGET) <= BOSS_WINDOW;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = close ? "#4fc25a" : "#fffdf5";
+        ctx.beginPath();
+        ctx.arc(cx, cy, Math.max(4, b.r), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.font = "34px 'Patrick Hand', 'Comic Sans MS', cursive";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#fffdf5";
+      ctx.fillText(b.t < 1 ? "It's got you surrounded..." : "PRESS S when the circles line up!", WORLD_W / 2, camY + T * 1.6);
+      ctx.font = "26px 'Patrick Hand', 'Comic Sans MS', cursive";
+      ctx.fillText(`${"★".repeat(b.round)}${"☆".repeat(3 - b.round)}`, WORLD_W / 2, camY + T * 2.6);
+    } else {
+      ctx.font = "90px 'Patrick Hand', 'Comic Sans MS', cursive";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#c0392b";
+      ctx.fillText("OOF!", WORLD_W / 2, camY + WORLD_H * 0.35);
+      ctx.font = "30px 'Patrick Hand', 'Comic Sans MS', cursive";
+      ctx.fillStyle = "#2b2725";
+      ctx.fillText("The monster got oofed.", WORLD_W / 2, camY + WORLD_H * 0.35 + 60);
+    }
+  }
 
   function makeShuffle(def: LevelDef): Shuffle {
     const swaps: Shuffle["swaps"] = [];
@@ -1095,7 +1498,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let switchFlips: Record<string, boolean> = {}; // which way each lever points
   let onSwitch = ""; // the switch you're standing in, so it only flicks once
   const sfx = (name: Sfx): void => {
-    if (!demo) playSound(name);
+    if (demo) return;
+    // In crazy mode the monster doesn't growl or roar. It squeaks.
+    if (crazy && (name === "growl" || name === "roar")) name = "squeak";
+    playSound(name);
   };
   let finished = false;
   let time = 0;
@@ -1118,7 +1524,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   function loadLevel(index: number, showPop: boolean): void {
     levelIndex = index;
-    const def = testLevel ?? LEVELS[index]!;
+    const def = override ?? testLevel ?? LEVELS[index]!;
+    rows = def.map.length;
+    levelH = rows * T;
+    camY = levelH - WORLD_H; // start at the bottom; it follows you from there
     if (!def.shuffle) stopMusic();
     grid = def.map.map((row) => row.split(""));
     let sx = 2;
@@ -1159,6 +1568,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     onGear = "";
     checkpoint = null;
     shuffle = def.shuffle ? makeShuffle(def) : null;
+    boss = null;
+    monster = makeMonster(def, false);
     crumbling = {};
     fakesFound = {};
     onSwitch = "";
@@ -1171,7 +1582,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function findSlammers(): Slammer[] {
     const found: Slammer[] = [];
     const seen = new Set<string>();
-    for (let ty = 0; ty < ROWS; ty++) {
+    for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) {
         if (grid[ty]?.[tx] !== "J" || seen.has(`${tx},${ty}`)) continue;
         const s: Slammer = { x0: tx, x1: tx, y0: ty, y1: ty, offset: 0, wasShut: false };
@@ -1197,13 +1608,13 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function findGearsAndWires(): void {
     gears = [];
     wires = [];
-    for (let ty = 0; ty < ROWS; ty++) {
+    for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) if (tileAt(tx, ty) === "G") gears.push({ tx, ty, on: false, spin: 0 });
     }
     const isRed = (c: string): boolean => c === "x" || c === "Y";
     const isWire = (c: string): boolean => c === "o" || c === "O" || isRed(c);
     const seen = new Set<string>();
-    for (let ty = 0; ty < ROWS; ty++) {
+    for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) {
         const c0 = tileAt(tx, ty);
         if (!isWire(c0) || seen.has(`${tx},${ty}`)) continue;
@@ -1214,7 +1625,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           const [x, y] = todo.pop()!;
           const key = `${x},${y}`;
           const c = tileAt(x, y);
-          if (seen.has(key) || !isWire(c) || isRed(c) !== red || x < 0 || y < 0 || x >= COLS || y >= ROWS) continue;
+          if (seen.has(key) || !isWire(c) || isRed(c) !== red || x < 0 || y < 0 || x >= COLS || y >= rows) continue;
           seen.add(key);
           wire.tiles.push([x, y]);
           for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]] as const) {
@@ -1414,12 +1825,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   function tileAt(tx: number, ty: number): string {
-    if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return "#";
+    if (tx < 0 || tx >= COLS || ty < 0 || ty >= rows) return "#";
     return grid[ty]?.[tx] ?? "#";
   }
 
   const isSolid = (c: string): boolean =>
-    c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y" || c === "K";
+    c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y" || c === "K" || c === "Z";
 
   // Water hit a smudged wall: the whole smudge soaks it up together, and once
   // it's wet enough it fades away.
@@ -1655,6 +2066,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     bombs = [];
     drops = [];
     trail = [];
+    boss = null;
     Object.assign(player, {
       x: cp.tx * T + (T - PW) / 2,
       y: (cp.ty + 1) * T - PH,
@@ -1666,6 +2078,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       dashing: false,
       dashUp: false,
     });
+    monster = makeMonster(levelDef(), true); // it comes back in from the left
   }
 
   function die(): void {
@@ -1710,6 +2123,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       if (time - clearedAt > 1.1) {
         clearedAt = 0;
         if (test) {
+          override = null; // back from the Door Shuffle, if that's where you were
           loadLevel(levelIndex, false); // the Test Level just starts over
         } else if (demo && (levelIndex + 1 >= LEVELS.length || levelIndex + 1 >= DEMO_ROUTES.length)) {
           loadLevel(0, false); // the demo starts over and over
@@ -1732,6 +2146,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     }
 
     stepShuffle(dt);
+    stepMonster(dt);
+    stepBoss(dt);
     const p = player;
     p.coyote = p.onGround ? COYOTE : Math.max(0, p.coyote - dt);
     p.jumpBuffer = Math.max(0, p.jumpBuffer - dt);
@@ -1807,7 +2223,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         if (p.y + PH > spikeTop && p.x + PW > tx * T + 4 && p.x < (tx + 1) * T - 4) die();
       });
     }
-    if (p.y > WORLD_H) die();
+    if (p.y > levelH) die();
 
     // Water: hold W to pour (from Level 16 on).
     if (keys.has("w") && unlocked(WATER_LEVEL) && !p.dashing) {
@@ -1845,7 +2261,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         if (splashCount++ % 5 === 0) sfx("splash");
       }
     }
-    drops = drops.filter((d) => d.y < WORLD_H + 20);
+    drops = drops.filter((d) => d.y < levelH + 20);
     // Fully faded smudges are gone.
     for (const [key, start] of Object.entries(fading)) {
       if (time - start < FADE_TIME) continue;
@@ -1865,7 +2281,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         b.y = ny;
       }
     }
-    bombs = bombs.filter((b) => b.y < WORLD_H + 40);
+    bombs = bombs.filter((b) => b.y < levelH + 40);
 
     // Gears: run into one to turn it.
     let inGear = "";
@@ -1935,6 +2351,32 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // Reached the exit?
     touching(p.x, p.y, (_tx, _ty, c) => {
       if (c === "X") reachExit();
+      // The final fight (in the demo it just counts as the exit). In test rooms
+      // it only starts if the monster is out.
+      if (c === "B" && levelDef().boss) {
+        if (demo || !monster) reachExit();
+        else startBoss();
+      } else if (c === "B" && test && monster && monster.mode === "chase") {
+        startBoss();
+      }
+    });
+
+    // The monster block: touch it and the monster comes out after you.
+    touching(p.x, p.y, (tx, ty, c) => {
+      if (c !== "N" || demo || (monster && monster.mode !== "oofed")) return;
+      // It climbs out of the block; you get a head start of a bit over a second.
+      monster = { mode: "wait", t: -0.2, x: tx * T + T / 2, y: ty * T + T / 2, chaseT: 0, topY: ty * T };
+      boss = null;
+      sfx("roar");
+      shake = Math.max(shake, 0.6);
+    });
+
+    // The door-shuffle block: touch it and the Door Shuffle starts. Win it and
+    // you come back here.
+    touching(p.x, p.y, (_tx, _ty, c) => {
+      if (c !== "Q" || override || clearedAt || deadUntil) return;
+      override = LEVELS.find((l) => l.shuffle) ?? null;
+      if (override) loadLevel(levelIndex, false);
     });
   }
 
@@ -1957,10 +2399,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   function drawPaper(): void {
     ctx.fillStyle = "#f7f1e1";
-    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    ctx.fillRect(0, 0, WORLD_W, levelH);
     ctx.strokeStyle = "rgba(90, 140, 210, 0.22)";
     ctx.lineWidth = 1;
-    for (let y = T * 0.75; y < WORLD_H; y += T * 0.75) {
+    for (let y = T * 0.75; y < levelH; y += T * 0.75) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(WORLD_W, y);
@@ -1969,18 +2411,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ctx.strokeStyle = "rgba(220, 80, 80, 0.3)";
     ctx.beginPath();
     ctx.moveTo(T * 1.6, 0);
-    ctx.lineTo(T * 1.6, WORLD_H);
+    ctx.lineTo(T * 1.6, levelH);
     ctx.stroke();
   }
 
   function drawTiles(): void {
     ctx.lineCap = "round";
-    for (let ty = 0; ty < ROWS; ty++) {
+    for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) {
         const c = tileAt(tx, ty);
         const x = tx * T;
         const y = ty * T;
-        if (c === "#" || c === "O" || c === "Y") {
+        if (c === "#" || c === "O" || c === "Y" || c === "Z") {
           // Pencil shading, then ink only on the edges that face open air.
           ctx.fillStyle = "#e3dccb";
           ctx.fillRect(x, y, T, T);
@@ -2090,6 +2532,35 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           if (!isSolid(tileAt(tx - 1, ty))) sketchLine(x, y, x, y + T);
           if (!isSolid(tileAt(tx + 1, ty))) sketchLine(x + T, y, x + T, y + T);
           ctx.restore();
+        } else if (c === "N" || c === "Q" || (c === "B" && test)) {
+          // Trigger blocks you can see (in the Test Level): a dashed box with a label.
+          const color = c === "N" ? "#c0392b" : c === "Q" ? "#8a5a2b" : "#d4a017";
+          const label = c === "N" ? "MONSTER" : c === "Q" ? "SHUFFLE" : "FIGHT";
+          ctx.fillStyle = c === "N" ? "rgba(192,57,43,0.15)" : c === "Q" ? "rgba(201,154,98,0.25)" : "rgba(255,210,63,0.2)";
+          ctx.fillRect(x + 2, y + 2, T - 4, T - 4);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.4;
+          ctx.setLineDash([5, 4]);
+          ctx.strokeRect(x + 2, y + 2, T - 4, T - 4);
+          ctx.setLineDash([]);
+          ctx.font = "12px 'Patrick Hand', 'Comic Sans MS', cursive";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = color;
+          ctx.fillText(label, x + T / 2, y - 7);
+          if (c === "N") {
+            drawMonsterAt(x + T / 2, y + T / 2, 9, 0);
+          } else if (c === "Q") {
+            // A tiny door.
+            ctx.fillStyle = "#c99a62";
+            ctx.fillRect(x + 12, y + 8, 16, 26);
+            ctx.strokeStyle = "#5b3d1c";
+            ctx.lineWidth = 1.8;
+            ctx.strokeRect(x + 12, y + 8, 16, 26);
+          } else {
+            ctx.font = "18px 'Patrick Hand', 'Comic Sans MS', cursive";
+            ctx.fillText("◎", x + T / 2, y + T / 2);
+          }
         } else if (c === "H") {
           // A checkpoint flag. Red until you touch it, then green.
           const got = checkpoint?.tx === tx && checkpoint?.ty === ty;
@@ -2480,6 +2951,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     const sx = (Math.random() - 0.5) * shake * 14;
     const sy = (Math.random() - 0.5) * shake * 14;
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (offX + sx), dpr * (offY + sy));
+    // The camera follows you up and down in tall levels.
+    const want = Math.max(0, Math.min(levelH - WORLD_H, player.y + PH / 2 - WORLD_H / 2));
+    camY += (want - camY) * Math.min(1, 0.12 * 60 / 60);
+    if (Math.abs(want - camY) < 0.5) camY = want;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, WORLD_W, WORLD_H);
+    ctx.clip();
+    ctx.translate(0, -camY);
     drawPaper();
     drawTiles();
     drawShuffle();
@@ -2490,6 +2970,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawBombs();
     drawDrops();
     drawBits();
+    drawMonster();
+    drawBoss();
+    ctx.restore();
     if (clearedAt) {
       ctx.fillStyle = "#1f6b2a";
       ctx.font = "64px 'Patrick Hand', 'Comic Sans MS', cursive";
@@ -2521,6 +3004,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   function keyDown(k: string): void {
     // In the Door Shuffle you're trapped until the walls open.
+    if (k === "s" && boss) {
+      bossPress();
+      return;
+    }
     if (locked() && k !== "r") return;
     if (k === "arrowdown") pickDoor();
     keys.add(k);
@@ -2709,6 +3196,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* walkTo(Math.floor(doorX(shuffle.slotOf[shuffle.real]!) / T));
       yield* hold("arrowdown", 40);
     },
+    function* () { yield* walkTo(10); yield* hold("d", 600); yield* walkTo(29); },
+    function* () { yield* walkTo(5); yield* hold("d", 600); yield* walkTo(17); yield* upDash(300, R, 300); yield* walkTo(27); },
+    function* () { yield* walkTo(4); yield* hold("d", 600); yield* walkTo(16); yield* hold("w", 900); yield* wait(600); yield* walkTo(28); },
+    function* () {
+      for (const at of [6, 12, 18]) { yield* walkTo(at); botKeys.down(R); yield* hold("arrowup", 300); yield* wait(450); botKeys.up(R); }
+      yield* walkTo(28);
+    },
+    function* () { yield* walkTo(4); yield* hold("d", 600); yield* walkTo(22); },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -2775,6 +3270,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     dashing: player.dashing,
     deaths,
     row: (y: number) => grid[y]?.join(""),
+    monster: () => monster && { mode: monster.mode, dist: Math.round(Math.hypot(monster.x - player.x - PW / 2, monster.y - player.y - PH / 2)) },
+    boss: () => boss && { round: boss.round, r: Math.round(boss.r), t: boss.t, done: boss.done },
     doors: () =>
       shuffle && {
         phase: shuffle.phase,
