@@ -134,7 +134,7 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // J slammer (connected J tiles make one slammer), G gear, o blue wire, x red wire,
 // O blue wire buried in a wall, Y red wire buried in a wall, F fake exit,
 // K crumbling floor, H checkpoint flag, Z monster hatch, B final-fight spot,
-// N monster block (touch it: the monster comes out), Q door-shuffle block
+// N monster block (touch it: a monster comes out), Q door-shuffle block
 // (touch it: the Door Shuffle starts), 1 block that's only in the normal
 // dimension, 2 block that's only in the Ethereal Dimension, * gem, V crusher
 // (connected V tiles make one giant crusher), > side crusher that slams right,
@@ -1452,11 +1452,229 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "Jump A on tiny posts. While THAT sweeps by.",
+    name: "Test 12: Dimension Crush",
+    signs: ["Jump, A, jump, A, on tiny posts. While THAT sweeps across.", "Still alive? Weird."],
+    crush: { gap: 1.2, order: [0, 1], pause: 1.0 },
+    map: [
+      "################################",
+      "#.............VVV..............#",
+      "#.............VVV..............#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#>>............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#?P....[...]...[...]...[....?X.#",
+      "####^^^^^^^^^^^^^^^^^^^^^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Three walls. Three throws. Let go of D in time.",
+    name: "Test 13: Bomb Rain",
+    signs: ["Throw-dash three times. Let go of D in time or land on spikes."],
+    map: [
+      "################################",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#.....#.M......#.M......#.M....#",
+      "#?P...S.M..H...S.M..H...S.M..X.#",
+      "####^^^^M^###^^^^M^###^^^^M^####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Water the wall. Under the crusher. Hurry.",
+    name: "Test 14: Water Works",
+    signs: ["Water the wall. While standing under a crusher. Hurry."],
+    crush: { gap: 1.0, order: [0, 1, 2] },
+    map: [
+      "################################",
+      "#....VVVU.....VVVU.....VVVU....#",
+      "#....VVVU.....VVVU.....VVVU....#",
+      "#....VVVU.....VVVU.....VVVU....#",
+      "#.......U........U........U....#",
+      "#.......U........U........U....#",
+      "#.......U........U........U....#",
+      "#.......U........U........U....#",
+      "#.......U........U........U....#",
+      "#.......U........U........U....#",
+      "#.......U........U........U....#",
+      "#.P?....U...H....U...H....U..X.#",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "The floor falls. The doors bite. Don't stop running.",
+    name: "Test 15: Crumble Run",
+    signs: ["The floor falls, the doors bite, the crusher sweeps. Don't stop."],
+    crush: { gap: 0.6, order: [0], pause: 1.4 },
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#>>............................#",
+      "#>>............................#",
+      "#.P?...F.......F...H....F....X.#",
+      "####KKKKKK##KKKKKKK##KKKKKKK####",
+      "####^^^^^^##^^^^^^^##^^^^^^^####",
+    ],
+  },
+  {
+    sign: "Four giant crushers. Tiny posts to hide on.",
+    name: "Test 16: Crusher King",
+    signs: ["Four giant crushers. Tiny posts to hide on. Bye."],
+    crush: { gap: 0.5, order: [0, 1, 2, 3] },
+    map: [
+      "################################",
+      "#..VVVVV..VVVVV..VVVVV..VVVVV..#",
+      "#..VVVVV..VVVVV..VVVVV..VVVVV..#",
+      "#..VVVVV..VVVVV..VVVVV..VVVVV..#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#P?......i......i......i......X#",
+      "########^^#####^^#####^^########",
+      "################################",
+    ],
+  },
+  {
+    sign: "Up the tiny posts. Down the tiny posts. Don't fall.",
+    name: "Test 17: Sky Posts",
+    signs: ["Up the tiny posts, down the tiny posts. Don't fall. (You'll fall.)"],
+    crush: { gap: 1.0, order: [0, 1], pause: 1.0 },
+    map: [
+      "################################",
+      "#............VVV...............#",
+      "#............VVV...............#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.............i................#",
+      "#.........i.......i..........<<#",
+      "#?P...i...............i.....X..#",
+      "####^^^^^^^^^^^^^^^^^^^^^^######",
+      "################################",
+    ],
+  },
+  {
+    sign: "Every step is in a different dimension.",
+    name: "Test 18: Shadow Steps",
+    signs: ["Every step is in a different dimension. Good luck remembering which."],
+    map: [
+      "################################",
+      "#.......................1#.2...#",
+      "#.......................1#.2...#",
+      "#.......................1#.2...#",
+      "#.......................1#.2...#",
+      "#.......................1#.2...#",
+      "#.......................1#.2...#",
+      "#...............222.....1#.2...#",
+      "#.......................1C.2...#",
+      "#..........111..........1C.2...#",
+      "#.......................1C.2...#",
+      "#?P...222.............H.1C.2.X.#",
+      "####^^^^^^^^^^^^^^^^^###########",
+      "################################",
+    ],
+  },
+  {
+    sign: "The slammers are back. The floor falls under them.",
+    name: "Test 19: Slammer Return",
+    signs: ["The slammers are back. And the floor falls under them."],
+    map: [
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "################################",
+      "#......JJ......JJ......JJ......#",
+      "#......JJ......JJ......JJ......#",
+      "#......JJ......JJ......JJ......#",
+      "#......JJ......JJ......JJ......#",
+      "#......JJ......JJ......JJ......#",
+      "#.P?...JJ......JJ...H..JJ....X.#",
+      "#####KKKKKK##KKKKKK##KKKKKK#####",
+      "#####^^^^^^##^^^^^^##^^^^^^#####",
+    ],
+  },
+  {
+    sign: "The crushers are having a parade. You're in it.",
+    name: "Test 20: Crusher Parade",
+    signs: ["The crushers are having a parade. You're in it."],
+    crush: { gap: 0.45, order: [0, 1, 2, 3] },
+    map: [
+      "################################",
+      "#..VVVV...VVVV...VVVV...VVVV...#",
+      "#..VVVV...VVVV...VVVV...VVVV...#",
+      "#..VVVV...VVVV...VVVV...VVVV...#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#P?.....i......i......i......X.#",
+      "#######^^^####^^^####^^^########",
+      "################################",
+    ],
+  },
+  {
+    // Oscar made this one himself in the level editor (2026-11-21), then made it harder.
+    sign: "...",
+    name: "Test 21: Crush Mania",
+    signs: ["I AM SLOWLY LOSING MY SANITY", "Give up.", "STOP."],
+    crush: { gap: 1, order: [0, 1], pause: 1 },
+    map: [
+      "################################",
+      "#.....V.V.V.V.V.V.V.V.V.V.V.VVV#",
+      "#.....V.V.V.V.V.V.V.V.V.V.V.VVV#",
+      "#.....V.V.V.V.V.V.V.V.V.V.V.VVV#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#>>>...........................#",
+      "#>>>...........................#",
+      "#>>>...........................#",
+      "#.................?............#",
+      "#?P.....[.].[.].[.].[.].[.].F?X#",
+      "#######^^^^^^^^^^^^^^^^^^^^^####",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "61 LEVELS DOWN!",
-  lines: ["You survived 100 DOORS. How?!", "The next tests are coming soon..."],
+  title: "71 LEVELS DOWN!",
+  lines: ["You survived Crush Mania.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -1562,6 +1780,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let checkpoint: { tx: number; ty: number } | null = null;
   let shuffle: Shuffle | null = null;
   let monster: Monster | null = null;
+  // More monsters (Oscar): every hatch in a level lets one out, and every
+  // monster block you touch lets one out too. They all chase you.
+  let extras: Monster[] = [];
+  const allMonsters = (): Monster[] => (monster ? [monster, ...extras] : extras);
   let boss: Boss | null = null;
   let hatchSeen = false; // the hatch cutscene only plays the first time
   let ethereal = false; // in the Ethereal Dimension? (press A, from Level 41 on)
@@ -1570,7 +1792,29 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let skinId = readSkin().id;
   let warpFlash = 0; // the screen glows for a moment when you switch
   const locked = (): boolean =>
-    (shuffle !== null && shuffle.phase !== "pick") || monster?.mode === "hatch" || boss !== null;
+    (shuffle !== null && shuffle.phase !== "pick") || allMonsters().some((m) => m.mode === "hatch") || boss !== null;
+
+  // Hatches in a level that isn't one of the monster levels: a monster climbs
+  // out of every single one.
+  function makeExtras(def: LevelDef, fromCheckpoint: boolean): Monster[] {
+    if (def.monster || demo) return [];
+    const out: Monster[] = [];
+    for (let ty = 0; ty < rows; ty++) {
+      for (let tx = 0; tx < COLS; tx++) {
+        if (tileAt(tx, ty) !== "Z") continue;
+        const x = tx * T + T / 2;
+        const y = ty * T;
+        if (fromCheckpoint || hatchSeen) out.push({ mode: "wait", t: 0.4, x, y: y - 34, chaseT: 0, topY: y - 34 });
+        else out.push({ mode: "hatch", t: 0, x, y: y + 24, chaseT: 0, topY: y - 34 });
+      }
+    }
+    if (out.some((m) => m.mode === "hatch")) {
+      hatchSeen = true;
+      keys.clear();
+      sfx("creak");
+    }
+    return out;
+  }
 
   function makeMonster(def: LevelDef, fromCheckpoint: boolean): Monster | null {
     if (!def.monster || demo) return null;
@@ -1590,8 +1834,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   function stepMonster(dt: number): void {
-    const m = monster;
-    if (!m) return;
+    if (monster) stepOneMonster(monster, dt);
+    // The extra monsters freeze during the final fight.
+    if (!boss) for (const m of extras) stepOneMonster(m, dt);
+  }
+
+  function stepOneMonster(m: Monster, dt: number): void {
     m.t += dt;
     const px = player.x + PW / 2;
     const py = player.y + PH / 2;
@@ -1668,6 +1916,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       if (b.round >= 3) {
         b.done = true;
         if (monster) monster.mode = "oofed";
+        for (const m of extras) m.mode = "oofed"; // all of them!
         sfx("oof");
         shake = 1;
         for (let i = 0; i < 40; i++) {
@@ -1746,7 +1995,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         if (tileAt(tx, ty) !== "Z") continue;
         const x = tx * T;
         const y = ty * T;
-        const open = monster && (monster.mode !== "hatch" || monster.t > 0.3) ? 1 : monster ? monster.t / 0.3 : 0;
+        const opening = allMonsters().find((m) => m.mode === "hatch");
+        const open = opening ? Math.min(1, opening.t / 0.3) : allMonsters().length ? 1 : 0;
         ctx.fillStyle = "#1b1116";
         ctx.fillRect(x + 3, y, T - 6, 8);
         ctx.save();
@@ -1760,10 +2010,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         ctx.restore();
       }
     }
-    const m = monster;
-    if (!m || m.mode === "oofed") return;
-    if (m.mode === "boss") return; // drawn by drawBoss
-    drawMonsterAt(m.x, m.y, monsterSize, m.mode === "chase" ? 1 : 0);
+    for (const m of allMonsters()) {
+      if (m.mode === "oofed" || m.mode === "boss") continue; // the boss is drawn by drawBoss
+      drawMonsterAt(m.x, m.y, monsterSize, m.mode === "chase" ? 1 : 0);
+    }
   }
 
   function drawBoss(): void {
@@ -2112,6 +2362,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     shuffle = def.shuffle ? makeShuffle(def) : null;
     boss = null;
     monster = makeMonster(def, false);
+    extras = makeExtras(def, false);
     crumbling = {};
     fakesFound = {};
     onSwitch = "";
@@ -2923,6 +3174,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       dashUp: false,
     });
     monster = makeMonster(levelDef(), true); // it comes back in from the left
+    extras = makeExtras(levelDef(), true);
   }
 
   function die(): void {
@@ -3218,12 +3470,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
     });
 
-    // The monster block: touch it and the monster comes out after you.
+    // A monster block: touch it and a monster comes out after you. Every block
+    // has its own monster, so lots of blocks means lots of monsters.
     touching(p.x, p.y, (tx, ty, c) => {
-      if (c !== "N" || demo || (monster && monster.mode !== "oofed")) return;
+      if (c !== "N" || demo) return;
+      grid[ty]![tx] = ".";
       // It climbs out of the block; you get a head start of a bit over a second.
-      monster = { mode: "wait", t: -0.2, x: tx * T + T / 2, y: ty * T + T / 2, chaseT: 0, topY: ty * T };
-      boss = null;
+      const m: Monster = { mode: "wait", t: -0.2, x: tx * T + T / 2, y: ty * T + T / 2, chaseT: 0, topY: ty * T };
+      if (!monster || monster.mode === "oofed") monster = m;
+      else extras.push(m);
       sfx("roar");
       shake = Math.max(shake, 0.6);
     });
@@ -4168,7 +4423,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     while (!deadUntil && guard++ < 400) {
       yield;
       if (guard === 12) botKeys.up("arrowup");
-      if (switchIt && !switched && guard > 20) {
+      if (switchIt && !switched && guard > 8) {
         switched = true;
         keyDown("a");
         keys.delete("a");
@@ -4414,6 +4669,83 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* walkToX(doorX(shuffle.slotOf[shuffle.real]!));
       yield* hold("arrowdown", 40);
     },
+    // The Tests (Levels 62-66).
+    function* () {
+      yield* walkTo(3); yield* waitCrushN(0); yield* hopTo(7);
+      yield* hopTo(11, true); yield* waitCrushN(1); yield* hopTo(15, true);
+      yield* hopTo(19, true); yield* waitCrushN(0); yield* hopTo(23, true);
+      yield* hopTo(28); yield* walkTo(29);
+    },
+    function* () {
+      for (const [from, ms] of [[3, 330], [12, 330], [21, 330]] as const) {
+        yield* walkTo(from); yield* hold(R, 30); yield* wait(150);
+        botKeys.down("d"); yield* wait(30); yield* hold("b", 30); yield* wait(ms - 60); botKeys.up("d");
+        yield* wait(400);
+      }
+      yield* walkTo(29);
+    },
+    function* () {
+      for (const [c, u] of [[7, 8], [16, 17], [25, 26]] as const) {
+        yield* walkTo(c - 4); yield* waitCrushN(c === 7 ? 0 : c === 16 ? 1 : 2);
+        yield* walkTo(c); yield* hold(R, 20); yield* hold("w", 1300); yield* wait(500);
+        yield* walkTo(u + 2);
+      }
+      yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3);
+      for (const [f, island] of [[7, 10], [15, 19], [24, 29]] as const) {
+        yield* waitCrushN(0);
+        botKeys.down(R);
+        let guard = 0;
+        while (ptx() < f - 2 && guard++ < 400) yield;
+        yield* hold("arrowup", 120);
+        while (ptx() < island && guard++ < 800) yield;
+        botKeys.up(R);
+        yield* wait(150);
+      }
+    },
+    function* () {
+      yield* waitCrushN(0); yield* walkTo(7); yield* hopTo(9);
+      yield* waitCrushN(1); yield* hopTo(11); yield* walkTo(14); yield* hopTo(16);
+      yield* waitCrushN(2); yield* hopTo(18); yield* walkTo(21); yield* hopTo(23);
+      yield* waitCrushN(3); yield* hopTo(25); yield* walkTo(30);
+    },
+    // The Tests (Levels 67-70).
+    function* () {
+      yield* walkTo(3); yield* waitCrushN(1); yield* hopTo(6); yield* hopTo(10);
+      yield* waitCrushN(0); yield* hopTo(14); yield* hopTo(18);
+      yield* waitCrushN(1); yield* hopTo(22); yield* hopTo(27); yield* walkTo(28);
+    },
+    function* () {
+      yield* walkTo(3); yield* hold("a", 40); yield* wait(150); yield* jumpA(R, false);
+      yield* walkTo(8); yield* jumpA(R); yield* walkTo(13); yield* jumpA(R);
+      yield* walkTo(18); yield* jumpA(R, false); yield* walkTo(22); yield* walkTo(23);
+      yield* hold("d", 400); yield* wait(200); yield* hold("a", 40); yield* wait(150); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(4); yield* waitSafe(7); yield* walkTo(11);
+      yield* waitSafe(15); yield* walkTo(19); yield* walkTo(20);
+      yield* waitSafe(23); yield* walkTo(29);
+    },
+    function* () {
+      yield* waitCrushN(0); yield* walkTo(6); yield* hopTo(8);
+      yield* waitCrushN(1); yield* hopTo(10); yield* walkTo(13); yield* hopTo(15);
+      yield* waitCrushN(2); yield* hopTo(17); yield* walkTo(20); yield* hopTo(22);
+      yield* waitCrushN(3); yield* hopTo(24); yield* walkTo(29);
+    },
+    // Crush Mania (Level 71, Oscar's own level): follow right behind the
+    // wave of crushers, post to post, switching dimensions every hop.
+    function* () {
+      yield* walkTo(5); yield* waitCrushN(1); yield* walkTo(6);
+      yield* waitCrushN(2); yield* hopTo(8);
+      let k = 3;
+      for (const tx of [10, 12, 14, 16, 18, 20, 22, 24, 26]) {
+        yield* waitCrushN(k++);
+        yield* hopTo(tx, true);
+      }
+      yield* waitCrushN(12); yield* hopTo(29); yield* walkTo(30);
+    },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -4490,6 +4822,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     deaths,
     row: (y: number) => grid[y]?.join(""),
     monster: () => monster && { mode: monster.mode, dist: Math.round(Math.hypot(monster.x - player.x - PW / 2, monster.y - player.y - PH / 2)) },
+    monsters: () => allMonsters().map((m) => m.mode).join(" "),
     boss: () => boss && { round: boss.round, r: Math.round(boss.r), t: boss.t, done: boss.done },
     doors: () =>
       shuffle && {
@@ -4514,6 +4847,8 @@ function easeOutBack(t: number): number {
 }
 
 export const LEVEL_COUNT = (): number => LEVELS.length;
+/** One level's map and settings (the level editor reads these). */
+export const getLevelDef = (index: number): LevelDef | undefined => LEVELS[index];
 /** How many gems there are in all the levels. */
 export const TOTAL_GEMS = (): number => LEVELS.reduce((n, l) => n + l.map.join("").split("*").length - 1, 0);
 

@@ -5,3 +5,6 @@ dist/
 
 # Destroy the Game test level: never commit or push this (Oscar's rule)
 src/games7/destroy-the-game/test-level.ts
+# Destroy the Game level editor: only for Claude to build levels with (Oscar's idea). Never commit it either.
+src/games7/destroy-the-game/editor.html
+src/games7/destroy-the-game/editor.ts
