@@ -1829,11 +1829,34 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "Survive 25 seconds. Then climb up to the EXIT.",
+    name: "Test 27: Hide and Seek",
+    signs: ["Survive 25 seconds. Then climb up to the EXIT. They'll still be chasing you."],
+    crush: { gap: 0.7, order: [0, 1, 2], pause: 1.2 },
+    survive: { seconds: 25 },
+    map: [
+      "################################",
+      "#...VVV..................VVV...#",
+      "#...VVV..................VVV...#",
+      "#..............................#",
+      "#..............................#",
+      "#..............X...............#",
+      "#...........########...........#",
+      "#..............................#",
+      "#..............................#",
+      "#.....####............####.....#",
+      "#>.............................#",
+      "#............?.P...............#",
+      "###Z########################Z###",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "76 LEVELS DOWN!",
-  lines: ["You survived GOODBYE. Somehow.", "The next tests are coming soon..."],
+  title: "77 LEVELS DOWN!",
+  lines: ["Hide and Seek: you won.", "The next tests are coming soon..."],
 };
 
 interface Player {
