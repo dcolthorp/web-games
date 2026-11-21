@@ -35,10 +35,11 @@ window.addEventListener("keydown", (e) => {
 
 // The Test Level lives in test-level.ts, which is never committed (it's in
 // .gitignore). If the file isn't there, this is empty and the button hides.
-const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef }>("./test-level.ts", { eager: true });
+const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef; TEST_DOORS?: LevelDef }>("./test-level.ts", { eager: true });
 const TEST_LEVEL = Object.values(testFiles)[0]?.TEST_LEVEL;
 const TEST_SHUFFLE = Object.values(testFiles)[0]?.TEST_SHUFFLE;
 const TEST_MONSTER = Object.values(testFiles)[0]?.TEST_MONSTER;
+const TEST_DOORS = Object.values(testFiles)[0]?.TEST_DOORS;
 
 const MOVES = [
   { level: 1, name: "Dash", how: "Hit <b>D</b>. Hold it longer to go farther (half a second max). Flies over spikes and smashes cracked walls." },
@@ -52,6 +53,7 @@ const MOVES = [
   { level: 41, name: "🌌 Dimensions", how: "Press <b>A</b> to switch into the Ethereal Dimension: dreamy music and twinkling stars. Some blocks are only there in one dimension, so try <b>jump, A, jump, A</b>!" },
   { level: 46, name: "💎 Gems", how: "Grab the <b>gems</b> hidden in Levels 46-50. They unlock <b>Skins</b> (in the menu), so you don't have to be the stick man!" },
   { level: 51, name: "💀 The Tests", how: "The hardest levels in the game. Giant <b>CRUSHERS</b> slam in patterns (wait for them to go back up). <b>Thin posts</b> are 1-pixel jumps. Press <b>B while dashing</b> and the bomb flies forward. No checkpoints, and don't trust the signs." },
+  { level: 56, name: "↔️ Side Crushers", how: "Crushers that slam <b>sideways</b>, right where you jump. Wait for them to pull back, then jump!" },
 ];
 
 let demo: GameHandle | null = null;
@@ -80,6 +82,9 @@ export function showMenu(screen: HTMLCanvasElement): void {
   const monsterBtn = document.getElementById("menu-test-monster")!;
   monsterBtn.hidden = !TEST_MONSTER;
   monsterBtn.onclick = () => startAt(screen, 0, TEST_MONSTER);
+  const doorsBtn = document.getElementById("menu-test-doors")!;
+  doorsBtn.hidden = !TEST_DOORS;
+  doorsBtn.onclick = () => startAt(screen, 0, TEST_DOORS);
   menu.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((btn) => {
     btn.onclick = () => showPage(btn.dataset["page"]!);
   });

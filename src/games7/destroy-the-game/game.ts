@@ -125,6 +125,7 @@ interface Crusher {
   drop: number; // how far it falls, in pixels
   slot: number; // its turn in the pattern
   wasDown: boolean;
+  dir: "down" | "right" | "left"; // side crushers (> and <) slam sideways
 }
 const MAX_BOMBS = 3;
 const BLAST = T * 1.6; // how far a bomb reaches
@@ -136,7 +137,8 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // N monster block (touch it: the monster comes out), Q door-shuffle block
 // (touch it: the Door Shuffle starts), 1 block that's only in the normal
 // dimension, 2 block that's only in the Ethereal Dimension, * gem, V crusher
-// (connected V tiles make one giant crusher), i thin post (1 pixel jump),
+// (connected V tiles make one giant crusher), > side crusher that slams right,
+// < side crusher that slams left, i thin post (1 pixel jump),
 // [ thin post only in the normal dimension, ] thin post only in the Ethereal
 // Dimension, P start, X exit, ? sign.
 //
@@ -155,13 +157,14 @@ export interface LevelDef {
   shuffle?: boolean; // the Door Shuffle (Level 35)
   shuffleSwaps?: number; // how many swaps (default 14)
   shuffleFastest?: number; // seconds for the fastest swap (default 0.22)
+  shuffleDoors?: number; // how many doors (default 8; Level 61 has 100!)
   monster?: "hatch" | "follow"; // the monster: comes out of a hatch (Z), or follows you in from the left
   boss?: boolean; // the B tile starts the final fight
   signs?: string[]; // different words for each ? sign (left to right, top to bottom); otherwise they all say `sign`
   // Crushers slam in a pattern: `order` gives each crusher (left to right) its
   // turn, and crushers with the same number slam together. `gap` is the time
   // between turns.
-  crush?: { gap: number; order: number[] };
+  crush?: { gap: number; order: number[]; pause?: number };
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -182,8 +185,8 @@ interface Shuffle {
   swapT: number;
   cageX: number; // middle of the trap
   picked: number; // the door you opened, or -1
+  xs: number[]; // where each door spot is (x, in pixels)
 }
-const doorX = (slot: number): number => (DOOR_COLS[slot]! + 0.5) * T;
 
 // ---- The Monster (Levels 36-40, Oscar's idea) ----
 // A hatch in the floor (Z) creaks open and a creepy monster climbs out. It
@@ -1303,11 +1306,157 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "They come from the side now.",
+    name: "Test 6: Side Crush",
+    signs: ["They come from the SIDE now. Jump when they're back.", "You jumped at the wrong time. Probably."],
+    crush: { gap: 0.4, order: [0, 1, 2] },
+    popSign: { title: "NEW DANGER: SIDE CRUSHERS!", lines: ["These crushers slam sideways, right where you jump.", "Wait until they pull back, then jump!"] },
+    map: [
+      "################################",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#.......#.......#.......#..#",
+      "#...#>>.....#>>.....#>>.....#..#",
+      "#...#>>.....#>>.....#>>.....#..#",
+      "#.P?..........?..............X.#",
+      "########^^^#####^^^#####^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Tiny posts. Giant crushers.",
+    name: "Test 7: Crusher Posts",
+    signs: ["Tiny posts. Giant crushers. Good luck.", "Okay, that was kind of impressive."],
+    crush: { gap: 0.8, order: [0, 1] },
+    map: [
+      "################################",
+      "#.........VVV.....VVV..........#",
+      "#.........VVV.....VVV..........#",
+      "#.........VVV.....VVV..........#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#?P....i...i...i...i...i....?X.#",
+      "####^^^^^^^^^^^^^^^^^^^^^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Pour water standing on a post. Sure.",
+    name: "Test 8: Fade Away",
+    signs: ["Water the wall while you stand on a tiny post. Easy, right?", "One more wall. You're soaked anyway."],
+    map: [
+      "################################",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#........U..................U..#",
+      "#?P....i.U.i...]...[...]..?.UX.#",
+      "####^^^^^^^^^^^^^^^^^^^^^^######",
+      "################################",
+    ],
+  },
+  {
+    sign: "Smash. Dash. Up Dash. Throw. Don't stop.",
+    name: "Test 9: The Gauntlet",
+    signs: ["Smash, dash, Up Dash, throw a bomb. Don't stop. Don't even breathe.", "Let go of D in time, or that door eats you. Then Up Dash. Again.", "Tiny posts, two dimensions, two crushers. Nobody makes it.", "You didn't really think that was the end?"],
+    crush: { gap: 0.9, order: [1, 0, 2], pause: 1.0 },
+    map: [
+      "################################",
+      "#..............VVV.............#",
+      "#..............VVV.............#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#........................<<....#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.X.?^F^i^^^]^^^[^^^]^^^..?....#",
+      "############################CCC#",
+      "#.....C...........VVV.#.M......#",
+      "#.....C...............#.M......#",
+      "#.....C...............#.M......#",
+      "#.....C...............#.M......#",
+      "#.....C...............#.M......#",
+      "#.....C...............#.M......#",
+      "#.....C...............S.M?.F...#",
+      "#.....C######CCCC###############",
+      "#.....C..........###############",
+      "#.....C..........###############",
+      "#.P?..C..........###############",
+      "########^^^^^###################",
+      "################################",
+    ],
+  },
+  {
+    sign: "ALL the crushers. At once.",
+    name: "Test 10: Crusher Storm",
+    signs: ["Every crusher. All at once. Turn back.", "Halfway through the storm. Halfway to failing."],
+    crush: { gap: 0.35, order: [0, 1, 2, 3] },
+    map: [
+      "################################",
+      "#..VVV.#.......#VVV.......#....#",
+      "#..VVV.#.......#VVV.......#....#",
+      "#..VVV.#.......#VVV.......#....#",
+      "#......#.......#..........#....#",
+      "#......#.......#..........#....#",
+      "#......#.......#..........#....#",
+      "#......#.......#..........#....#",
+      "#......#.......#..........#....#",
+      "#......#>>.....#...>>.....#....#",
+      "#......#>>.....#...>>.....#....#",
+      "#P?...........?..............X.#",
+      "###########^^^########^^^#######",
+      "################################",
+    ],
+  },
+  {
+    sign: "100 doors. 1 EXIT. Good luck.",
+    name: "Test 11: 100 Doors",
+    shuffle: true,
+    shuffleDoors: 100,
+    shuffleSwaps: 40,
+    shuffleFastest: 0.12,
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P............................#",
+      "################################",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "55 LEVELS DOWN!",
-  lines: ["You survived the first 5 TESTS.", "The next tests are coming soon..."],
+  title: "61 LEVELS DOWN!",
+  lines: ["You survived 100 DOORS. How?!", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -1668,21 +1817,34 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   function makeShuffle(def: LevelDef): Shuffle {
+    const n = def.shuffleDoors ?? DOOR_COLS.length;
+    // 8 doors stand on their own spots. Lots of doors get squished in, side by
+    // side, all the way to the right wall.
+    const xs = n === DOOR_COLS.length
+      ? DOOR_COLS.map((c) => (c + 0.5) * T)
+      : Array.from({ length: n }, (_, i) => 3.5 * T + (i * (WORLD_W - 5 * T)) / (n - 1));
+    const real = Math.floor(Math.random() * n);
     const swaps: Shuffle["swaps"] = [];
     const count = def.shuffleSwaps ?? SWAPS;
     const fastest = def.shuffleFastest ?? 0.22;
+    let realSlot = real;
     for (let i = 0; i < count; i++) {
-      const a = Math.floor(Math.random() * DOOR_COLS.length);
-      let b = Math.floor(Math.random() * (DOOR_COLS.length - 1));
+      // With lots of doors, the EXIT gets swapped way more often (so it's hard to follow).
+      let a = n > DOOR_COLS.length && Math.random() < 0.55 ? realSlot : Math.floor(Math.random() * n);
+      let b = Math.floor(Math.random() * (n - 1));
       if (b >= a) b += 1;
+      if (Math.random() < 0.5) [a, b] = [b, a];
+      if (a === realSlot) realSlot = b;
+      else if (b === realSlot) realSlot = a;
       swaps.push({ a, b, dur: 0.62 - ((0.62 - fastest) * i) / (count - 1) }); // faster and faster
     }
     keys.clear();
     return {
       phase: "trap",
       t: 0,
-      slotOf: DOOR_COLS.map((_, i) => i),
-      real: Math.floor(Math.random() * DOOR_COLS.length),
+      xs,
+      slotOf: xs.map((_, i) => i),
+      real,
       swaps,
       swapIdx: 0,
       swapT: 0,
@@ -1725,12 +1887,24 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     }
   }
 
+  const doorX = (slot: number): number => shuffle?.xs[slot] ?? 0;
+
   // Press DOWN in front of a door to open it.
   function pickDoor(): void {
     const sh = shuffle;
     if (!sh || sh.phase !== "pick" || sh.picked >= 0 || deadUntil || clearedAt) return;
     const px = player.x + PW / 2;
-    const door = sh.slotOf.findIndex((slot) => Math.abs(doorX(slot) - px) < 20);
+    // The nearest door, if you're in front of it. (Skinny doors need you to be exact!)
+    const reach = Math.min(20, (sh.xs[1]! - sh.xs[0]!) / 2);
+    let door = -1;
+    let best = reach;
+    sh.slotOf.forEach((slot, d) => {
+      const dist = Math.abs(doorX(slot) - px);
+      if (dist < best) {
+        best = dist;
+        door = d;
+      }
+    });
     if (door < 0) return;
     sh.picked = door;
     if (door === sh.real) {
@@ -1774,7 +1948,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       const { x, lift } = pos[door]!;
       const isReal = door === sh.real;
       const opened = sh.picked === door;
-      const w = T - 6;
+      const skinny = sh.xs.length > DOOR_COLS.length;
+      const w = skinny ? Math.max(4, sh.xs[1]! - sh.xs[0]! - 3) : T - 6;
       const h = T * 1.6;
       const left = x - w / 2;
       const top = floorY - h - lift;
@@ -1789,11 +1964,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       sketchLine(left, top + h, left, top);
       sketchLine(left, top, left + w, top);
       sketchLine(left + w, top, left + w, top + h);
-      ctx.fillStyle = ink;
-      ctx.beginPath();
-      ctx.arc(left + w - 7, top + h * 0.55, 2.6, 0, Math.PI * 2);
-      ctx.fill();
-      // The little sign above each door.
+      if (!skinny) {
+        ctx.fillStyle = ink;
+        ctx.beginPath();
+        ctx.arc(left + w - 7, top + h * 0.55, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // The little sign above each door. (Skinny doors only label the EXIT, and the one you opened.)
+      if (skinny && !opened && !(showLabels && isReal)) return;
       let label = "?";
       let color = "#5b3d1c";
       if (showLabels) {
@@ -2208,13 +2386,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     const seen = new Set<string>();
     for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) {
-        if (grid[ty]?.[tx] !== "V" || seen.has(`${tx},${ty}`)) continue;
-        const c: Crusher = { x0: tx, x1: tx, y0: ty, y1: ty, drop: 0, slot: 0, wasDown: false };
+        const ch = grid[ty]?.[tx] ?? "";
+        if (!"V<>".includes(ch) || !ch || seen.has(`${tx},${ty}`)) continue;
+        const dir = ch === ">" ? "right" : ch === "<" ? "left" : "down";
+        const c: Crusher = { x0: tx, x1: tx, y0: ty, y1: ty, drop: 0, slot: 0, wasDown: false, dir };
         const stack: [number, number][] = [[tx, ty]];
         while (stack.length) {
           const [x, y] = stack.pop()!;
           const key = `${x},${y}`;
-          if (seen.has(key) || grid[y]?.[x] !== "V") continue;
+          if (seen.has(key) || grid[y]?.[x] !== ch) continue;
           seen.add(key);
           c.x0 = Math.min(c.x0, x); c.x1 = Math.max(c.x1, x);
           c.y0 = Math.min(c.y0, y); c.y1 = Math.max(c.y1, y);
@@ -2226,13 +2406,23 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     for (const c of found) {
       for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) grid[y]![x] = ".";
     }
-    // It falls until it hits the floor.
+    // It slams until it hits something solid (a floor, or a wall for side crushers).
+    const stops = (x: number, y: number): boolean => "#CMUOYZKi".includes(grid[y]?.[x] ?? "#");
     for (const c of found) {
-      let gap = rows;
-      for (let x = c.x0; x <= c.x1; x++) {
-        let y = c.y1 + 1;
-        while (y < rows && !"#CMUOYZK".includes(grid[y]?.[x] ?? "#")) y++;
-        gap = Math.min(gap, y - c.y1 - 1);
+      let gap = Math.max(rows, COLS);
+      if (c.dir === "down") {
+        for (let x = c.x0; x <= c.x1; x++) {
+          let y = c.y1 + 1;
+          while (y < rows && !stops(x, y)) y++;
+          gap = Math.min(gap, y - c.y1 - 1);
+        }
+      } else {
+        const step = c.dir === "right" ? 1 : -1;
+        for (let y = c.y0; y <= c.y1; y++) {
+          let x = c.dir === "right" ? c.x1 + 1 : c.x0 - 1;
+          while (x >= 0 && x < COLS && !stops(x, y)) x += step;
+          gap = Math.min(gap, Math.abs(x - (c.dir === "right" ? c.x1 : c.x0)) - 1);
+        }
       }
       c.drop = gap * T;
     }
@@ -2244,7 +2434,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function crushCycle(): number {
     const gap = levelDef().crush?.gap ?? 0.6;
     const last = Math.max(0, ...crushers.map((c) => c.slot));
-    return last * gap + CRUSH_LEN + CRUSH_PAUSE;
+    return last * gap + CRUSH_LEN + (levelDef().crush?.pause ?? CRUSH_PAUSE);
   }
 
   /** Seconds into this crusher's own slam (or -1 when it's just hanging there). */
@@ -2266,18 +2456,24 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     return c.drop * Math.max(0, 1 - t / CRUSH_RISE);
   }
 
+  /** Where the crusher is pushed to right now. */
+  function crushOffset(c: Crusher): { dx: number; dy: number } {
+    const d = crushDown(c);
+    return c.dir === "down" ? { dx: 0, dy: d } : { dx: c.dir === "right" ? d : -d, dy: 0 };
+  }
+
   function stepCrushers(): void {
     const p = player;
     for (const c of crushers) {
-      const dy = crushDown(c);
-      const down = dy >= c.drop - 0.5 && c.drop > 0;
+      const { dx, dy } = crushOffset(c);
+      const down = crushDown(c) >= c.drop - 0.5 && c.drop > 0;
       if (down && !c.wasDown) {
         sfx("crush");
         shake = Math.max(shake, 0.55);
         crushFlash = 1;
         for (let i = 0; i < 10; i++) {
           bits.push({
-            x: c.x0 * T + Math.random() * (c.x1 - c.x0 + 1) * T, y: (c.y1 + 1) * T + c.drop,
+            x: c.x0 * T + dx + Math.random() * (c.x1 - c.x0 + 1) * T, y: c.dir === "down" ? (c.y1 + 1) * T + c.drop : c.y0 * T + Math.random() * (c.y1 - c.y0 + 1) * T,
             vx: (Math.random() - 0.5) * 400, vy: -Math.random() * 300,
             angle: 0, spin: 0, size: 8 + Math.random() * 8, color: "rgba(60,55,50,0.35)", life: 0.5,
           });
@@ -2285,7 +2481,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
       c.wasDown = down;
       // Touch a crusher and you're squashed (dashing doesn't save you).
-      const x = c.x0 * T;
+      const x = c.x0 * T + dx;
       const y = c.y0 * T + dy;
       const w = (c.x1 - c.x0 + 1) * T;
       const h = (c.y1 - c.y0 + 1) * T;
@@ -2297,27 +2493,39 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     for (const c of crushers) {
       const ph = crushPhase(c);
       const warn = ph >= 0 && ph < CRUSH_WARN;
-      const dy = crushDown(c);
+      const { dx, dy } = crushOffset(c);
       const wobble = warn ? Math.sin(time * 60) * 2.5 : 0;
-      const x = c.x0 * T + wobble;
-      const y = c.y0 * T + dy;
+      const side = c.dir !== "down";
+      const x = c.x0 * T + dx + (side ? 0 : wobble);
+      const y = c.y0 * T + dy + (side ? wobble : 0);
       const w = (c.x1 - c.x0 + 1) * T;
       const h = (c.y1 - c.y0 + 1) * T;
-      // Chains up to the ceiling.
+      // Chains up to the ceiling (or back to the wall, for side crushers).
       ctx.strokeStyle = "#5a5560";
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
-      for (const cx of [x + 10, x + w - 10]) {
-        ctx.beginPath();
-        ctx.moveTo(cx, 0);
-        ctx.lineTo(cx, y);
-        ctx.stroke();
+      if (!side) {
+        for (const cx of [x + 10, x + w - 10]) {
+          ctx.beginPath();
+          ctx.moveTo(cx, 0);
+          ctx.lineTo(cx, y);
+          ctx.stroke();
+        }
+      } else {
+        for (const cy of [y + 8, y + h - 8]) {
+          ctx.beginPath();
+          ctx.moveTo(c.dir === "right" ? 0 : WORLD_W, cy);
+          ctx.lineTo(c.dir === "right" ? x : x + w, cy);
+          ctx.stroke();
+        }
       }
       ctx.setLineDash([]);
       // Where it's going to land.
       if (warn) {
         ctx.fillStyle = `rgba(232, 66, 58, ${0.18 + 0.15 * Math.sin(time * 30)})`;
-        ctx.fillRect(c.x0 * T, (c.y1 + 1) * T, w, c.drop);
+        if (c.dir === "down") ctx.fillRect(c.x0 * T, (c.y1 + 1) * T, w, c.drop);
+        else if (c.dir === "right") ctx.fillRect((c.x1 + 1) * T, c.y0 * T, c.drop, h);
+        else ctx.fillRect(c.x0 * T - c.drop, c.y0 * T, c.drop, h);
       }
       // The crusher: a giant angry block.
       ctx.fillStyle = "#3b3540";
@@ -2341,17 +2549,32 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       ctx.lineWidth = 3.5;
       sketchLine(x + w * 0.18, ey - 14, x + w * 0.4, ey - 7, 0.4);
       sketchLine(x + w * 0.82, ey - 14, x + w * 0.6, ey - 7, 0.4);
-      // Teeth along the bottom.
+      // Teeth on the side it slams with.
       ctx.fillStyle = "#f4f0e6";
-      const teeth = Math.max(3, Math.round(w / 14));
-      for (let i = 0; i < teeth; i++) {
-        const tx = x + (i + 0.5) * (w / teeth);
-        ctx.beginPath();
-        ctx.moveTo(tx - w / teeth / 2 + 1, y + h);
-        ctx.lineTo(tx + w / teeth / 2 - 1, y + h);
-        ctx.lineTo(tx, y + h + 9);
-        ctx.closePath();
-        ctx.fill();
+      if (!side) {
+        const teeth = Math.max(3, Math.round(w / 14));
+        for (let i = 0; i < teeth; i++) {
+          const tx = x + (i + 0.5) * (w / teeth);
+          ctx.beginPath();
+          ctx.moveTo(tx - w / teeth / 2 + 1, y + h);
+          ctx.lineTo(tx + w / teeth / 2 - 1, y + h);
+          ctx.lineTo(tx, y + h + 9);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else {
+        const teeth = Math.max(3, Math.round(h / 14));
+        const edge = c.dir === "right" ? x + w : x;
+        const out = c.dir === "right" ? 9 : -9;
+        for (let i = 0; i < teeth; i++) {
+          const ty = y + (i + 0.5) * (h / teeth);
+          ctx.beginPath();
+          ctx.moveTo(edge, ty - h / teeth / 2 + 1);
+          ctx.lineTo(edge, ty + h / teeth / 2 - 1);
+          ctx.lineTo(edge + out, ty);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
     }
   }
@@ -3908,6 +4131,32 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     while (crushPhase(c) < 0 && guard++ < 3000) yield;
     while (crushPhase(c) >= 0 && guard++ < 3000) yield;
   }
+  // Walk to an exact spot (for the skinny doors), with tiny taps at the end.
+  function* walkToX(x: number): Route {
+    let guard = 0;
+    while (guard++ < 600) {
+      const dx = x - (player.x + PW / 2);
+      if (Math.abs(dx) < 3) break;
+      const k = dx > 0 ? R : L;
+      botKeys.down(k);
+      yield;
+      if (Math.abs(dx) < 30) {
+        botKeys.up(k);
+        yield* wait(60);
+      }
+    }
+    botKeys.up(R);
+    botKeys.up(L);
+    yield* wait(200);
+  }
+  // Wait until crusher number i (left to right) has just slammed and gone back.
+  function* waitCrushN(i: number): Route {
+    const c = crushers[i];
+    if (!c) return;
+    let guard = 0;
+    while (crushPhase(c) < 0 && guard++ < 3000) yield;
+    while (crushPhase(c) >= 0 && guard++ < 3000) yield;
+  }
   // Jump from a thin post and land on the one at this column.
   function* hopTo(tx: number, switchIt = false): Route {
     const target = tx * T + T / 2;
@@ -4119,6 +4368,52 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* waitCrush(12); yield* walkTo(15); yield* waitCrush(18); yield* walkTo(21);
       yield* waitCrush(24); yield* walkTo(26); yield* jumpA(R, false); yield* walkTo(29);
     },
+    // The Tests (Levels 56-60).
+    function* () {
+      yield* walkTo(7); yield* waitCrushN(0); yield* jumpA(R, false);
+      yield* walkTo(15); yield* waitCrushN(1); yield* jumpA(R, false);
+      yield* walkTo(23); yield* waitCrushN(2); yield* jumpA(R, false); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3); yield* hopTo(7);
+      yield* waitCrushN(0); yield* hopTo(11); yield* hopTo(15);
+      yield* waitCrushN(1); yield* hopTo(19); yield* hopTo(23);
+      yield* hopTo(28); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3); yield* hopTo(7);
+      yield* hold("w", 1300); yield* wait(600);
+      yield* hopTo(11);
+      for (const tx of [15, 19, 23]) yield* hopTo(tx, true);
+      yield* hopTo(27); yield* hold("w", 1300); yield* wait(600); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(4); yield* hold("d", 600); yield* wait(150);
+      yield* walkTo(15);
+      yield* waitCrushN(1);
+      yield* upDash(300, R, 250);
+      yield* walkTo(17); yield* hold(R, 40); yield* wait(100);
+      botKeys.down("d"); yield* wait(30); yield* hold("b", 30); yield* wait(300); botKeys.up("d");
+      yield* wait(300); yield* walkTo(26); yield* jumpA(R, false); yield* walkTo(29);
+      // The top part: Up Dash, then back to the left on tiny posts.
+      yield* upDash(300, L, 350); yield* walkTo(24);
+      yield* hold("a", 40); yield* waitCrushN(2);
+      yield* hopTo(20); yield* hopTo(16, true); yield* hopTo(12, true); yield* hopTo(8);
+      yield* waitCrushN(2); yield* hopTo(4); yield* walkTo(2);
+    },
+    function* () {
+      yield* waitCrushN(0); yield* walkTo(10); yield* waitCrushN(1); yield* jumpA(R, false);
+      yield* walkTo(15); yield* waitCrushN(2); yield* walkTo(21); yield* waitCrushN(3); yield* jumpA(R, false);
+      yield* walkTo(29);
+    },
+    function* () {
+      // 100 Doors: the bot peeks too.
+      let guard = 0;
+      while ((!shuffle || shuffle.phase !== "pick") && guard++ < 6000) yield;
+      if (!shuffle) return;
+      yield* walkToX(doorX(shuffle.slotOf[shuffle.real]!));
+      yield* hold("arrowdown", 40);
+    },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -4190,6 +4485,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     gems: gems.size,
     testGems,
     skin: skinId,
+    crush: () => crushers.map((c) => `${c.x0}:${crushPhase(c).toFixed(2)}`).join(" "),
     bombs: () => bombs.map((b) => `${Math.round(b.x)},${Math.round(b.y)}${b.vx ? ">" : ""}${b.armed ? "!" : ""}`).join(" "),
     deaths,
     row: (y: number) => grid[y]?.join(""),
@@ -4199,7 +4495,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       shuffle && {
         phase: shuffle.phase,
         realCol: Math.floor(doorX(shuffle.slotOf[shuffle.real]!) / T),
-        wrongCol: Math.floor(doorX(shuffle.slotOf[(shuffle.real + 1) % 8]!) / T),
+        wrongCol: Math.floor(doorX(shuffle.slotOf[(shuffle.real + 1) % shuffle.xs.length]!) / T),
+        realX: Math.round(doorX(shuffle.slotOf[shuffle.real]!)),
+        wrongX: Math.round(doorX(shuffle.slotOf[(shuffle.real + 1) % shuffle.xs.length]!)),
       },
     wiring: () => wires.map((w) => `${w.red ? "red" : "blue"} gear${w.gear}${gears[w.gear]?.on ? "(turned)" : ""}->slammer${w.slammer}${w.cut ? " CUT" : ""}`),
   });
