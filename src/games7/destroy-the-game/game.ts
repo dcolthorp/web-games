@@ -1,4 +1,5 @@
-import { play as playSound, startMusic, stopMusic, type Sfx } from "./sfx";
+import { drawFigure, readGems, readSkin, saveGems, SKINS } from "./skins";
+import { play as playSound, startMusic, startStarMusic, stopMusic, stopStarMusic, type Sfx } from "./sfx";
 
 // Destroy the Game: the platformer behind the smashed title card (Oscar, 2026-11-20).
 //
@@ -57,6 +58,14 @@ const SCISSORS_LEVEL = 25; // level index (Level 26)
 // already did still done.
 const RAGE_LEVEL = 30; // level index (Level 31)
 const CRUMBLE_TIME = 0.4;
+// Level 41 unlocks DIMENSIONS (Oscar's idea): press A to switch into the
+// Ethereal Dimension, with dreamy music and stars twinkling everywhere. Some
+// blocks (1) are only there in the normal dimension, and some (2) are only
+// there in the Ethereal one, so there's parkour like jump, A, jump, A...
+const DIMENSION_LEVEL = 40; // level index (Level 41)
+// Levels 46-50 are about COLLECTABLES (Oscar's idea): grab the gems (*) to
+// unlock SKINS in the menu, so you don't have to be the stick man.
+const GEM_LEVEL = 45; // level index (Level 46)
 
 interface Wire {
   tiles: [number, number][];
@@ -102,7 +111,8 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // O blue wire buried in a wall, Y red wire buried in a wall, F fake exit,
 // K crumbling floor, H checkpoint flag, Z monster hatch, B final-fight spot,
 // N monster block (touch it: the monster comes out), Q door-shuffle block
-// (touch it: the Door Shuffle starts), P start, X exit, ? sign.
+// (touch it: the Door Shuffle starts), 1 block that's only in the normal
+// dimension, 2 block that's only in the Ethereal Dimension, * gem, P start, X exit, ? sign.
 //
 // Level 16 unlocks WATER (Oscar's fourth move): hold W to pour water. Pour it on
 // a slightly smudged wall and the whole smudge fades away.
@@ -952,12 +962,213 @@ const LEVELS: LevelDef[] = [
       "#####^^^^^##KKK#################",
       "############^^^#################",
     ],
+  },  {
+    sign: "Press A to switch dimensions!",
+    name: "The Other Side",
+    popSign: { title: "NEW MOVE: DIMENSIONS!", lines: ["Press A to switch into the Ethereal Dimension.", "Some blocks are only there in one dimension!"] },
+    map: [
+      "################################",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#........1.....................#",
+      "#.P?.....1...................X.#",
+      "##############2222222222222#####",
+      "##############^^^^^^^^^^^^^#####",
+    ],
+  },
+  {
+    sign: "Jump, A, jump, A...",
+    name: "Jump A",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?..111..222..111..222.....X.#",
+      "#####^^^^^^^^^^^^^^^^^^^^^######",
+      "################################",
+    ],
+  },
+  {
+    sign: "Switch in the air, then land!",
+    name: "Star Stairs",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#...........................X..#",
+      "#....................222..######",
+      "#.........................######",
+      "#...............111.......######",
+      "#.........................######",
+      "#..........222............######",
+      "#.........................######",
+      "#.....111.................######",
+      "#.P?......................######",
+      "#####^^^^^^^^^^^^^^^^^^^^^^^^^^#",
+      "################################",
+    ],
+  },
+  {
+    sign: "Switch, smash, switch back, dash!",
+    name: "Both Worlds",
+    map: [
+      "################################",
+      "#.......1.....#......2.........#",
+      "#.......1.....#......2.........#",
+      "#.......1.....#......2.........#",
+      "#.......1.....#......2.........#",
+      "#.......1.....#......2.........#",
+      "#.......1.....#......2.........#",
+      "#.......1.....#......2.........#",
+      "#.......1.....C......2.........#",
+      "#.......1.....C......2.........#",
+      "#.......1.....C......2.........#",
+      "#.P?....1.....C......2.......X.#",
+      "#################^^^^^^^^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "The last jump A run. Don't look down!",
+    name: "Dimension Dash",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#...............11...........X.#",
+      "#..........22........22...######",
+      "#.P?..11..................######",
+      "####^^^^^^^^^^^^^^^^^^^^^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Grab the gems! One is hiding behind you...",
+    name: "Shiny!",
+    popSign: { title: "NEW: GEMS!", lines: ["Collect the gems to unlock SKINS.", "Pick your skin in the menu: no more stick man!"] },
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "####...........................#",
+      "#..C...........*...............#",
+      "#..C.........####..............#",
+      "#*.C.P?..*...####............X.#",
+      "####################^^^#########",
+      "################################",
+    ],
+  },
+  {
+    sign: "Water, Up Dash, switch dimensions... find all 3!",
+    name: "Hidden Treasure",
+    map: [
+      "################################",
+      "#............#....#............#",
+      "#............#....#............#",
+      "#............#.*..#............#",
+      "#............#....#............#",
+      "#............#....#............#",
+      "#...........##CCCC##...........#",
+      "#..............................#",
+      "####..................111......#",
+      "#..U..................1.1......#",
+      "#..U..................1.1......#",
+      "#*.U.P?...............1*1....X.#",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "Dash for the gems. Up Dash for the high one!",
+    name: "Dash for Cash",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.*............................#",
+      "####...........................#",
+      "##.............................#",
+      "##....................*........#",
+      "##.............................#",
+      "##..?P....*..................X.#",
+      "######^^^^^^^^^###^^^^^^^^######",
+      "################################",
+    ],
+  },
+  {
+    sign: "Careful. Not every door is a door.",
+    name: "Rage Grab",
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#...........................*..#",
+      "#..........................22..#",
+      "#..............................#",
+      "#.......................22.....#",
+      "#.P?......*....H..*F.........X.#",
+      "########KKKKK###################",
+      "########^^^^^###################",
+    ],
+  },
+  {
+    sign: "Halfway through the whole game! One last treasure run.",
+    name: "Treasure Tower",
+    map: [
+      "################################",
+      "#......................#...#...#",
+      "#......................#...#...#",
+      "#......................#.*.#...#",
+      "#......................#...#...#",
+      "#......................#...#...#",
+      "#......................#CCC##..#",
+      "#.........*....*...............#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?..111..222..111..........X.#",
+      "#####^^^^^^^^^^^^^^^^^##########",
+      "################################",
+    ],
   },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "40 LEVELS DOWN!",
-  lines: ["Every 5 levels you unlock a new move.", "The next one is coming soon..."],
+  title: "50 LEVELS: HALFWAY! 🥳",
+  lines: ["You're halfway through the whole game!", "The next 50 levels are coming soon..."],
 };
 
 interface Player {
@@ -995,6 +1206,7 @@ interface PopSign {
   lines: string[];
   shownAt: number;
   leavingAt: number | null;
+  auto?: boolean; // goes away by itself
 }
 
 export interface GameHandle {
@@ -1062,6 +1274,11 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let monster: Monster | null = null;
   let boss: Boss | null = null;
   let hatchSeen = false; // the hatch cutscene only plays the first time
+  let ethereal = false; // in the Ethereal Dimension? (press A, from Level 41 on)
+  const gems = readGems(); // every gem you've collected (not in the demo or Test Level)
+  let testGems = 0; // gems grabbed in the Test Level (not saved)
+  let skinId = readSkin().id;
+  let warpFlash = 0; // the screen glows for a moment when you switch
   const locked = (): boolean =>
     (shuffle !== null && shuffle.phase !== "pick") || monster?.mode === "hatch" || boss !== null;
 
@@ -1527,7 +1744,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     levelH = rows * T;
     camY = levelH - WORLD_H; // start at the bottom; it follows you from there
     if (!def.shuffle) stopMusic();
+    leaveEthereal();
     grid = def.map.map((row) => row.split(""));
+    // Gems you already have show up as see-through outlines.
+    if (!demo && !test && !override) {
+      grid.forEach((row, y) => row.forEach((c, x) => {
+        if (c === "*" && gems.has(gemKey(x, y))) row[x] = "g";
+      }));
+    }
     let sx = 2;
     let sy = 11;
     grid.forEach((row, y) =>
@@ -1828,7 +2052,92 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   const isSolid = (c: string): boolean =>
-    c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y" || c === "K" || c === "Z";
+    c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y" || c === "K" || c === "Z" ||
+    (c === "1" && !ethereal) || (c === "2" && ethereal);
+
+  // ---- Gems (Level 46+) ----
+  function gemKey(tx: number, ty: number): string {
+    return `${levelIndex}:${tx},${ty}`;
+  }
+
+  function collectGem(tx: number, ty: number): void {
+    grid[ty]![tx] = ".";
+    sfx("gem");
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      bits.push({
+        x: tx * T + T / 2, y: ty * T + T / 2,
+        vx: Math.cos(a) * 220, vy: Math.sin(a) * 220 - 150,
+        angle: 0, spin: 0, size: 3, color: "#5ce1ff", life: 0.5, spark: true,
+      });
+    }
+    if (test) {
+      testGems += 1;
+      return;
+    }
+    if (demo) return;
+    const before = gems.size;
+    gems.add(gemKey(tx, ty));
+    saveGems(gems);
+    // Did that unlock a new skin?
+    const skin = SKINS.find((k) => k.gems > before && k.gems <= gems.size);
+    if (skin) {
+      popSign = {
+        title: `NEW SKIN: ${skin.name.toUpperCase()}!`,
+        lines: ["Pick it in the Skins menu (Esc, then Skins)."],
+        shownAt: time,
+        leavingAt: null,
+        auto: true,
+      };
+      sfx("unlock");
+    }
+  }
+
+  // ---- Dimensions (Level 41+) ----
+  function leaveEthereal(): void {
+    ethereal = false;
+    warpFlash = 0;
+    if (!demo) stopStarMusic();
+  }
+
+  // Press A: switch dimensions. You can't switch if a block from the other
+  // dimension would appear right where you are.
+  function switchDimension(): void {
+    const appearing = ethereal ? "1" : "2";
+    let blocked = false;
+    touching(player.x, player.y, (_tx, _ty, c) => {
+      if (c === appearing) blocked = true;
+    });
+    if (blocked) {
+      sfx("nope");
+      shake = Math.max(shake, 0.15);
+      return;
+    }
+    ethereal = !ethereal;
+    warpFlash = 1;
+    if (ethereal) {
+      sfx("warp");
+      if (!demo) startStarMusic();
+    } else {
+      sfx("warpBack");
+      if (!demo) stopStarMusic();
+    }
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      bits.push({
+        x: player.x + PW / 2,
+        y: player.y + PH / 2,
+        vx: Math.cos(a) * 260,
+        vy: Math.sin(a) * 260 - 120,
+        angle: 0,
+        spin: 0,
+        size: 3,
+        color: ethereal ? "#bfe3ff" : "#28328c",
+        life: 0.45,
+        spark: true,
+      });
+    }
+  }
 
   // Water hit a smudged wall: the whole smudge soaks it up together, and once
   // it's wet enough it fades away.
@@ -2065,6 +2374,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drops = [];
     trail = [];
     boss = null;
+    leaveEthereal();
     Object.assign(player, {
       x: cp.tx * T + (T - PW) / 2,
       y: (cp.ty + 1) * T - PH,
@@ -2115,6 +2425,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     flashes = flashes.filter((f) => f.age < 0.3);
     trail.forEach((t) => (t.age += dt));
     trail = trail.filter((t) => t.age < 0.25);
+    warpFlash = Math.max(0, warpFlash - dt * 3);
 
     if (finished) return;
     if (clearedAt) {
@@ -2209,7 +2520,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
     }
     // The Slammers sign goes away by itself.
-    if (popSign && popSign.leavingAt === null && (levelIndex === SLAMMER_LEVEL || levelIndex === RAGE_LEVEL) && !test && time - popSign.shownAt > 3.5) {
+    if (popSign && popSign.leavingAt === null && (popSign.auto || ((levelIndex === SLAMMER_LEVEL || levelIndex === RAGE_LEVEL || levelIndex === GEM_LEVEL) && !test)) && time - popSign.shownAt > 3.5) {
       popSign.leavingAt = time;
     }
 
@@ -2349,6 +2660,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // Reached the exit?
     touching(p.x, p.y, (_tx, _ty, c) => {
       if (c === "X") reachExit();
+      if (c === "*") collectGem(_tx, _ty);
       // The final fight (in the demo it just counts as the exit). In test rooms
       // it only starts if the monster is out.
       if (c === "B" && levelDef().boss) {
@@ -2395,7 +2707,54 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ctx.stroke();
   }
 
+  // Little hash for star positions, so the stars stay put.
+  const hash = (n: number): number => {
+    const v = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+
+  // The Ethereal Dimension: a night sky full of twinkling stars.
+  function drawStarSky(): void {
+    ctx.fillStyle = "#16103a";
+    ctx.fillRect(0, 0, WORLD_W, levelH);
+    ctx.strokeStyle = "rgba(160, 180, 255, 0.1)";
+    ctx.lineWidth = 1;
+    for (let y = T * 0.75; y < levelH; y += T * 0.75) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(WORLD_W, y);
+      ctx.stroke();
+    }
+    const count = Math.round(110 * (rows / ROWS));
+    for (let i = 0; i < count; i++) {
+      const x = hash(i) * WORLD_W;
+      const y = hash(i + 1000) * levelH;
+      const tw = 0.5 + 0.5 * Math.sin(time * (1.5 + hash(i + 2000) * 3) + hash(i + 3000) * 6.28);
+      const big = hash(i + 4000) > 0.82;
+      const r = (big ? 3.2 : 1.6) * (0.6 + tw * 0.6);
+      ctx.fillStyle = `rgba(${big ? "255, 240, 200" : "220, 230, 255"}, ${0.25 + tw * 0.75})`;
+      if (big) {
+        // A four-pointed twinkle.
+        ctx.beginPath();
+        ctx.moveTo(x, y - r * 2.2);
+        ctx.quadraticCurveTo(x, y, x + r * 2.2, y);
+        ctx.quadraticCurveTo(x, y, x, y + r * 2.2);
+        ctx.quadraticCurveTo(x, y, x - r * 2.2, y);
+        ctx.quadraticCurveTo(x, y, x, y - r * 2.2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   function drawPaper(): void {
+    if (ethereal) {
+      drawStarSky();
+      return;
+    }
     ctx.fillStyle = "#f7f1e1";
     ctx.fillRect(0, 0, WORLD_W, levelH);
     ctx.strokeStyle = "rgba(90, 140, 210, 0.22)";
@@ -2420,7 +2779,74 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         const c = tileAt(tx, ty);
         const x = tx * T;
         const y = ty * T;
-        if (c === "#" || c === "O" || c === "Y" || c === "Z") {
+        if (c === "*" || c === "g") {
+          // A gem, bobbing and shining. Ones you already have are see-through.
+          const bob = Math.sin(time * 3 + tx) * 3;
+          const gx = x + T / 2;
+          const gy = y + T / 2 + bob;
+          ctx.save();
+          ctx.globalAlpha = c === "g" ? 0.3 : 1;
+          ctx.fillStyle = "#5ce1ff";
+          ctx.strokeStyle = "#0d6e8c";
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          ctx.moveTo(gx - 11, gy - 4);
+          ctx.lineTo(gx - 6, gy - 11);
+          ctx.lineTo(gx + 6, gy - 11);
+          ctx.lineTo(gx + 11, gy - 4);
+          ctx.lineTo(gx, gy + 12);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.lineWidth = 1.2;
+          sketchLine(gx - 11, gy - 4, gx + 11, gy - 4, 0.3);
+          sketchLine(gx - 4, gy - 4, gx, gy + 12, 0.3);
+          sketchLine(gx + 4, gy - 4, gx, gy + 12, 0.3);
+          if (c === "*") {
+            const shine = Math.max(0, Math.sin(time * 4 + tx * 2));
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + shine * 0.5})`;
+            ctx.beginPath();
+            ctx.arc(gx - 4, gy - 7, 1.5 + shine * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else if (c === "1" || c === "2") {
+          // Dimension blocks only show up in their own dimension.
+          if ((c === "1") === ethereal) continue;
+          if (c === "1") {
+            // Normal-dimension block: like a wall, but with a dashed outline
+            // (it's not there in the Ethereal Dimension).
+            ctx.fillStyle = "#ddd3e8";
+            ctx.fillRect(x, y, T, T);
+            ctx.strokeStyle = "rgba(80, 60, 120, 0.3)";
+            ctx.lineWidth = 1.2;
+            for (let i = 0; i < 4; i++) sketchLine(x + i * 11 + 4, y + T, x + i * 11 + 14, y, 0.8);
+            ctx.strokeStyle = "#3a2c5c";
+            ctx.lineWidth = 2.4;
+            ctx.setLineDash([6, 5]);
+            ctx.strokeRect(x + 2, y + 2, T - 4, T - 4);
+            ctx.setLineDash([]);
+          } else {
+            // Ethereal block: glowing, with a little star inside.
+            const glow = 0.75 + 0.25 * Math.sin(time * 3 + tx + ty);
+            ctx.fillStyle = `rgba(120, 170, 255, ${0.35 * glow})`;
+            ctx.fillRect(x + 1, y + 1, T - 2, T - 2);
+            ctx.strokeStyle = `rgba(200, 230, 255, ${glow})`;
+            ctx.lineWidth = 2.4;
+            ctx.strokeRect(x + 3, y + 3, T - 6, T - 6);
+            const cx = x + T / 2;
+            const cy = y + T / 2;
+            const r = 7;
+            ctx.fillStyle = `rgba(255, 245, 210, ${glow})`;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - r);
+            ctx.quadraticCurveTo(cx, cy, cx + r, cy);
+            ctx.quadraticCurveTo(cx, cy, cx, cy + r);
+            ctx.quadraticCurveTo(cx, cy, cx - r, cy);
+            ctx.quadraticCurveTo(cx, cy, cx, cy - r);
+            ctx.fill();
+          }
+        } else if (c === "#" || c === "O" || c === "Y" || c === "Z") {
           // Pencil shading, then ink only on the edges that face open air.
           ctx.fillStyle = "#e3dccb";
           ctx.fillRect(x, y, T, T);
@@ -2592,6 +3018,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           ctx.fill();
           ctx.font = "15px 'Patrick Hand', 'Comic Sans MS', cursive";
           ctx.textAlign = "center";
+          if (ethereal) ctx.fillStyle = "#9be59b"; // easier to see on the night sky
           ctx.fillText("EXIT", x + T / 2, y - T * 0.72);
         } else if (c === "U") {
           // A slightly smudged wall: smeary pencil. Water makes it fade away.
@@ -2724,33 +3151,27 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     const cx = p.x + PW / 2;
     const top = p.y;
     const lean = p.dashing && !p.dashUp ? p.facing * 7 : 0;
-    ctx.strokeStyle = "#28328c";
-    ctx.fillStyle = "#fffdf5";
-    ctx.lineWidth = 2.8;
-    ctx.lineCap = "round";
-
-    // Head.
-    ctx.beginPath();
-    ctx.arc(cx + lean + wob(cx, top, 0.6), top + 6.5, 6.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#28328c";
-    ctx.beginPath();
-    ctx.arc(cx + lean + p.facing * 3, top + 6, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Body, arms and legs.
-    // Short body, long legs (Oscar: "where are my legs?").
-    const hip = { x: cx, y: top + 21 };
-    const neck = { x: cx + lean, y: top + 13 };
-    sketchLine(neck.x, neck.y, hip.x, hip.y, 0.8);
+    if (ethereal) {
+      // A soft glow, so you can see yourself in the dark.
+      const g = ctx.createRadialGradient(cx, top + PH / 2, 4, cx, top + PH / 2, 34);
+      g.addColorStop(0, "rgba(230, 240, 255, 0.75)");
+      g.addColorStop(1, "rgba(230, 240, 255, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - 36, top + PH / 2 - 36, 72, 72);
+    }
+    // The player, in whichever skin you picked.
+    // (Short body, long legs: Oscar asked "where are my legs?")
     const swing = p.onGround && !p.dashing ? Math.sin(p.runPhase) * 7 : p.dashing ? 0 : 4;
     const pouring = keys.has("w") && unlocked(WATER_LEVEL) && !p.dashing;
+    drawFigure(
+      ctx,
+      skinId,
+      { cx, top, h: PH, facing: p.facing, lean, swing, arms: pouring ? "pour" : p.dashing ? "dash" : "swing", time },
+      (x1, y1, x2, y2, wobble) => sketchLine(x1, y1, x2, y2, wobble)
+    );
     if (pouring) {
-      // Both arms hold a watering can out in front.
+      // The watering can, held out in front.
       const f = p.facing;
-      sketchLine(neck.x, neck.y + 3, neck.x + f * 13, neck.y + 1, 0.6);
-      sketchLine(neck.x, neck.y + 3, neck.x + f * 12, neck.y + 6, 0.6);
       const canX = cx + f * 20;
       const canY = top + 15;
       ctx.fillStyle = "#5fb4ff";
@@ -2762,17 +3183,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       ctx.beginPath();
       ctx.arc(canX, canY - 6, 5, Math.PI, 0); // handle
       ctx.stroke();
-      ctx.strokeStyle = "#28328c";
-      ctx.lineWidth = 2.8;
-    } else if (p.dashing) {
-      sketchLine(neck.x, neck.y + 3, neck.x - p.facing * 11, neck.y + 1, 0.6);
-      sketchLine(neck.x, neck.y + 3, neck.x - p.facing * 10, neck.y + 9, 0.6);
-    } else {
-      sketchLine(neck.x, neck.y + 3, neck.x - 9, neck.y + 9 + swing * 0.4, 0.6);
-      sketchLine(neck.x, neck.y + 3, neck.x + 9, neck.y + 9 - swing * 0.4, 0.6);
     }
-    sketchLine(hip.x, hip.y, hip.x - 6 + swing, top + PH, 0.6);
-    sketchLine(hip.x, hip.y, hip.x + 6 - swing, top + PH, 0.6);
     // Scissors snipping in front of you for a moment after you press S.
     if (time - snipAt < 0.3) {
       const sx = cx + p.facing * 16;
@@ -2923,7 +3334,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ctx.font = "22px 'Patrick Hand', 'Comic Sans MS', cursive";
     ctx.textAlign = "center";
     const name = levelDef().name;
-    ctx.fillText(`${test ? "Test Level" : `Level ${levelIndex + 1}`}${name ? `: ${name}` : ""}   ·   Deaths: ${deaths}`, w / 2, 26);
+    const gemText = test ? `   ·   💎 ${testGems}` : levelIndex >= GEM_LEVEL || gems.size > 0 ? `   ·   💎 ${gems.size}/${TOTAL_GEMS()}` : "";
+    ctx.fillText(`${test ? "Test Level" : `Level ${levelIndex + 1}`}${name ? `: ${name}` : ""}   ·   Deaths: ${deaths}${gemText}`, w / 2, 26);
     // Controls go under the paper, out of the way of the Credits button.
     ctx.font = "17px 'Patrick Hand', 'Comic Sans MS', cursive";
     ctx.fillStyle = "rgba(255, 243, 224, 0.75)";
@@ -2934,6 +3346,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     if (unlocked(BOMB_LEVEL)) parts.push("B bomb");
     if (unlocked(WATER_LEVEL)) parts.push("hold W water");
     if (unlocked(SCISSORS_LEVEL)) parts.push("S scissors");
+    if (unlocked(DIMENSION_LEVEL)) parts.push("A switch dimension");
+    if (test) parts.push("K change skin");
     parts.push("R restart", "Esc menu");
     ctx.fillText(parts.join("   ·   "), w / 2, below);
   }
@@ -2971,6 +3385,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawMonster();
     drawBoss();
     ctx.restore();
+    if (warpFlash > 0) {
+      ctx.fillStyle = `rgba(210, 225, 255, ${warpFlash * 0.45})`;
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    }
     if (clearedAt) {
       ctx.fillStyle = "#1f6b2a";
       ctx.font = "64px 'Patrick Hand', 'Comic Sans MS', cursive";
@@ -3037,6 +3455,17 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       sfx("bomb");
       if (popSign && popSign.leavingAt === null && levelIndex === BOMB_LEVEL) popSign.leavingAt = time;
     }
+    // In the Test Level, K tries on every skin (nothing gets saved).
+    if (k === "k" && test) {
+      const i = SKINS.findIndex((sk) => sk.id === skinId);
+      skinId = SKINS[(i + 1) % SKINS.length]!.id;
+      sfx("pop");
+    }
+    // Dimensions: press A to switch (from Level 41 on).
+    if (k === "a" && unlocked(DIMENSION_LEVEL) && !deadUntil && !clearedAt) {
+      switchDimension();
+      if (popSign && popSign.leavingAt === null && levelIndex === DIMENSION_LEVEL) popSign.leavingAt = time;
+    }
     if (k === "r" && !clearedAt) {
       deadUntil = 0;
       loadLevel(levelIndex, false);
@@ -3100,6 +3529,30 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     yield* wait(drift);
     botKeys.up(k);
     yield* wait(600);
+  }
+  // Jump (holding a direction), switch dimensions in mid-air, and land.
+  function* jumpA(k: string, switchIt = true, aDelay = 200): Route {
+    botKeys.down(k);
+    botKeys.down("arrowup");
+    yield* wait(aDelay);
+    botKeys.up("arrowup");
+    if (switchIt) yield* hold("a", 30);
+    let guard = 0;
+    while (!player.onGround && !deadUntil && guard++ < 400) yield;
+    botKeys.up(k);
+    yield* wait(150);
+  }
+  // A short hop: only move sideways for a bit, then land.
+  function* hop(k: string, ms: number): Route {
+    botKeys.down(k);
+    botKeys.down("arrowup");
+    yield* wait(ms);
+    botKeys.up(k);
+    yield* wait(100);
+    botKeys.up("arrowup");
+    let guard = 0;
+    while (!player.onGround && !deadUntil && guard++ < 400) yield;
+    yield* wait(150);
   }
   // Wait until the slammer at this column has just opened all the way.
   function* waitSafe(tx: number): Route {
@@ -3195,6 +3648,71 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* walkTo(28);
     },
     function* () { yield* walkTo(4); yield* hold("d", 600); yield* walkTo(22); },
+    // Dimensions (Levels 41-45)
+    function* () { yield* walkTo(7); yield* hold("a", 40); yield* wait(200); yield* walkTo(29); },
+    function* () {
+      yield* walkTo(3); yield* jumpA(R, false);
+      yield* walkTo(7); yield* jumpA(R);
+      yield* walkTo(12); yield* jumpA(R);
+      yield* walkTo(17); yield* jumpA(R);
+      yield* walkTo(22); yield* jumpA(R, false);
+      yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3); yield* jumpA(R, false);
+      yield* walkTo(8); yield* jumpA(R);
+      yield* walkTo(13); yield* jumpA(R);
+      yield* walkTo(18); yield* jumpA(R);
+      yield* walkTo(23); yield* jumpA(R, false);
+      yield* walkTo(28);
+    },
+    function* () {
+      yield* walkTo(6); yield* hold("a", 40); yield* wait(200);
+      yield* walkTo(12); yield* hold("d", 150); yield* wait(300);
+      yield* hold("a", 40); yield* wait(200);
+      yield* walkTo(16); yield* hold("d", 600); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3); yield* jumpA(R, false);
+      yield* walkTo(7); yield* jumpA(R);
+      yield* walkTo(12); yield* jumpA(R);
+      yield* walkTo(17); yield* jumpA(R);
+      yield* walkTo(22); yield* jumpA(R, false);
+      yield* walkTo(29);
+    },
+    // Gems (Levels 46-50): the demo grabs every gem.
+    function* () {
+      yield* walkTo(4); yield* hold("d", 300); yield* wait(200);
+      yield* walkTo(12); yield* jumpA(R, false);
+      yield* walkTo(19); yield* jumpA(R, false);
+      yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(4); yield* hold("w", 1100); yield* wait(500); yield* walkTo(1);
+      yield* walkTo(15); yield* upDash(300, "x", 0); yield* wait(300);
+      yield* walkTo(21); yield* hold("a", 40); yield* wait(200); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(4);
+      botKeys.down("arrowup"); yield* wait(130); botKeys.up("arrowup"); yield* wait(32);
+      botKeys.down("arrowup"); yield* wait(300); botKeys.up("arrowup");
+      yield* hold(L, 450); yield* wait(400); yield* walkTo(2);
+      yield* walkTo(5); yield* wait(600); yield* hold("d", 600); yield* wait(300);
+      yield* walkTo(17); yield* jumpDash(180, 500); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(13); yield* walkTo(18); yield* jumpA(R, false);
+      yield* walkTo(23); yield* hold("a", 40); yield* wait(200);
+      yield* hop(R, 250); yield* hop(R, 300); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3); yield* jumpA(R, false);
+      yield* walkTo(8); yield* jumpA(R);
+      yield* walkTo(13); yield* jumpA(R);
+      yield* walkTo(18); yield* jumpA(R, false);
+      yield* walkTo(25); yield* upDash(300, "x", 0); yield* wait(300);
+      yield* walkTo(29);
+    },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -3241,7 +3759,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   const handle: GameHandle = {
     stop() {
       stopped = true;
-      if (!demo) stopMusic();
+      if (!demo) {
+        stopMusic();
+        stopStarMusic();
+      }
       cancelAnimationFrame(rafId);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
@@ -3259,6 +3780,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ty: Math.floor((player.y + PH - 1) / T),
     onGround: player.onGround,
     dashing: player.dashing,
+    ethereal,
+    gems: gems.size,
+    testGems,
+    skin: skinId,
     deaths,
     row: (y: number) => grid[y]?.join(""),
     monster: () => monster && { mode: monster.mode, dist: Math.round(Math.hypot(monster.x - player.x - PW / 2, monster.y - player.y - PH / 2)) },
@@ -3284,6 +3809,8 @@ function easeOutBack(t: number): number {
 }
 
 export const LEVEL_COUNT = (): number => LEVELS.length;
+/** How many gems there are in all the levels. */
+export const TOTAL_GEMS = (): number => LEVELS.reduce((n, l) => n + l.map.join("").split("*").length - 1, 0);
 
 /** The highest level index you've reached (0 = Level 1). */
 export function readSavedLevel(): number {

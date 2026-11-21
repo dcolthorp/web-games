@@ -27,7 +27,12 @@ export type Sfx =
   | "roar"
   | "ding"
   | "oof"
-  | "squeak";
+  | "squeak"
+  | "warp"
+  | "warpBack"
+  | "nope"
+  | "gem"
+  | "unlock";
 
 let audio: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
@@ -190,6 +195,35 @@ export function play(name: Sfx): void {
       tone(a, "sine", 1700, 2600, 0.09, 0.12);
       tone(a, "sine", 2100, 3000, 0.08, 0.1, 0.11);
       break;
+    case "warp":
+      // Into the Ethereal Dimension: a shimmery whoosh going up.
+      hiss(a, "bandpass", 800, 6000, 0.5, 0.18);
+      tone(a, "sine", 440, 1760, 0.45, 0.1);
+      tone(a, "sine", 660, 2640, 0.4, 0.06, 0.06);
+      break;
+    case "warpBack":
+      // Back to the normal dimension: the same whoosh going down.
+      hiss(a, "bandpass", 6000, 800, 0.45, 0.16);
+      tone(a, "sine", 1760, 440, 0.4, 0.1);
+      break;
+    case "nope":
+      // Can't switch: a block from the other dimension is right where you are.
+      tone(a, "square", 180, 160, 0.12, 0.07);
+      tone(a, "square", 140, 120, 0.16, 0.07, 0.13);
+      break;
+    case "gem":
+      // Ting-ting-ting!
+      tone(a, "triangle", 1318, 1318, 0.12, 0.12);
+      tone(a, "triangle", 1760, 1760, 0.12, 0.12, 0.07);
+      tone(a, "triangle", 2637, 2637, 0.3, 0.1, 0.14);
+      break;
+    case "unlock":
+      // A little fanfare for a new skin.
+      tone(a, "square", 523, 523, 0.12, 0.06, 0.25);
+      tone(a, "square", 659, 659, 0.12, 0.06, 0.37);
+      tone(a, "square", 784, 784, 0.12, 0.06, 0.49);
+      tone(a, "square", 1046, 1046, 0.4, 0.07, 0.61);
+      break;
     case "clink":
       tone(a, "triangle", 2400, 2300, 0.25, 0.08);
       tone(a, "triangle", 3500, 3300, 0.18, 0.05, 0.03);
@@ -296,4 +330,109 @@ function playStep(a: AudioContext, out: GainNode, step: number, t: number): void
   o.connect(g).connect(out);
   o.start(t);
   o.stop(t + 0.5);
+}
+
+// ---- Music for the Ethereal Dimension (Levels 41-45, Oscar's idea). An
+// original dreamy tune: soft sine pads, high bell notes and an echo. It only
+// plays while you're in the Ethereal Dimension.
+
+const STAR_CHORDS = [
+  [62, 66, 69, 73], // D major 7
+  [59, 62, 66, 69], // B minor 7
+  [55, 59, 62, 66], // G major 7
+  [57, 61, 64, 68], // A major 7
+];
+const STAR_BELLS = [0, 2, 3, 1, 2, 0, 3, 2, 1, 3, 0, 2, 3, 1, 2, 1];
+const STAR_STEP = 0.25;
+
+let star: { gain: GainNode; timer: number; next: number; step: number; cleanup: () => void } | null = null;
+
+export function startStarMusic(): void {
+  const a = ac();
+  if (!a || star) return;
+  const gain = a.createGain();
+  gain.gain.setValueAtTime(0.0001, a.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.55, a.currentTime + 1.2);
+  // Echo, so the bells ring out like they're in space.
+  const delay = a.createDelay(1);
+  delay.delayTime.value = STAR_STEP * 1.5;
+  const feedback = a.createGain();
+  feedback.gain.value = 0.42;
+  const wet = a.createGain();
+  wet.gain.value = 0.5;
+  gain.connect(a.destination);
+  gain.connect(delay);
+  delay.connect(feedback).connect(delay);
+  delay.connect(wet).connect(a.destination);
+  const s = {
+    gain,
+    timer: 0,
+    next: a.currentTime + 0.05,
+    step: 0,
+    cleanup: () => {
+      gain.disconnect();
+      delay.disconnect();
+      feedback.disconnect();
+      wet.disconnect();
+    },
+  };
+  star = s;
+  const schedule = (): void => {
+    if (star !== s) return;
+    while (s.next < a.currentTime + 0.6) {
+      starStep(a, s.gain, s.step, s.next);
+      s.next += STAR_STEP;
+      s.step += 1;
+    }
+  };
+  s.timer = window.setInterval(schedule, 150);
+  schedule();
+}
+
+export function stopStarMusic(): void {
+  if (!star || !audio) return;
+  const s = star;
+  star = null;
+  window.clearInterval(s.timer);
+  const now = audio.currentTime;
+  s.gain.gain.cancelScheduledValues(now);
+  s.gain.gain.setValueAtTime(Math.max(0.0001, s.gain.gain.value), now);
+  s.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+  window.setTimeout(s.cleanup, 2500);
+}
+
+function starStep(a: AudioContext, out: GainNode, step: number, t: number): void {
+  const chord = STAR_CHORDS[Math.floor(step / 16) % STAR_CHORDS.length]!;
+  const pos = step % 16;
+  if (pos === 0) {
+    const barLen = STAR_STEP * 16;
+    for (const n of chord) {
+      const o = a.createOscillator();
+      const g = a.createGain();
+      o.type = "sine";
+      o.frequency.value = freq(n);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.045, t + 1.2);
+      g.gain.setValueAtTime(0.045, t + barLen - 0.6);
+      g.gain.linearRampToValueAtTime(0.0001, t + barLen + 0.3);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + barLen + 0.4);
+    }
+  }
+  // Bells: not on every step, so it floats.
+  if (pos % 2 === 1 && pos !== 7 && pos !== 15) return;
+  const note = chord[STAR_BELLS[pos]!]! + 24;
+  for (const [mult, vol] of [[1, 0.05], [2.01, 0.015], [3.0, 0.008]] as const) {
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = "sine";
+    o.frequency.value = freq(note) * mult;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    o.connect(g).connect(out);
+    o.start(t);
+    o.stop(t + 1.2);
+  }
 }

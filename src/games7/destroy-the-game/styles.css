@@ -223,3 +223,55 @@ body.crazy .menu-card {
 body.crazy #demo {
   animation: crazy-hue-demo 1.2s linear infinite;
 }
+
+/* Skins (Levels 46-50 gems unlock them). */
+.skin-count {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.skin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.skin-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border: 2.5px solid #2b2725;
+  border-radius: 10px 13px 9px 12px;
+  background: #fffdf5;
+  color: #2b2725;
+  font: 19px "Patrick Hand", "Comic Sans MS", cursive;
+  cursor: pointer;
+}
+
+.skin-card canvas {
+  width: 64px;
+  height: 72px;
+}
+
+.skin-card:hover:not(:disabled) {
+  background: #ffe08a;
+  transform: rotate(-2deg);
+}
+
+.skin-card.picked {
+  border-color: #1f6b2a;
+  border-width: 4px;
+  background: #e2f7df;
+}
+
+.skin-card:disabled {
+  background: #ddd6c4;
+  color: #8a8174;
+  cursor: not-allowed;
+}
+
+.skin-card:disabled canvas {
+  filter: brightness(0) opacity(0.35);
+}

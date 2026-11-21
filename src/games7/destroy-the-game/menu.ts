@@ -2,7 +2,8 @@
 // out, starting over and over. There's Play, a level selector, a list of the
 // moves you've unlocked, and how to play.
 
-import { CRAZY_KEY, LEVEL_COUNT, readCrazy, readSavedLevel, startGame, type GameHandle, type LevelDef } from "./game";
+import { CRAZY_KEY, LEVEL_COUNT, readCrazy, readSavedLevel, startGame, TOTAL_GEMS, type GameHandle, type LevelDef } from "./game";
+import { drawFigure, readGems, readSkin, saveSkin, SKINS } from "./skins";
 import { play } from "./sfx";
 
 // The secret code (Oscar's): type every letter on the keyboard, row by row, on
@@ -48,6 +49,8 @@ const MOVES = [
   { level: 26, name: "Scissors", how: "Run into a <b>gear</b> to turn it: blue wires stop a slammer, red wires jam it shut. Press <b>S</b> next to a wire to cut it and switch that slammer off." },
   { level: 31, name: "😡 Rage Zone", how: "Some <b>EXIT</b> doors are FAKE (look at the knob). Some floors <b>crumble</b> under you. Touch a <b>flag</b> to save your spot." },
   { level: 36, name: "👹 The Monster", how: "It climbs out of a hatch and chases you, even through walls. Don't let it touch you! At the very end: press <b>S</b> when the circles line up, 3 times." },
+  { level: 41, name: "🌌 Dimensions", how: "Press <b>A</b> to switch into the Ethereal Dimension: dreamy music and twinkling stars. Some blocks are only there in one dimension, so try <b>jump, A, jump, A</b>!" },
+  { level: 46, name: "💎 Gems", how: "Grab the <b>gems</b> hidden in Levels 46-50. They unlock <b>Skins</b> (in the menu), so you don't have to be the stick man!" },
 ];
 
 let demo: GameHandle | null = null;
@@ -60,6 +63,7 @@ export function showMenu(screen: HTMLCanvasElement): void {
   showPage("menu-main");
   fillLevels(screen);
   fillMoves();
+  fillSkins();
   demo?.stop();
   demo = startGame(demoCanvas, { demo: true, startLevel: 0 });
   document.getElementById("menu-play")?.focus();
@@ -123,4 +127,46 @@ function fillMoves(): void {
       ? `<li><b>${m.name}</b> (Level ${m.level}): ${m.how}</li>`
       : `<li class="locked">🔒 ??? (unlocks at Level ${m.level})</li>`
   ).join("");
+}
+
+// Skins: collect gems in Levels 46-50 to unlock them. Click one to wear it.
+function fillSkins(): void {
+  const have = readGems().size;
+  const picked = readSkin().id;
+  document.getElementById("skin-count")!.textContent = `💎 ${have} / ${TOTAL_GEMS()} gems`;
+  const grid = document.getElementById("skin-grid")!;
+  grid.replaceChildren();
+  for (const skin of SKINS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "skin-card";
+    const open = have >= skin.gems;
+    btn.disabled = !open;
+    if (skin.id === picked) btn.classList.add("picked");
+    const cv = document.createElement("canvas");
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = 64 * dpr;
+    cv.height = 72 * dpr;
+    const ctx = cv.getContext("2d");
+    if (ctx) {
+      ctx.scale(dpr * 1.4, dpr * 1.4);
+      const line = (x1: number, y1: number, x2: number, y2: number): void => {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      };
+      drawFigure(ctx, skin.id, { cx: 23, top: 14, h: 34, facing: 1, lean: 0, swing: 4, arms: "swing", time: 0.4 }, line);
+    }
+    const label = document.createElement("span");
+    label.textContent = open ? skin.name : `🔒 💎 ${skin.gems}`;
+    btn.append(cv, label);
+    btn.title = open ? `Wear the ${skin.name}` : `Collect ${skin.gems} gems to unlock`;
+    btn.onclick = () => {
+      saveSkin(skin.id);
+      play("pop");
+      fillSkins();
+    };
+    grid.append(btn);
+  }
 }
