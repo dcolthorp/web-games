@@ -116,7 +116,7 @@ export interface LevelDef {
   sign: string; // what the little ? sign says
   popSign?: { title: string; lines: string[] }; // the big sign that pops up at the start
   name?: string; // shown at the top next to the level number
-  shuffle?: boolean; // the Door Shuffle (Levels 5 and 35)
+  shuffle?: boolean; // the Door Shuffle (Level 35)
   shuffleSwaps?: number; // how many swaps (default 14)
   shuffleFastest?: number; // seconds for the fastest swap (default 0.22)
   monster?: "hatch" | "follow"; // the monster: comes out of a hatch (Z), or follows you in from the left
@@ -249,9 +249,7 @@ const LEVELS: LevelDef[] = [
     ],
   },
   {
-    sign: "Watch the EXIT door!",
-    name: "Door Shuffle",
-    shuffle: true,
+    sign: "Dash the spikes, then smash the wall!",
     map: [
       "################################",
       "#..............................#",
@@ -261,11 +259,11 @@ const LEVELS: LevelDef[] = [
       "#..............................#",
       "#..............................#",
       "#..............................#",
-      "#..............................#",
-      "#..............................#",
-      "#..............................#",
-      "#.P............................#",
-      "################################",
+      "#..................C...........#",
+      "#..................C...........#",
+      "#..................C...........#",
+      "#.P?...............C.........X.#",
+      "######^^^^^^^^##################",
       "################################",
     ],
   },
@@ -3135,14 +3133,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* wait(200);
       yield* walkTo(19); yield* hold("d", 600); yield* walkTo(3);
     },
-    function* () {
-      // Door Shuffle: the bot never loses track (it peeks).
-      let guard = 0;
-      while ((!shuffle || shuffle.phase !== "pick") && guard++ < 3000) yield;
-      if (!shuffle) return;
-      yield* walkTo(Math.floor(doorX(shuffle.slotOf[shuffle.real]!) / T));
-      yield* hold("arrowdown", 40);
-    },
+    function* () { yield* walkTo(5); yield* hold("d", 600); yield* walkTo(16); yield* hold("d", 600); yield* walkTo(29); },
     function* () { yield* walkTo(14); yield* upDash(300, R); yield* walkTo(27); },
     function* () { yield* walkTo(4); yield* hold("d", 600); yield* walkTo(14); yield* upDash(300, R); yield* walkTo(21); yield* hold("d", 600); yield* walkTo(27); },
     function* () { yield* walkTo(21); yield* upDash(300, L, 150); yield* walkTo(16); yield* hold("d", 600); yield* walkTo(6); yield* upDash(300, R); yield* walkTo(27); },

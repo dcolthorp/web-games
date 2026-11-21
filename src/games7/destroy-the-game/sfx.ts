@@ -198,7 +198,7 @@ export function play(name: Sfx): void {
   }
 }
 
-// ---- Music for the Door Shuffle (Level 5). An ORIGINAL spooky tune made right
+// ---- Music for the Door Shuffle (Level 35). An ORIGINAL spooky tune made right
 // here in code: soft pads, a low hum and a little music-box arpeggio. It fades
 // in slowly when the doors are shown, and fades out when you leave the level.
 
