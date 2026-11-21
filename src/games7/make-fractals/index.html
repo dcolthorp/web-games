@@ -45,17 +45,19 @@
         <div class="canvas-wrap" id="canvas-wrap">
           <canvas id="canvas"></canvas>
           <div class="boom-text" id="boom-text" aria-live="polite"></div>
+          <div class="depth-note" id="depth-note" hidden></div>
         </div>
 
         <div class="controls">
           <div class="level-box">
             <button class="level-button" id="level-down" type="button" aria-label="Level down">−</button>
             <div class="level-read">
-              <span class="level-label">LEVEL</span>
-              <span class="level-number" id="level-number">0</span>
+              <span class="level-label">ITERATIONS</span>
+              <input class="level-number" id="level-number" type="number" min="0" step="1" value="0" inputmode="numeric" aria-label="Iterations (type any number)" />
             </div>
             <button class="level-button" id="level-up" type="button" aria-label="Level up">+</button>
           </div>
+          <input class="level-slider" id="level-slider" type="range" min="0" max="5" step="1" aria-label="Iterations" />
           <span class="shape-count" id="shape-count"></span>
           <span class="spacer"></span>
           <label class="palette-pick">Colors
@@ -63,6 +65,7 @@
           </label>
           <button class="small-button" id="grow-button" type="button">🌱 Grow</button>
           <button class="small-button" id="spin-button" type="button" hidden>🌀 Spin</button>
+          <button class="small-button" id="dive-button" type="button" hidden>🚀 Dive</button>
           <button class="small-button" id="reset-button" type="button">🎯 Reset View</button>
         </div>
       </main>

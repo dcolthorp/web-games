@@ -221,6 +221,25 @@ button:disabled {
   }
 }
 
+.depth-note {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 24px);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(18, 10, 31, 0.85);
+  border: 2px solid var(--line);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.depth-note[hidden] {
+  display: none;
+}
+
 .boom-text {
   position: absolute;
   inset: 0;
@@ -296,7 +315,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 64px;
+  min-width: 84px;
 }
 
 .level-label {
@@ -309,10 +328,40 @@ button:disabled {
   font-family: "Press Start 2P", monospace;
   font-size: 20px;
   color: var(--gold);
+  background: none;
+  border: 0;
+  border-bottom: 2px dashed transparent;
+  padding: 0;
+  min-width: 3ch;
+  max-width: 19ch;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.level-number:hover,
+.level-number:focus {
+  border-bottom-color: var(--gold);
+  outline: none;
+}
+
+.level-number::-webkit-outer-spin-button,
+.level-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.level-slider {
+  flex: 1;
+  min-width: 90px;
+  max-width: 200px;
+  accent-color: var(--gold);
+  cursor: pointer;
 }
 
 .shape-count {
   font-weight: 700;
+  white-space: nowrap;
   color: var(--muted);
 }
 
