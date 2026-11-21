@@ -51,6 +51,7 @@ const MOVES = [
   { level: 36, name: "👹 The Monster", how: "It climbs out of a hatch and chases you, even through walls. Don't let it touch you! At the very end: press <b>S</b> when the circles line up, 3 times." },
   { level: 41, name: "🌌 Dimensions", how: "Press <b>A</b> to switch into the Ethereal Dimension: dreamy music and twinkling stars. Some blocks are only there in one dimension, so try <b>jump, A, jump, A</b>!" },
   { level: 46, name: "💎 Gems", how: "Grab the <b>gems</b> hidden in Levels 46-50. They unlock <b>Skins</b> (in the menu), so you don't have to be the stick man!" },
+  { level: 51, name: "💀 The Tests", how: "The hardest levels in the game. Giant <b>CRUSHERS</b> slam in patterns (wait for them to go back up). <b>Thin posts</b> are 1-pixel jumps. Press <b>B while dashing</b> and the bomb flies forward. No checkpoints, and don't trust the signs." },
 ];
 
 let demo: GameHandle | null = null;

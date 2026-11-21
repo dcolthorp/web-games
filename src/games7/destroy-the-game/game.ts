@@ -66,6 +66,20 @@ const DIMENSION_LEVEL = 40; // level index (Level 41)
 // Levels 46-50 are about COLLECTABLES (Oscar's idea): grab the gems (*) to
 // unlock SKINS in the menu, so you don't have to be the stick man.
 const GEM_LEVEL = 45; // level index (Level 46)
+// Levels 51-100 are THE TESTS (Oscar): the hardest levels in the whole game.
+// CRUSHERS (giant blocks that slam down in patterns, like a boss fight),
+// 1-pixel-wide jumps on thin posts (some only in one dimension), combos like
+// bombing and flicking a switch in the middle of a dash, signs that try to
+// make you quit, and no checkpoints.
+const TESTS_LEVEL = 50; // level index (Level 51)
+const POST_W = 10; // how wide a thin post is
+// A crusher's slam, in seconds: wobble (warning), drop, stay down, go back up.
+const CRUSH_WARN = 0.45;
+const CRUSH_DROP = 0.14;
+const CRUSH_DOWN = 0.4;
+const CRUSH_RISE = 0.7;
+const CRUSH_LEN = CRUSH_WARN + CRUSH_DROP + CRUSH_DOWN + CRUSH_RISE;
+const CRUSH_PAUSE = 0.8; // breather before the pattern starts again
 
 interface Wire {
   tiles: [number, number][];
@@ -103,6 +117,15 @@ interface Slammer {
   offset: number; // so slammers next to each other don't all slam at once
   wasShut: boolean;
 }
+interface Crusher {
+  x0: number; // tiles, inclusive (where it hangs)
+  x1: number;
+  y0: number;
+  y1: number;
+  drop: number; // how far it falls, in pixels
+  slot: number; // its turn in the pattern
+  wasDown: boolean;
+}
 const MAX_BOMBS = 3;
 const BLAST = T * 1.6; // how far a bomb reaches
 
@@ -112,7 +135,10 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // K crumbling floor, H checkpoint flag, Z monster hatch, B final-fight spot,
 // N monster block (touch it: the monster comes out), Q door-shuffle block
 // (touch it: the Door Shuffle starts), 1 block that's only in the normal
-// dimension, 2 block that's only in the Ethereal Dimension, * gem, P start, X exit, ? sign.
+// dimension, 2 block that's only in the Ethereal Dimension, * gem, V crusher
+// (connected V tiles make one giant crusher), i thin post (1 pixel jump),
+// [ thin post only in the normal dimension, ] thin post only in the Ethereal
+// Dimension, P start, X exit, ? sign.
 //
 // Level 16 unlocks WATER (Oscar's fourth move): hold W to pour water. Pour it on
 // a slightly smudged wall and the whole smudge fades away.
@@ -131,6 +157,11 @@ export interface LevelDef {
   shuffleFastest?: number; // seconds for the fastest swap (default 0.22)
   monster?: "hatch" | "follow"; // the monster: comes out of a hatch (Z), or follows you in from the left
   boss?: boolean; // the B tile starts the final fight
+  signs?: string[]; // different words for each ? sign (left to right, top to bottom); otherwise they all say `sign`
+  // Crushers slam in a pattern: `order` gives each crusher (left to right) its
+  // turn, and crushers with the same number slam together. `gap` is the time
+  // between turns.
+  crush?: { gap: number; order: number[] };
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -1164,11 +1195,119 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "You won't make it.",
+    name: "Test 1: The Crushers",
+    signs: ["You won't make it.", "Turn back now.", "Still here? Wow."],
+    crush: { gap: 0.5, order: [0, 1, 2] },
+    popSign: { title: "THE TESTS BEGIN", lines: ["Levels 51-100 are the hardest in the whole game.", "Watch out for the CRUSHERS. No checkpoints!"] },
+    map: [
+      "################################",
+      "#......VVV...VVV...VVV.........#",
+      "#......VVV...VVV...VVV.........#",
+      "#......VVV...VVV...VVV.........#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?.......?.....?...........X.#",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "Most people quit here.",
+    name: "Test 2: Pixel Perfect",
+    signs: ["Most people quit here.", "That was luck."],
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#?P....i...i...i...i...i....?X.#",
+      "####^^^^^^^^^^^^^^^^^^^^^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Why are you even trying?",
+    name: "Test 3: Thin Air",
+    signs: ["Why are you even trying?", "Almost... just kidding, you made it."],
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#?P....[...]...[...]...[....?X.#",
+      "####^^^^^^^^^^^^^^^^^^^^^^^#####",
+      "################################",
+    ],
+  },
+  {
+    sign: "Nobody has ever beaten this one.",
+    name: "Test 4: The Combo",
+    signs: ["Dash, and press B right away: the bomb flies ahead. The lever does the rest. Then Up Dash!", "Which door? Guess wrong and start ALL over."],
+    map: [
+      "################################",
+      "#........#M....................#",
+      "#........#M....................#",
+      "#........#M....................#",
+      "#........#M....................#",
+      "#........#M....................#",
+      "#........#M....................#",
+      "#........#M...........F..?..X..#",
+      "#........#M##CCCCC##############",
+      "#........#M.......##############",
+      "#........#M.......##############",
+      "#?P......SM.......##############",
+      "#####^^^^^M^^###################",
+      "################################",
+    ],
+  },
+  {
+    sign: "This is the hardest level so far.",
+    name: "Test 5: Crusher Boss",
+    signs: ["This is the hardest level so far.", "Give up. Seriously.", "You're going to lose."],
+    crush: { gap: 0.3, order: [0, 1, 2, 3] },
+    map: [
+      "################################",
+      "#....VVVV..VVVV..VVVV..VVVV....#",
+      "#....VVVV..VVVV..VVVV..VVVV....#",
+      "#....VVVV..VVVV..VVVV..VVVV....#",
+      "#....VVVV..VVVV..VVVV..VVVV....#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?.....?.....?...........F.X.#",
+      "################################",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "50 LEVELS: HALFWAY! 🥳",
-  lines: ["You're halfway through the whole game!", "The next 50 levels are coming soon..."],
+  title: "55 LEVELS DOWN!",
+  lines: ["You survived the first 5 TESTS.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -1260,7 +1399,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let clearedAt = 0;
   let shake = 0;
   let popSign: PopSign | null = null;
-  let bombs: { x: number; y: number; vy: number }[] = [];
+  let bombs: { x: number; y: number; vx: number; vy: number; armed?: boolean }[] = [];
+  let crushers: Crusher[] = [];
+  let crushFlash = 0; // the screen flashes red when a crusher lands
   let flashes: { x: number; y: number; age: number; big: boolean }[] = [];
   let drops: { x: number; y: number; vx: number; vy: number }[] = [];
   let wet: Record<string, number> = {}; // how soaked each smudged tile is
@@ -1786,6 +1927,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     wet = {};
     fading = {};
     slammers = findSlammers();
+    crushers = findCrushers(def);
     findGearsAndWires();
     onGear = "";
     checkpoint = null;
@@ -2053,7 +2195,166 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   const isSolid = (c: string): boolean =>
     c === "#" || c === "C" || c === "M" || c === "U" || c === "O" || c === "Y" || c === "K" || c === "Z" ||
-    (c === "1" && !ethereal) || (c === "2" && ethereal);
+    (c === "1" && !ethereal) || (c === "2" && ethereal) ||
+    c === "i" || (c === "[" && !ethereal) || (c === "]" && ethereal);
+  const isThin = (c: string): boolean => c === "i" || c === "[" || c === "]";
+  // Thin posts are only POST_W pixels wide, in the middle of their tile.
+  const postLeft = (tx: number): number => tx * T + (T - POST_W) / 2;
+  const onPost = (tx: number, x: number): boolean => x + PW > postLeft(tx) && x < postLeft(tx) + POST_W;
+
+  // ---- Crushers (Level 51+) ----
+  function findCrushers(def: LevelDef): Crusher[] {
+    const found: Crusher[] = [];
+    const seen = new Set<string>();
+    for (let ty = 0; ty < rows; ty++) {
+      for (let tx = 0; tx < COLS; tx++) {
+        if (grid[ty]?.[tx] !== "V" || seen.has(`${tx},${ty}`)) continue;
+        const c: Crusher = { x0: tx, x1: tx, y0: ty, y1: ty, drop: 0, slot: 0, wasDown: false };
+        const stack: [number, number][] = [[tx, ty]];
+        while (stack.length) {
+          const [x, y] = stack.pop()!;
+          const key = `${x},${y}`;
+          if (seen.has(key) || grid[y]?.[x] !== "V") continue;
+          seen.add(key);
+          c.x0 = Math.min(c.x0, x); c.x1 = Math.max(c.x1, x);
+          c.y0 = Math.min(c.y0, y); c.y1 = Math.max(c.y1, y);
+          stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        }
+        found.push(c);
+      }
+    }
+    for (const c of found) {
+      for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) grid[y]![x] = ".";
+    }
+    // It falls until it hits the floor.
+    for (const c of found) {
+      let gap = rows;
+      for (let x = c.x0; x <= c.x1; x++) {
+        let y = c.y1 + 1;
+        while (y < rows && !"#CMUOYZK".includes(grid[y]?.[x] ?? "#")) y++;
+        gap = Math.min(gap, y - c.y1 - 1);
+      }
+      c.drop = gap * T;
+    }
+    found.sort((a, b) => a.x0 - b.x0);
+    found.forEach((c, i) => (c.slot = def.crush?.order[i] ?? i));
+    return found;
+  }
+
+  function crushCycle(): number {
+    const gap = levelDef().crush?.gap ?? 0.6;
+    const last = Math.max(0, ...crushers.map((c) => c.slot));
+    return last * gap + CRUSH_LEN + CRUSH_PAUSE;
+  }
+
+  /** Seconds into this crusher's own slam (or -1 when it's just hanging there). */
+  function crushPhase(c: Crusher): number {
+    const gap = levelDef().crush?.gap ?? 0.6;
+    const t = (time % crushCycle()) - c.slot * gap;
+    return t >= 0 && t < CRUSH_LEN ? t : -1;
+  }
+
+  /** How far down the crusher is right now, in pixels. */
+  function crushDown(c: Crusher): number {
+    let t = crushPhase(c);
+    if (t < CRUSH_WARN) return 0;
+    t -= CRUSH_WARN;
+    if (t < CRUSH_DROP) return c.drop * (t / CRUSH_DROP) ** 2;
+    t -= CRUSH_DROP;
+    if (t < CRUSH_DOWN) return c.drop;
+    t -= CRUSH_DOWN;
+    return c.drop * Math.max(0, 1 - t / CRUSH_RISE);
+  }
+
+  function stepCrushers(): void {
+    const p = player;
+    for (const c of crushers) {
+      const dy = crushDown(c);
+      const down = dy >= c.drop - 0.5 && c.drop > 0;
+      if (down && !c.wasDown) {
+        sfx("crush");
+        shake = Math.max(shake, 0.55);
+        crushFlash = 1;
+        for (let i = 0; i < 10; i++) {
+          bits.push({
+            x: c.x0 * T + Math.random() * (c.x1 - c.x0 + 1) * T, y: (c.y1 + 1) * T + c.drop,
+            vx: (Math.random() - 0.5) * 400, vy: -Math.random() * 300,
+            angle: 0, spin: 0, size: 8 + Math.random() * 8, color: "rgba(60,55,50,0.35)", life: 0.5,
+          });
+        }
+      }
+      c.wasDown = down;
+      // Touch a crusher and you're squashed (dashing doesn't save you).
+      const x = c.x0 * T;
+      const y = c.y0 * T + dy;
+      const w = (c.x1 - c.x0 + 1) * T;
+      const h = (c.y1 - c.y0 + 1) * T;
+      if (p.x + PW > x + 3 && p.x < x + w - 3 && p.y + PH > y + 3 && p.y < y + h - 1) die();
+    }
+  }
+
+  function drawCrushers(): void {
+    for (const c of crushers) {
+      const ph = crushPhase(c);
+      const warn = ph >= 0 && ph < CRUSH_WARN;
+      const dy = crushDown(c);
+      const wobble = warn ? Math.sin(time * 60) * 2.5 : 0;
+      const x = c.x0 * T + wobble;
+      const y = c.y0 * T + dy;
+      const w = (c.x1 - c.x0 + 1) * T;
+      const h = (c.y1 - c.y0 + 1) * T;
+      // Chains up to the ceiling.
+      ctx.strokeStyle = "#5a5560";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      for (const cx of [x + 10, x + w - 10]) {
+        ctx.beginPath();
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      // Where it's going to land.
+      if (warn) {
+        ctx.fillStyle = `rgba(232, 66, 58, ${0.18 + 0.15 * Math.sin(time * 30)})`;
+        ctx.fillRect(c.x0 * T, (c.y1 + 1) * T, w, c.drop);
+      }
+      // The crusher: a giant angry block.
+      ctx.fillStyle = "#3b3540";
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.lineWidth = 1.2;
+      for (let i = 6; i < w; i += 12) sketchLine(x + i, y + h, x + i + 10, y, 0.8);
+      ctx.strokeStyle = "#141016";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, w, h);
+      // Angry eyes.
+      const glow = warn || dy > 0 ? "#ff3b30" : "#c0392b";
+      const ey = y + h * 0.4;
+      for (const ex of [x + w * 0.3, x + w * 0.7]) {
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(ex, ey, Math.min(9, w * 0.08), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.strokeStyle = "#141016";
+      ctx.lineWidth = 3.5;
+      sketchLine(x + w * 0.18, ey - 14, x + w * 0.4, ey - 7, 0.4);
+      sketchLine(x + w * 0.82, ey - 14, x + w * 0.6, ey - 7, 0.4);
+      // Teeth along the bottom.
+      ctx.fillStyle = "#f4f0e6";
+      const teeth = Math.max(3, Math.round(w / 14));
+      for (let i = 0; i < teeth; i++) {
+        const tx = x + (i + 0.5) * (w / teeth);
+        ctx.beginPath();
+        ctx.moveTo(tx - w / teeth / 2 + 1, y + h);
+        ctx.lineTo(tx + w / teeth / 2 - 1, y + h);
+        ctx.lineTo(tx, y + h + 9);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
 
   // ---- Gems (Level 46+) ----
   function gemKey(tx: number, ty: number): string {
@@ -2104,9 +2405,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   // dimension would appear right where you are.
   function switchDimension(): void {
     const appearing = ethereal ? "1" : "2";
+    const appearingPost = ethereal ? "[" : "]";
     let blocked = false;
-    touching(player.x, player.y, (_tx, _ty, c) => {
-      if (c === appearing) blocked = true;
+    touching(player.x, player.y, (tx, _ty, c) => {
+      if (c === appearing || (c === appearingPost && onPost(tx, player.x))) blocked = true;
     });
     if (blocked) {
       sfx("nope");
@@ -2204,8 +2506,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function flickSwitch(key: string): void {
     switchFlips[key] = !switchFlips[key];
     sfx("switch");
-    for (const b of bombs) explode(b.x, b.y - 8);
-    bombs = [];
+    // Bombs still flying (thrown mid-dash) go off the moment they stop.
+    for (const b of bombs) {
+      if (b.vx !== 0) b.armed = true;
+      else explode(b.x, b.y - 8);
+    }
+    bombs = bombs.filter((b) => b.armed);
   }
 
   function explode(bx: number, by: number): void {
@@ -2292,6 +2598,12 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     let hitMetal = false;
     touching(player.x, player.y, (tx, ty, c) => {
       if (!isSolid(c)) return;
+      if (isThin(c)) {
+        if (!onPost(tx, player.x)) return;
+        hitWall = true;
+        player.x = dx > 0 ? postLeft(tx) - PW : postLeft(tx) + POST_W;
+        return;
+      }
       if (c === "C" && player.dashing && !player.dashUp) {
         smashWall(tx, ty);
         return;
@@ -2318,6 +2630,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     touching(player.x, player.y, (tx, ty, c) => {
       // Spikes stop your head from below, but you fall right into them from above.
       if (!(isSolid(c) || (c === "^" && dy < 0))) return;
+      if (isThin(c) && !onPost(tx, player.x)) return;
       // Up Dash smashes cracked ceilings.
       if (c === "C" && player.dashing && player.dashUp) {
         smashWall(tx, ty);
@@ -2325,7 +2638,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
       // Corner nudge: if an Up Dash only clips the edge of a hole, slide into
       // the hole instead of stopping dead.
-      if (dy < 0 && player.dashing && player.dashUp) {
+      if (dy < 0 && player.dashing && player.dashUp && !isThin(c)) {
         const overlapLeft = (tx + 1) * T - player.x; // tile is to our left
         const overlapRight = player.x + PW - tx * T; // tile is to our right
         // Only into a real gap: a spike tile is a ceiling from below, not a gap.
@@ -2426,6 +2739,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     trail.forEach((t) => (t.age += dt));
     trail = trail.filter((t) => t.age < 0.25);
     warpFlash = Math.max(0, warpFlash - dt * 3);
+    crushFlash = Math.max(0, crushFlash - dt * 3);
 
     if (finished) return;
     if (clearedAt) {
@@ -2524,6 +2838,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       popSign.leavingAt = time;
     }
 
+    stepCrushers();
+
     // Spikes get you, unless you're dashing.
     if (!p.dashing) {
       touching(p.x, p.y, (tx, ty, c) => {
@@ -2580,6 +2896,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
     // Bombs drop until they land on something.
     for (const b of bombs) {
+      if (b.vx !== 0) {
+        const nx = b.x + b.vx * dt;
+        if (isSolid(tileAt(Math.floor((nx + Math.sign(b.vx) * 6) / T), Math.floor((b.y - 6) / T)))) b.vx = 0;
+        else b.x = nx;
+        b.vx *= Math.max(0, 1 - dt * 0.4); // it keeps flying until it hits a wall
+        if (Math.abs(b.vx) < 10) b.vx = 0;
+        if (b.vx === 0 && b.armed) explode(b.x, b.y - 8);
+      }
       b.vy = Math.min(MAX_FALL, b.vy + GRAVITY * dt);
       const ny = b.y + b.vy * dt;
       const below = tileAt(Math.floor(b.x / T), Math.floor(ny / T));
@@ -2590,7 +2914,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         b.y = ny;
       }
     }
-    bombs = bombs.filter((b) => b.y < levelH + 40);
+    bombs = bombs.filter((b) => b.y < levelH + 40 && !(b.armed && b.vx === 0));
 
     // Gears: run into one to turn it.
     let inGear = "";
@@ -2774,11 +3098,25 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   function drawTiles(): void {
     ctx.lineCap = "round";
+    let signNum = 0;
     for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) {
         const c = tileAt(tx, ty);
         const x = tx * T;
         const y = ty * T;
+        if (isThin(c)) {
+          // A thin post: 1-pixel jumps! [ and ] only show up in their own dimension.
+          if ((c === "[" && ethereal) || (c === "]" && !ethereal)) continue;
+          const px = postLeft(tx);
+          ctx.fillStyle = c === "]" ? "rgba(150, 200, 255, 0.85)" : c === "[" ? "#ddd3e8" : "#e3dccb";
+          ctx.fillRect(px, y, POST_W, T);
+          ctx.strokeStyle = c === "]" ? "#dff0ff" : c === "[" ? "#3a2c5c" : "#2b2725";
+          ctx.lineWidth = 2.2;
+          if (c === "[") ctx.setLineDash([5, 4]);
+          ctx.strokeRect(px, y, POST_W, T);
+          ctx.setLineDash([]);
+          continue;
+        }
         if (c === "*" || c === "g") {
           // A gem, bobbing and shining. Ones you already have are see-through.
           const bob = Math.sin(time * 3 + tx) * 3;
@@ -3094,13 +3432,13 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           ctx.arc(tipX, tipY, 4.5, 0, Math.PI * 2);
           ctx.fill();
         } else if (c === "?") {
-          drawLittleSign(x, y);
+          drawLittleSign(x, y, signNum++);
         }
       }
     }
   }
 
-  function drawLittleSign(x: number, y: number): void {
+  function drawLittleSign(x: number, y: number, num: number): void {
     ctx.strokeStyle = "#5b3d1c";
     ctx.lineWidth = 3;
     sketchLine(x + T / 2, y + T, x + T / 2, y + T * 0.3);
@@ -3117,7 +3455,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // Read it when you're standing near it.
     const near = Math.abs(player.x + PW / 2 - (x + T / 2)) < T * 2 && Math.abs(player.y + PH / 2 - (y + T / 2)) < T * 2;
     if (!near) return;
-    const text = levelDef().sign;
+    const def = levelDef();
+    const text = def.signs?.[num] ?? def.sign;
     ctx.font = "20px 'Patrick Hand', 'Comic Sans MS', cursive";
     const w = ctx.measureText(text).width + 24;
     const bx = Math.min(Math.max(x + T / 2 - w / 2, 8), WORLD_W - w - 8);
@@ -3379,12 +3718,17 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawWires();
     drawGears();
     drawSlammers();
+    drawCrushers();
     drawBombs();
     drawDrops();
     drawBits();
     drawMonster();
     drawBoss();
     ctx.restore();
+    if (crushFlash > 0) {
+      ctx.fillStyle = `rgba(232, 66, 58, ${crushFlash * 0.22})`;
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    }
     if (warpFlash > 0) {
       ctx.fillStyle = `rgba(210, 225, 255, ${warpFlash * 0.45})`;
       ctx.fillRect(0, 0, WORLD_W, WORLD_H);
@@ -3451,7 +3795,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     }
     // Bombs: press B to drop one (from Level 11 on).
     if (k === "b" && unlocked(BOMB_LEVEL) && !deadUntil && !clearedAt && bombs.length < MAX_BOMBS) {
-      bombs.push({ x: player.x + PW / 2, y: player.y + PH, vy: 0 });
+      // Drop one while you're dashing and it flies forward.
+      const thrown = player.dashing && !player.dashUp ? player.facing * DASH_SPEED * 1.3 : 0;
+      bombs.push({ x: player.x + PW / 2, y: player.y + PH, vx: thrown, vy: 0 });
       sfx("bomb");
       if (popSign && popSign.leavingAt === null && levelIndex === BOMB_LEVEL) popSign.leavingAt = time;
     }
@@ -3553,6 +3899,39 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     let guard = 0;
     while (!player.onGround && !deadUntil && guard++ < 400) yield;
     yield* wait(150);
+  }
+  // Wait until the crusher over this column has just slammed and gone back up.
+  function* waitCrush(tx: number): Route {
+    const c = crushers.find((m) => tx >= m.x0 && tx <= m.x1);
+    if (!c) return;
+    let guard = 0;
+    while (crushPhase(c) < 0 && guard++ < 3000) yield;
+    while (crushPhase(c) >= 0 && guard++ < 3000) yield;
+  }
+  // Jump from a thin post and land on the one at this column.
+  function* hopTo(tx: number, switchIt = false): Route {
+    const target = tx * T + T / 2;
+    const k = player.x + PW / 2 < target ? R : L;
+    botKeys.down(k);
+    botKeys.down("arrowup");
+    let guard = 0;
+    let switched = false;
+    while (!deadUntil && guard++ < 400) {
+      yield;
+      if (guard === 12) botKeys.up("arrowup");
+      if (switchIt && !switched && guard > 20) {
+        switched = true;
+        keyDown("a");
+        keys.delete("a");
+      }
+      const cx = player.x + PW / 2;
+      if ((k === R ? target - cx : cx - target) < 24) break;
+    }
+    botKeys.up(k);
+    botKeys.up("arrowup");
+    guard = 0;
+    while (!player.onGround && !deadUntil && guard++ < 400) yield;
+    yield* wait(200);
   }
   // Wait until the slammer at this column has just opened all the way.
   function* waitSafe(tx: number): Route {
@@ -3713,6 +4092,33 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       yield* walkTo(25); yield* upDash(300, "x", 0); yield* wait(300);
       yield* walkTo(29);
     },
+    // The Tests (Levels 51-55).
+    function* () {
+      yield* walkTo(5); yield* waitCrush(8); yield* walkTo(11);
+      yield* waitCrush(14); yield* walkTo(17); yield* waitCrush(20); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3);
+      for (const tx of [7, 11, 15, 19, 23]) yield* hopTo(tx);
+      yield* hopTo(28); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(3);
+      yield* hopTo(7);
+      for (const tx of [11, 15, 19, 23]) yield* hopTo(tx, true);
+      yield* hopTo(28); yield* walkTo(29);
+    },
+    function* () {
+      yield* walkTo(4); yield* hold(R, 30); yield* wait(150);
+      botKeys.down("d"); yield* wait(40); yield* hold("b", 30); yield* wait(500); botKeys.up("d");
+      yield* upDash(300, R, 250);
+      yield* walkTo(21); yield* jumpA(R, false); yield* walkTo(28);
+    },
+    function* () {
+      yield* walkTo(3); yield* waitCrush(6); yield* walkTo(9);
+      yield* waitCrush(12); yield* walkTo(15); yield* waitCrush(18); yield* walkTo(21);
+      yield* waitCrush(24); yield* walkTo(26); yield* jumpA(R, false); yield* walkTo(29);
+    },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -3784,6 +4190,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     gems: gems.size,
     testGems,
     skin: skinId,
+    bombs: () => bombs.map((b) => `${Math.round(b.x)},${Math.round(b.y)}${b.vx ? ">" : ""}${b.armed ? "!" : ""}`).join(" "),
     deaths,
     row: (y: number) => grid[y]?.join(""),
     monster: () => monster && { mode: monster.mode, dist: Math.round(Math.hypot(monster.x - player.x - PW / 2, monster.y - player.y - PH / 2)) },

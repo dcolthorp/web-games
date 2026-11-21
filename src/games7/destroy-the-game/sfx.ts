@@ -32,7 +32,8 @@ export type Sfx =
   | "warpBack"
   | "nope"
   | "gem"
-  | "unlock";
+  | "unlock"
+  | "crush";
 
 let audio: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
@@ -223,6 +224,12 @@ export function play(name: Sfx): void {
       tone(a, "square", 659, 659, 0.12, 0.06, 0.37);
       tone(a, "square", 784, 784, 0.12, 0.06, 0.49);
       tone(a, "square", 1046, 1046, 0.4, 0.07, 0.61);
+      break;
+    case "crush":
+      // A giant crusher landing: BOOM.
+      hiss(a, "lowpass", 1200, 40, 0.7, 0.9);
+      tone(a, "sine", 70, 28, 0.6, 0.5);
+      tone(a, "square", 110, 45, 0.25, 0.1);
       break;
     case "clink":
       tone(a, "triangle", 2400, 2300, 0.25, 0.08);
