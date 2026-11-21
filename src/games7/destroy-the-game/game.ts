@@ -1697,11 +1697,45 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "Up. Up. UP.",
+    name: "Test 23: The Climb",
+    signs: ["Almost at the top. Which door is real?", "Up. Up. UP. Four floors. Good luck."],
+    crush: { gap: 0.6, order: [0, 1, 2], pause: 1 },
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.....X......F......F...?......#",
+      "############^######^######CCC###",
+      "#.......VVV...VVV...VVV........#",
+      "#.......VVV...VVV...VVV........#",
+      "#..............................#",
+      "#..............................#",
+      "#....H.........................#",
+      "##CCC###########################",
+      "#...............1...U..........#",
+      "#...............1...U..........#",
+      "#...............1...U..........#",
+      "#...............1...U..........#",
+      "#........22.....1...U...H......#",
+      "######^^^^^^^^############CCC###",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?.....i...i...i...i.........#",
+      "######^^^^^^^^^^^^^^^^^#########",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "72 LEVELS DOWN!",
-  lines: ["You out-clicked the crusher.", "The next tests are coming soon..."],
+  title: "73 LEVELS DOWN!",
+  lines: ["You climbed all the way up.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -4911,6 +4945,29 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
       yield* wait(300);
       yield* walkTo(29);
+    },
+    function* () {
+      // The Climb (Level 73): four floors, bottom to top.
+      const straightUp = function* (land: string): Route {
+        botKeys.down("arrowup"); yield* wait(130); botKeys.up("arrowup"); yield* wait(32);
+        botKeys.down("arrowup"); yield* wait(320); botKeys.up("arrowup");
+        yield* hold(land, 420); yield* wait(400);
+      };
+      // Floor 1: tiny posts, then Up Dash.
+      yield* walkTo(5);
+      for (const tx of [9, 13, 17, 21, 25]) yield* hopTo(tx);
+      yield* walkTo(27); yield* straightUp(L);
+      // Floor 2: water the wall, switch dimensions, hop, Up Dash.
+      yield* walkTo(24); yield* walkTo(21); yield* hold(L, 20); yield* hold("w", 1300); yield* wait(500);
+      yield* walkTo(17); yield* hold("a", 40); yield* wait(150);
+      yield* walkTo(14); yield* jumpA(L, false); yield* walkTo(10); yield* jumpA(L, false);
+      yield* walkTo(3); yield* straightUp(R);
+      // Floor 3: the crushers.
+      yield* walkTo(5); yield* waitCrushN(0); yield* walkTo(12);
+      yield* waitCrushN(1); yield* walkTo(18); yield* waitCrushN(2); yield* walkTo(27);
+      yield* straightUp(L);
+      // Floor 4: jump the fake doors.
+      yield* walkTo(22); yield* jumpA(L, false); yield* walkTo(15); yield* jumpA(L, false); yield* walkTo(6);
     },
   ];
   let route: Route | null = null;
