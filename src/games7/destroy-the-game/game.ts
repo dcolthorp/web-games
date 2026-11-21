@@ -165,6 +165,9 @@ export interface LevelDef {
   // turn, and crushers with the same number slam together. `gap` is the time
   // between turns.
   crush?: { gap: number; order: number[]; pause?: number };
+  // SPAM (Oscar's Level 72): walls lock you in, a crusher slowly comes down, and
+  // you have to click `clicks` times before it squashes you (it takes `seconds`).
+  spam?: { clicks: number; seconds: number };
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -1670,11 +1673,35 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    // Oscar's idea: you're locked in, a crusher slowly comes down, and you
+    // have to SPAM click 100 times before it gets you.
+    sign: "Click. Click. CLICK!",
+    name: "Test 22: SPAM",
+    signs: ["You think you can click 100 times? Ha."],
+    spam: { clicks: 100, seconds: 20 },
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.?.............P............X.#",
+      "################################",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "71 LEVELS DOWN!",
-  lines: ["You survived Crush Mania.", "The next tests are coming soon..."],
+  title: "72 LEVELS DOWN!",
+  lines: ["You out-clicked the crusher.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -1785,6 +1812,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let extras: Monster[] = [];
   const allMonsters = (): Monster[] => (monster ? [monster, ...extras] : extras);
   let boss: Boss | null = null;
+  let spam: { count: number; t: number; done: boolean; doneT: number; cageX: number } | null = null;
+  const SPAM_DELAY = 1.2; // a moment to read the sign before the crusher starts coming
   let hatchSeen = false; // the hatch cutscene only plays the first time
   let ethereal = false; // in the Ethereal Dimension? (press A, from Level 41 on)
   const gems = readGems(); // every gem you've collected (not in the demo or Test Level)
@@ -1792,7 +1821,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let skinId = readSkin().id;
   let warpFlash = 0; // the screen glows for a moment when you switch
   const locked = (): boolean =>
-    (shuffle !== null && shuffle.phase !== "pick") || allMonsters().some((m) => m.mode === "hatch") || boss !== null;
+    (shuffle !== null && shuffle.phase !== "pick") || allMonsters().some((m) => m.mode === "hatch") || boss !== null ||
+    (spam !== null && !spam.done);
 
   // Hatches in a level that isn't one of the monster levels: a monster climbs
   // out of every single one.
@@ -1878,6 +1908,128 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         die();
       }
     }
+  }
+
+  // ---- SPAM (Level 72) ----
+  const SPAM_W = T * 4; // the spam crusher is 4 blocks wide
+  const SPAM_H = T * 3;
+  /** The bottom of the spam crusher right now. */
+  function spamBottom(): number {
+    const sp = spam;
+    const start = T + SPAM_H; // hanging from the ceiling
+    if (!sp) return start;
+    const end = player.y + 2; // right on your head
+    const u = Math.min(1, Math.max(0, (sp.t - SPAM_DELAY) / (levelDef().spam?.seconds ?? 20)));
+    return start + (end - start) * u;
+  }
+
+  function spamClick(): void {
+    const sp = spam;
+    const goal = levelDef().spam?.clicks ?? 100;
+    if (!sp || sp.done || deadUntil || clearedAt) return;
+    sp.count += 1;
+    sfx("pop");
+    if (sp.count >= goal) {
+      sp.done = true;
+      sp.doneT = time;
+      sfx("boom");
+      sfx("smash");
+      shake = 1;
+      // The crusher shatters into pieces.
+      const bottom = spamBottom();
+      for (let i = 0; i < 50; i++) {
+        bits.push({
+          x: sp.cageX - SPAM_W / 2 + Math.random() * SPAM_W, y: bottom - Math.random() * SPAM_H,
+          vx: (Math.random() - 0.5) * 900, vy: -Math.random() * 700,
+          angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, size: 6 + Math.random() * 12,
+          color: Math.random() < 0.7 ? "#3b3540" : "#ff3b30", life: 1.6,
+        });
+      }
+    }
+  }
+
+  function stepSpam(dt: number): void {
+    const sp = spam;
+    if (!sp || sp.done || deadUntil || clearedAt) return;
+    sp.t += dt;
+    if (spamBottom() >= player.y + 1) {
+      sfx("crush");
+      shake = 1;
+      crushFlash = 1;
+      die();
+    }
+  }
+
+  function drawSpam(): void {
+    const sp = spam;
+    if (!sp) return;
+    const goal = levelDef().spam?.clicks ?? 100;
+    if (!sp.done) {
+      // The cage walls on both sides of you.
+      for (const wx of [sp.cageX - T * 1.6 - T, sp.cageX + T * 1.6]) {
+        ctx.fillStyle = "#e3dccb";
+        ctx.fillRect(wx, T, T, 11 * T);
+        ctx.strokeStyle = "#2b2725";
+        ctx.lineWidth = 2.6;
+        ctx.strokeRect(wx, T, T, 11 * T);
+      }
+      // The crusher, slowly coming down.
+      const bottom = spamBottom();
+      const x = sp.cageX - SPAM_W / 2 + (sp.t > SPAM_DELAY ? Math.sin(time * 40) * 1.5 : 0);
+      const y = bottom - SPAM_H;
+      ctx.strokeStyle = "#5a5560";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      for (const cx of [x + 14, x + SPAM_W - 14]) {
+        ctx.beginPath();
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#3b3540";
+      ctx.fillRect(x, y, SPAM_W, SPAM_H);
+      ctx.strokeStyle = "#141016";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, SPAM_W, SPAM_H);
+      for (const ex of [x + SPAM_W * 0.3, x + SPAM_W * 0.7]) {
+        ctx.fillStyle = "#ff3b30";
+        ctx.beginPath();
+        ctx.arc(ex, y + SPAM_H * 0.4, 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = "#f4f0e6";
+      for (let i = 0; i < 10; i++) {
+        const tx = x + (i + 0.5) * (SPAM_W / 10);
+        ctx.beginPath();
+        ctx.moveTo(tx - SPAM_W / 20 + 1, y + SPAM_H);
+        ctx.lineTo(tx + SPAM_W / 20 - 1, y + SPAM_H);
+        ctx.lineTo(tx, y + SPAM_H + 10);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    // The big SPAM sign and the counter (they stay put while the screen scrolls).
+    const signX = sp.cageX < WORLD_W / 2 ? WORLD_W * 0.78 : WORLD_W * 0.22;
+    const signY = camY + T * 3.2;
+    ctx.save();
+    ctx.translate(signX, signY);
+    ctx.rotate(-0.05);
+    ctx.fillStyle = sp.done ? "#9be59b" : "#ffe08a";
+    ctx.fillRect(-150, -55, 300, 110);
+    ctx.strokeStyle = "#5b3d1c";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-150, -55, 300, 110);
+    ctx.fillStyle = sp.done ? "#1f6b2a" : "#c0392b";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const pulse = sp.done ? 1 : 1 + 0.08 * Math.sin(time * 18);
+    ctx.font = `${Math.round(54 * pulse)}px 'Bungee', 'Patrick Hand', cursive`;
+    ctx.fillText(sp.done ? "YOU DID IT!" : "SPAM!", 0, -14);
+    ctx.font = "30px 'Patrick Hand', 'Comic Sans MS', cursive";
+    ctx.fillStyle = "#2b2725";
+    ctx.fillText(`${Math.min(sp.count, goal)} / ${goal} clicks`, 0, 32);
+    ctx.restore();
   }
 
   // The final fight: it surrounds you.
@@ -2362,6 +2514,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     shuffle = def.shuffle ? makeShuffle(def) : null;
     boss = null;
     monster = makeMonster(def, false);
+    spam = def.spam ? { count: 0, t: 0, done: false, doneT: 0, cageX: player.x + PW / 2 } : null;
+    if (spam) keys.clear();
     extras = makeExtras(def, false);
     crumbling = {};
     fakesFound = {};
@@ -3246,6 +3400,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     stepShuffle(dt);
     stepMonster(dt);
     stepBoss(dt);
+    stepSpam(dt);
     const p = player;
     p.coyote = p.onGround ? COYOTE : Math.max(0, p.coyote - dt);
     p.jumpBuffer = Math.max(0, p.jumpBuffer - dt);
@@ -4202,6 +4357,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawBits();
     drawMonster();
     drawBoss();
+    drawSpam();
     ctx.restore();
     if (crushFlash > 0) {
       ctx.fillStyle = `rgba(232, 66, 58, ${crushFlash * 0.22})`;
@@ -4746,6 +4902,16 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       }
       yield* waitCrushN(12); yield* hopTo(29); yield* walkTo(30);
     },
+    function* () {
+      // SPAM (Level 72): the bot clicks super fast.
+      let guard = 0;
+      while (spam && !spam.done && guard++ < 400) {
+        spamClick();
+        yield* wait(70);
+      }
+      yield* wait(300);
+      yield* walkTo(29);
+    },
   ];
   let route: Route | null = null;
   let routeLevel = -1;
@@ -4788,6 +4954,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     window.addEventListener("blur", onBlur);
   }
   window.addEventListener("resize", resize);
+  // SPAM: click (anywhere) as fast as you can.
+  const onPointerDown = (): void => spamClick();
+  if (!demo) window.addEventListener("pointerdown", onPointerDown);
 
   const handle: GameHandle = {
     stop() {
@@ -4801,6 +4970,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("pointerdown", onPointerDown);
     },
   };
 
@@ -4823,6 +4993,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     row: (y: number) => grid[y]?.join(""),
     monster: () => monster && { mode: monster.mode, dist: Math.round(Math.hypot(monster.x - player.x - PW / 2, monster.y - player.y - PH / 2)) },
     monsters: () => allMonsters().map((m) => m.mode).join(" "),
+    spam: () => spam && { count: spam.count, done: spam.done, gap: Math.round(player.y - spamBottom()) },
+    click: () => spamClick(),
     boss: () => boss && { round: boss.round, r: Math.round(boss.r), t: boss.t, done: boss.done },
     doors: () =>
       shuffle && {
