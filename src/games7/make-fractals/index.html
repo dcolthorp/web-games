@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Make Fractals</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <a class="back-link" href="../index.html">← Games 7</a>
+      <button class="title-button" id="title-button" type="button" title="Boom.">Make Fractals</button>
+      <span class="spacer"></span>
+      <button class="bar-button" id="sound-button" type="button" aria-pressed="false">🔊 Sound</button>
+      <button class="bar-button" id="save-button" type="button">📸 Save Picture</button>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar" id="sidebar" aria-label="Fractals"></aside>
+
+      <main class="stage">
+        <div class="stage-head">
+          <h2 id="fractal-name"></h2>
+          <p id="fractal-blurb"></p>
+        </div>
+
+        <div class="builder" id="builder" hidden>
+          <div class="builder-row">
+            <div class="seg" id="builder-dim" role="group" aria-label="Flat or 3D">
+              <button type="button" data-dim="2">Flat</button>
+              <button type="button" data-dim="3">3D</button>
+            </div>
+            <div class="seg" id="builder-size" role="group" aria-label="Grid size"></div>
+            <button class="small-button" id="builder-clear" type="button">Clear</button>
+            <button class="small-button" id="builder-fill" type="button">Fill</button>
+            <button class="small-button" id="builder-random" type="button">🎲 Random</button>
+          </div>
+          <p class="builder-tip">Click squares to keep them. Every kept square turns into a little copy of the whole pattern.</p>
+          <div class="builder-grids" id="builder-grids"></div>
+        </div>
+
+        <div class="canvas-wrap" id="canvas-wrap">
+          <canvas id="canvas"></canvas>
+          <div class="boom-text" id="boom-text" aria-live="polite"></div>
+        </div>
+
+        <div class="controls">
+          <div class="level-box">
+            <button class="level-button" id="level-down" type="button" aria-label="Level down">−</button>
+            <div class="level-read">
+              <span class="level-label">LEVEL</span>
+              <span class="level-number" id="level-number">0</span>
+            </div>
+            <button class="level-button" id="level-up" type="button" aria-label="Level up">+</button>
+          </div>
+          <span class="shape-count" id="shape-count"></span>
+          <span class="spacer"></span>
+          <label class="palette-pick">Colors
+            <select id="palette-select"></select>
+          </label>
+          <button class="small-button" id="grow-button" type="button">🌱 Grow</button>
+          <button class="small-button" id="spin-button" type="button" hidden>🌀 Spin</button>
+          <button class="small-button" id="reset-button" type="button">🎯 Reset View</button>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

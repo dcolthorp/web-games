@@ -31,6 +31,13 @@ const games: Game[] = [
     genre: "Sketchy Platformer",
     blurb: "Hit D to dash. Fly over spikes and smash through cracked walls.",
   },
+  {
+    id: "make-fractals",
+    name: "Make Fractals",
+    path: "./make-fractals/index.html",
+    genre: "Fractal Maker",
+    blurb: "Menger sponges, dragon curves, H-trees and more. Crank up the level, or make your own.",
+  },
 ];
 
 // Destroy the Game's card got smashed in the bottom-right corner, same as its

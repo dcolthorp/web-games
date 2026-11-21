@@ -181,6 +181,7 @@ export default defineConfig({
         games7: resolve(__dirname, "src/games7/index.html"),
         makeElements: resolve(__dirname, "src/games7/make-elements/index.html"),
         destroyTheGame: resolve(__dirname, "src/games7/destroy-the-game/index.html"),
+        makeFractals: resolve(__dirname, "src/games7/make-fractals/index.html"),
         factQuest: resolve(__dirname, "src/games6/fact-quest/index.html"),
         gameFactory: resolve(__dirname, "src/games6/game-factory/index.html"),
         makeYourOwnMaze: resolve(__dirname, "src/games6/make-your-own-maze/index.html"),
