@@ -1887,11 +1887,36 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "Pour water on the smudged walls (hold W). The crushers won't wait.",
+    name: "Test 29: Water Under Pressure",
+    signs: [
+      "Skinny posts now. One of them only lives in the other dimension. Good luck!",
+      "Pour water on the smudged walls (hold W). The crushers won't wait.",
+    ],
+    crush: { gap: 0.9, order: [0, 1, 2], pause: 1 },
+    map: [
+      "################################",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.X..^^^i^^^[^^^i^^^]^^^i^.?...#",
+      "############################...#",
+      "#.......VVVU..VVVU..VVVU..C....#",
+      "#.......VVVU..VVVU..VVVU..C....#",
+      "#..........U.....U.....U..C..i.#",
+      "#..........U.....U.....U..C..i.#",
+      "#.P.?......U.....U.....U..C..i.#",
+      "################################",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "78 LEVELS DOWN!",
-  lines: ["OBBYiously: you won.", "The next tests are coming soon..."],
+  title: "79 LEVELS DOWN!",
+  lines: ["Water Under Pressure: you won.", "The next tests are coming soon..."],
 };
 
 interface Player {
