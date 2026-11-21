@@ -125,7 +125,9 @@ interface Crusher {
   drop: number; // how far it falls, in pixels
   slot: number; // its turn in the pattern
   wasDown: boolean;
-  dir: "down" | "right" | "left"; // side crushers (> and <) slam sideways
+  dir: "down" | "right" | "left" | "up" | "ring"; // side crushers (> and <) slam sideways; A slams UP from the floor (Oscar)
+  // RING CRUSHER (R, Oscar's idea): a frame whose hole shrinks to nothing, teeth all pointing in.
+  hole?: { x0: number; y0: number; x1: number; y1: number }; // the hole, in tiles (inclusive)
   cells: [number, number][]; // its exact shape (Oscar draws crushers in any shape)
   has: Set<string>; // "x,y" of every cell, for quick lookups
 }
@@ -140,7 +142,9 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // (touch it: the Door Shuffle starts), 1 block that's only in the normal
 // dimension, 2 block that's only in the Ethereal Dimension, * gem, V crusher
 // (connected V tiles make one giant crusher), > side crusher that slams right,
-// < side crusher that slams left, i thin post (1 pixel jump),
+// < side crusher that slams left, A up crusher that slams up from the floor,
+// R ring crusher (draw a ring; its hole slowly closes up, teeth pointing in),
+// i thin post (1 pixel jump),
 // [ thin post only in the normal dimension, ] thin post only in the Ethereal
 // Dimension, P start, X exit, ? sign.
 //
@@ -172,7 +176,8 @@ export interface LevelDef {
   crush?: { gap: number; order: number[]; pause?: number; slam?: number; throughSmudge?: boolean; throughAll?: boolean };
   // SPAM (Oscar's Level 72): walls lock you in, a crusher slowly comes down, and
   // you have to click `clicks` times before it squashes you (it takes `seconds`).
-  spam?: { clicks: number; seconds: number };
+  // noCrusher (Oscar): just the clicking, no SPAM crusher or cage; add your own crushers if you want them.
+  spam?: { clicks: number; seconds: number; noCrusher?: boolean };
   // SURVIVE (Oscar's idea): a big sign counts down, and the EXIT stays locked
   // until the timer hits 0.
   survive?: { seconds: number };
@@ -1912,11 +1917,54 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "...",
+    name: "Test 30: SPAM v2",
+    crush: { gap: 0.6, order: [0, 1, 2], pause: 0, slam: 80, throughAll: true },
+    spam: { clicks: 200, seconds: 60, noCrusher: true },
+    map: [
+      "################################",
+      "#RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR#",
+      "#R............................R#",
+      "#R............................R#",
+      "#R............................R#",
+      "#R............................R#",
+      "#R............................R#",
+      "#R...........P.XF.............R#",
+      "#R......################......R#",
+      "#R......C**************C......R#",
+      "#R......C**************C......R#",
+      "#RRRRRRRC**************CRRRRRRR#",
+      "################################",
+      "################################",
+    ],
+  },
+  {
+    sign: "UP CRUSHERS! They jump out of the pits and bite. Cross when the jaws are open.",
+    name: "Test 31: Jaws",
+    crush: { gap: 0.45, order: [0, 0, 1, 1, 2, 2, 3, 3], pause: 0.5 },
+    map: [
+      "################################",
+      "#....VV....VV....VV....VV......#",
+      "#....VV....VV....VV....VV......#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.P?.........................X.#",
+      "#####AA####AA####AA####AA#######",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "79 LEVELS DOWN!",
-  lines: ["Water Under Pressure: you won.", "The next tests are coming soon..."],
+  title: "81 LEVELS DOWN!",
+  lines: ["Jaws: you won.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -2002,6 +2050,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let camY = 0;
   let player: Player;
   let bits: Bit[] = [];
+  // DIAMOND skin (Oscar): every step drops 4 little diamonds that clink onto the floor.
+  let droppedGems: { x: number; y: number; vx: number; vy: number; life: number; landed: boolean; spin: number }[] = [];
   let trail: { x: number; y: number; age: number; up: boolean }[] = [];
   let deaths = 0;
   let deadUntil = 0;
@@ -2151,6 +2201,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       sfx("boom");
       sfx("smash");
       shake = 1;
+      // Every crusher in the level shatters too (great with ring crushers).
+      for (const c of crushers) {
+        for (let i = 0; i < 30; i++) {
+          bits.push({
+            x: c.x0 * T + Math.random() * (c.x1 - c.x0 + 1) * T, y: c.y0 * T + Math.random() * (c.y1 - c.y0 + 1) * T,
+            vx: (Math.random() - 0.5) * 900, vy: -Math.random() * 700,
+            angle: Math.random() * 6, spin: (Math.random() - 0.5) * 20, size: 6 + Math.random() * 12,
+            color: Math.random() < 0.7 ? "#3b3540" : "#ff3b30", life: 1.6,
+          });
+        }
+      }
+      crushers = [];
       // The crusher shatters into pieces.
       const bottom = spamBottom();
       for (let i = 0; i < 50; i++) {
@@ -2168,7 +2230,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     const sp = spam;
     if (!sp || sp.done || deadUntil || clearedAt) return;
     sp.t += dt;
-    if (spamBottom() >= player.y + 1) {
+    if (!levelDef().spam?.noCrusher && skinId !== "diamond" && spamBottom() >= player.y + 1) {
       sfx("crush");
       shake = 1;
       crushFlash = 1;
@@ -2180,7 +2242,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     const sp = spam;
     if (!sp) return;
     const goal = levelDef().spam?.clicks ?? 100;
-    if (!sp.done) {
+    if (!sp.done && !levelDef().spam?.noCrusher) {
       // The cage walls on both sides of you.
       for (const wx of [sp.cageX - T * 1.6 - T, sp.cageX + T * 1.6]) {
         ctx.fillStyle = "#e3dccb";
@@ -2750,6 +2812,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     bombs = [];
     switchFlips = {};
     drops = [];
+    droppedGems = [];
     wet = {};
     fading = {};
     slammers = findSlammers();
@@ -3039,8 +3102,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     for (let ty = 0; ty < rows; ty++) {
       for (let tx = 0; tx < COLS; tx++) {
         const ch = grid[ty]?.[tx] ?? "";
-        if (!"V<>".includes(ch) || !ch || seen.has(`${tx},${ty}`)) continue;
-        const dir = ch === ">" ? "right" : ch === "<" ? "left" : "down";
+        if (!"V<>AR".includes(ch) || !ch || seen.has(`${tx},${ty}`)) continue;
+        const dir = ch === ">" ? "right" : ch === "<" ? "left" : ch === "A" ? "up" : ch === "R" ? "ring" : "down";
         const c: Crusher = { x0: tx, x1: tx, y0: ty, y1: ty, drop: 0, slot: 0, wasDown: false, dir, cells: [], has: new Set() };
         const stack: [number, number][] = [[tx, ty]];
         while (stack.length) {
@@ -3061,27 +3124,58 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // It slams until it hits something solid (a floor, or a wall for side crushers).
     const stopTiles = def.crush?.throughAll ? "" : def.crush?.throughSmudge ? "#CMOYZKi" : "#CMUOYZKi";
     const stops = (x: number, y: number): boolean => stopTiles.includes(grid[y]?.[x] ?? "#");
+    // Crushers that face each other (like Oscar's ring: teeth all pointing in)
+    // meet in the middle instead of going through each other.
+    const facing: Record<Crusher["dir"], Crusher["dir"]> = { down: "up", up: "down", right: "left", left: "right", ring: "ring" };
+    const facingAt = (c: Crusher, x: number, y: number): boolean =>
+      found.some((o) => o !== c && o.dir === facing[c.dir] && o.has.has(`${x},${y}`));
     // Every part of the shape counts: it stops as soon as ANY part would hit.
     for (const c of found) {
-      let gap = Math.max(rows, COLS);
-      const [sx, sy] = c.dir === "down" ? [0, 1] : c.dir === "right" ? [1, 0] : [-1, 0];
+      if (c.dir === "ring") {
+        // The hole is every gap inside the ring (an open bottom counts too).
+        let h: Crusher["hole"];
+        for (let y = c.y0; y <= c.y1; y++) {
+          for (let x = c.x0; x <= c.x1; x++) {
+            if (c.has.has(`${x},${y}`)) continue;
+            h = h
+              ? { x0: Math.min(h.x0, x), y0: Math.min(h.y0, y), x1: Math.max(h.x1, x), y1: Math.max(h.y1, y) }
+              : { x0: x, y0: y, x1: x, y1: y };
+          }
+        }
+        c.hole = h;
+        c.drop = h ? T : 0; // (for a ring, "how far down" is just how closed it is)
+        continue;
+      }
+      let gap = Math.max(rows, COLS) * T;
+      const [sx, sy] = crushStep(c);
       for (const [cx, cy] of c.cells) {
         if (c.has.has(`${cx + sx},${cy + sy}`)) continue; // not a front edge
         let n = 0;
         let x = cx + sx;
         let y = cy + sy;
-        while (x >= 0 && x < COLS && y < rows && !stops(x, y)) {
+        let meet = false;
+        while (x >= 0 && x < COLS && y >= 0 && y < rows && !stops(x, y)) {
+          if (facingAt(c, x, y)) {
+            meet = true;
+            break;
+          }
           n++;
           x += sx;
           y += sy;
         }
-        gap = Math.min(gap, n);
+        gap = Math.min(gap, meet ? (n * T) / 2 : n * T);
       }
-      c.drop = gap * T;
+      c.drop = gap;
     }
     found.sort((a, b) => a.x0 - b.x0);
     found.forEach((c, i) => (c.slot = def.crush?.order[i] ?? i));
     return found;
+  }
+
+  /** Which way a crusher slams, one tile at a time. */
+  function crushStep(c: Crusher): [number, number] {
+    if (c.dir === "ring") return [0, 0];
+    return c.dir === "down" ? [0, 1] : c.dir === "up" ? [0, -1] : c.dir === "right" ? [1, 0] : [-1, 0];
   }
 
   /** Seconds a crusher takes to come down (Oscar: some come down slowly, like in SPAM). */
@@ -3123,7 +3217,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   /** Where the crusher is pushed to right now. */
   function crushOffset(c: Crusher): { dx: number; dy: number } {
     const d = crushDown(c);
-    return c.dir === "down" ? { dx: 0, dy: d } : { dx: c.dir === "right" ? d : -d, dy: 0 };
+    if (c.dir === "ring") return { dx: 0, dy: 0 };
+    if (c.dir === "down" || c.dir === "up") return { dx: 0, dy: c.dir === "down" ? d : -d };
+    return { dx: c.dir === "right" ? d : -d, dy: 0 };
   }
 
   function stepCrushers(): void {
@@ -3137,28 +3233,144 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         crushFlash = 1;
         for (let i = 0; i < 10; i++) {
           bits.push({
-            x: c.x0 * T + dx + Math.random() * (c.x1 - c.x0 + 1) * T, y: c.dir === "down" ? (c.y1 + 1) * T + c.drop : c.y0 * T + Math.random() * (c.y1 - c.y0 + 1) * T,
+            x: c.x0 * T + dx + Math.random() * (c.x1 - c.x0 + 1) * T, y: c.dir === "down" ? (c.y1 + 1) * T + c.drop : c.dir === "up" ? c.y0 * T - c.drop : c.y0 * T + Math.random() * (c.y1 - c.y0 + 1) * T,
             vx: (Math.random() - 0.5) * 400, vy: -Math.random() * 300,
             angle: 0, spin: 0, size: 8 + Math.random() * 8, color: "rgba(60,55,50,0.35)", life: 0.5,
           });
         }
       }
       c.wasDown = down;
+      if (c.dir === "ring") {
+        const r = ringNow(c);
+        const touchingRing = p.x + PW > r.ox0 + 3 && p.x < r.ox1 - 3 && p.y + PH > r.oy0 + 3 && p.y < r.oy1 - 1;
+        const inHole = p.x >= r.hx0 - 3 && p.x + PW <= r.hx1 + 3 && p.y >= r.hy0 - 3 && p.y + PH <= r.hy1 + 1;
+        if (touchingRing && !inHole && skinId !== "diamond") die(); // the Diamond skin can't be crushed
+        continue;
+      }
       // Touch any part of a crusher and you're squashed (dashing doesn't save you).
       for (const [cx, cy] of c.cells) {
         const x = cx * T + dx;
         const y = cy * T + dy;
         if (p.x + PW > x + 3 && p.x < x + T - 3 && p.y + PH > y + 3 && p.y < y + T - 1) {
-          die();
+          if (skinId !== "diamond") die(); // the Diamond skin can't be crushed (Oscar)
           break;
         }
       }
     }
   }
 
+  /** A ring crusher right now: its outside edge, and the hole (shrinking to its middle). */
+  function ringNow(c: Crusher): {
+    ox0: number; oy0: number; ox1: number; oy1: number; hx0: number; hy0: number; hx1: number; hy1: number;
+    shut: { top: boolean; bottom: boolean; left: boolean; right: boolean };
+  } {
+    const h = c.hole ?? { x0: c.x0, y0: c.y0, x1: c.x0 - 1, y1: c.y0 - 1 };
+    const f = c.drop > 0 ? Math.min(1, crushDown(c) / c.drop) : 1;
+    // Each side of the hole with ring on it closes in. An open side (like a
+    // ring sitting on the floor with no bottom) stays where it is.
+    const ringRow = (y: number): boolean => { for (let x = h.x0; x <= h.x1; x++) if (!c.has.has(`${x},${y}`)) return false; return true; };
+    const ringCol = (x: number): boolean => { for (let y = h.y0; y <= h.y1; y++) if (!c.has.has(`${x},${y}`)) return false; return true; };
+    const close = (a: number, b: number, aShut: boolean, bShut: boolean): [number, number] => {
+      const len = (b - a) * f;
+      if (aShut && bShut) return [a + len / 2, b - len / 2];
+      if (aShut) return [a + len, b];
+      if (bShut) return [a, b - len];
+      return [a, b];
+    };
+    const shut = { left: ringCol(h.x0 - 1), right: ringCol(h.x1 + 1), top: ringRow(h.y0 - 1), bottom: ringRow(h.y1 + 1) };
+    const [hx0, hx1] = close(h.x0 * T, (h.x1 + 1) * T, shut.left, shut.right);
+    const [hy0, hy1] = close(h.y0 * T, (h.y1 + 1) * T, shut.top, shut.bottom);
+    return { ox0: c.x0 * T, oy0: c.y0 * T, ox1: (c.x1 + 1) * T, oy1: (c.y1 + 1) * T, hx0, hy0, hx1, hy1, shut };
+  }
+
+  function drawRingCrusher(c: Crusher): void {
+    const ph = crushPhase(c);
+    const warn = ph >= 0 && ph < CRUSH_WARN;
+    const wob = warn ? Math.sin(time * 60) * 2.5 : 0;
+    const r = ringNow(c);
+    const h0 = c.hole;
+    // Where it's going to squish: the whole hole glows red.
+    if (warn && h0) {
+      ctx.fillStyle = `rgba(232, 66, 58, ${0.18 + 0.15 * Math.sin(time * 30)})`;
+      ctx.fillRect(h0.x0 * T, h0.y0 * T, (h0.x1 - h0.x0 + 1) * T, (h0.y1 - h0.y0 + 1) * T);
+    }
+    ctx.save();
+    ctx.translate(wob, 0);
+    // The ring itself: the outside, with the hole cut out.
+    const ringPath = (): void => {
+      ctx.beginPath();
+      ctx.rect(r.ox0, r.oy0, r.ox1 - r.ox0, r.oy1 - r.oy0);
+      if (r.hx1 - r.hx0 > 0.5 && r.hy1 - r.hy0 > 0.5) ctx.rect(r.hx0, r.hy0, r.hx1 - r.hx0, r.hy1 - r.hy0);
+    };
+    ringPath();
+    ctx.fillStyle = "#3b3540";
+    ctx.fill("evenodd");
+    ctx.save();
+    ringPath();
+    ctx.clip("evenodd");
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+    ctx.lineWidth = 1.2;
+    for (let i = 6; i < r.ox1 - r.ox0 + (r.oy1 - r.oy0); i += 12) sketchLine(r.ox0 + i, r.oy1, r.ox0 + i + 10 - (r.oy1 - r.oy0), r.oy0, 0.8);
+    ctx.restore();
+    ctx.strokeStyle = "#141016";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(r.ox0, r.oy0, r.ox1 - r.ox0, r.oy1 - r.oy0);
+    const hw = r.hx1 - r.hx0;
+    const hh = r.hy1 - r.hy0;
+    if (hw > 0.5 && hh > 0.5) {
+      const line = (x1: number, y1: number, x2: number, y2: number): void => {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      };
+      if (r.shut.top) line(r.hx0, r.hy0, r.hx1, r.hy0);
+      if (r.shut.bottom) line(r.hx0, r.hy1, r.hx1, r.hy1);
+      if (r.shut.left) line(r.hx0, r.hy0, r.hx0, r.hy1);
+      if (r.shut.right) line(r.hx1, r.hy0, r.hx1, r.hy1);
+      // Teeth all the way around the inside, pointing in.
+      ctx.fillStyle = "#f4f0e6";
+      const tooth = Math.min(15, hw / 2.5, hh / 2.5);
+      const side = (x1: number, y1: number, x2: number, y2: number, nx: number, ny: number): void => {
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        const n = Math.max(1, Math.round(len / 22));
+        for (let i = 0; i < n; i++) {
+          const a = i / n;
+          const b = (i + 1) / n;
+          const m = (a + b) / 2;
+          ctx.beginPath();
+          ctx.moveTo(x1 + (x2 - x1) * a, y1 + (y2 - y1) * a);
+          ctx.lineTo(x1 + (x2 - x1) * b, y1 + (y2 - y1) * b);
+          ctx.lineTo(x1 + (x2 - x1) * m + nx * tooth, y1 + (y2 - y1) * m + ny * tooth);
+          ctx.closePath();
+          ctx.fill();
+        }
+      };
+      // (Only on sides that have ring on them: an open bottom has no teeth.)
+      if (r.shut.top) side(r.hx0, r.hy0, r.hx1, r.hy0, 0, 1); // top teeth point down
+      if (r.shut.bottom) side(r.hx0, r.hy1, r.hx1, r.hy1, 0, -1); // bottom teeth point up
+      if (r.shut.left) side(r.hx0, r.hy0, r.hx0, r.hy1, 1, 0); // left teeth point right
+      if (r.shut.right) side(r.hx1, r.hy0, r.hx1, r.hy1, -1, 0); // right teeth point left
+    }
+    // Angry eyes in the top of the ring.
+    const ey = r.oy0 + Math.max(14, (Math.max(r.oy0 + T, r.hy0) - r.oy0) / 2);
+    const mxe = (r.ox0 + r.ox1) / 2;
+    ctx.fillStyle = warn || crushDown(c) > 0 ? "#ff3b30" : "#c0392b";
+    for (const fx of [-12, 12]) {
+      ctx.beginPath();
+      ctx.arc(mxe + fx, ey, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#141016";
+    ctx.lineWidth = 2.5;
+    sketchLine(mxe - 22, ey - 10, mxe - 8, ey - 5, 0.3);
+    sketchLine(mxe + 22, ey - 10, mxe + 8, ey - 5, 0.3);
+    ctx.restore();
+  }
+
   // A crusher in any shape Oscar draws (not just a rectangle).
   function drawShapedCrusher(c: Crusher, warn: boolean, ox: number, oy: number): void {
-    const [sx, sy] = c.dir === "down" ? [0, 1] : c.dir === "right" ? [1, 0] : [-1, 0];
+    const [sx, sy] = crushStep(c);
     const inShape = (x: number, y: number): boolean => c.has.has(`${x},${y}`);
     // Chains from the ceiling (or the wall) to its two ends.
     ctx.strokeStyle = "#5a5560";
@@ -3170,6 +3382,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         ctx.beginPath();
         ctx.moveTo(col * T + T / 2 + ox, 0);
         ctx.lineTo(col * T + T / 2 + ox, top * T + oy);
+        ctx.stroke();
+      }
+    } else if (c.dir === "up") {
+      // Pistons from the floor up to its bottom.
+      for (const col of [c.x0, c.x1]) {
+        const bottom = Math.max(...c.cells.filter(([x]) => x === col).map(([, y]) => y)) + 1;
+        ctx.beginPath();
+        ctx.moveTo(col * T + T / 2 + ox, levelH);
+        ctx.lineTo(col * T + T / 2 + ox, bottom * T + oy);
         ctx.stroke();
       }
     } else {
@@ -3190,6 +3411,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       if (warn && !inShape(cx + sx, cy + sy)) {
         ctx.fillStyle = `rgba(232, 66, 58, ${0.18 + 0.15 * Math.sin(time * 30)})`;
         if (c.dir === "down") ctx.fillRect(cx * T, (cy + 1) * T, T, c.drop);
+        else if (c.dir === "up") ctx.fillRect(cx * T, cy * T - c.drop, T, c.drop);
         else if (c.dir === "right") ctx.fillRect((cx + 1) * T, cy * T, c.drop, T);
         else ctx.fillRect(cx * T - c.drop, cy * T, c.drop, T);
       }
@@ -3221,6 +3443,11 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
             ctx.moveTo(tx - T / 6 + 1, y + T);
             ctx.lineTo(tx + T / 6 - 1, y + T);
             ctx.lineTo(tx, y + T + 8);
+          } else if (c.dir === "up") {
+            const tx = x + (i + 0.5) * (T / 3);
+            ctx.moveTo(tx - T / 6 + 1, y);
+            ctx.lineTo(tx + T / 6 - 1, y);
+            ctx.lineTo(tx, y - 8);
           } else {
             const ty = y + (i + 0.5) * (T / 3);
             const ex = c.dir === "right" ? x + T : x;
@@ -3256,12 +3483,18 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   function drawCrushers(): void {
     for (const c of crushers) {
-      if (c.cells.length !== (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1)) {
+      if (c.dir === "ring") {
+        drawRingCrusher(c);
+        continue;
+      }
+      // Odd shapes (and every up crusher) are drawn tile by tile.
+      if (c.dir === "up" || c.cells.length !== (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1)) {
         const ph2 = crushPhase(c);
         const warn2 = ph2 >= 0 && ph2 < CRUSH_WARN;
         const { dx, dy } = crushOffset(c);
         const wob = warn2 ? Math.sin(time * 60) * 2.5 : 0;
-        drawShapedCrusher(c, warn2, dx + (c.dir === "down" ? wob : 0), dy + (c.dir === "down" ? 0 : wob));
+        const upDown = c.dir === "down" || c.dir === "up";
+        drawShapedCrusher(c, warn2, dx + (upDown ? wob : 0), dy + (upDown ? 0 : wob));
         continue;
       }
       const ph = crushPhase(c);
@@ -3681,6 +3914,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     crumbling = {};
     bombs = [];
     drops = [];
+    droppedGems = [];
     trail = [];
     boss = null;
     leaveEthereal();
@@ -3697,6 +3931,20 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     });
     monster = makeMonster(levelDef(), true); // it comes back in from the left
     extras = makeExtras(levelDef(), true);
+  }
+
+  /** Diamond skin: 4 diamonds fall out at your feet, clink! */
+  function dropDiamonds(): void {
+    const p = player;
+    for (let i = 0; i < 4; i++) {
+      droppedGems.push({
+        x: p.x + PW / 2 + (Math.random() - 0.5) * 10, y: p.y + PH - 6,
+        vx: (Math.random() - 0.5) * 160 - p.vx * 0.2, vy: -120 - Math.random() * 140,
+        life: 4 + Math.random(), landed: false, spin: Math.random() * 6,
+      });
+    }
+    if (droppedGems.length > 160) droppedGems.splice(0, droppedGems.length - 160);
+    sfx("clink");
   }
 
   function die(): void {
@@ -3731,6 +3979,19 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       b.life -= dt;
     }
     bits = bits.filter((b) => b.life > 0);
+    for (const g of droppedGems) {
+      g.life -= dt;
+      if (g.landed) continue;
+      g.vy = Math.min(MAX_FALL, g.vy + GRAVITY * dt);
+      g.x += g.vx * dt;
+      g.y += g.vy * dt;
+      const ty = Math.floor(g.y / T);
+      if (g.vy > 0 && isSolid(tileAt(Math.floor(g.x / T), ty))) {
+        g.y = ty * T - 2; // landed on the floor
+        g.landed = true;
+      }
+    }
+    droppedGems = droppedGems.filter((g) => g.life > 0 && g.y < levelH + 40);
     flashes.forEach((f) => (f.age += dt));
     flashes = flashes.filter((f) => f.age < 0.3);
     trail.forEach((t) => (t.age += dt));
@@ -3821,7 +4082,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       p.vy = Math.min(MAX_FALL, p.vy + GRAVITY * dt);
       moveX(p.vx * dt);
       moveY(p.vy * dt);
+      const stepBefore = Math.floor(p.runPhase / Math.PI);
       p.runPhase += Math.abs(p.vx) * dt * 0.05;
+      if (skinId === "diamond" && p.onGround && !p.dashing && Math.floor(p.runPhase / Math.PI) !== stepBefore) dropDiamonds();
     }
 
     // Slammers squash you if you're caught inside (dashing doesn't save you).
@@ -4614,6 +4877,24 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       ctx.beginPath();
       ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
       ctx.fill();
+    }
+    for (const g of droppedGems) {
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.rotate(g.landed ? 0 : g.spin + time * 8);
+      ctx.globalAlpha = Math.min(1, g.life);
+      ctx.fillStyle = "#7ff0ff";
+      ctx.strokeStyle = "#1f8fb0";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, -4);
+      ctx.lineTo(3, 0);
+      ctx.lineTo(0, 4);
+      ctx.lineTo(-3, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     }
     for (const b of bits) {
       if (b.spark) {

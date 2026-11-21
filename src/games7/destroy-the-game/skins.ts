@@ -18,6 +18,14 @@ export const SKINS: Skin[] = [
   { id: "knight", name: "Knight", gems: 11 },
   { id: "monster", name: "Mini Monster", gems: 13 },
   { id: "golden", name: "Golden", gems: 15 },
+  // More skins (Oscar, 2026-11-21: "we need more skins"; he picked all of these).
+  { id: "pirate", name: "Pirate", gems: 20 },
+  { id: "dino", name: "Dino", gems: 25 },
+  { id: "ghost", name: "Ghost", gems: 30 },
+  { id: "crusherkid", name: "Crusher Kid", gems: 35 },
+  { id: "rainbow", name: "Rainbow", gems: 45 },
+  // Every gem in the game. Drops diamonds as you walk and crushers can't hurt you.
+  { id: "diamond", name: "Diamond", gems: 57 },
 ];
 
 export const SKIN_KEY = "destroy-the-game-skin";
@@ -85,11 +93,17 @@ const INK: Record<string, string> = {
   knight: "#3d4450",
   monster: "#4a1f5c",
   golden: "#a87708",
+  pirate: "#3a2416",
+  dino: "#2f7a32",
+  ghost: "#5a6270",
+  crusherkid: "#3b3540",
+  diamond: "#1f8fb0",
 };
 
 /** Draws the player in this skin. `line` draws one (sketchy) line. */
 export function drawFigure(ctx: CanvasRenderingContext2D, skinId: string, p: Pose, line: Line): void {
-  const ink = INK[skinId] ?? INK["stick"]!;
+  // Rainbow: the color keeps changing.
+  const ink = skinId === "rainbow" ? `hsl(${(p.time * 220) % 360}, 85%, 45%)` : INK[skinId] ?? INK["stick"]!;
   const f = p.facing;
   const head = { x: p.cx + p.lean, y: p.top + 6.5 };
   const neck = { x: p.cx + p.lean, y: p.top + 13 };
@@ -100,7 +114,82 @@ export function drawFigure(ctx: CanvasRenderingContext2D, skinId: string, p: Pos
   ctx.strokeStyle = ink;
   ctx.lineWidth = 2.8;
 
+  if (skinId === "ghost") {
+    // A see-through floaty sheet (no legs!).
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    const bob = Math.sin(p.time * 4) * 2;
+    const t = p.top + 1 + bob;
+    const w = 11;
+    ctx.fillStyle = "#f4f7fb";
+    ctx.beginPath();
+    ctx.moveTo(p.cx - w, feet - 3 + bob);
+    ctx.lineTo(p.cx - w, t + 10);
+    ctx.arc(p.cx, t + 10, w, Math.PI, 0);
+    ctx.lineTo(p.cx + w, feet - 3 + bob);
+    // Wavy bottom.
+    for (let i = 4; i >= 0; i--) {
+      const x = p.cx - w + (i / 4) * w * 2;
+      ctx.lineTo(x, feet - 3 + bob + (i % 2 === 0 ? 0 : -5) + Math.sin(p.time * 8 + i) * 1.5);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#1c1c22";
+    for (const dx of [-3.5, 3.5]) {
+      ctx.beginPath();
+      ctx.ellipse(p.cx + f * 3 + dx, t + 9, 1.8, 2.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.ellipse(p.cx + f * 3, t + 16, 2, 2.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
   // ---- Things behind the body ----
+  if (skinId === "dino") {
+    // A tail, and spikes down the back.
+    ctx.fillStyle = "#5cc45f";
+    ctx.beginPath();
+    ctx.moveTo(hip.x - f * 1, hip.y - 4);
+    ctx.quadraticCurveTo(hip.x - f * 12, hip.y + 2, hip.x - f * 20, hip.y + 8 + Math.sin(p.time * 6) * 2);
+    ctx.quadraticCurveTo(hip.x - f * 10, hip.y + 6, hip.x + f * 1, hip.y + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#f2b33d";
+    for (let i = 0; i < 3; i++) {
+      const y = neck.y + 1 + i * 3.2;
+      const x = neck.x - f * 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 1.5);
+      ctx.lineTo(x - f * 6, y + 0.5);
+      ctx.lineTo(x, y + 2.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.lineWidth = 2.8;
+  }
+  if (skinId === "diamond") {
+    // Glittering.
+    for (let i = 0; i < 3; i++) {
+      const a = p.time * 3 + i * 2.1;
+      const sx = p.cx + Math.cos(a) * 15;
+      const sy = p.top + 14 + Math.sin(a * 1.4) * 14;
+      const r = 1.2 + Math.abs(Math.sin(p.time * 6 + i)) * 2;
+      ctx.strokeStyle = "#bff6ff";
+      ctx.lineWidth = 1.4;
+      line(sx - r * 1.6, sy, sx + r * 1.6, sy, 0);
+      line(sx, sy - r * 1.6, sx, sy + r * 1.6, 0);
+    }
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 2.8;
+  }
   if (skinId === "cat") {
     // A curly tail.
     ctx.beginPath();
@@ -363,6 +452,97 @@ function drawHead(
       ctx.fill();
       ctx.lineWidth = 1.6;
       ctx.stroke();
+      ctx.lineWidth = 2.8;
+      break;
+    case "pirate": {
+      circle(6.5, "#f3d9b8");
+      // Bandana with white dots, tied at the back.
+      ctx.fillStyle = "#d0302a";
+      ctx.beginPath();
+      ctx.arc(head.x, head.y - 1, 7, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      eye(head.x - 3, head.y - 4, 0.9, "#fff");
+      eye(head.x + 2, head.y - 5, 0.9, "#fff");
+      line(head.x - f * 6, head.y - 2, head.x - f * 11, head.y + 2, 0.2);
+      line(head.x - f * 6, head.y - 2, head.x - f * 10, head.y - 5, 0.2);
+      // Eye patch on the front eye.
+      ctx.strokeStyle = "#1c1c22";
+      ctx.lineWidth = 1.2;
+      line(head.x - f * 6, head.y - 3, head.x + f * 6, head.y + 1, 0);
+      eye(head.x + f * 3, head.y + 0.5, 2.2, "#1c1c22");
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.8;
+      break;
+    }
+    case "dino":
+      // A big green head with a long snout and little teeth.
+      ctx.fillStyle = "#5cc45f";
+      ctx.beginPath();
+      ctx.ellipse(head.x + f * 3, head.y, 9, 6.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      eye(head.x + f * 4, head.y - 2.5, 1.6, "#1c1c22");
+      ctx.fillStyle = "#fff";
+      for (let i = 0; i < 3; i++) {
+        const x = head.x + f * (5 + i * 2.6);
+        ctx.beginPath();
+        ctx.moveTo(x - 1, head.y + 2.5);
+        ctx.lineTo(x + 1, head.y + 2.5);
+        ctx.lineTo(x, head.y + 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+    case "crusherkid": {
+      // A tiny crusher: dark block, angry red eyes, teeth on the bottom.
+      ctx.fillStyle = "#3b3540";
+      ctx.fillRect(head.x - 8, head.y - 7.5, 16, 14);
+      ctx.strokeStyle = "#141016";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(head.x - 8, head.y - 7.5, 16, 14);
+      eye(head.x - 3.5, head.y - 1.5, 1.8, "#ff3b30");
+      eye(head.x + 3.5, head.y - 1.5, 1.8, "#ff3b30");
+      ctx.lineWidth = 1.4;
+      line(head.x - 6.5, head.y - 6, head.x - 2, head.y - 4, 0);
+      line(head.x + 6.5, head.y - 6, head.x + 2, head.y - 4, 0);
+      ctx.fillStyle = "#f4f0e6";
+      for (let i = 0; i < 4; i++) {
+        const x = head.x - 8 + (i + 0.5) * 4;
+        ctx.beginPath();
+        ctx.moveTo(x - 2, head.y + 6.5);
+        ctx.lineTo(x + 2, head.y + 6.5);
+        ctx.lineTo(x, head.y + 9.5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 2.8;
+      break;
+    }
+    case "rainbow":
+      circle(6.5, `hsl(${(time * 220 + 180) % 360}, 90%, 70%)`);
+      eye(head.x + f * 3, head.y - 0.5, 1.5, "#1c1c22");
+      break;
+    case "diamond":
+      // A gem for a head.
+      ctx.fillStyle = "#7ff0ff";
+      ctx.beginPath();
+      ctx.moveTo(head.x - 7, head.y - 3);
+      ctx.lineTo(head.x - 4, head.y - 8);
+      ctx.lineTo(head.x + 4, head.y - 8);
+      ctx.lineTo(head.x + 7, head.y - 3);
+      ctx.lineTo(head.x, head.y + 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      line(head.x - 7, head.y - 3, head.x + 7, head.y - 3, 0);
+      line(head.x - 2, head.y - 8, head.x, head.y + 8, 0);
+      eye(head.x + f * 2.5, head.y - 1, 1.4, "#0c3d4f");
       ctx.lineWidth = 2.8;
       break;
     default:
