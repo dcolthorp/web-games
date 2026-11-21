@@ -126,6 +126,8 @@ interface Crusher {
   slot: number; // its turn in the pattern
   wasDown: boolean;
   dir: "down" | "right" | "left"; // side crushers (> and <) slam sideways
+  cells: [number, number][]; // its exact shape (Oscar draws crushers in any shape)
+  has: Set<string>; // "x,y" of every cell, for quick lookups
 }
 const MAX_BOMBS = 3;
 const BLAST = T * 1.6; // how far a bomb reaches
@@ -1731,11 +1733,68 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    // Oscar made this one himself in the level editor (2026-11-21). The fake exit
+    // right under the EXIT was taken out (Oscar's OK) so it can be reached fairly.
+    sign: "...",
+    name: "Test 24: Death Staircase",
+    crush: { gap: 0.6, order: [0, 1, 2], pause: 10 },
+    map: [
+      "##################YYYY##OOOOOOOO",
+      "#VVVVVVVVVVVV.....x.VV..VV.....O",
+      "#VVVVVVVVVVVV.....x.VV..VV..F..O",
+      "#VVVVVVVVVVVV.....x.........X..O",
+      "#VVVVVVVVVVVV.....G............O",
+      "#VVVVVVVVVVVV.....o.........F..O",
+      "#VVVVVVVVVVVV....#OOOOOOOOOOOOOO",
+      "#VVVVVVVVVVVV.>................#",
+      "#VVVVVVVVVVVV..]...............#",
+      "#VVVVVVVVVVVV...<..............#",
+      "#VVV.VVVV.VVV..[...............#",
+      "#VVV.VVVV.VVV.>................#",
+      "#..............]...............#",
+      "#...............<..............#",
+      "#..............[...............#",
+      "#.............>................#",
+      "#..............]...............#",
+      "#...............<..............#",
+      "#..............[...............#",
+      "#.............>................#",
+      "#..............]...............#",
+      "#...............<..............#",
+      "#..............[...............#",
+      "P..............................#",
+      "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK#",
+      "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^#",
+    ],
+  },
+  {
+    sign: "See the gaps between its teeth? Hide there.",
+    name: "Test 25: Big Teeth",
+    signs: ["See the gaps between its teeth? Hide there. Not the spiky ones.", "Okay, that one was kind of fair."],
+    crush: { gap: 0.6, order: [0], pause: 0.8 },
+    map: [
+      "################################",
+      "#...VVVVVVVVVVVVVVVVVVVVVVV....#",
+      "#...V.V.V.V.V.V.V.V.V.V.V.V....#",
+      "#...V.V.V.V.V.V.V.V.V.V.V.V....#",
+      "#...V.V.V.V.V.V.V.V.V.V.V.V....#",
+      "#...V.V.V.V.V.V.V.V.V.V.V.V....#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#P?.........................?.X#",
+      "#########^#####^#####^##########",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "73 LEVELS DOWN!",
-  lines: ["You climbed all the way up.", "The next tests are coming soon..."],
+  title: "75 LEVELS DOWN!",
+  lines: ["You hid from the Big Teeth.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -2353,7 +2412,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   function reachExit(): void {
-    if (clearedAt) return;
+    // (A fake exit got you at the same moment? Then it doesn't count.)
+    if (clearedAt || deadUntil) return;
     clearedAt = time;
     sfx("exit");
     const next = Math.min(levelIndex + 1, LEVELS.length - 1);
@@ -2828,13 +2888,15 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         const ch = grid[ty]?.[tx] ?? "";
         if (!"V<>".includes(ch) || !ch || seen.has(`${tx},${ty}`)) continue;
         const dir = ch === ">" ? "right" : ch === "<" ? "left" : "down";
-        const c: Crusher = { x0: tx, x1: tx, y0: ty, y1: ty, drop: 0, slot: 0, wasDown: false, dir };
+        const c: Crusher = { x0: tx, x1: tx, y0: ty, y1: ty, drop: 0, slot: 0, wasDown: false, dir, cells: [], has: new Set() };
         const stack: [number, number][] = [[tx, ty]];
         while (stack.length) {
           const [x, y] = stack.pop()!;
           const key = `${x},${y}`;
           if (seen.has(key) || grid[y]?.[x] !== ch) continue;
           seen.add(key);
+          c.cells.push([x, y]);
+          c.has.add(key);
           c.x0 = Math.min(c.x0, x); c.x1 = Math.max(c.x1, x);
           c.y0 = Math.min(c.y0, y); c.y1 = Math.max(c.y1, y);
           stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
@@ -2842,26 +2904,24 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         found.push(c);
       }
     }
-    for (const c of found) {
-      for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) grid[y]![x] = ".";
-    }
+    for (const c of found) for (const [x, y] of c.cells) grid[y]![x] = ".";
     // It slams until it hits something solid (a floor, or a wall for side crushers).
     const stops = (x: number, y: number): boolean => "#CMUOYZKi".includes(grid[y]?.[x] ?? "#");
+    // Every part of the shape counts: it stops as soon as ANY part would hit.
     for (const c of found) {
       let gap = Math.max(rows, COLS);
-      if (c.dir === "down") {
-        for (let x = c.x0; x <= c.x1; x++) {
-          let y = c.y1 + 1;
-          while (y < rows && !stops(x, y)) y++;
-          gap = Math.min(gap, y - c.y1 - 1);
+      const [sx, sy] = c.dir === "down" ? [0, 1] : c.dir === "right" ? [1, 0] : [-1, 0];
+      for (const [cx, cy] of c.cells) {
+        if (c.has.has(`${cx + sx},${cy + sy}`)) continue; // not a front edge
+        let n = 0;
+        let x = cx + sx;
+        let y = cy + sy;
+        while (x >= 0 && x < COLS && y < rows && !stops(x, y)) {
+          n++;
+          x += sx;
+          y += sy;
         }
-      } else {
-        const step = c.dir === "right" ? 1 : -1;
-        for (let y = c.y0; y <= c.y1; y++) {
-          let x = c.dir === "right" ? c.x1 + 1 : c.x0 - 1;
-          while (x >= 0 && x < COLS && !stops(x, y)) x += step;
-          gap = Math.min(gap, Math.abs(x - (c.dir === "right" ? c.x1 : c.x0)) - 1);
-        }
+        gap = Math.min(gap, n);
       }
       c.drop = gap * T;
     }
@@ -2919,17 +2979,126 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         }
       }
       c.wasDown = down;
-      // Touch a crusher and you're squashed (dashing doesn't save you).
-      const x = c.x0 * T + dx;
-      const y = c.y0 * T + dy;
-      const w = (c.x1 - c.x0 + 1) * T;
-      const h = (c.y1 - c.y0 + 1) * T;
-      if (p.x + PW > x + 3 && p.x < x + w - 3 && p.y + PH > y + 3 && p.y < y + h - 1) die();
+      // Touch any part of a crusher and you're squashed (dashing doesn't save you).
+      for (const [cx, cy] of c.cells) {
+        const x = cx * T + dx;
+        const y = cy * T + dy;
+        if (p.x + PW > x + 3 && p.x < x + T - 3 && p.y + PH > y + 3 && p.y < y + T - 1) {
+          die();
+          break;
+        }
+      }
     }
+  }
+
+  // A crusher in any shape Oscar draws (not just a rectangle).
+  function drawShapedCrusher(c: Crusher, warn: boolean, ox: number, oy: number): void {
+    const [sx, sy] = c.dir === "down" ? [0, 1] : c.dir === "right" ? [1, 0] : [-1, 0];
+    const inShape = (x: number, y: number): boolean => c.has.has(`${x},${y}`);
+    // Chains from the ceiling (or the wall) to its two ends.
+    ctx.strokeStyle = "#5a5560";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    if (c.dir === "down") {
+      for (const col of [c.x0, c.x1]) {
+        const top = Math.min(...c.cells.filter(([x]) => x === col).map(([, y]) => y));
+        ctx.beginPath();
+        ctx.moveTo(col * T + T / 2 + ox, 0);
+        ctx.lineTo(col * T + T / 2 + ox, top * T + oy);
+        ctx.stroke();
+      }
+    } else {
+      for (const row of [c.y0, c.y1]) {
+        const xs = c.cells.filter(([, y]) => y === row).map(([x]) => x);
+        const back = c.dir === "right" ? Math.min(...xs) * T : (Math.max(...xs) + 1) * T;
+        ctx.beginPath();
+        ctx.moveTo(c.dir === "right" ? 0 : WORLD_W, row * T + T / 2 + oy);
+        ctx.lineTo(back + ox, row * T + T / 2 + oy);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    for (const [cx, cy] of c.cells) {
+      const x = cx * T + ox;
+      const y = cy * T + oy;
+      // Where this part is going to land.
+      if (warn && !inShape(cx + sx, cy + sy)) {
+        ctx.fillStyle = `rgba(232, 66, 58, ${0.18 + 0.15 * Math.sin(time * 30)})`;
+        if (c.dir === "down") ctx.fillRect(cx * T, (cy + 1) * T, T, c.drop);
+        else if (c.dir === "right") ctx.fillRect((cx + 1) * T, cy * T, c.drop, T);
+        else ctx.fillRect(cx * T - c.drop, cy * T, c.drop, T);
+      }
+      ctx.fillStyle = "#3b3540";
+      ctx.fillRect(x, y, T, T);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.lineWidth = 1.2;
+      for (let i = 6; i < T; i += 12) sketchLine(x + i, y + T, x + i + 10, y, 0.8);
+      // Ink only on the outside edges, so it looks like one big shape.
+      ctx.strokeStyle = "#141016";
+      ctx.lineWidth = 3;
+      const edge = (x1: number, y1: number, x2: number, y2: number): void => {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      };
+      if (!inShape(cx, cy - 1)) edge(x, y, x + T, y);
+      if (!inShape(cx, cy + 1)) edge(x, y + T, x + T, y + T);
+      if (!inShape(cx - 1, cy)) edge(x, y, x, y + T);
+      if (!inShape(cx + 1, cy)) edge(x + T, y, x + T, y + T);
+      // Teeth on every front edge.
+      if (!inShape(cx + sx, cy + sy)) {
+        ctx.fillStyle = "#f4f0e6";
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          if (c.dir === "down") {
+            const tx = x + (i + 0.5) * (T / 3);
+            ctx.moveTo(tx - T / 6 + 1, y + T);
+            ctx.lineTo(tx + T / 6 - 1, y + T);
+            ctx.lineTo(tx, y + T + 8);
+          } else {
+            const ty = y + (i + 0.5) * (T / 3);
+            const ex = c.dir === "right" ? x + T : x;
+            ctx.moveTo(ex, ty - T / 6 + 1);
+            ctx.lineTo(ex, ty + T / 6 - 1);
+            ctx.lineTo(ex + sx * 8, ty);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
+    // Angry eyes on the part nearest the middle.
+    const mx = (c.x0 + c.x1 + 1) / 2;
+    const my = (c.y0 + c.y1 + 1) / 2;
+    let best = c.cells[0]!;
+    for (const cell of c.cells) {
+      if (Math.hypot(cell[0] + 0.5 - mx, cell[1] + 0.5 - my) < Math.hypot(best[0] + 0.5 - mx, best[1] + 0.5 - my)) best = cell;
+    }
+    const ex = best[0] * T + ox;
+    const ey = best[1] * T + oy + T * 0.45;
+    ctx.fillStyle = warn || crushDown(c) > 0 ? "#ff3b30" : "#c0392b";
+    for (const fx of [0.3, 0.7]) {
+      ctx.beginPath();
+      ctx.arc(ex + T * fx, ey, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#141016";
+    ctx.lineWidth = 2.5;
+    sketchLine(ex + T * 0.12, ey - 10, ex + T * 0.4, ey - 5, 0.3);
+    sketchLine(ex + T * 0.88, ey - 10, ex + T * 0.6, ey - 5, 0.3);
   }
 
   function drawCrushers(): void {
     for (const c of crushers) {
+      if (c.cells.length !== (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1)) {
+        const ph2 = crushPhase(c);
+        const warn2 = ph2 >= 0 && ph2 < CRUSH_WARN;
+        const { dx, dy } = crushOffset(c);
+        const wob = warn2 ? Math.sin(time * 60) * 2.5 : 0;
+        drawShapedCrusher(c, warn2, dx + (c.dir === "down" ? wob : 0), dy + (c.dir === "down" ? 0 : wob));
+        continue;
+      }
       const ph = crushPhase(c);
       const warn = ph >= 0 && ph < CRUSH_WARN;
       const { dx, dy } = crushOffset(c);
