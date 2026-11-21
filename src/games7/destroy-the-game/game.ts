@@ -166,7 +166,10 @@ export interface LevelDef {
   // Crushers slam in a pattern: `order` gives each crusher (left to right) its
   // turn, and crushers with the same number slam together. `gap` is the time
   // between turns.
-  crush?: { gap: number; order: number[]; pause?: number };
+  // slam: seconds it takes to come down (normal is a fast 0.14).
+  // throughSmudge: crushers go right through smudged blocks (Oscar).
+  // throughAll: crushers go through EVERY block, all the way to the edge (Oscar).
+  crush?: { gap: number; order: number[]; pause?: number; slam?: number; throughSmudge?: boolean; throughAll?: boolean };
   // SPAM (Oscar's Level 72): walls lock you in, a crusher slowly comes down, and
   // you have to click `clicks` times before it squashes you (it takes `seconds`).
   spam?: { clicks: number; seconds: number };
@@ -1851,12 +1854,44 @@ const LEVELS: LevelDef[] = [
       "###Z########################Z###",
       "################################",
     ],
+  },  {
+    sign: "...",
+    name: "Test 28: OBBYiously",
+    crush: { gap: 0.7, order: [0, 1, 2], pause: 0, slam: 120, throughSmudge: true, throughAll: true },
+    map: [
+      "################################",
+      "#>>>.......M...................#",
+      "#>>>.......M...................#",
+      "#>>>......SM...................#",
+      "#>>>.......M.FFFX..............#",
+      "#>>>...1111M######.............#",
+      "#>>>..]....M...................#",
+      "#>>>..[....MU..................#",
+      "#>>>..]....MU..................#",
+      "#>>>..[....MU..................#",
+      "#>>>..].^^.MU..................#",
+      "#>>>..#####MU...^..S...........#",
+      "#>>>.......MU]..1111...........#",
+      "#>>>.......MM..................#",
+      "#>>>..................1...1....#",
+      "#>>>...........................#",
+      "#>>>..........................^#",
+      "#>>>........................222#",
+      "#>>>...........................#",
+      "#>>>...........................#",
+      "#>>>.................2....2....#",
+      "#>>>...........................#",
+      "#>>>...............2...........#",
+      "#>>>..P.........2..............#",
+      "################################",
+      "################################",
+    ],
   },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "77 LEVELS DOWN!",
-  lines: ["Hide and Seek: you won.", "The next tests are coming soon..."],
+  title: "78 LEVELS DOWN!",
+  lines: ["OBBYiously: you won.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -2999,7 +3034,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     }
     for (const c of found) for (const [x, y] of c.cells) grid[y]![x] = ".";
     // It slams until it hits something solid (a floor, or a wall for side crushers).
-    const stops = (x: number, y: number): boolean => "#CMUOYZKi".includes(grid[y]?.[x] ?? "#");
+    const stopTiles = def.crush?.throughAll ? "" : def.crush?.throughSmudge ? "#CMOYZKi" : "#CMUOYZKi";
+    const stops = (x: number, y: number): boolean => stopTiles.includes(grid[y]?.[x] ?? "#");
     // Every part of the shape counts: it stops as soon as ANY part would hit.
     for (const c of found) {
       let gap = Math.max(rows, COLS);
@@ -3023,17 +3059,27 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     return found;
   }
 
+  /** Seconds a crusher takes to come down (Oscar: some come down slowly, like in SPAM). */
+  function dropTime(): number {
+    const s = levelDef().crush?.slam;
+    return s && s > 0 ? s : CRUSH_DROP;
+  }
+  /** Seconds one whole slam takes: wobble, come down, stay down, go back up. */
+  function slamTime(): number {
+    return CRUSH_WARN + dropTime() + CRUSH_DOWN + CRUSH_RISE;
+  }
+
   function crushCycle(): number {
     const gap = levelDef().crush?.gap ?? 0.6;
     const last = Math.max(0, ...crushers.map((c) => c.slot));
-    return last * gap + CRUSH_LEN + (levelDef().crush?.pause ?? CRUSH_PAUSE);
+    return last * gap + slamTime() + (levelDef().crush?.pause ?? CRUSH_PAUSE);
   }
 
   /** Seconds into this crusher's own slam (or -1 when it's just hanging there). */
   function crushPhase(c: Crusher): number {
     const gap = levelDef().crush?.gap ?? 0.6;
     const t = (time % crushCycle()) - c.slot * gap;
-    return t >= 0 && t < CRUSH_LEN ? t : -1;
+    return t >= 0 && t < slamTime() ? t : -1;
   }
 
   /** How far down the crusher is right now, in pixels. */
@@ -3041,8 +3087,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     let t = crushPhase(c);
     if (t < CRUSH_WARN) return 0;
     t -= CRUSH_WARN;
-    if (t < CRUSH_DROP) return c.drop * (t / CRUSH_DROP) ** 2;
-    t -= CRUSH_DROP;
+    const drop = dropTime();
+    if (t < drop) return c.drop * (drop > 0.5 ? t / drop : (t / drop) ** 2); // slow ones come down steadily
+    t -= drop;
     if (t < CRUSH_DOWN) return c.drop;
     t -= CRUSH_DOWN;
     return c.drop * Math.max(0, 1 - t / CRUSH_RISE);
@@ -5336,6 +5383,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     testGems,
     skin: skinId,
     crush: () => crushers.map((c) => `${c.x0}:${crushPhase(c).toFixed(2)}`).join(" "),
+    crushDrops: () => crushers.map((c) => c.drop / T),
     bombs: () => bombs.map((b) => `${Math.round(b.x)},${Math.round(b.y)}${b.vx ? ">" : ""}${b.armed ? "!" : ""}`).join(" "),
     deaths,
     row: (y: number) => grid[y]?.join(""),
