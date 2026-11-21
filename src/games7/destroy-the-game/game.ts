@@ -170,6 +170,9 @@ export interface LevelDef {
   // SPAM (Oscar's Level 72): walls lock you in, a crusher slowly comes down, and
   // you have to click `clicks` times before it squashes you (it takes `seconds`).
   spam?: { clicks: number; seconds: number };
+  // SURVIVE (Oscar's idea): a big sign counts down, and the EXIT stays locked
+  // until the timer hits 0.
+  survive?: { seconds: number };
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -1790,11 +1793,47 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    // Oscar made this one himself in the level editor (2026-11-21): survive 60
+    // seconds against 12 monsters and every crusher. No EXIT: surviving wins.
+    sign: "...",
+    name: "Test 26: GOODBYE",
+    crush: { gap: 0.6, order: [0], pause: 0.8 },
+    survive: { seconds: 60 },
+    map: [
+      "################################",
+      "#...VVVV..VVVV..VVVV..VVVV.....#",
+      "#...VVVV..VVVV..VVVV..VVVV.....#",
+      "#...VVVV..VVVV..VVVV..VVVVC....#",
+      "#...VVVV..VVVV..VVVV..VVVV.....<",
+      "#.............UU...............<",
+      "#.............UU...............<",
+      "#..........11......C.......CCC.<",
+      ">....11....1...............CCC.#",
+      ">...................2...1..CCC.#",
+      ">....1...1...C.................#",
+      ">.......1...CCC......U...MMM...#",
+      "#...........CCC2..11.....M.M...<",
+      "#........1..CCC...1U.1...MMM...<",
+      "#UUU.....1.....2.......2....1..<",
+      "#..U.1...........U.............<",
+      ">..U........1......2.......MMMM#",
+      ">..U..................C.......M#",
+      ">............1.2..............M#",
+      ">........2....1....21......MMMM#",
+      ">..............2...............#",
+      "#....2...........1........2....#",
+      "#............2....2............#",
+      "#P.............................#",
+      "####^^^ZZZZ^^^ZZZZ^^^ZZZZ^^^####",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "75 LEVELS DOWN!",
-  lines: ["You hid from the Big Teeth.", "The next tests are coming soon..."],
+  title: "76 LEVELS DOWN!",
+  lines: ["You survived GOODBYE. Somehow.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -1907,6 +1946,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let boss: Boss | null = null;
   let spam: { count: number; t: number; done: boolean; doneT: number; cageX: number } | null = null;
   const SPAM_DELAY = 1.2; // a moment to read the sign before the crusher starts coming
+  let survive: { left: number; done: boolean } | null = null;
   let hatchSeen = false; // the hatch cutscene only plays the first time
   let ethereal = false; // in the Ethereal Dimension? (press A, from Level 41 on)
   const gems = readGems(); // every gem you've collected (not in the demo or Test Level)
@@ -2122,6 +2162,34 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     ctx.font = "30px 'Patrick Hand', 'Comic Sans MS', cursive";
     ctx.fillStyle = "#2b2725";
     ctx.fillText(`${Math.min(sp.count, goal)} / ${goal} clicks`, 0, 32);
+    ctx.restore();
+  }
+
+  // ---- SURVIVE ----
+  function drawSurvive(): void {
+    const sv = survive;
+    if (!sv) return;
+    const x = WORLD_W / 2;
+    const y = camY + T * 1.7;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(sv.done ? 0 : -0.04 + 0.02 * Math.sin(time * 3));
+    ctx.fillStyle = sv.done ? "#9be59b" : "#ffe08a";
+    ctx.fillRect(-200, -48, 400, 96);
+    ctx.strokeStyle = "#5b3d1c";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(-200, -48, 400, 96);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const hurry = !sv.done && sv.left <= 5;
+    const pulse = sv.done ? 1 : 1 + (hurry ? 0.1 : 0.05) * Math.sin(time * (hurry ? 16 : 6));
+    ctx.fillStyle = sv.done ? "#1f6b2a" : "#c0392b";
+    ctx.font = `${Math.round(40 * pulse)}px 'Bungee', 'Patrick Hand', cursive`;
+    ctx.fillText(sv.done ? "YOU SURVIVED!" : "SURVIVE!", 0, -14);
+    ctx.font = "28px 'Patrick Hand', 'Comic Sans MS', cursive";
+    ctx.fillStyle = "#2b2725";
+    const hasExit = grid.some((row) => row.includes("X"));
+    ctx.fillText(sv.done ? (hasExit ? "The EXIT is open!" : "Level beaten!") : `${Math.ceil(sv.left)} seconds left`, 0, 28);
     ctx.restore();
   }
 
@@ -2414,6 +2482,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function reachExit(): void {
     // (A fake exit got you at the same moment? Then it doesn't count.)
     if (clearedAt || deadUntil) return;
+    if (survive && !survive.done) return; // locked until you've survived
     clearedAt = time;
     sfx("exit");
     const next = Math.min(levelIndex + 1, LEVELS.length - 1);
@@ -2609,6 +2678,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     boss = null;
     monster = makeMonster(def, false);
     spam = def.spam ? { count: 0, t: 0, done: false, doneT: 0, cageX: player.x + PW / 2 } : null;
+    survive = def.survive ? { left: def.survive.seconds, done: false } : null;
     if (spam) keys.clear();
     extras = makeExtras(def, false);
     crumbling = {};
@@ -3604,6 +3674,17 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     stepMonster(dt);
     stepBoss(dt);
     stepSpam(dt);
+    if (survive && !survive.done && !deadUntil && !clearedAt) {
+      survive.left -= dt;
+      if (survive.left <= 0) {
+        survive.left = 0;
+        survive.done = true;
+        sfx("ding");
+        // No EXIT in the level? Then surviving IS how you win (Oscar's idea).
+        if (!grid.some((row) => row.includes("X"))) reachExit();
+        else sfx("exit");
+      }
+    }
     const p = player;
     p.coyote = p.onGround ? COYOTE : Math.max(0, p.coyote - dt);
     p.jumpBuffer = Math.max(0, p.jumpBuffer - dt);
@@ -4194,6 +4275,23 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           ctx.textAlign = "center";
           if (ethereal) ctx.fillStyle = "#9be59b"; // easier to see on the night sky
           ctx.fillText("EXIT", x + T / 2, y - T * 0.72);
+          if (survive && !survive.done) {
+            // Locked: chains across the door and a padlock.
+            ctx.strokeStyle = "#5a5560";
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 3]);
+            sketchLine(x + 2, y - T * 0.5, x + T - 2, y + T * 0.9, 0.5);
+            sketchLine(x + T - 2, y - T * 0.5, x + 2, y + T * 0.9, 0.5);
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#c9a227";
+            ctx.fillRect(x + T / 2 - 7, y + T * 0.15, 14, 11);
+            ctx.strokeStyle = "#5b3d1c";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x + T / 2 - 7, y + T * 0.15, 14, 11);
+            ctx.beginPath();
+            ctx.arc(x + T / 2, y + T * 0.15, 5, Math.PI, 0);
+            ctx.stroke();
+          }
         } else if (c === "U") {
           // A slightly smudged wall: smeary pencil. Water makes it fade away.
           const key = `${tx},${ty}`;
@@ -4561,6 +4659,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawMonster();
     drawBoss();
     drawSpam();
+    drawSurvive();
     ctx.restore();
     if (crushFlash > 0) {
       ctx.fillStyle = `rgba(232, 66, 58, ${crushFlash * 0.22})`;
@@ -5219,7 +5318,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     row: (y: number) => grid[y]?.join(""),
     monster: () => monster && { mode: monster.mode, dist: Math.round(Math.hypot(monster.x - player.x - PW / 2, monster.y - player.y - PH / 2)) },
     monsters: () => allMonsters().map((m) => m.mode).join(" "),
+    monsterSpots: () => allMonsters().filter((m) => m.mode === "chase").map((m) => [Math.round(m.x), Math.round(m.y)]),
     spam: () => spam && { count: spam.count, done: spam.done, gap: Math.round(player.y - spamBottom()) },
+    survive: () => survive && { left: Math.round(survive.left * 10) / 10, done: survive.done },
     click: () => spamClick(),
     boss: () => boss && { round: boss.round, r: Math.round(boss.r), t: boss.t, done: boss.done },
     doors: () =>
