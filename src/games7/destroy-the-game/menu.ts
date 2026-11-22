@@ -35,13 +35,14 @@ window.addEventListener("keydown", (e) => {
 
 // The Test Level lives in test-level.ts, which is never committed (it's in
 // .gitignore). If the file isn't there, this is empty and the button hides.
-const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef; TEST_DOORS?: LevelDef; TEST_SPAM?: LevelDef; TEST_SURVIVE?: LevelDef }>("./test-level.ts", { eager: true });
+const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef; TEST_DOORS?: LevelDef; TEST_SPAM?: LevelDef; TEST_SURVIVE?: LevelDef; TEST_BOMB?: LevelDef }>("./test-level.ts", { eager: true });
 const TEST_LEVEL = Object.values(testFiles)[0]?.TEST_LEVEL;
 const TEST_SHUFFLE = Object.values(testFiles)[0]?.TEST_SHUFFLE;
 const TEST_MONSTER = Object.values(testFiles)[0]?.TEST_MONSTER;
 const TEST_DOORS = Object.values(testFiles)[0]?.TEST_DOORS;
 const TEST_SPAM = Object.values(testFiles)[0]?.TEST_SPAM;
 const TEST_SURVIVE = Object.values(testFiles)[0]?.TEST_SURVIVE;
+const TEST_BOMB = Object.values(testFiles)[0]?.TEST_BOMB;
 
 const MOVES = [
   { level: 1, name: "Dash", how: "Hit <b>D</b>. Hold it longer to go farther (half a second max). Flies over spikes and smashes cracked walls." },
@@ -93,6 +94,9 @@ export function showMenu(screen: HTMLCanvasElement): void {
   const surviveBtn = document.getElementById("menu-test-survive")!;
   surviveBtn.hidden = !TEST_SURVIVE;
   surviveBtn.onclick = () => startAt(screen, 0, TEST_SURVIVE);
+  const bombBtn = document.getElementById("menu-test-bomb")!;
+  bombBtn.hidden = !TEST_BOMB;
+  bombBtn.onclick = () => startAt(screen, 0, TEST_BOMB);
   menu.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((btn) => {
     btn.onclick = () => showPage(btn.dataset["page"]!);
   });

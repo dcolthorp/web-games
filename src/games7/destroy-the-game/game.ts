@@ -144,6 +144,7 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // (connected V tiles make one giant crusher), > side crusher that slams right,
 // < side crusher that slams left, A up crusher that slams up from the floor,
 // R ring crusher (draw a ring; its hole slowly closes up, teeth pointing in),
+// D bomb table (walk into it to defuse the bomb: type the code),
 // i thin post (1 pixel jump),
 // [ thin post only in the normal dimension, ] thin post only in the Ethereal
 // Dimension, P start, X exit, ? sign.
@@ -181,6 +182,11 @@ export interface LevelDef {
   // SURVIVE (Oscar's idea): a big sign counts down, and the EXIT stays locked
   // until the timer hits 0.
   survive?: { seconds: number };
+  // BOMB TABLE (D tile, Oscar's idea): walk into it, a bomb opens up with a
+  // keypad. Type today's code (the sticky note has a hint) before the timer
+  // runs out. Wrong code or too slow: BOOM. Defusing it wins the level (or
+  // unlocks the EXIT, if there is one).
+  defuse?: { code: string; hint: string; seconds: number };
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -2068,11 +2074,67 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "AHHHHHHH A BOMB",
+    name: "Test 46: Defuse it!",
+    crush: { gap: 0.8, order: [1, 1, 0], pause: 0.6 },
+    defuse: { code: "3041", hint: "(1000 x 3) x 1.013̄ x 1.000328̅9̅4̅7̅3̅6̅8̅4̅2̅1̅0̅5̅2̅6̅3̅1̅5̅7̅", seconds: 60 },
+    map: [
+      "################################",
+      "#........V.........V...........#",
+      "#........V.........V...........#",
+      "#........V.........V...........#",
+      "#........V.........V...........#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..........MMMMMMM.............#",
+      "#..........MUUUUUM.............#",
+      "#S.........MUCCCUM.............#",
+      "#P?........MUCDCUM.............#",
+      "##########^#######^#############",
+      "################################",
+    ],
+  },
+  {
+    sign: "There's a BOMB at the very top! Climb up and defuse it before the timer runs out.",
+    name: "Test 37: Tick Tock Tower",
+    crush: { gap: 0.7, order: [], pause: 0.8 },
+    defuse: { code: "24", hint: "How many legs does a spider have, times how many sides does a triangle have?", seconds: 45 },
+    map: [
+      "################################",
+      "#............VV................#",
+      "#...D........VV................#",
+      "##########.....................#",
+      "#..............................#",
+      "#..............................#",
+      "#............####..............#",
+      "#..............................#",
+      "#..............................#",
+      "#...................####......<#",
+      "#.............................<#",
+      "#.............................<#",
+      "#........................1111..#",
+      "#..............................#",
+      "#..............................#",
+      "#..................2222........#",
+      "#..............................#",
+      "#..............................#",
+      "#............####..............#",
+      "#..............................#",
+      "#..............................#",
+      "#......####....................#",
+      "#..............................#",
+      "#.P?........AA.................#",
+      "################################",
+      "################################",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "85 LEVELS DOWN!",
-  lines: ["Bomb Squad: you won.", "The next tests are coming soon..."],
+  title: "87 LEVELS DOWN!",
+  lines: ["Tick Tock Tower: you won.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -2188,6 +2250,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let spam: { count: number; t: number; done: boolean; doneT: number; cageX: number } | null = null;
   const SPAM_DELAY = 1.2; // a moment to read the sign before the crusher starts coming
   let survive: { left: number; done: boolean } | null = null;
+  let defuse: { open: boolean; typed: string; left: number; done: boolean; doneAt: number; wrongAt: number } | null = null;
+  const defuseDef = (): { code: string; hint: string; seconds: number } =>
+    levelDef().defuse ?? { code: "1234", hint: "1, 2, 3, 4", seconds: 30 };
   let hatchSeen = false; // the hatch cutscene only plays the first time
   let ethereal = false; // in the Ethereal Dimension? (press A, from Level 41 on)
   const gems = readGems(); // every gem you've collected (not in the demo or Test Level)
@@ -2196,7 +2261,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   let warpFlash = 0; // the screen glows for a moment when you switch
   const locked = (): boolean =>
     (shuffle !== null && shuffle.phase !== "pick") || allMonsters().some((m) => m.mode === "hatch") || boss !== null ||
-    (spam !== null && !spam.done);
+    (spam !== null && !spam.done) || (defuse !== null && defuse.open);
 
   // Hatches in a level that isn't one of the monster levels: a monster climbs
   // out of every single one.
@@ -2736,6 +2801,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // (A fake exit got you at the same moment? Then it doesn't count.)
     if (clearedAt || deadUntil) return;
     if (survive && !survive.done) return; // locked until you've survived
+    if (defuse && !defuse.done) return; // locked until the bomb is defused
     clearedAt = time;
     sfx("exit");
     const next = Math.min(levelIndex + 1, LEVELS.length - 1);
@@ -2933,6 +2999,10 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     monster = makeMonster(def, false);
     spam = def.spam ? { count: 0, t: 0, done: false, doneT: 0, cageX: player.x + PW / 2 } : null;
     survive = def.survive ? { left: def.survive.seconds, done: false } : null;
+    // The bomb's timer starts right away, even before you get to the table (Oscar).
+    defuse = def.map.some((r) => r.includes("D"))
+      ? { open: false, typed: "", left: (def.defuse?.seconds ?? 30), done: false, doneAt: 0, wrongAt: 0 }
+      : null;
     if (spam) keys.clear();
     extras = makeExtras(def, false);
     crumbling = {};
@@ -4041,6 +4111,244 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     extras = makeExtras(levelDef(), true);
   }
 
+  // ---- The bomb table (Oscar's idea) ----
+  function openDefuse(): void {
+    if (!defuse) return;
+    defuse.open = true;
+    defuse.typed = "";
+    keys.clear();
+    player.vx = 0;
+    player.dashing = false;
+    sfx("creak");
+  }
+
+  function defuseKey(k: string): void {
+    const d = defuse;
+    if (!d || !d.open || d.done) return;
+    const code = defuseDef().code;
+    if (/^[0-9]$/.test(k)) {
+      if (d.typed.length < code.length) {
+        d.typed += k;
+        sfx("pop");
+      }
+    } else if (k === "backspace") {
+      d.typed = d.typed.slice(0, -1);
+      sfx("clink");
+    } else if (k === "enter") {
+      if (d.typed === code) {
+        d.done = true;
+        d.doneAt = time;
+        sfx("ding");
+        sfx("unlock");
+      } else {
+        explodeBomb(); // wrong code!
+      }
+    }
+  }
+
+  function explodeBomb(): void {
+    if (!defuse) return;
+    defuse.open = false;
+    sfx("boom");
+    sfx("smash");
+    shake = 1;
+    crushFlash = 1;
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 200 + Math.random() * 700;
+      bits.push({
+        x: player.x + PW / 2, y: player.y + PH / 2,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 200,
+        angle: 0, spin: 0, size: 3, color: Math.random() < 0.5 ? "#ffb02e" : "#ff3b30", life: 0.8, spark: true,
+      });
+    }
+    die();
+  }
+
+  // The keypad buttons, in world pixels (same layout for drawing and clicking).
+  const DEFUSE_KX = WORLD_W / 2 - 110; // left edge of the keypad (the sticky note goes to its right)
+  const DEFUSE_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "backspace", "0", "enter"];
+  function defuseButton(i: number): { x: number; y: number; w: number; h: number } {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    return { x: DEFUSE_KX + col * 84, y: 150 + row * 70, w: 74, h: 60 };
+  }
+
+  function defuseClick(wx: number, wy: number): void {
+    if (!defuse || !defuse.open) return;
+    DEFUSE_KEYS.forEach((k, i) => {
+      const b = defuseButton(i);
+      if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) defuseKey(k);
+    });
+  }
+
+  /** The bomb's countdown at the top of the screen, until you defuse it. */
+  function drawBombTimer(): void {
+    const d = defuse;
+    if (!d || d.open || d.done) return;
+    const secs = Math.max(0, Math.ceil(d.left));
+    const hurry = d.left <= 10;
+    const x = WORLD_W - 190;
+    const y = camY + 14;
+    ctx.fillStyle = "#0b0f0b";
+    ctx.fillRect(x, y, 170, 52);
+    ctx.strokeStyle = "#8a8f98";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x, y, 170, 52);
+    ctx.fillStyle = hurry && Math.floor(time * 6) % 2 ? "#ff8a80" : "#ff3b30";
+    ctx.font = "34px 'Bungee', 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`💣 ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, x + 85, y + 28);
+  }
+
+  function drawDefuse(): void {
+    const d = defuse;
+    if (!d || !(d.open || (d.done && time - d.doneAt < 1.3))) return;
+    const def = defuseDef();
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 12, 16, 0.72)";
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    // The case.
+    const px = WORLD_W / 2 - 420;
+    const py = 30;
+    const pw = 840;
+    const ph = 500;
+    ctx.fillStyle = "#3b3540";
+    ctx.fillRect(px, py, pw, ph);
+    ctx.strokeStyle = "#141016";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(px, py, pw, ph);
+    ctx.fillStyle = "#2a252e";
+    ctx.fillRect(px + 16, py + 16, pw - 32, ph - 32);
+    // The bomb: red dynamite sticks taped together, with wires.
+    const bx = px + 60;
+    const by = py + 210;
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = "#c0392b";
+      ctx.fillRect(bx + i * 52, by, 44, 230);
+      ctx.strokeStyle = "#5c120c";
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(bx + i * 52, by, 44, 230);
+    }
+    ctx.fillStyle = "#8a8f98";
+    ctx.fillRect(bx - 6, by + 70, 214, 26);
+    ctx.fillRect(bx - 6, by + 160, 214, 26);
+    for (const [c, off] of [["#e8423a", 0], ["#2f6fd6", 30], ["#f1c40f", 60]] as const) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(bx + 30 + off, by);
+      ctx.bezierCurveTo(bx + 40 + off, by - 60, bx + 230, by - 40, DEFUSE_KX - 8, py + 170 + off);
+      ctx.stroke();
+    }
+    // The timer.
+    const hurry = !d.done && d.left <= 5;
+    ctx.fillStyle = "#0b0f0b";
+    ctx.fillRect(bx, py + 40, 200, 80);
+    ctx.strokeStyle = "#8a8f98";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(bx, py + 40, 200, 80);
+    const secs = Math.max(0, Math.ceil(d.left));
+    ctx.fillStyle = d.done ? "#5cf07a" : hurry && Math.floor(time * 6) % 2 ? "#ff8a80" : "#ff3b30";
+    ctx.font = "56px 'Bungee', 'Courier New', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(d.done ? "--:--" : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, bx + 100, py + 82);
+    // TODAY'S CODE IS: and what you've typed.
+    ctx.fillStyle = "#f4f0e6";
+    ctx.font = "26px 'Bungee', 'Patrick Hand', cursive";
+    ctx.textAlign = "left";
+    ctx.fillText("TODAY'S CODE IS:", DEFUSE_KX, py + 40);
+    const n = def.code.length;
+    const boxW = Math.min(48, 240 / n);
+    for (let i = 0; i < n; i++) {
+      const x = DEFUSE_KX + i * (boxW + 6);
+      ctx.fillStyle = "#0b0f0b";
+      ctx.fillRect(x, py + 62, boxW, 52);
+      ctx.strokeStyle = "#8a8f98";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, py + 62, boxW, 52);
+      ctx.fillStyle = d.done ? "#5cf07a" : "#33e0ff";
+      ctx.font = `${Math.round(boxW * 0.8)}px 'Courier New', monospace`;
+      ctx.textAlign = "center";
+      ctx.fillText(d.typed[i] ?? "_", x + boxW / 2, py + 90);
+    }
+    // The keypad.
+    DEFUSE_KEYS.forEach((k, i) => {
+      const b = defuseButton(i);
+      ctx.fillStyle = k === "enter" ? "#2f9e44" : k === "backspace" ? "#b8860b" : "#d8dde4";
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeStyle = "#141016";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = k === "enter" || k === "backspace" ? "#fff" : "#1c1c22";
+      ctx.font = "30px 'Bungee', 'Patrick Hand', cursive";
+      ctx.textAlign = "center";
+      ctx.fillText(k === "enter" ? "✔" : k === "backspace" ? "⌫" : k, b.x + b.w / 2, b.y + b.h / 2 + 2);
+    });
+    // The sticky note with the hint.
+    ctx.save();
+    ctx.translate(px + pw - 130, py + 200);
+    ctx.rotate(0.06);
+    ctx.fillStyle = "#fff176";
+    ctx.fillRect(-90, -90, 180, 200);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.fillRect(-90, -90, 180, 22);
+    ctx.fillStyle = "#3b2a10";
+    ctx.font = "bold 20px 'Patrick Hand', 'Comic Sans MS', cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("HINT:", 0, -52);
+    ctx.font = "19px 'Patrick Hand', 'Comic Sans MS', cursive";
+    // Split into words, and split any word too long for the note into
+    // pieces (a digit keeps its overline with it).
+    const words: string[] = [];
+    for (const w of def.hint.split(/\s+/)) {
+      const letters = w.match(/.[\u0300-\u036f]*/gu) ?? [w];
+      let piece = "";
+      for (const l of letters) {
+        if (ctx.measureText(piece + l).width > 160 && piece) {
+          words.push(piece);
+          piece = l;
+        } else piece += l;
+      }
+      if (piece) words.push(piece);
+    }
+    let lineText = "";
+    let ly = -24;
+    for (const w of words) {
+      const test = lineText ? `${lineText} ${w}` : w;
+      if (ctx.measureText(test).width > 160 && lineText) {
+        ctx.fillText(lineText, 0, ly);
+        lineText = w;
+        ly += 24;
+      } else lineText = test;
+    }
+    if (lineText) ctx.fillText(lineText, 0, ly);
+    ctx.restore();
+    // How to work it.
+    ctx.fillStyle = "#b9b2c4";
+    ctx.font = "18px 'Patrick Hand', 'Comic Sans MS', cursive";
+    ctx.textAlign = "center";
+    ctx.fillText("Click the buttons (or type numbers), then ✔ (Enter). Wrong code = BOOM.", WORLD_W / 2, py + ph - 28);
+    if (d.done) {
+      ctx.save();
+      ctx.translate(WORLD_W / 2, WORLD_H / 2);
+      ctx.rotate(-0.08);
+      ctx.fillStyle = "#9be59b";
+      ctx.fillRect(-230, -55, 460, 110);
+      ctx.strokeStyle = "#1f6b2a";
+      ctx.lineWidth = 5;
+      ctx.strokeRect(-230, -55, 460, 110);
+      ctx.fillStyle = "#1f6b2a";
+      ctx.font = "64px 'Bungee', 'Patrick Hand', cursive";
+      ctx.textAlign = "center";
+      ctx.fillText("DEFUSED!", 0, 4);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   /** Diamond skin: 4 diamonds fall out at your feet, clink! */
   function dropDiamonds(): void {
     const p = player;
@@ -4134,6 +4442,26 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       return;
     }
 
+    // The bomb ticks the whole time, wherever you are.
+    if (defuse && !defuse.open && !defuse.done) {
+      defuse.left -= dt;
+      if (defuse.left <= 0) {
+        explodeBomb();
+        return;
+      }
+    }
+    // While you're defusing, the world holds still: just the bomb's timer ticks.
+    if (defuse && (defuse.open || (defuse.done && time - defuse.doneAt < 1.3))) {
+      if (defuse.open && !defuse.done) {
+        defuse.left -= dt;
+        if (defuse.left <= 0) explodeBomb();
+      } else if (defuse.done && time - defuse.doneAt + dt >= 1.3) {
+        defuse.open = false;
+        // No EXIT? Defusing it is how you win.
+        if (!grid.some((row) => row.includes("X"))) reachExit();
+      }
+      return;
+    }
     stepShuffle(dt);
     stepMonster(dt);
     stepBoss(dt);
@@ -4364,6 +4692,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // Reached the exit?
     touching(p.x, p.y, (_tx, _ty, c) => {
       if (c === "X") reachExit();
+      if (c === "D" && defuse && !defuse.done && !defuse.open && !deadUntil) openDefuse();
       if (c === "*") collectGem(_tx, _ty);
       // The final fight (in the demo it just counts as the exit). In test rooms
       // it only starts if the monster is out.
@@ -4831,6 +5160,22 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           ctx.beginPath();
           ctx.arc(tipX, tipY, 4.5, 0, Math.PI * 2);
           ctx.fill();
+        } else if (c === "D") {
+          // A little table with a bomb on it.
+          ctx.fillStyle = "#8b5a2b";
+          ctx.fillRect(x + 2, y + T * 0.55, T - 4, 6);
+          ctx.strokeStyle = "#4a2f14";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x + 2, y + T * 0.55, T - 4, 6);
+          sketchLine(x + 7, y + T * 0.55 + 6, x + 7, y + T, 0.4);
+          sketchLine(x + T - 7, y + T * 0.55 + 6, x + T - 7, y + T, 0.4);
+          const safe = defuse?.done;
+          ctx.fillStyle = "#c0392b";
+          for (let i = 0; i < 3; i++) ctx.fillRect(x + 9 + i * 8, y + T * 0.55 - 14, 7, 14);
+          ctx.fillStyle = "#0b0f0b";
+          ctx.fillRect(x + 11, y + T * 0.55 - 22, 18, 9);
+          ctx.fillStyle = safe ? "#5cf07a" : Math.floor(time * 2) % 2 ? "#ff3b30" : "#7a1a14";
+          ctx.fillRect(x + 13, y + T * 0.55 - 20, 14, 5);
         } else if (c === "?") {
           drawLittleSign(x, y, signNum++);
         }
@@ -5144,7 +5489,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawBoss();
     drawSpam();
     drawSurvive();
+    drawBombTimer();
     ctx.restore();
+    drawDefuse();
     if (crushFlash > 0) {
       ctx.fillStyle = `rgba(232, 66, 58, ${crushFlash * 0.22})`;
       ctx.fillRect(0, 0, WORLD_W, WORLD_H);
@@ -5183,6 +5530,11 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   function keyDown(k: string): void {
+    // Defusing a bomb: the keys type the code.
+    if (defuse?.open) {
+      defuseKey(k);
+      return;
+    }
     // In the Door Shuffle you're trapped until the walls open.
     if (k === "s" && boss) {
       bossPress();
@@ -5764,7 +6116,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
   window.addEventListener("resize", resize);
   // SPAM: click (anywhere) as fast as you can.
-  const onPointerDown = (): void => spamClick();
+  const onPointerDown = (e: PointerEvent): void => {
+    if (defuse?.open) {
+      const r = canvas.getBoundingClientRect();
+      defuseClick((e.clientX - r.left - offX) / scale, (e.clientY - r.top - offY) / scale);
+      return;
+    }
+    spamClick();
+  };
   if (!demo) window.addEventListener("pointerdown", onPointerDown);
 
   const handle: GameHandle = {
