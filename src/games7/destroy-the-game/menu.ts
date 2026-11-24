@@ -35,7 +35,7 @@ window.addEventListener("keydown", (e) => {
 
 // The Test Level lives in test-level.ts, which is never committed (it's in
 // .gitignore). If the file isn't there, this is empty and the button hides.
-const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef; TEST_DOORS?: LevelDef; TEST_SPAM?: LevelDef; TEST_SURVIVE?: LevelDef; TEST_BOMB?: LevelDef }>("./test-level.ts", { eager: true });
+const testFiles = import.meta.glob<{ TEST_LEVEL: LevelDef; TEST_SHUFFLE?: LevelDef; TEST_MONSTER?: LevelDef; TEST_DOORS?: LevelDef; TEST_SPAM?: LevelDef; TEST_SURVIVE?: LevelDef; TEST_BOMB?: LevelDef; TEST_GRAVITY?: LevelDef; TEST_SPIKES?: LevelDef }>("./test-level.ts", { eager: true });
 const TEST_LEVEL = Object.values(testFiles)[0]?.TEST_LEVEL;
 const TEST_SHUFFLE = Object.values(testFiles)[0]?.TEST_SHUFFLE;
 const TEST_MONSTER = Object.values(testFiles)[0]?.TEST_MONSTER;
@@ -43,6 +43,8 @@ const TEST_DOORS = Object.values(testFiles)[0]?.TEST_DOORS;
 const TEST_SPAM = Object.values(testFiles)[0]?.TEST_SPAM;
 const TEST_SURVIVE = Object.values(testFiles)[0]?.TEST_SURVIVE;
 const TEST_BOMB = Object.values(testFiles)[0]?.TEST_BOMB;
+const TEST_GRAVITY = Object.values(testFiles)[0]?.TEST_GRAVITY;
+const TEST_SPIKES = Object.values(testFiles)[0]?.TEST_SPIKES;
 
 const MOVES = [
   { level: 1, name: "Dash", how: "Hit <b>D</b>. Hold it longer to go farther (half a second max). Flies over spikes and smashes cracked walls." },
@@ -97,6 +99,12 @@ export function showMenu(screen: HTMLCanvasElement): void {
   const bombBtn = document.getElementById("menu-test-bomb")!;
   bombBtn.hidden = !TEST_BOMB;
   bombBtn.onclick = () => startAt(screen, 0, TEST_BOMB);
+  const gravityBtn = document.getElementById("menu-test-gravity")!;
+  gravityBtn.hidden = !TEST_GRAVITY;
+  gravityBtn.onclick = () => startAt(screen, 0, TEST_GRAVITY);
+  const spikesBtn = document.getElementById("menu-test-spikes")!;
+  spikesBtn.hidden = !TEST_SPIKES;
+  spikesBtn.onclick = () => startAt(screen, 0, TEST_SPIKES);
   menu.querySelectorAll<HTMLButtonElement>("[data-page]").forEach((btn) => {
     btn.onclick = () => showPage(btn.dataset["page"]!);
   });

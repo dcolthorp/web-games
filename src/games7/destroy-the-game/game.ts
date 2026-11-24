@@ -145,6 +145,8 @@ const BLAST = T * 1.6; // how far a bomb reaches
 // < side crusher that slams left, A up crusher that slams up from the floor,
 // R ring crusher (draw a ring; its hole slowly closes up, teeth pointing in),
 // D bomb table (walk into it to defuse the bomb: type the code),
+// v spikes pointing down, { spikes pointing left, } spikes pointing right
+// (and spikeKinds says what any spike is made of),
 // i thin post (1 pixel jump),
 // [ thin post only in the normal dimension, ] thin post only in the Ethereal
 // Dimension, P start, X exit, ? sign.
@@ -187,6 +189,14 @@ export interface LevelDef {
   // runs out. Wrong code or too slow: BOOM. Defusing it wins the level (or
   // unlocks the EXIT, if there is one).
   defuse?: { code: string; hint: string; seconds: number };
+  // GRAVITY (Oscar): 1 = normal, 0.5 = floaty moon jumps, 2 = heavy and fast.
+  gravity?: number;
+  // SPIKES FOR EVERY OCCASION (Oscar): what each spike (^ v { }) is made of,
+  // one letter per tile, same shape as the map. "." normal, M metal (bombs
+  // break it), U smudged (water fades it), 2 Ethereal-only, 1 normal-only,
+  // K crushable (crushers smash it), C cracked (a dash breaks it),
+  // * crystal (VIP spikes: they never hurt the Diamond skin, Oscar).
+  spikeKinds?: string[];
 }
 
 // ---- The Door Shuffle (Oscar's idea, our own version) ----
@@ -2130,11 +2140,259 @@ const LEVELS: LevelDef[] = [
       "################################",
     ],
   },
+  {
+    sign: "that was fun",
+    name: "Test 37: CANNONBALL!!!!",
+    crush: { gap: 0.7, order: [1, 2, 2], pause: 0.8, slam: 5 },
+    gravity: 0.1,
+    map: [
+      "################################",
+      "#............P.................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#^^^^^^^^^^^^..................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#>>>>>........................{#",
+      "#>>>>>........................{#",
+      "#>>>>>........................{#",
+      "#>>>>>........................{#",
+      "#>>>>>........................{#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#^.^.^.^.^.^.^.^.^.^.^.^.^.^.^.#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#^^^^^^^^.........^^^^^^^^^^^^^#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#>>>>>....................<<<<<#",
+      "#>>>>>....................<<<<<#",
+      "#>>>>>....................<<<<<#",
+      "#>>>>>....................<<<<<#",
+      "#>>>>>....................<<<<<#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "YxxxxxxxxxxxxxxGxxxxxxxxxxxxxxxY",
+      "Y.............xxx..............Y",
+      "Y..............................Y",
+      "YJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJY",
+      "#JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ#",
+      "#JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ#",
+      "#JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ#",
+      "#JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ#",
+      "#JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#S............................S#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^#",
+      "#MMMMMMMMMMMMMMMMMMMMMMMMMMMMMM#",
+      "#..............................#",
+      "#..............................#",
+      "#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^#",
+      "#111111111111111111111111111111#",
+      "#..............................#",
+      "#..............................#",
+      "#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^#",
+      "#222222222222222222222222222222#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#....?.....X...................#",
+      "################################",
+      "################################",
+    ],
+    spikeKinds: [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "..............................K.",
+      "..............................K.",
+      "..............................K.",
+      "..............................K.",
+      "..............................K.",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      ".*.*.*.*.*.*.*.*.*.*.*.*.*.*.*..",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      ".MMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.",
+      "................................",
+      "................................",
+      "................................",
+      ".111111111111111111111111111111.",
+      "................................",
+      "................................",
+      "................................",
+      ".222222222222222222222222222222.",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+    ],
+  },
+  {
+    sign: "HEAVY GRAVITY! You can barely jump. Dash, water, bombs, Up Dash, dimensions... use EVERYTHING.",
+    name: "Test 39: Heavyweight",
+    crush: { gap: 0.6, order: [], pause: 1.6 },
+    gravity: 1.6,
+    map: [
+      "################################",
+      "#.......................VVV....#",
+      "#.......................VVV....#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#..............................#",
+      "#.vvvvvvvvvvvvvvvvvv...........#",
+      "#....................#.........#",
+      "#....................#.........#",
+      "#.P?.^...{..^^^..^^.S#.^^^^^.X.#",
+      "################################",
+      "################################",
+    ],
+    spikeKinds: [
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      "................................",
+      ".........C..UUU..MM....2KKK1....",
+      "................................",
+      "................................",
+    ],
+  },
 ];
 
 const WORLD_DONE_SIGN = {
-  title: "87 LEVELS DOWN!",
-  lines: ["Tick Tock Tower: you won.", "The next tests are coming soon..."],
+  title: "89 LEVELS DOWN!",
+  lines: ["Heavyweight: you won.", "The next tests are coming soon..."],
 };
 
 interface Player {
@@ -2251,6 +2509,56 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   const SPAM_DELAY = 1.2; // a moment to read the sign before the crusher starts coming
   let survive: { left: number; done: boolean } | null = null;
   let defuse: { open: boolean; typed: string; left: number; done: boolean; doneAt: number; wrongAt: number } | null = null;
+  // ---- Spikes for every occasion (Oscar) ----
+  let spikeKind: string[][] = [];
+  const isSpike = (c: string): boolean => c === "^" || c === "v" || c === "{" || c === "}";
+  const kindAt = (x: number, y: number): string => spikeKind[y]?.[x] ?? ".";
+  /** Is there a spike here that can hurt you right now (dimensions!)? */
+  const spikeOn = (x: number, y: number): boolean => {
+    if (!isSpike(tileAt(x, y))) return false;
+    const k = kindAt(x, y);
+    return k === "2" ? ethereal : k === "1" ? !ethereal : true;
+  };
+  const SPIKE_COLORS: Record<string, [string, string]> = {
+    ".": ["#ff6b6b", "#8c1d1d"],
+    M: ["#b4bcc6", "#3d4450"],
+    U: ["#d8a3a3", "#7a7268"],
+    "2": ["#9cc4ff", "#2f6fd6"],
+    "1": ["#ddd3e8", "#3a2c5c"],
+    K: ["#ffb347", "#8a4b0b"],
+    C: ["#e8cf9c", "#5b3d1c"],
+    "*": ["#7ff0ff", "#1f8fb0"],
+  };
+  let vipThanksAt = -10; // when the crystal spikes last said thank you
+  /** A spike breaks: gone, with bits flying. */
+  function breakSpike(x: number, y: number): void {
+    if (!isSpike(tileAt(x, y))) return;
+    const [fill] = SPIKE_COLORS[kindAt(x, y)] ?? SPIKE_COLORS["."]!;
+    grid[y]![x] = ".";
+    for (let i = 0; i < 7; i++) {
+      bits.push({
+        x: x * T + Math.random() * T, y: y * T + Math.random() * T,
+        vx: (Math.random() - 0.5) * 420, vy: -150 - Math.random() * 300,
+        angle: Math.random() * 6, spin: (Math.random() - 0.5) * 16, size: 4 + Math.random() * 6,
+        color: fill, life: 1.1,
+      });
+    }
+    sfx("smash");
+  }
+  /** The pointy half of a spike (the part that gets you), in pixels. */
+  function spikeDanger(c: string, x: number, y: number): { x0: number; y0: number; x1: number; y1: number } {
+    const a = x * T;
+    const b = y * T;
+    if (c === "v") return { x0: a + 4, y0: b, x1: a + T - 4, y1: b + T * 0.55 };
+    if (c === "{") return { x0: a, y0: b + 4, x1: a + T * 0.55, y1: b + T - 4 };
+    if (c === "}") return { x0: a + T * 0.45, y0: b + 4, x1: a + T, y1: b + T - 4 };
+    return { x0: a + 4, y0: b + T * 0.45, x1: a + T - 4, y1: b + T };
+  }
+
+  /** This level's gravity: how hard things fall (1 = normal). */
+  const grav = (): number => Math.max(0.1, Math.min(5, levelDef().gravity ?? 1));
+  /** Falling top speed goes with it (a bit), so low gravity falls slower. */
+  const maxFall = (): number => MAX_FALL * Math.sqrt(grav());
   const defuseDef = (): { code: string; hint: string; seconds: number } =>
     levelDef().defuse ?? { code: "1234", hint: "1, 2, 3, 4", seconds: 30 };
   let hatchSeen = false; // the hatch cutscene only plays the first time
@@ -2949,6 +3257,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     if (!def.shuffle) stopMusic();
     leaveEthereal();
     grid = def.map.map((row) => row.split(""));
+    spikeKind = def.map.map((row, y) => row.split("").map((_, x) => def.spikeKinds?.[y]?.[x] ?? "."));
     // Gems you already have show up as see-through outlines.
     if (!demo && !test && !override) {
       grid.forEach((row, y) => row.forEach((c, x) => {
@@ -3404,6 +3713,28 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     const p = player;
     for (const c of crushers) {
       const { dx, dy } = crushOffset(c);
+      // Crushable spikes get smashed by any crusher that touches them (Oscar).
+      if (crushDown(c) > 0) {
+        if (c.dir === "ring") {
+          const r = ringNow(c);
+          for (let y = c.y0; y <= c.y1; y++) {
+            for (let x = c.x0; x <= c.x1; x++) {
+              if (!isSpike(tileAt(x, y)) || kindAt(x, y) !== "K") continue;
+              const mx = x * T + T / 2;
+              const my = y * T + T / 2;
+              if (!(mx > r.hx0 && mx < r.hx1 && my > r.hy0 && my < r.hy1)) breakSpike(x, y);
+            }
+          }
+        } else {
+          for (const [cx, cy] of c.cells) {
+            const x0 = Math.floor((cx * T + dx + 2) / T);
+            const y0 = Math.floor((cy * T + dy + 2) / T);
+            const x1 = Math.floor((cx * T + dx + T - 2) / T);
+            const y1 = Math.floor((cy * T + dy + T - 2) / T);
+            for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (isSpike(tileAt(x, y)) && kindAt(x, y) === "K") breakSpike(x, y);
+          }
+        }
+      }
       const down = crushDown(c) >= c.drop - 0.5 && c.drop > 0;
       if (down && !c.wasDown) {
         sfx("crush");
@@ -3925,8 +4256,14 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     let brokeMetal = false;
     for (let ty = Math.floor((by - BLAST) / T); ty <= Math.floor((by + BLAST) / T); ty++) {
       for (let tx = Math.floor((bx - BLAST) / T); tx <= Math.floor((bx + BLAST) / T); tx++) {
-        if (tileAt(tx, ty) !== "M") continue;
+        const metalSpike = isSpike(tileAt(tx, ty)) && kindAt(tx, ty) === "M";
+        if (tileAt(tx, ty) !== "M" && !metalSpike) continue;
         if (Math.hypot(tx * T + T / 2 - bx, ty * T + T / 2 - by) > BLAST) continue;
+        if (metalSpike) {
+          breakSpike(tx, ty);
+          brokeMetal = true;
+          continue;
+        }
         grid[ty]![tx] = ".";
         brokeMetal = true;
         for (let i = 0; i < 8; i++) {
@@ -4004,6 +4341,16 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     let hitWall = false;
     let hitMetal = false;
     touching(player.x, player.y, (tx, ty, c) => {
+      // Sideways spikes: their flat back is a wall.
+      if (((c === "{" && dx < 0) || (c === "}" && dx > 0)) && spikeOn(tx, ty)) {
+        if (player.dashing && kindAt(tx, ty) === "C") {
+          breakSpike(tx, ty); // dashing smashes a cracked spike
+          return;
+        }
+        hitWall = true;
+        player.x = dx > 0 ? tx * T - PW : (tx + 1) * T;
+        return;
+      }
       if (!isSolid(c)) return;
       if (isThin(c)) {
         if (!onPost(tx, player.x)) return;
@@ -4036,7 +4383,13 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     let hitMetal = false;
     touching(player.x, player.y, (tx, ty, c) => {
       // Spikes stop your head from below, but you fall right into them from above.
-      if (!(isSolid(c) || (c === "^" && dy < 0))) return;
+      // A spike's flat back is solid: under an up spike, on top of a down spike.
+      const spikeBack = ((c === "^" && dy < 0) || (c === "v" && dy > 0)) && spikeOn(tx, ty);
+      if (spikeBack && player.dashing && player.dashUp && kindAt(tx, ty) === "C") {
+        breakSpike(tx, ty); // an Up Dash smashes a cracked spike
+        return;
+      }
+      if (!(isSolid(c) || spikeBack)) return;
       if (isThin(c) && !onPost(tx, player.x)) return;
       // Up Dash smashes cracked ceilings.
       if (c === "C" && player.dashing && player.dashUp) {
@@ -4124,7 +4477,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
   function defuseKey(k: string): void {
     const d = defuse;
-    if (!d || !d.open || d.done) return;
+    if (!d || !d.open || d.done || d.wrongAt) return;
     const code = defuseDef().code;
     if (/^[0-9]$/.test(k)) {
       if (d.typed.length < code.length) {
@@ -4141,7 +4494,9 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         sfx("ding");
         sfx("unlock");
       } else {
-        explodeBomb(); // wrong code!
+        // Wrong code! First a moment of hope (Oscar), then BOOM.
+        d.wrongAt = time;
+        sfx("pop");
       }
     }
   }
@@ -4149,6 +4504,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   function explodeBomb(): void {
     if (!defuse) return;
     defuse.open = false;
+    defuse.wrongAt = 0;
     sfx("boom");
     sfx("smash");
     shake = 1;
@@ -4166,6 +4522,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
   }
 
   // The keypad buttons, in world pixels (same layout for drawing and clicking).
+  const WRONG_HOPE = 2; // seconds of "I think I have the right answer" before BOOM
   const DEFUSE_KX = WORLD_W / 2 - 110; // left edge of the keypad (the sticky note goes to its right)
   const DEFUSE_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "backspace", "0", "enter"];
   function defuseButton(i: number): { x: number; y: number; w: number; h: number } {
@@ -4180,6 +4537,28 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       const b = defuseButton(i);
       if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) defuseKey(k);
     });
+  }
+
+  /** Crystal spikes thank the Diamond skin (Oscar: "you are valued and appreciated"). */
+  function drawVipThanks(): void {
+    const age = time - vipThanksAt;
+    if (age > 2.2) return;
+    const a = Math.min(1, (2.2 - age) * 2);
+    const x = player.x + PW / 2;
+    const y = player.y - 30 - age * 18;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 20px 'Patrick Hand', 'Comic Sans MS', cursive";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#fffdf5";
+    ctx.fillStyle = "#1f8fb0";
+    for (const [t, dy] of [["💎 VIP 💎", -22], ["Thank you for getting the Diamond skin!", 0], ["You are valued and appreciated.", 22]] as const) {
+      ctx.strokeText(t, x, y + dy);
+      ctx.fillText(t, x, y + dy);
+    }
+    ctx.restore();
   }
 
   /** The bomb's countdown at the top of the screen, until you defuse it. */
@@ -4346,6 +4725,20 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       ctx.fillText("DEFUSED!", 0, 4);
       ctx.restore();
     }
+    if (d.wrongAt) {
+      // Wrong code: you feel sure about it... and then you don't.
+      const age = time - d.wrongAt;
+      const a = age < 0.3 ? age / 0.3 : Math.max(0, 1 - (age - 0.9) / (WRONG_HOPE - 0.9));
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "rgba(18, 12, 16, 0.6)";
+      ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+      ctx.fillStyle = "#fffdf5";
+      ctx.font = "46px 'Patrick Hand', 'Comic Sans MS', cursive";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("I think I have the right answer...", WORLD_W / 2, WORLD_H / 2);
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   }
 
@@ -4398,7 +4791,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     for (const g of droppedGems) {
       g.life -= dt;
       if (g.landed) continue;
-      g.vy = Math.min(MAX_FALL, g.vy + GRAVITY * dt);
+      g.vy = Math.min(maxFall(), g.vy + GRAVITY * grav() * dt);
       g.x += g.vx * dt;
       g.y += g.vy * dt;
       const ty = Math.floor(g.y / T);
@@ -4453,8 +4846,13 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     // While you're defusing, the world holds still: just the bomb's timer ticks.
     if (defuse && (defuse.open || (defuse.done && time - defuse.doneAt < 1.3))) {
       if (defuse.open && !defuse.done) {
-        defuse.left -= dt;
-        if (defuse.left <= 0) explodeBomb();
+        if (defuse.wrongAt) {
+          // "I think I have the right answer..." fades out, then it explodes.
+          if (time - defuse.wrongAt >= WRONG_HOPE) explodeBomb();
+        } else {
+          defuse.left -= dt;
+          if (defuse.left <= 0) explodeBomb();
+        }
       } else if (defuse.done && time - defuse.doneAt + dt >= 1.3) {
         defuse.open = false;
         // No EXIT? Defusing it is how you win.
@@ -4515,9 +4913,11 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         p.coyote = 0;
         p.onGround = false;
       }
-      p.vy = Math.min(MAX_FALL, p.vy + GRAVITY * dt);
+      p.vy = Math.min(maxFall(), p.vy + GRAVITY * grav() * dt);
       moveX(p.vx * dt);
-      moveY(p.vy * dt);
+      // Always press down at least a hair, so standing still on the ground
+      // counts as standing even with very low gravity.
+      moveY(p.vy >= 0 ? Math.max(p.vy * dt, 0.02) : p.vy * dt);
       const stepBefore = Math.floor(p.runPhase / Math.PI);
       p.runPhase += Math.abs(p.vx) * dt * 0.05;
       if (skinId === "diamond" && p.onGround && !p.dashing && Math.floor(p.runPhase / Math.PI) !== stepBefore) dropDiamonds();
@@ -4548,14 +4948,26 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
 
     stepCrushers();
 
-    // Spikes get you, unless you're dashing.
-    if (!p.dashing) {
-      touching(p.x, p.y, (tx, ty, c) => {
-        if (c !== "^") return;
-        const spikeTop = ty * T + T * 0.45;
-        if (p.y + PH > spikeTop && p.x + PW > tx * T + 4 && p.x < (tx + 1) * T - 4) die();
-      });
-    }
+    // Spikes get you, unless you're dashing (a dash smashes cracked ones).
+    touching(p.x, p.y, (tx, ty, c) => {
+      if (!spikeOn(tx, ty)) return;
+      if (p.dashing) {
+        if (kindAt(tx, ty) === "C") breakSpike(tx, ty);
+        return;
+      }
+      const d = spikeDanger(c, tx, ty);
+      if (p.x + PW > d.x0 && p.x < d.x1 && p.y + PH > d.y0 && p.y < d.y1) {
+        // Crystal spikes are VIP spikes: the Diamond skin is welcome here.
+        if (kindAt(tx, ty) === "*" && skinId === "diamond") {
+          if (time - vipThanksAt > 2.5) {
+            vipThanksAt = time;
+            sfx("gem");
+          }
+          return;
+        }
+        die();
+      }
+    });
     if (p.y > levelH) die();
 
     // Water: hold W to pour (from Level 16 on).
@@ -4575,12 +4987,30 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
       pourTimer = 0;
     }
     for (const d of drops) {
-      d.vy = Math.min(MAX_FALL, d.vy + GRAVITY * dt);
+      d.vy = Math.min(maxFall(), d.vy + GRAVITY * grav() * dt);
       d.x += d.vx * dt;
       d.y += d.vy * dt;
       const tx = Math.floor(d.x / T);
       const ty = Math.floor(d.y / T);
       const c = tileAt(tx, ty);
+      if (isSpike(c) && kindAt(tx, ty) === "U" && spikeOn(tx, ty)) {
+        // A smudged spike fades away once it's wet enough.
+        const key = `${tx},${ty}`;
+        wet[key] = (wet[key] ?? 0) + 1;
+        if (wet[key]! >= WET_NEEDED) {
+          grid[ty]![tx] = ".";
+          sfx("fade");
+          for (let i = 0; i < 6; i++) {
+            bits.push({
+              x: tx * T + Math.random() * T, y: ty * T + Math.random() * T,
+              vx: (Math.random() - 0.5) * 80, vy: -60 - Math.random() * 60,
+              angle: 0, spin: 0, size: 5, color: "rgba(200, 195, 187, 0.7)", life: 0.8,
+            });
+          }
+        }
+        d.y = 1e9;
+        continue;
+      }
       if (isSolid(c)) {
         if (c === "U") soak(tx, ty);
         d.y = 1e9; // gone
@@ -4612,7 +5042,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
         if (Math.abs(b.vx) < 10) b.vx = 0;
         if (b.vx === 0 && b.armed) explode(b.x, b.y - 8);
       }
-      b.vy = Math.min(MAX_FALL, b.vy + GRAVITY * dt);
+      b.vy = Math.min(maxFall(), b.vy + GRAVITY * grav() * dt);
       const ny = b.y + b.vy * dt;
       const below = tileAt(Math.floor(b.x / T), Math.floor(ny / T));
       if (isSolid(below)) {
@@ -4933,20 +5363,72 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
           ctx.moveTo(x + 24, y + 34);
           ctx.lineTo(x + 34, y + 30);
           ctx.stroke();
-        } else if (c === "^") {
-          ctx.fillStyle = "#ff6b6b";
-          ctx.strokeStyle = "#8c1d1d";
+        } else if (isSpike(c)) {
+          // Spikes, pointing any way, made of anything (Oscar).
+          const kind = kindAt(tx, ty);
+          const [fill, ink] = SPIKE_COLORS[kind] ?? SPIKE_COLORS["."]!;
+          const here = spikeOn(tx, ty);
+          ctx.save();
+          ctx.translate(x + T / 2, y + T / 2);
+          ctx.rotate(c === "v" ? Math.PI : c === "{" ? -Math.PI / 2 : c === "}" ? Math.PI / 2 : 0);
+          ctx.translate(-T / 2, -T / 2);
+          ctx.globalAlpha = here ? 1 : 0.25; // the other dimension's spikes are just ghosts
+          ctx.fillStyle = fill;
+          ctx.strokeStyle = ink;
           ctx.lineWidth = 2;
+          if (!here) ctx.setLineDash([3, 3]);
           for (let i = 0; i < 3; i++) {
-            const bx = x + i * (T / 3);
+            const bx = i * (T / 3);
             ctx.beginPath();
-            ctx.moveTo(bx + wob(bx, y, 1), y + T);
-            ctx.lineTo(bx + T / 6 + wob(bx, y + 1, 1.5), y + T * 0.42 + wob(bx, y + 2, 1.5));
-            ctx.lineTo(bx + T / 3 + wob(bx, y + 3, 1), y + T);
+            ctx.moveTo(bx + wob(x + bx, y, 1), T);
+            ctx.lineTo(bx + T / 6 + wob(x + bx, y + 1, 1.5), T * 0.42 + wob(x + bx, y + 2, 1.5));
+            ctx.lineTo(bx + T / 3 + wob(x + bx, y + 3, 1), T);
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
           }
+          ctx.setLineDash([]);
+          ctx.lineWidth = 1.4;
+          if (kind === "M") {
+            // Bolts on a metal base.
+            ctx.fillStyle = "#6d7680";
+            ctx.fillRect(2, T - 5, T - 4, 5);
+            ctx.fillStyle = "#e3e7ec";
+            for (const bx of [8, T / 2, T - 8]) ctx.fillRect(bx - 1.5, T - 4, 3, 3);
+          } else if (kind === "U") {
+            // Smudgy scribbles.
+            ctx.strokeStyle = "rgba(110, 104, 96, 0.55)";
+            for (let i = 0; i < 3; i++) sketchLine(6 + i * 10, T - 4, 12 + i * 10, T * 0.55, 0.8);
+          } else if (kind === "C") {
+            // Cracks.
+            ctx.strokeStyle = "#5b3d1c";
+            sketchLine(T * 0.3, T * 0.6, T * 0.4, T * 0.8, 0.3);
+            sketchLine(T * 0.4, T * 0.8, T * 0.55, T * 0.7, 0.3);
+            sketchLine(T * 0.7, T * 0.65, T * 0.78, T * 0.9, 0.3);
+          } else if (kind === "K") {
+            // A dotted "squish me" line.
+            ctx.strokeStyle = "#8a4b0b";
+            ctx.setLineDash([2, 3]);
+            sketchLine(4, T * 0.75, T - 4, T * 0.75, 0.2);
+            ctx.setLineDash([]);
+          } else if (kind === "*") {
+            // Crystal: shiny streaks and a twinkle.
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+            sketchLine(T * 0.12, T * 0.9, T * 0.17, T * 0.6, 0.1);
+            sketchLine(T * 0.45, T * 0.9, T * 0.5, T * 0.6, 0.1);
+            sketchLine(T * 0.78, T * 0.9, T * 0.83, T * 0.6, 0.1);
+            const tw = Math.abs(Math.sin(time * 3 + tx * 1.7 + ty));
+            ctx.strokeStyle = `rgba(255, 255, 255, ${tw})`;
+            sketchLine(T * 0.5 - 4, T * 0.3, T * 0.5 + 4, T * 0.3, 0);
+            sketchLine(T * 0.5, T * 0.3 - 4, T * 0.5, T * 0.3 + 4, 0);
+          } else if (kind === "2" || kind === "1") {
+            ctx.fillStyle = ink;
+            ctx.font = "bold 11px 'Patrick Hand', cursive";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(kind, T / 2, T - 6);
+          }
+          ctx.restore();
         } else if (c === "F") {
           // A FAKE exit. It looks just like the real one... except the knob is
           // on the wrong side. Once it gets you, it shows its teeth.
@@ -5490,6 +5972,7 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     drawSpam();
     drawSurvive();
     drawBombTimer();
+    drawVipThanks();
     ctx.restore();
     drawDefuse();
     if (crushFlash > 0) {
@@ -5569,7 +6052,8 @@ export function startGame(canvas: HTMLCanvasElement, opts: GameOptions = {}): Ga
     if (k === "b" && unlocked(BOMB_LEVEL) && !deadUntil && !clearedAt && bombs.length < MAX_BOMBS) {
       // Drop one while you're dashing and it flies forward.
       const thrown = player.dashing && !player.dashUp ? player.facing * DASH_SPEED * 1.3 : 0;
-      bombs.push({ x: player.x + PW / 2, y: player.y + PH, vx: thrown, vy: 0 });
+      // A bomb dropped while you're falling falls right along with you (Oscar).
+      bombs.push({ x: player.x + PW / 2, y: player.y + PH, vx: thrown, vy: Math.max(0, player.vy) });
       sfx("bomb");
       if (popSign && popSign.leavingAt === null && levelIndex === BOMB_LEVEL) popSign.leavingAt = time;
     }
